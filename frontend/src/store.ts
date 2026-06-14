@@ -50,6 +50,7 @@ interface StoreState {
   settings: Settings;
   heroOverlay?: string; // hero id whose character screen is open
   townStatusOpen: boolean; // town status panel overlay
+  cheatOpen: boolean;
   townHeroId?: string; // preferred hero paying for town work
   recipes: Recipe[];
   classes: ClassDef[];
@@ -74,6 +75,9 @@ interface StoreState {
   openHero: (id: string) => void;
   closeHero: () => void;
   toggleTownStatus: (open?: boolean) => void;
+  toggleCheat: () => void;
+  startTestGame: () => Promise<void>;
+  continueTestGame: () => Promise<void>;
   townAction: (
     buildingId: string,
     action: "build" | "restore" | "use" | "water" | "toggle",
@@ -99,6 +103,7 @@ interface StoreState {
   escape: () => Promise<void>;
   fireball: () => Promise<void>;
   advance: () => Promise<void>;
+  skipDay: () => Promise<void>;
   startCombat: () => Promise<void>;
   setCombatMode: (m: CombatMode) => void;
   combatTileClick: (x: number, y: number) => Promise<void>;
@@ -151,6 +156,7 @@ export const useStore = create<StoreState>((set, get) => {
     settingsScreen: null,
     settings: loadSettings(),
     townStatusOpen: false,
+    cheatOpen: false,
     recipes: [],
     classes: [],
 
@@ -180,6 +186,44 @@ export const useStore = create<StoreState>((set, get) => {
     closeHero: () => set({ heroOverlay: undefined }),
     toggleTownStatus: (open) =>
       set((s) => ({ townStatusOpen: open === undefined ? !s.townStatusOpen : open })),
+    toggleCheat: () => set((s) => ({ cheatOpen: !s.cheatOpen })),
+
+    startTestGame: () =>
+      withBusy(async () => {
+        const game = await api.createGame({ width: 22, height: 22 });
+        localStorage.setItem(LS_GAME, game.id);
+        set({ game, view: "map", selectedHeroId: game.heroes[0]?.id, combat: undefined, current: undefined });
+        pushLog(`Nouvelle partie — jour ${game.day}. La ville est à (${game.town.x}, ${game.town.y}).`);
+        if (get().recipes.length === 0) try { set({ recipes: await api.recipes() }); } catch {}
+        if (get().classes.length === 0) try { set({ classes: await api.classes() }); } catch {}
+        set({ appScreen: "game", tab: "home", settingsScreen: null });
+      }),
+
+    continueTestGame: () =>
+      withBusy(async () => {
+        const saved = localStorage.getItem(LS_GAME);
+        if (saved) {
+          try {
+            const game = await api.getGame(saved);
+            set({ game, view: "map", selectedHeroId: game.heroes[0]?.id });
+            pushLog(`Partie reprise — jour ${game.day}, vague ${game.waveNumber}.`);
+          } catch {
+            localStorage.removeItem(LS_GAME);
+            const game = await api.createGame({ width: 22, height: 22 });
+            localStorage.setItem(LS_GAME, game.id);
+            set({ game, view: "map", selectedHeroId: game.heroes[0]?.id, combat: undefined, current: undefined });
+            pushLog("⚠️ Partie introuvable — nouvelle partie créée.");
+          }
+        } else {
+          const game = await api.createGame({ width: 22, height: 22 });
+          localStorage.setItem(LS_GAME, game.id);
+          set({ game, view: "map", selectedHeroId: game.heroes[0]?.id, combat: undefined, current: undefined });
+          pushLog("Aucune partie sauvegardée — nouvelle partie créée.");
+        }
+        if (get().recipes.length === 0) try { set({ recipes: await api.recipes() }); } catch {}
+        if (get().classes.length === 0) try { set({ classes: await api.classes() }); } catch {}
+        set({ appScreen: "game", tab: "home", settingsScreen: null });
+      }),
 
     townAction: (buildingId, action, points) =>
       withBusy(async () => {
@@ -392,6 +436,19 @@ export const useStore = create<StoreState>((set, get) => {
           pushLog(`🌊 Vague ${lw.wave} forcée : -${lw.townDamage} PV ville (déf ${lw.defense} / horde ${lw.hordePower}).`);
           if (lw.gameOver) pushLog("💀 La ville est tombée…");
         }
+        renderMap();
+      }),
+
+    skipDay: () =>
+      withBusy(async () => {
+        const { game } = get();
+        if (!game) return;
+        await api.advance(game.id);
+        const next = await api.advance(game.id);
+        set({ game: next });
+        const lw = next.lastWave;
+        pushLog(`⏩ Jour ${next.day} — ${lw ? `vague ${lw.wave} : -${lw.townDamage} PV ville` : "avancé"}.`);
+        if (lw?.gameOver) pushLog("💀 La ville est tombée…");
         renderMap();
       }),
 

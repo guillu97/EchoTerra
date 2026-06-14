@@ -10,6 +10,7 @@ import { CraftTab } from "../tabs/CraftTab";
 import { HeroOverlay } from "../components/HeroOverlay";
 import { TownStatus } from "../components/TownStatus";
 import { GameOver } from "../components/GameOver";
+import { CheatPanel } from "../components/CheatPanel";
 
 // In-game shell: persistent top bar + active tab + bottom navigation. Polls the server
 // so scheduled waves (town damage, spawns) show up without manual refresh.
@@ -37,6 +38,7 @@ export function GameScreen() {
       <HeroOverlay />
       <TownStatus />
       <GameOver />
+      <CheatPanel />
       {error && <div className="toast">⚠️ {error}</div>}
     </div>
   );
