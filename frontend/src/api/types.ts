@@ -45,6 +45,7 @@ export interface Hero {
   states: string[];
   inventory: Item[];
   bars: Record<string, number>;
+  drewWaterDay: number;
 }
 
 export interface Monster {
@@ -130,6 +131,7 @@ export interface GameState {
     defense: number;
     buildings: TownBuilding[];
     storage: Item[];
+    waterDrawnToday: string[];
   };
   activeCombat?: string;
   combats?: Record<string, Combat>;

@@ -138,8 +138,9 @@ Construction sites (Built=false): **townhall (renamed from House — revive), to
 - `build` → build (site) or upgrade (built): spends **PA** + **materials from the Bank** (`buildMaterials` ×
   level multiplier; cost exposed as `building.cost`). Build→Built, level 1; upgrade→level++.
 - `restore` → +5 durability per PA (built only).
-- `water` (Well) → **FREE**, decrements Well `capacity`, yields a "Ration d'eau". *(See pending item below — the
-  per-hero/day limit is NOT yet coded.)*
+- `water` (Well) → **FREE**, draws **one Ration d'eau per in-town hero per `game.day`**: charged to the selected
+  town worker (`heroID`), decrements Well `capacity`, clears that hero's `Soif`, and drops the ration into **that
+  hero's bag** (not the Bank). Tracked via `Hero.DrewWaterDay`; derived `town.waterDrawnToday` lists who drank today.
 - `toggle` (Gate) → 1 PA, flips `open` (open = 0 defense; matches Neko's "qui a laissé la porte ouverte" chat).
 - `use` → 1 PA flavored (others).
 
@@ -213,9 +214,9 @@ POST /api/games/{id}/combat/{c}/action            {unitId, action: move|attack|s
 
 ## 9. Pending / next steps
 
-1. **Water 1 ration / hero / day** — STARTED, NOT YET CODED. Plan: add `Hero.DrewWaterDay int`; the Well `water`
-   action draws for a specific in-town hero (the town worker), once per `game.day`, ration → that hero's bag;
-   show a clear per-hero daily status in the Well modal.
+1. ✅ **Water 1 ration / hero / day** — DONE. `Hero.DrewWaterDay int`; the Well `water` action draws for the
+   selected in-town hero once per `game.day`, ration → that hero's bag, clears `Soif`; the Well modal shows per-hero
+   daily status (disabled once that worker has drunk). Derived `town.waterDrawnToday`. Tests in `water_test.go`.
 2. Map **Fire ball** (a hero [MAP] class skill) in the radial menu (mockup page 3 shows it first).
 3. Combat **Defend/Guard** action (3rd button on mockup page 3).
 4. **Building skills** — multiple upgradable skills per building (mockup page 6), beyond a single level.

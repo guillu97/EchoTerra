@@ -63,6 +63,9 @@ type Hero struct {
 	Inventory []Item   `json:"inventory"`
 	// Barres de competences (montent selon les actions, influencent les classes).
 	Bars map[string]int `json:"bars"`
+	// DrewWaterDay is the game.day on which this hero last drew a water ration at the
+	// Well (0 = never). One ration per hero per in-game day (see TownAction "water").
+	DrewWaterDay int `json:"drewWaterDay"`
 }
 
 // HasState reports whether the hero currently has the named state.
@@ -140,6 +143,10 @@ type GameState struct {
 		Defense   int             `json:"defense"` // computed from defensive buildings
 		Buildings []*TownBuilding `json:"buildings"`
 		Storage   []Item          `json:"storage"` // shared stash (the House/Bank)
+		// WaterDrawnToday lists the in-town hero IDs who have already taken their daily
+		// Well ration this game.day (derived; refreshed by Recompute). The Well "water"
+		// action is limited to one ration per hero per day.
+		WaterDrawnToday []string `json:"waterDrawnToday"`
 	} `json:"town"`
 	// ActiveCombat is the id of the combat in progress, if any.
 	ActiveCombat string             `json:"activeCombat,omitempty"`

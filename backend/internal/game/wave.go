@@ -70,6 +70,14 @@ func (g *GameState) TownDefense() int {
 func (g *GameState) Recompute() {
 	g.Town.Defense = g.TownDefense()
 	g.recomputeTetanise()
+	// Which in-town heroes have already drawn their daily water ration.
+	drawn := g.Town.WaterDrawnToday[:0]
+	for _, h := range g.HeroesInTown() {
+		if h.DrewWaterDay == g.Day {
+			drawn = append(drawn, h.ID)
+		}
+	}
+	g.Town.WaterDrawnToday = drawn
 	total := 0
 	for _, it := range g.Town.Storage {
 		total += it.Qty
