@@ -279,7 +279,7 @@ func (g *GameState) TownAction(buildingID, action string, points int, heroID str
 		}
 		return nil
 
-	case "water": // Well: draw water for FREE, yields a water ration into the Bank.
+	case "water": // Well: a hero draws a daily water ration (free, 1 per hero per day).
 		if b.ID != "well" {
 			return ActionError{"action réservée au puits"}
 		}
@@ -289,8 +289,19 @@ func (g *GameState) TownAction(buildingID, action string, points int, heroID str
 		if b.Capacity <= 0 {
 			return ActionError{"le puits est à sec"}
 		}
+		// A specific in-town hero must draw the water (the town worker). The shared
+		// pool can't drink for everyone at once.
+		h := g.HeroByID(heroID)
+		if h == nil || h.HP <= 0 || h.X != g.Town.X || h.Y != g.Town.Y {
+			return ActionError{"sélectionnez un héros présent dans la ville pour puiser"}
+		}
+		if h.DrewWaterDay == g.Day {
+			return ActionError{h.Name + " a déjà puisé de l'eau aujourd'hui"}
+		}
 		b.Capacity--
-		g.addStorage(Item{Type: "eau", Name: "Ration d'eau", Qty: 1})
+		h.DrewWaterDay = g.Day
+		h.RemoveState(StateSoif) // drinking quenches thirst
+		h.AddLoot(Item{Type: "eau", Name: "Ration d'eau", Qty: 1})
 		return nil
 
 	case "toggle": // Gate: open/close it. An open gate provides no defense. Costs 1 PA.

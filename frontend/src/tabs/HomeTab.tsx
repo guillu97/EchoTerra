@@ -4,6 +4,7 @@ import { TOWN_BUILDINGS, type BuildingLayout } from "../data/buildings";
 import type { TownBuilding } from "../api/types";
 import { HeroChips } from "../components/HeroChips";
 import { TownWorker, useWorkerPA } from "../components/TownWorker";
+import { effectiveTownHeroId } from "../townUtils";
 import { useWaveRemaining, formatHMS } from "../useWave";
 
 export function durColor(ratio: number) {
@@ -28,10 +29,19 @@ function BuildingMenu({ layout, b, onClose }: { layout: BuildingLayout; b: TownB
   const toggleTownStatus = useStore((s) => s.toggleTownStatus);
   const pushLog = useStore((s) => s.pushLog);
   const busy = useStore((s) => s.busy);
+  const game = useStore((s) => s.game);
+  const townHeroId = useStore((s) => s.townHeroId);
   const pa = useWorkerPA();
   const noPa = pa < 1 || busy;
   const durFull = b.durability >= b.maxDurability;
   const isDefensive = b.id === "wall" || b.id === "gate" || b.id === "tower";
+
+  // Well: the daily ration is per-hero (the selected town worker). Figure out whether
+  // that worker has already drunk today so we can label/disable the button.
+  const workerId = game ? effectiveTownHeroId(game, townHeroId) : undefined;
+  const worker = game?.heroes.find((h) => h.id === workerId);
+  const workerDrankToday = !!worker && worker.drewWaterDay === game?.day;
+  const wellEmpty = b.capacity <= 0;
 
   // Building-specific primary action (label, handler, PA cost).
   const flavor: { label: string; fn: () => void; cost: number } | null =
@@ -78,9 +88,19 @@ function BuildingMenu({ layout, b, onClose }: { layout: BuildingLayout; b: TownB
 
         <div className="act">
           {b.id === "well" && (
-            <button className="primary" disabled={busy || b.capacity <= 0} onClick={() => townAction("well", "water")}>
-              <span>💧 Puiser de l'eau</span>
-              <span className="c">gratuit</span>
+            <button
+              className="primary"
+              disabled={busy || wellEmpty || workerDrankToday || !worker}
+              onClick={() => townAction("well", "water")}
+            >
+              <span>
+                💧 {workerDrankToday
+                  ? `${worker?.name ?? "Le héros"} a déjà bu aujourd'hui`
+                  : wellEmpty
+                  ? "Puits à sec"
+                  : `Puiser de l'eau${worker ? ` (${worker.name})` : ""}`}
+              </span>
+              <span className="c">1/jour</span>
             </button>
           )}
           {b.id === "gate" && (
