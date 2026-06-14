@@ -4,6 +4,7 @@ import { useStore } from "../store";
 export function TopBar() {
   const openSettings = useStore((s) => s.openSettings);
   const toggleTownStatus = useStore((s) => s.toggleTownStatus);
+  const toggleCheat = useStore((s) => s.toggleCheat);
   const openHero = useStore((s) => s.openHero);
   const game = useStore((s) => s.game);
   const selectedHeroId = useStore((s) => s.selectedHeroId);
@@ -25,6 +26,9 @@ export function TopBar() {
         🏰 {hpPct}%
       </button>
       <span className="chip">⭐ 6/18</span>
+      <button className="iconbtn" title="Triche (dev)" onClick={toggleCheat}>
+        🔧
+      </button>
       <button className="iconbtn" title="Paramètres" onClick={() => openSettings("menu")}>
         ⚙️
       </button>

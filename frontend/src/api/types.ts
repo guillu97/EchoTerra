@@ -46,6 +46,26 @@ export interface Hero {
   inventory: Item[];
   bars: Record<string, number>;
   drewWaterDay: number;
+  classId: string;
+  classTier: number;
+  classBonuses: Stats;
+}
+
+// Class-evolution catalog (mirrors backend internal/game/classes.go).
+export interface ClassSkill {
+  name: string;
+  scope: "map" | "iso";
+  desc: string;
+}
+
+export interface ClassDef {
+  id: string;
+  name: string;
+  tier: number; // 1 = intermediate, 2 = advanced
+  role: string;
+  bonuses: Stats;
+  paBonus: number;
+  skills: ClassSkill[];
 }
 
 export interface Monster {

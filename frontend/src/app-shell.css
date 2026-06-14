@@ -228,6 +228,74 @@ body {
   width: 70%;
   margin-top: 8px;
 }
+.dev-section {
+  margin-top: 16px;
+  width: 70%;
+  text-align: center;
+}
+.dev-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #9fb2c9;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+}
+.dev-btns {
+  display: flex;
+  gap: 8px;
+}
+.dev-pill {
+  flex: 1;
+  padding: 10px 8px;
+  font-size: 13px;
+}
+
+/* cheat panel (dev overlay, bottom-right) */
+.cheat-panel {
+  position: absolute;
+  bottom: 70px;
+  right: 12px;
+  z-index: 120;
+  background: #0e1a2b;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 14px;
+  padding: 12px;
+  min-width: 210px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+.cheat-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 700;
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+.cheat-close {
+  background: none;
+  border: none;
+  color: #9fb2c9;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0 2px;
+}
+.cheat-info {
+  font-size: 11px;
+  color: #9fb2c9;
+  margin-bottom: 10px;
+  text-align: center;
+}
+.cheat-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.cheat-rows .pill {
+  font-size: 13px;
+  padding: 9px 14px;
+  width: 100%;
+}
 
 .cinematic {
   background: linear-gradient(180deg, #1a1622, #0b0910);
@@ -1706,6 +1774,44 @@ body {
 .hero-top .evolve {
   flex: 0 0 auto;
   padding: 8px 14px;
+}
+.evolve-picker {
+  margin: 0 0 12px;
+  padding: 10px;
+  border-radius: 10px;
+  background: rgba(75, 227, 110, 0.08);
+  border: 1px solid rgba(75, 227, 110, 0.3);
+}
+.ep-title {
+  font-weight: 700;
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+.ep-option {
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  padding: 8px;
+  margin: 6px 0;
+}
+.ep-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.ep-role {
+  font-size: 12px;
+  color: #9fb2c9;
+  margin-top: 2px;
+}
+.ep-bonuses {
+  font-size: 12px;
+  color: #4be36e;
+  margin-top: 4px;
+}
+.ep-pick {
+  flex: 0 0 auto;
+  padding: 6px 12px;
 }
 .attr-bonus {
   color: #4be36e;

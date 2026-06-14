@@ -66,6 +66,13 @@ type Hero struct {
 	// DrewWaterDay is the game.day on which this hero last drew a water ration at the
 	// Well (0 = never). One ration per hero per in-game day (see TownAction "water").
 	DrewWaterDay int `json:"drewWaterDay"`
+	// ClassID identifies the hero's current class in the Classes catalog ("" while
+	// "Sans classe"). ClassTier mirrors its tier (see ClassTier* consts). ClassBonuses
+	// accumulates the stat bonuses already folded into Stats by EvolveHero, kept only
+	// so the UI can show a "+N" next to each boosted attribute.
+	ClassID      string `json:"classId"`
+	ClassTier    int    `json:"classTier"`
+	ClassBonuses Stats  `json:"classBonuses"`
 }
 
 // HasState reports whether the hero currently has the named state.

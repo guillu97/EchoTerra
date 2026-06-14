@@ -57,6 +57,7 @@ backend/
   internal/game/
     game.go                     GameState, Hero, Tile, Monster, Biome, Stats, Item (+ Town struct inline)
     actions.go                  MoveHero, SearchTile, HideHero, EscapeHero, Advance(legacy), state consts
+    classes.go                  ClassDef/ClassSkill catalog (Classes), EvolveHero, EvolveDayIntermediate/Advanced
     combat.go                   CombatUnit, Combat, NewCombat, PlayerAction (+ enemy AI), damage/AoE
     wave.go                     WaveReport, TownDefense/buildingDefense, Recompute, ProcessWave,
                                 ForceWave, CatchUpWaves, recomputeTetanise, spawnWaveMonsters
@@ -64,7 +65,7 @@ backend/
                                 HeroesInTown/TownPA/spendFor/canPay, Bank storage helpers, TownAction
     craft.go                    Recipe, Recipes catalog, Craft (town vs field), hero-item helpers
     monsters.go                 NewMonster, MonsterSpecies
-    *_test.go                   worldgen, combat, tetanise, build (TestBuildConsumesBankMaterials)
+    *_test.go                   worldgen, combat, tetanise, build (TestBuildConsumesBankMaterials), evolve
   internal/store/store.go       SQLite: one row per game, state as JSON blob
   internal/worldgen/worldgen.go GenerateTiles (Perlin->biomes), NewGame (town center, heroes, monsters)
 frontend/src/
@@ -81,7 +82,7 @@ frontend/src/
                                 TownStatus, GameOver, HeroOverlay, ItemGrid
   tabs/                         HomeTab, MapTab, StockTab, StructureTab, CraftTab
   game/                         PhaserGame.tsx, MapScene.ts, CombatScene.ts, render.ts
-  data/                         buildings.ts (TOWN_BUILDINGS layout, NAV_TABS), classes.ts (HERO_CLASSES)
+  data/                         buildings.ts (TOWN_BUILDINGS layout, NAV_TABS)
 ```
 
 ## 4. Backend domain model (the JSON the client sees)
@@ -91,7 +92,8 @@ frontend/src/
 - **Town** (inline in GameState): `x, y, hp(100), maxHp(100), defense(computed), buildings[], storage[]`.
   **`storage` = the Bank** (shared town stash).
 - **Hero**: `id, name, x, y, pa(6), maxPa, hp, maxHp, stats{force,dexterite,agilite,endurance,athletisme,
-  precision}, class("Sans classe"), states[], inventory[Item], bars{}`.
+  precision}, class("Sans classe"), classId, classTier(0|1|2), classBonuses{Stats}, states[], inventory[Item],
+  bars{}`.
 - **Tile**: `biome(0..5), height, resources, monsterId?`. Biomes: 0 Water,1 Sand,2 Grass,3 Forest,4 Mountain,5 Snow.
 - **Monster**: `id, species, x, y, hp, maxHp, stats, count` (pack size; used for combat unit count AND Tétanisé).
 - **TownBuilding**: `id, name, built(bool), level, durability, maxDurability, capacity, maxCapacity,
@@ -103,6 +105,8 @@ frontend/src/
   field(bool=craftable outside town), paCost, ingredients[Item]`.
 - **WaveReport** (`lastWave`): `wave, day, hordePower, defense, townDamage, townHpAfter, buildingsHit[],
   heroesHit[], monstersSpawned, at, gameOver`.
+- **ClassDef** (`/api/classes` catalog): `id, name, tier(1=intermediate|2=advanced), role, bonuses{Stats},
+  paBonus, skills[{name, scope("map"|"iso"), desc}]`.
 
 `Recompute()` (called in `persist()` and on load `tick()`) refreshes derived fields: `town.defense`,
 per-building `defense`, per-building `cost`, `bank.capacity = sum(storage qty)`, and hero `Tétanisé`.
@@ -120,8 +124,8 @@ Casting clears `Caché`. Returns `{report:{species,damage,slain,killed,...}, gam
 
 **States (map)**: `Fatigue` (0 PA), `Soif`, `Tétanisé`, `Caché`, `Blessé`. **(iso)**: `Stun`, `Cécité`, `Root`…
 - **Tétanisé**: a hero on a tile with a pack is stuck (can't move) when `playersOnTile < ceil(monsters/heroesPerPack)`
-  with `heroesPerPack=4` and `monsters>=2`. (TODO: a *Gardien* class will count as 3 heroes — hook is in
-  `recomputeTetanise`.) Cleared by killing the monster (combat win) or leaving the tile.
+  with `heroesPerPack=4` and `monsters>=2`. A **Gardien** (advanced class) counts as 3 heroes in this calc
+  (`gardienWeight` in `wave.go`). Cleared by killing the monster (combat win) or leaving the tile.
 - **Caché**: from **Hide** (1 PA) — the hero is skipped by the next wave's attack, then concealment is consumed.
 
 **Isometric combat** (`combat.go` / `CombatScene.ts`) — initiative by agility; each turn a unit moves once
@@ -157,9 +161,14 @@ Bank, paid by the chosen *town worker*, output to the Bank. **Field mode** (no h
 recipes (kitchen/campfire), ingredients from the **selected hero's bag**, paid by that hero, output to the bag.
 Forge/workshop recipes are town-only (`field:false`).
 
-**Hero/classes** — heroes are engine-classless; the Hero screen shows a **display catalog** (`data/classes.ts`,
-Pioneer/Collector/Scout by roster index) for class name/tier/attribute-bonuses/unique-skills. Replace with real
-class data when the class-evolution system exists.
+**Hero classes & evolution** (`classes.go`) — heroes start at tier 0 ("Sans classe"). Two evolution gates:
+- **Jour 2** (`EvolveDayIntermediate`): unlock intermediate classes — **Pionnier**, **Chasseur**, **Éclaireur**.
+- **Jour 4** (`EvolveDayAdvanced`): unlock advanced classes — **Gardien**, **Récupérateur**, **Herboriste**.
+  (`game.Day` increments every 2 waves / 1 in-game day.)
+`EvolveHero(heroID, classID)` validates day threshold + tier sequencing, additively folds `cls.Bonuses` into
+`Hero.Stats` (one-time, not re-derived), stores the delta in `Hero.ClassBonuses` (for UI "+N" display), bumps
+`MaxPA`. The class catalog is served via `GET /api/classes` (`ClassDef` list); the frontend fetches it on game
+enter (`store.ts`) and the **HeroOverlay** uses it for the Evolve picker and Unique Skills display.
 
 ## 6. REST API
 
@@ -178,6 +187,8 @@ POST /api/games/{id}/heroes/{h}/search
 POST /api/games/{id}/heroes/{h}/hide
 POST /api/games/{id}/heroes/{h}/escape
 POST /api/games/{id}/heroes/{h}/fireball          Fire ball map skill -> {report, game}
+POST /api/games/{id}/heroes/{h}/evolve            {classId} -> GameState (applies class bonuses)
+GET  /api/classes                                 [] ClassDef catalog (tier 1+2 classes)
 POST /api/games/{id}/heroes/{h}/combat/start
 GET  /api/games/{id}/combat/{c}
 POST /api/games/{id}/combat/{c}/action            {unitId, action: move|attack|skill|end, x,y, targetId}
@@ -231,8 +242,11 @@ POST /api/games/{id}/combat/{c}/action            {unitId, action: move|attack|s
    Mage [MAP] class once the class-evolution system exists — currently every hero can cast it.)
 3. Combat **Defend/Guard** action (3rd button on mockup page 3).
 4. **Building skills** — multiple upgradable skills per building (mockup page 6), beyond a single level.
-5. **Gardien** class counting as 3 in the Tétanisé calc.
-6. Real **class-evolution** system (replace the display-only `classes.ts`; make Evolve functional; apply bonuses).
+5. ✅ **Gardien** class counting as 3 in the Tétanisé calc — DONE. `gardienWeight()` in `wave.go`;
+   tests `TestGardienCountsAsThreeForTetanise` / `TestNonGardienGetsStuckOnLargePack` in `evolve_test.go`.
+6. ✅ Real **class-evolution** system — DONE. `classes.go`: `EvolveHero`, 6 classes (3 intermediate, 3 advanced),
+   day gates (2/4). `GET /api/classes`, `POST /heroes/{h}/evolve`. Frontend: `store.classes`, `store.evolve`,
+   `HeroOverlay` Evolve picker. `data/classes.ts` removed (replaced by server catalog). Tests in `evolve_test.go`.
 7. Building-specific effects: Townhall revive, Bank→Stock, Kitchen→Craft, Tower evaluate (some already navigate).
 8. **Visual theme**: move tab panels to overlays on the isometric town; real sprites (needs the AI image connector).
 

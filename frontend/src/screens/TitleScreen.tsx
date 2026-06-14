@@ -3,7 +3,7 @@ import { Logo } from "../components/Logo";
 
 // "Ecran de titre" — main menu.
 export function TitleScreen() {
-  const { startAdventure, openSettings, pushLog } = useStore();
+  const { startAdventure, openSettings, pushLog, startTestGame, continueTestGame, busy } = useStore();
 
   return (
     <div className="screen parchment">
@@ -27,6 +27,19 @@ export function TitleScreen() {
           Parameter
         </button>
       </div>
+
+      <div className="dev-section">
+        <div className="dev-label">🛠 Test rapide</div>
+        <div className="dev-btns">
+          <button className="pill dev-pill" disabled={busy} onClick={() => startTestGame()}>
+            🆕 Nouvelle partie
+          </button>
+          <button className="pill dev-pill" disabled={busy} onClick={() => continueTestGame()}>
+            ▶ Continuer
+          </button>
+        </div>
+      </div>
+
       <div className="branch" />
       <div className="bird">🐦</div>
     </div>
