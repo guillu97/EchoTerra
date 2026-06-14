@@ -51,6 +51,7 @@ interface StoreState {
   heroOverlay?: string; // hero id whose character screen is open
   townStatusOpen: boolean; // town status panel overlay
   cheatOpen: boolean;
+  actionsRecapOpen: boolean; // per-hero available-actions recap overlay
   townHeroId?: string; // preferred hero paying for town work
   recipes: Recipe[];
   classes: ClassDef[];
@@ -76,6 +77,7 @@ interface StoreState {
   closeHero: () => void;
   toggleTownStatus: (open?: boolean) => void;
   toggleCheat: () => void;
+  toggleActionsRecap: (open?: boolean) => void;
   startTestGame: () => Promise<void>;
   continueTestGame: () => Promise<void>;
   townAction: (
@@ -157,6 +159,7 @@ export const useStore = create<StoreState>((set, get) => {
     settings: loadSettings(),
     townStatusOpen: false,
     cheatOpen: false,
+    actionsRecapOpen: false,
     recipes: [],
     classes: [],
 
@@ -187,6 +190,8 @@ export const useStore = create<StoreState>((set, get) => {
     toggleTownStatus: (open) =>
       set((s) => ({ townStatusOpen: open === undefined ? !s.townStatusOpen : open })),
     toggleCheat: () => set((s) => ({ cheatOpen: !s.cheatOpen })),
+    toggleActionsRecap: (open) =>
+      set((s) => ({ actionsRecapOpen: open === undefined ? !s.actionsRecapOpen : open })),
 
     startTestGame: () =>
       withBusy(async () => {

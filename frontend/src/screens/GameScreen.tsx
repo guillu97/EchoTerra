@@ -11,6 +11,7 @@ import { HeroOverlay } from "../components/HeroOverlay";
 import { TownStatus } from "../components/TownStatus";
 import { GameOver } from "../components/GameOver";
 import { CheatPanel } from "../components/CheatPanel";
+import { ActionsRecap } from "../components/ActionsRecap";
 
 // In-game shell: persistent top bar + active tab + bottom navigation. Polls the server
 // so scheduled waves (town damage, spawns) show up without manual refresh.
@@ -39,6 +40,7 @@ export function GameScreen() {
       <TownStatus />
       <GameOver />
       <CheatPanel />
+      <ActionsRecap />
       {error && <div className="toast">⚠️ {error}</div>}
     </div>
   );
