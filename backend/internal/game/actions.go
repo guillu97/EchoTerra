@@ -7,6 +7,13 @@ const (
 	StateFatigue  = "Fatigue"
 	StateSoif     = "Soif"
 	StateTetanise = "Tétanisé"
+	StateCache    = "Caché"
+)
+
+// Fire ball (map skill) tuning.
+const (
+	FireballPACost = 2 // a hero spends 2 PA to cast Fire ball on the map
+	FireballBase   = 5 // base damage before the caster's magical aptitude
 )
 
 // ActionError is a player-facing rejection of a map action.
@@ -114,6 +121,81 @@ func (g *GameState) EscapeHero(heroID string) error {
 			h.X, h.Y = nx, ny
 			h.RemoveState("Caché")
 			break
+		}
+	}
+	return nil
+}
+
+// FireballReport summarises a Fire ball cast for the client log.
+type FireballReport struct {
+	MonsterID string `json:"monsterId"`
+	Species   string `json:"species"`
+	Damage    int    `json:"damage"`
+	Slain     int    `json:"slain"`  // creatures removed from the pack by this cast
+	Killed    bool   `json:"killed"` // the whole pack was destroyed
+	X         int    `json:"x"`
+	Y         int    `json:"y"`
+}
+
+// FireballHero casts the Fire ball map skill (mockup page 3): an area blast that hits a
+// monster pack on the hero's tile or an orthogonally adjacent tile. Damage scales with
+// the caster's précision/dextérité and burns through the pack, thinning its Count (and
+// thus easing Tétanisé) or destroying it outright. Costs FireballPACost PA. A Tétanisé
+// hero may still cast it — clearing the surrounding pack is a way to break free.
+func (g *GameState) FireballHero(heroID string) (*FireballReport, error) {
+	if g.ActiveCombat != "" {
+		return nil, ActionError{"un combat est en cours"}
+	}
+	h := g.HeroByID(heroID)
+	if h == nil {
+		return nil, ActionError{"héros introuvable"}
+	}
+	if h.PA < FireballPACost {
+		return nil, ActionError{h.Name + " n'a pas assez de PA pour une boule de feu"}
+	}
+	m := g.fireballTarget(h.X, h.Y)
+	if m == nil {
+		return nil, ActionError{"aucune cible à portée pour la boule de feu"}
+	}
+
+	dmg := FireballBase + h.Stats.Precision + h.Stats.Dexterite/2 + rand.Intn(4)
+	rep := &FireballReport{MonsterID: m.ID, Species: m.Species, Damage: dmg, X: m.X, Y: m.Y}
+
+	m.HP -= dmg
+	for m.HP <= 0 && m.Count > 1 { // the blast carries through the pack
+		m.Count--
+		rep.Slain++
+		m.HP += m.MaxHP
+	}
+	if m.HP <= 0 && m.Count <= 1 {
+		rep.Slain++
+		rep.Killed = true
+		delete(g.Monsters, m.ID)
+		if t := g.TileAt(m.X, m.Y); t != nil && t.MonsterID == m.ID {
+			t.MonsterID = ""
+		}
+	}
+
+	h.PA -= FireballPACost
+	h.Bars["combat"]++
+	h.RemoveState(StateCache) // casting reveals the hero
+	if h.PA == 0 {
+		h.AddState(StateFatigue)
+	}
+	return rep, nil
+}
+
+// fireballTarget finds the pack the Fire ball will hit: the monster on (x,y) if any,
+// otherwise the first monster on an orthogonally adjacent tile.
+func (g *GameState) fireballTarget(x, y int) *Monster {
+	candidates := [][2]int{{x, y}, {x, y - 1}, {x, y + 1}, {x - 1, y}, {x + 1, y}}
+	for _, c := range candidates {
+		t := g.TileAt(c[0], c[1])
+		if t == nil || t.MonsterID == "" {
+			continue
+		}
+		if m := g.Monsters[t.MonsterID]; m != nil {
+			return m
 		}
 	}
 	return nil

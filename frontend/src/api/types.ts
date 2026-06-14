@@ -89,6 +89,16 @@ export interface Recipe {
   ingredients: Item[];
 }
 
+export interface FireballReport {
+  monsterId: string;
+  species: string;
+  damage: number;
+  slain: number; // creatures removed from the pack by this cast
+  killed: boolean; // the whole pack was destroyed
+  x: number;
+  y: number;
+}
+
 export interface WaveHit {
   id: string;
   name: string;

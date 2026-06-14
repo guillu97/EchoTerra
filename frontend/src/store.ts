@@ -95,6 +95,7 @@ interface StoreState {
   search: () => Promise<void>;
   hide: () => Promise<void>;
   escape: () => Promise<void>;
+  fireball: () => Promise<void>;
   advance: () => Promise<void>;
   startCombat: () => Promise<void>;
   setCombatMode: (m: CombatMode) => void;
@@ -336,6 +337,24 @@ export const useStore = create<StoreState>((set, get) => {
           pushLog(`🏃 ${after.name} bat en retraite vers la ville.`);
         } else {
           pushLog(`🏃 ${after?.name ?? "Le héros"} trébuche en fuyant (Blessé).`);
+        }
+        renderMap();
+      }),
+
+    fireball: () =>
+      withBusy(async () => {
+        const { game, selectedHeroId } = get();
+        if (!game || !selectedHeroId) return;
+        const name = game.heroes.find((h) => h.id === selectedHeroId)?.name ?? "Le héros";
+        const res = await api.fireball(game.id, selectedHeroId);
+        set({ game: res.game });
+        const r = res.report;
+        if (r.killed) {
+          pushLog(`🔥 ${name} carbonise le pack de ${r.species} (-${r.damage} PV) !`);
+        } else if (r.slain > 0) {
+          pushLog(`🔥 ${name} brûle ${r.species} : ${r.slain} abattu(s) (-${r.damage} PV).`);
+        } else {
+          pushLog(`🔥 ${name} lance une boule de feu sur ${r.species} (-${r.damage} PV).`);
         }
         renderMap();
       }),
