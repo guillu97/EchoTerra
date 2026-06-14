@@ -1,0 +1,13 @@
+# Backend
+backend/echoterra.db
+backend/*.db
+backend/server
+backend/server.exe
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
+# Misc
+.DS_Store
+*.log
