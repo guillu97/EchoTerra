@@ -87,6 +87,10 @@ func (s *Server) Router() http.Handler {
 		writeJSON(w, http.StatusOK, game.Recipes)
 	})
 
+	r.Get("/api/classes", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, game.Classes)
+	})
+
 	r.Route("/api/games", func(r chi.Router) {
 		r.Post("/", s.createGame)
 		r.Route("/{gameID}", func(r chi.Router) {
@@ -101,6 +105,7 @@ func (s *Server) Router() http.Handler {
 			r.Post("/heroes/{heroID}/hide", s.hideHero)
 			r.Post("/heroes/{heroID}/escape", s.escapeHero)
 			r.Post("/heroes/{heroID}/fireball", s.fireballHero)
+			r.Post("/heroes/{heroID}/evolve", s.evolveHero)
 			r.Post("/heroes/{heroID}/combat/start", s.startCombat)
 			r.Get("/combat/{combatID}", s.getCombat)
 			r.Post("/combat/{combatID}/action", s.combatAction)
@@ -267,6 +272,26 @@ func (s *Server) fireballHero(w http.ResponseWriter, r *http.Request) {
 	}
 	s.persist(gs)
 	writeJSON(w, http.StatusOK, map[string]any{"report": rep, "game": gs})
+}
+
+func (s *Server) evolveHero(w http.ResponseWriter, r *http.Request) {
+	gs := s.mustGame(w, r)
+	if gs == nil {
+		return
+	}
+	var body struct {
+		ClassID string `json:"classId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeErr(w, http.StatusBadRequest, "corps invalide")
+		return
+	}
+	if err := gs.EvolveHero(chi.URLParam(r, "heroID"), body.ClassID); err != nil {
+		writeActionErr(w, err)
+		return
+	}
+	s.persist(gs)
+	writeJSON(w, http.StatusOK, gs)
 }
 
 func (s *Server) advance(w http.ResponseWriter, r *http.Request) {

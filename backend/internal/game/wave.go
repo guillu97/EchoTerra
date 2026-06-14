@@ -92,9 +92,16 @@ func (g *GameState) Recompute() {
 }
 
 // heroesPerPack: how many monsters one hero can "hold" before being overwhelmed.
-// GDD: joueurs requis = monstres ÷ 4. A Gardien will later count for 3 heroes — the
-// effective-players computation in recomputeTetanise is the hook for that.
+// GDD: joueurs requis = monstres ÷ 4. A Gardien (advanced class) counts for 3 heroes.
 const heroesPerPack = 4
+
+// gardienWeight returns how many "heroes" a hero counts as when holding back a pack.
+func gardienWeight(h *Hero) int {
+	if h.ClassID == "gardien" {
+		return 3
+	}
+	return 1
+}
 
 // recomputeTetanise sets/clears the "Tétanisé" state: a hero is stuck (no movement)
 // when standing on a tile with 2+ monsters and there aren't enough heroes to hold the
@@ -104,7 +111,7 @@ func (g *GameState) recomputeTetanise() {
 	players := map[key]int{}
 	for _, h := range g.Heroes {
 		if h.HP > 0 {
-			players[key{h.X, h.Y}]++ // TODO: a Gardien here should add 3, not 1
+			players[key{h.X, h.Y}] += gardienWeight(h)
 		}
 	}
 	for _, h := range g.Heroes {

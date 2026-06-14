@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { api } from "./api/client";
-import type { CombatCurrent, Combat, GameState, Recipe } from "./api/types";
+import type { ClassDef, CombatCurrent, Combat, GameState, Recipe } from "./api/types";
 import { bus, EV } from "./eventBus";
 import { effectiveTownHeroId } from "./townUtils";
 
@@ -52,6 +52,7 @@ interface StoreState {
   townStatusOpen: boolean; // town status panel overlay
   townHeroId?: string; // preferred hero paying for town work
   recipes: Recipe[];
+  classes: ClassDef[];
 
   // --- game / map / combat ---
   game?: GameState;
@@ -81,6 +82,7 @@ interface StoreState {
   setTownHero: (id: string) => void;
   townDeposit: () => Promise<void>;
   craft: (recipeId: string) => Promise<void>;
+  evolve: (classId: string) => Promise<void>;
   startAdventure: () => void; // Title "Start the game" -> cinematic
   enterGame: () => Promise<void>; // cinematic skip -> game home
   leaveTown: () => void; // settings -> back to title
@@ -150,6 +152,7 @@ export const useStore = create<StoreState>((set, get) => {
     settings: loadSettings(),
     townStatusOpen: false,
     recipes: [],
+    classes: [],
 
     view: "map",
     combatMode: "move",
@@ -217,6 +220,18 @@ export const useStore = create<StoreState>((set, get) => {
         );
         renderMap();
       }),
+    evolve: (classId) =>
+      withBusy(async () => {
+        const { game, heroOverlay } = get();
+        if (!game || !heroOverlay) return;
+        const hero = game.heroes.find((h) => h.id === heroOverlay);
+        const next = await api.evolve(game.id, heroOverlay, classId);
+        const evolved = next.heroes.find((h) => h.id === heroOverlay);
+        set({ game: next });
+        pushLog(`✨ ${hero?.name ?? "Le héros"} évolue en ${evolved?.class ?? classId} !`);
+        renderMap();
+      }),
+
     openSettings: (s) => set({ settingsScreen: s }),
     closeSettings: () => set({ settingsScreen: null }),
     updateSettings: (patch) =>
@@ -251,6 +266,13 @@ export const useStore = create<StoreState>((set, get) => {
             set({ recipes: await api.recipes() });
           } catch {
             /* recipes are non-critical */
+          }
+        }
+        if (get().classes.length === 0) {
+          try {
+            set({ classes: await api.classes() });
+          } catch {
+            /* classes are non-critical */
           }
         }
         set({ appScreen: "game", tab: "home", settingsScreen: null });
