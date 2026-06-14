@@ -1,5 +1,6 @@
 import { useStore } from "../store";
 import { Logo } from "../components/Logo";
+import { assetUrl } from "../assets";
 
 // "Ecran de titre" — main menu.
 export function TitleScreen() {
@@ -41,7 +42,9 @@ export function TitleScreen() {
       </div>
 
       <div className="branch" />
-      <div className="bird">🐦</div>
+      <div className="bird">
+        {assetUrl("bird") ? <img src={assetUrl("bird")} alt="🐦" /> : "🐦"}
+      </div>
     </div>
   );
 }

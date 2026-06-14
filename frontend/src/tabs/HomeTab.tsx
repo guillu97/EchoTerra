@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useStore } from "../store";
 import { TOWN_BUILDINGS, type BuildingLayout } from "../data/buildings";
+import { assetUrl } from "../assets";
 import type { TownBuilding } from "../api/types";
 import { HeroChips } from "../components/HeroChips";
 import { TownWorker, useWorkerPA } from "../components/TownWorker";
@@ -164,10 +165,15 @@ export function HomeTab() {
       </div>
 
       <div className={`town ${selected ? "dim" : ""}`} onClick={() => setSelected(null)}>
-        <div className="island">🏰</div>
+        <div className="island">
+          {assetUrl("town-island")
+            ? <img src={assetUrl("town-island")} alt="🏰" className="island-img" />
+            : "🏰"}
+        </div>
         {TOWN_BUILDINGS.map((b) => {
           const bs = buildingState(b.id);
           const site = bs && !bs.built;
+          const imgSrc = !site ? assetUrl(b.assetKey) : undefined;
           return (
             <button
               key={b.id}
@@ -179,7 +185,13 @@ export function HomeTab() {
                 onBuildingClick(b.id);
               }}
             >
-              <span className="ic">{site ? "🏗️" : b.icon}</span>
+              <span className="ic">
+                {site
+                  ? "🏗️"
+                  : imgSrc
+                  ? <img src={imgSrc} alt={b.icon} className="building-img" />
+                  : b.icon}
+              </span>
               <span className="nm">{b.name}</span>
             </button>
           );
