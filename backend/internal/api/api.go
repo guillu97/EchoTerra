@@ -100,6 +100,7 @@ func (s *Server) Router() http.Handler {
 			r.Post("/heroes/{heroID}/search", s.searchTile)
 			r.Post("/heroes/{heroID}/hide", s.hideHero)
 			r.Post("/heroes/{heroID}/escape", s.escapeHero)
+			r.Post("/heroes/{heroID}/fireball", s.fireballHero)
 			r.Post("/heroes/{heroID}/combat/start", s.startCombat)
 			r.Get("/combat/{combatID}", s.getCombat)
 			r.Post("/combat/{combatID}/action", s.combatAction)
@@ -252,6 +253,20 @@ func (s *Server) escapeHero(w http.ResponseWriter, r *http.Request) {
 	}
 	s.persist(gs)
 	writeJSON(w, http.StatusOK, gs)
+}
+
+func (s *Server) fireballHero(w http.ResponseWriter, r *http.Request) {
+	gs := s.mustGame(w, r)
+	if gs == nil {
+		return
+	}
+	rep, err := gs.FireballHero(chi.URLParam(r, "heroID"))
+	if err != nil {
+		writeActionErr(w, err)
+		return
+	}
+	s.persist(gs)
+	writeJSON(w, http.StatusOK, map[string]any{"report": rep, "game": gs})
 }
 
 func (s *Server) advance(w http.ResponseWriter, r *http.Request) {

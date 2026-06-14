@@ -4,8 +4,10 @@ import { PhaserGame } from "../game/PhaserGame";
 import { bus, EV } from "../eventBus";
 
 // Radial action menu (Hordes-style) that pops at the selected hero when tapped on the map.
+const FIREBALL_PA = 2; // mirrors backend FireballPACost
+
 function ActionMenu() {
-  const { game, selectedHeroId, search, startCombat, hide, escape, busy } = useStore();
+  const { game, selectedHeroId, search, startCombat, hide, escape, fireball, busy } = useStore();
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
 
   useEffect(() => bus.on(EV.MapHeroMenu, ({ sx, sy }: { sx: number; sy: number }) => setPos({ x: sx, y: sy })), []);
@@ -13,8 +15,14 @@ function ActionMenu() {
   if (!pos || !game) return null;
   const hero = game.heroes.find((h) => h.id === selectedHeroId);
   if (!hero) return null;
-  const tile = game.tiles[hero.y * game.width + hero.x];
+  const tileAt = (x: number, y: number) =>
+    x < 0 || y < 0 || x >= game.width || y >= game.height ? undefined : game.tiles[y * game.width + x];
+  const tile = tileAt(hero.x, hero.y);
   const onMonster = !!tile?.monsterId;
+  // Fire ball reaches the hero's tile or any orthogonally adjacent pack.
+  const monsterInRange =
+    onMonster ||
+    [[0, -1], [0, 1], [-1, 0], [1, 0]].some(([dx, dy]) => !!tileAt(hero.x + dx, hero.y + dy)?.monsterId);
   const stuck = hero.states.includes("Tétanisé");
   const noPa = busy || hero.pa <= 0;
   const close = () => setPos(null);
@@ -34,6 +42,16 @@ function ActionMenu() {
         {onMonster && (
           <button className="am-fight" disabled={busy} onClick={() => run(startCombat)}>
             ⚔️ Fight
+          </button>
+        )}
+        {/* Fire ball (map skill, mockup page 3): ranged blast on a pack on/next to the hero. */}
+        {monsterInRange && (
+          <button
+            className="am-fireball"
+            disabled={busy || hero.pa < FIREBALL_PA}
+            onClick={() => run(fireball)}
+          >
+            🔥 Fire ball <i>-{FIREBALL_PA}</i>
           </button>
         )}
         {/* Fouille impossible quand le héros est bloqué par la horde. */}

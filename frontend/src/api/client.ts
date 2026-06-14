@@ -1,4 +1,4 @@
-import type { CombatResponse, GameState, Item, Recipe } from "./types";
+import type { CombatResponse, FireballReport, GameState, Item, Recipe } from "./types";
 
 // Relative base: Vite proxies /api to the Go backend during development.
 async function req<T>(method: string, url: string, body?: unknown): Promise<T> {
@@ -36,6 +36,13 @@ export const api = {
 
   escape: (gameId: string, heroId: string) =>
     req<GameState>("POST", `/api/games/${gameId}/heroes/${heroId}/escape`, {}),
+
+  fireball: (gameId: string, heroId: string) =>
+    req<{ report: FireballReport; game: GameState }>(
+      "POST",
+      `/api/games/${gameId}/heroes/${heroId}/fireball`,
+      {},
+    ),
 
   advance: (gameId: string) => req<GameState>("POST", `/api/games/${gameId}/advance`, {}),
 

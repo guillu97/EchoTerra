@@ -1800,6 +1800,13 @@ body {
   border: none;
   justify-content: center;
 }
+.action-menu .am-fireball {
+  background: linear-gradient(180deg, #ff8a3d, #d8421a);
+  border: none;
+}
+.action-menu .am-fireball i {
+  color: #fff0e6;
+}
 .map-hint {
   font-size: 11px;
   color: #9fb2c9;

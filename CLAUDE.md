@@ -112,6 +112,12 @@ per-building `defense`, per-building `cost`, `bank.capacity = sum(storage qty)`,
 **Movement / PA** — 6 PA/hero/day. Move = 1 PA/orthogonal step (blocked if `Tétanisé`; clears `Caché`;
 PA→0 adds `Fatigue`). Search = 1 PA, loot by biome, decrements tile `resources`.
 
+**Fire ball (map skill)** — `FireballHero` (`actions.go`): 2 PA AoE blast on a monster pack on the hero's tile
+or an orthogonally adjacent tile. `damage = 5 + précision + dextérité/2 + rand(0..3)`; the blast burns through
+the pack — each downed creature drops `Monster.Count` (refilling HP for the next), and the pack is removed when
+the last one dies. A `Tétanisé` hero may still cast it (thinning the pack can clear Tétanisé via `Recompute`).
+Casting clears `Caché`. Returns `{report:{species,damage,slain,killed,...}, game}`. Tests: `fireball_test.go`.
+
 **States (map)**: `Fatigue` (0 PA), `Soif`, `Tétanisé`, `Caché`, `Blessé`. **(iso)**: `Stun`, `Cécité`, `Root`…
 - **Tétanisé**: a hero on a tile with a pack is stuck (can't move) when `playersOnTile < ceil(monsters/heroesPerPack)`
   with `heroesPerPack=4` and `monsters>=2`. (TODO: a *Gardien* class will count as 3 heroes — hook is in
@@ -171,6 +177,7 @@ POST /api/games/{id}/heroes/{h}/move              {DX,DY}
 POST /api/games/{id}/heroes/{h}/search
 POST /api/games/{id}/heroes/{h}/hide
 POST /api/games/{id}/heroes/{h}/escape
+POST /api/games/{id}/heroes/{h}/fireball          Fire ball map skill -> {report, game}
 POST /api/games/{id}/heroes/{h}/combat/start
 GET  /api/games/{id}/combat/{c}
 POST /api/games/{id}/combat/{c}/action            {unitId, action: move|attack|skill|end, x,y, targetId}
@@ -194,7 +201,8 @@ POST /api/games/{id}/combat/{c}/action            {unitId, action: move|attack|s
 - **TownStatus** panel: town HP, **defense total + per-building breakdown** (who defends, how much, durability,
   open/unbuilt), every building's durability, and the last-wave report.
 - **Map** (`MapTab`): Phaser orthogonal map; tap a hero (or the **⚡ Actions** button) opens a **radial action menu**
-  (Fight if monster on tile / Search / Hide / **Escape only when Tétanisé**). Combat reached from the map.
+  (Fight if monster on tile / **🔥 Fire ball -2 PA when a pack is on/adjacent** / Search / Hide / **Escape only when
+  Tétanisé**). Combat reached from the map.
 - Server timer: `nextWaveAt` drives "Next wave in"; GameScreen polls every 20s so scheduler waves show up.
 
 ## 8. Conventions & gotchas
@@ -217,7 +225,10 @@ POST /api/games/{id}/combat/{c}/action            {unitId, action: move|attack|s
 1. ✅ **Water 1 ration / hero / day** — DONE. `Hero.DrewWaterDay int`; the Well `water` action draws for the
    selected in-town hero once per `game.day`, ration → that hero's bag, clears `Soif`; the Well modal shows per-hero
    daily status (disabled once that worker has drunk). Derived `town.waterDrawnToday`. Tests in `water_test.go`.
-2. Map **Fire ball** (a hero [MAP] class skill) in the radial menu (mockup page 3 shows it first).
+2. ✅ **Fire ball** (map skill) — DONE. `FireballHero` (2 PA) blasts a pack on the hero's tile or an adjacent
+   tile; damage scales with précision/dextérité and thins `Monster.Count` (helps break Tétanisé) or destroys the
+   pack. Radial-menu button 🔥; route `POST /heroes/{h}/fireball`; tests in `fireball_test.go`. (TODO: gate it to a
+   Mage [MAP] class once the class-evolution system exists — currently every hero can cast it.)
 3. Combat **Defend/Guard** action (3rd button on mockup page 3).
 4. **Building skills** — multiple upgradable skills per building (mockup page 6), beyond a single level.
 5. **Gardien** class counting as 3 in the Tétanisé calc.
