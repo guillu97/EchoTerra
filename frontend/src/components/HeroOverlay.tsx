@@ -1,6 +1,19 @@
 import { useState } from "react";
 import { useStore } from "../store";
 import type { Stats } from "../api/types";
+import { assetUrl, type AssetKey } from "../assets";
+
+function heroAssetKey(classId: string): AssetKey {
+  const map: Record<string, AssetKey> = {
+    pionnier: "hero-pionnier",
+    chasseur: "hero-chasseur",
+    eclaireur: "hero-eclaireur",
+    gardien: "hero-gardien",
+    recuperateur: "hero-recuperateur",
+    herboriste: "hero-herboriste",
+  };
+  return map[classId] ?? "hero-sans-classe";
+}
 
 // Evolution day thresholds (mirror backend internal/game/classes.go
 // EvolveDayIntermediate / EvolveDayAdvanced). game.day increments every 2 waves.
@@ -74,7 +87,11 @@ export function HeroOverlay() {
         {/* header with roster arrows */}
         <div className="hero-top">
           <button className="hero-arrow" onClick={() => cycle(-1)} aria-label="précédent">◀</button>
-          <div className="hero-portrait">🔥</div>
+          <div className="hero-portrait">
+            {assetUrl(heroAssetKey(h.classId))
+              ? <img src={assetUrl(heroAssetKey(h.classId))} alt="🔥" className="portrait-img" />
+              : "🔥"}
+          </div>
           <div className="hero-id">
             <div className="hero-name">{h.classTier === 0 ? "Sans classe" : h.class}</div>
             <div className="hero-class">{tierLabel(h.classTier)} · {h.name}</div>

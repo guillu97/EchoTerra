@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useStore } from "../store";
 import { Logo } from "../components/Logo";
+import { assetUrl } from "../assets";
 
 // "Ecran de chargement" — the bird settles on the branch, then we move to the title.
 export function LoadingScreen() {
@@ -18,7 +19,9 @@ export function LoadingScreen() {
         <i />
       </div>
       <div className="branch" />
-      <div className="bird" aria-label="oiseau">🐦</div>
+      <div className="bird" aria-label="oiseau">
+        {assetUrl("bird") ? <img src={assetUrl("bird")} alt="🐦" /> : "🐦"}
+      </div>
     </div>
   );
 }
