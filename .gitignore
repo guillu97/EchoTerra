@@ -1,13 +1,85 @@
-# Backend
-backend/echoterra.db
-backend/*.db
-backend/server
-backend/server.exe
+# Root .gitignore for EchoTerra (Go backend + Node frontend + tooling)
 
-# Frontend
-frontend/node_modules/
-frontend/dist/
+# --------------------
+# OS
+# --------------------
+.DS_Store
+Thumbs.db
+ehthumbs.db
+
+# --------------------
+# Node / frontend
+# --------------------
+**/node_modules/
+**/dist/
+**/.vite/
+**/.parcel-cache/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# TypeScript build cache
+*.tsbuildinfo
+
+# Vite cache / local dev files
+.vite
+
+# --------------------
+# Go
+# --------------------
+# Binaries for programs and plugins
+*.exe
+*.dll
+*.so
+*.dylib
+# Test binary, coverage output
+*.test
+coverage.out
+
+# Go vendor dir (if used locally)
+/vendor/
+
+# SQLite / DB files
+*.db
+*.sqlite
+
+# --------------------
+# Editor / IDE
+# --------------------
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# --------------------
+# Logs & temp
+# --------------------
+logs/
+*.log
+*.tmp
+*.temp
+
+# --------------------
+# Generated / tooling
+# --------------------
+/graphify-out/
+/node_modules/
+/frontend/node_modules/
+/frontend/dist/
+/backend/bin/
+
+# Environment
+.env
+.env.*.local
+
+# Coverage & reports
+/coverage/
+coverage-final.json
 
 # Misc
+.cache/
+.next/
 .DS_Store
-*.log
