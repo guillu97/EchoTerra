@@ -5,7 +5,10 @@
   "type": "module",
   "scripts": {
     "generate": "node generate-assets.mjs",
-    "generate:dry": "node generate-assets.mjs --dry-run"
+    "generate:dry": "node generate-assets.mjs --dry-run",
+    "generate:comfy": "node generate-assets-comfy.mjs",
+    "generate:comfy:dry": "node generate-assets-comfy.mjs --dry-run",
+    "rembg": "\"D:\\ComfyUI_windows_portable\\python_embeded\\python.exe\" remove_bg.py"
   },
   "dependencies": {
     "playwright": "^1.50.0"

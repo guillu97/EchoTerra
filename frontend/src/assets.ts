@@ -11,7 +11,7 @@ export type AssetKey =
   // buildings
   | "building-gate" | "building-wall" | "building-bank" | "building-well"
   | "building-workshop" | "building-tower" | "building-townhall"
-  | "building-kitchen" | "building-panel"
+  | "building-kitchen" | "building-panel" | "building-scaffold"
   // heroes
   | "hero-sans-classe" | "hero-pionnier" | "hero-chasseur" | "hero-eclaireur"
   | "hero-gardien" | "hero-recuperateur" | "hero-herboriste"
@@ -19,7 +19,11 @@ export type AssetKey =
   | "nav-home" | "nav-map" | "nav-stock" | "nav-structure" | "nav-craft"
   | "bird" | "skull"
   // npc / bg
-  | "shinki-npc" | "town-island";
+  | "shinki-npc" | "town-island" | "app-bg" | "bridge"
+  // map tiles (one per biome 0..5)
+  | "tile-water" | "tile-sand" | "tile-grass" | "tile-forest" | "tile-mountain" | "tile-snow"
+  // isometric cube tiles (iso Home grid + iso combat biomes)
+  | "iso-water" | "iso-sand" | "iso-grass" | "iso-forest" | "iso-stone" | "iso-snow" | "iso-bridge";
 
 const PATHS: Record<AssetKey, string> = {
   "building-gate":      `${ASSET_BASE}/buildings/gate.png`,
@@ -31,6 +35,7 @@ const PATHS: Record<AssetKey, string> = {
   "building-townhall":  `${ASSET_BASE}/buildings/townhall.png`,
   "building-kitchen":   `${ASSET_BASE}/buildings/kitchen.png`,
   "building-panel":     `${ASSET_BASE}/buildings/panel.png`,
+  "building-scaffold":  `${ASSET_BASE}/buildings/scaffold.png`,
 
   "hero-sans-classe":   `${ASSET_BASE}/heroes/hero-0.png`,
   "hero-pionnier":      `${ASSET_BASE}/heroes/hero-pionnier.png`,
@@ -50,6 +55,23 @@ const PATHS: Record<AssetKey, string> = {
 
   "shinki-npc":   `${ASSET_BASE}/npc/shinki.png`,
   "town-island":  `${ASSET_BASE}/bg/town-island.png`,
+  "app-bg":       `${ASSET_BASE}/bg/app-bg.png`,
+  "bridge":       `${ASSET_BASE}/bg/bridge.png`,
+
+  "tile-water":    `${ASSET_BASE}/tiles/water.png`,
+  "tile-sand":     `${ASSET_BASE}/tiles/sand.png`,
+  "tile-grass":    `${ASSET_BASE}/tiles/grass.png`,
+  "tile-forest":   `${ASSET_BASE}/tiles/forest.png`,
+  "tile-mountain": `${ASSET_BASE}/tiles/mountain.png`,
+  "tile-snow":     `${ASSET_BASE}/tiles/snow.png`,
+
+  "iso-water":    `${ASSET_BASE}/isotiles/water.png`,
+  "iso-sand":     `${ASSET_BASE}/isotiles/sand.png`,
+  "iso-grass":    `${ASSET_BASE}/isotiles/grass.png`,
+  "iso-forest":   `${ASSET_BASE}/isotiles/forest.png`,
+  "iso-stone":    `${ASSET_BASE}/isotiles/stone.png`,
+  "iso-snow":     `${ASSET_BASE}/isotiles/snow.png`,
+  "iso-bridge":   `${ASSET_BASE}/isotiles/bridge.png`,
 };
 
 // Resolved set of available assets (populated at startup by probing HEAD requests).

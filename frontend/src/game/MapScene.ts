@@ -5,12 +5,16 @@ import { bus, EV } from "../eventBus";
 import { BIOME_COLORS, HERO_COLOR, HERO_COLOR_SELECTED, MONSTER_COLOR, darken } from "./render";
 
 const TILE = 26;
+// Biome index (0..5) -> tile texture filename under /assets/tiles/.
+const TILE_FILES = ["water", "sand", "grass", "forest", "mountain", "snow"];
 
 // MapScene renders the global orthogonal map (Hordes-style) and turns pointer
 // clicks into movement/selection intents. It owns no game logic.
 export class MapScene extends Phaser.Scene {
   private g!: Phaser.GameObjects.Graphics;
   private labels: Phaser.GameObjects.Text[] = [];
+  private tileImgs: Phaser.GameObjects.Image[] = [];
+  private tilesKey = ""; // game id + dims the tile layer was built for
   private gs?: GameState;
   private selectedHeroId?: string;
   private fitted = false;
@@ -22,8 +26,14 @@ export class MapScene extends Phaser.Scene {
     super("map");
   }
 
+  preload() {
+    // Generated biome tiles (optional — falls back to flat colors if absent).
+    TILE_FILES.forEach((name, i) => this.load.image(`tile-${i}`, `/assets/tiles/${name}.png`));
+  }
+
   create() {
     this.g = this.add.graphics();
+    this.g.setDepth(5); // dynamic graphics (pips, units, highlights) sit above the tile layer
     this.cameras.main.setBackgroundColor("#0e1626");
 
     const offRender = bus.on(EV.MapRender, (p: { game: GameState; selectedHeroId?: string }) => {
@@ -38,11 +48,21 @@ export class MapScene extends Phaser.Scene {
       this.draw();
     };
     this.scale.on("resize", onResize);
+    // Tile textures load asynchronously; if they finish AFTER the first MapRender,
+    // the tile layer would never get built. Redraw once the loader completes.
+    const onLoaded = () => {
+      if (this.gs) this.draw();
+    };
+    this.load.on(Phaser.Loader.Events.COMPLETE, onLoaded);
     // Remove external listeners when this scene is torn down, otherwise a destroyed
     // scene keeps reacting to bus events and crashes (this.add becomes null).
     const cleanup = () => {
       offRender();
       this.scale.off("resize", onResize);
+      this.load.off(Phaser.Loader.Events.COMPLETE, onLoaded);
+      this.tileImgs.forEach((im) => im.destroy());
+      this.tileImgs = [];
+      this.tilesKey = "";
     };
     this.events.once("shutdown", cleanup);
     this.events.once("destroy", cleanup);
@@ -119,7 +139,8 @@ export class MapScene extends Phaser.Scene {
   private text(x: number, y: number, s: string, color: string, size = 11) {
     const t = this.add
       .text(x, y, s, { fontFamily: "monospace", fontSize: `${size}px`, color })
-      .setOrigin(0.5);
+      .setOrigin(0.5)
+      .setDepth(6);
     this.labels.push(t);
     return t;
   }
@@ -133,15 +154,40 @@ export class MapScene extends Phaser.Scene {
 
     const hero = this.selectedHero();
 
+    // Tile textures are optional; fall back to flat biome colors when absent.
+    const haveTextures = this.textures.exists("tile-2");
+
+    // Build the static tile-sprite layer once per game (id + dimensions). It's a lot
+    // of sprites, so we only rebuild when the map actually changes, not every draw.
+    const key = `${game.id}:${game.width}x${game.height}`;
+    if (haveTextures && this.tilesKey !== key) {
+      this.tileImgs.forEach((im) => im.destroy());
+      this.tileImgs = [];
+      for (let y = 0; y < game.height; y++) {
+        for (let x = 0; x < game.width; x++) {
+          const t = game.tiles[y * game.width + x];
+          const img = this.add.image(x * TILE, y * TILE, `tile-${t.biome}`).setOrigin(0, 0);
+          img.setDisplaySize(TILE, TILE).setDepth(0);
+          // Shade by elevation for a bit of relief (tint multiplies toward white).
+          const shade = Math.min(0.78 + Math.min(t.height, 6) * 0.035, 1);
+          img.setTint(darken(0xffffff, shade));
+          this.tileImgs.push(img);
+        }
+      }
+      this.tilesKey = key;
+    }
+
     for (let y = 0; y < game.height; y++) {
       for (let x = 0; x < game.width; x++) {
         const t = game.tiles[y * game.width + x];
         const px = x * TILE;
         const py = y * TILE;
-        // Shade by elevation for a bit of relief.
-        const shade = 0.78 + Math.min(t.height, 6) * 0.035;
-        this.g.fillStyle(darken(BIOME_COLORS[t.biome], shade), 1);
-        this.g.fillRect(px, py, TILE - 1, TILE - 1);
+        if (!haveTextures) {
+          // Shade by elevation for a bit of relief.
+          const shade = 0.78 + Math.min(t.height, 6) * 0.035;
+          this.g.fillStyle(darken(BIOME_COLORS[t.biome], shade), 1);
+          this.g.fillRect(px, py, TILE - 1, TILE - 1);
+        }
 
         // Depleted resource marker (red) vs available (green pip).
         if (t.biome !== Biome.Water) {

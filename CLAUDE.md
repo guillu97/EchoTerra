@@ -19,8 +19,13 @@ No WebSockets. The town tile is special (city management).
 - UI mockups: design id `DAG5jZMck5o`. Page roles: 2=Stock, 3=Map+Combat, 4=Craft, 5=Hero,
   6=Structure, 7-9=Home/buildings. (Use the Canva MCP `export-design` to re-read pages.)
 
-**Art is placeholder** (emoji + CSS gradients) pending an AI image-generation connector the user
-will add later. Asset keys are abstracted so sprites can be swapped in.
+**Art is generated locally** via **ComfyUI + Z-Image-Turbo** on the user's GPU (`D:\ComfyUI_windows_portable\`),
+then background-stripped with **rembg** for true transparency. The pipeline lives in `scripts/`
+(`generate-assets-comfy.mjs` driving ComfyUI's `/prompt` API, `remove_bg.py`, shared `asset-manifest.mjs`,
+docs in `scripts/README-comfyui.md`). All prompts derive from a single **`DA`** constant (shared art direction:
+warm pastel hand-painted storybook) so every asset is cohesive; edit `DA` to restyle the whole game. Components
+fall back to emoji when an asset is missing (asset keys abstracted in `frontend/src/assets.ts`). Run:
+`node scripts/generate-assets-comfy.mjs --force --rembg` (ComfyUI must be running: `run_nvidia_gpu.bat`).
 
 ## 2. Tech stack & how to run
 
@@ -145,8 +150,12 @@ new monsters spawn (pack `count` grows with `waveNumber`). **Game over** when to
 **Town buildings & construction** — built at start: **gate, wall, bank, well, workshop, panel**.
 Construction sites (Built=false): **townhall (renamed from House — revive), tower, kitchen**.
 `TownAction(buildingId, action, points, heroId)`:
-- `build` → build (site) or upgrade (built): spends **PA** + **materials from the Bank** (`buildMaterials` ×
-  level multiplier; cost exposed as `building.cost`). Build→Built, level 1; upgrade→level++.
+- `build` → **2-phase construction** for sites + upgrade for built. A `TownBuilding` has `Built` AND
+  `UnderConstruction`. Site not started → first `build` consumes **materials + PA** and sets `UnderConstruction`
+  (no defense yet); under-construction → next `build` costs **PA only** and finishes it (`Built`, level 1);
+  built → upgrade (materials×level + PA, level++). Cost exposed as `building.cost` (start/finish/upgrade aware).
+  **Home shows a building only when `built || underConstruction`** (not-yet-started sites are hidden — built from
+  the Structure tab; Structure labels: Construire→Terminer→Améliorer). Tests in `build_test.go`.
 - `restore` → +5 durability per PA (built only).
 - `water` (Well) → **FREE**, draws **one Ration d'eau per in-town hero per `game.day`**: charged to the selected
   town worker (`heroID`), decrements Well `capacity`, clears that hero's `Soif`, and drops the ration into **that

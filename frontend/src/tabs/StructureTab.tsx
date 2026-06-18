@@ -73,7 +73,7 @@ export function StructureTab() {
                       </span>
                     </>
                   ) : (
-                    <span className="tag-type ttown">chantier</span>
+                    <span className="tag-type ttown">{b.underConstruction ? "en construction" : "chantier"}</span>
                   )}
                 </div>
                 <div className="ps-sub cost">
@@ -92,7 +92,7 @@ export function StructureTab() {
                 title={!inTown ? "Être en ville" : !enoughMats ? "Matériaux manquants (Banque)" : !canPay ? "PA insuffisants" : ""}
                 onClick={() => townAction(b.id, "build")}
               >
-                {b.built ? "Améliorer" : "Construire"}
+                {b.built ? "Améliorer" : b.underConstruction ? "Terminer" : "Construire"}
               </button>
             </div>
           );

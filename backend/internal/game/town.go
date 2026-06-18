@@ -15,17 +15,18 @@ type BuildReq struct {
 
 // TownBuilding is the authoritative state of one city building.
 type TownBuilding struct {
-	ID            string   `json:"id"`
-	Name          string   `json:"name"`
-	Built         bool     `json:"built"` // false => construction site
-	Level         int      `json:"level"`
-	Durability    int      `json:"durability"`
-	MaxDurability int      `json:"maxDurability"`
-	Capacity      int      `json:"capacity"`    // e.g. water stored in the Well
-	MaxCapacity   int      `json:"maxCapacity"` // 0 when the building has no stock
-	Open          bool     `json:"open"`        // Gate only: an open gate gives no defense
-	Defense       int      `json:"defense"`     // computed defense contribution
-	Cost          BuildReq `json:"cost"`        // computed cost of the next build/upgrade
+	ID                string   `json:"id"`
+	Name              string   `json:"name"`
+	Built             bool     `json:"built"`             // false => construction site
+	UnderConstruction bool     `json:"underConstruction"` // site whose build has been started (visible on Home)
+	Level             int      `json:"level"`
+	Durability        int      `json:"durability"`
+	MaxDurability     int      `json:"maxDurability"`
+	Capacity          int      `json:"capacity"`    // e.g. water stored in the Well
+	MaxCapacity       int      `json:"maxCapacity"` // 0 when the building has no stock
+	Open              bool     `json:"open"`        // Gate only: an open gate gives no defense
+	Defense           int      `json:"defense"`     // computed defense contribution
+	Cost              BuildReq `json:"cost"`        // computed cost of the next build/upgrade
 }
 
 // buildMaterials is the base material recipe to build each building (scaled by level
@@ -42,8 +43,14 @@ var buildMaterials = map[string][]Item{
 	"panel":    {{Type: "objet", Name: "Bois", Qty: 1}},
 }
 
-// buildingCost returns the cost of the next action (build if unbuilt, else upgrade).
+// buildingCost returns the cost of the next build action:
+//   - site not started  -> start cost: base materials + labour
+//   - under construction -> finish cost: labour only (materials were paid to start)
+//   - built              -> upgrade cost: scaled materials + labour
 func buildingCost(b *TownBuilding) BuildReq {
+	if b.UnderConstruction {
+		return BuildReq{PA: 2, Materials: nil} // finish: labour only
+	}
 	mult := 1
 	if b.Built {
 		mult = b.Level + 1
@@ -249,17 +256,25 @@ func (g *GameState) TownAction(buildingID, action string, points int, heroID str
 			g.removeStorage(m.Name, m.Qty)
 		}
 		g.spendFor(heroID, cost.PA)
-		if !b.Built {
-			b.Built = true
-			b.Level = 1
-			b.Durability = b.MaxDurability
-		} else {
+		switch {
+		case b.Built:
+			// Upgrade an existing building.
 			b.Level++
 			b.MaxDurability += 20
 			b.Durability = b.MaxDurability
 			if b.MaxCapacity > 0 {
 				b.MaxCapacity += b.MaxCapacity / 2
 			}
+		case b.UnderConstruction:
+			// Finish an in-progress construction.
+			b.UnderConstruction = false
+			b.Built = true
+			b.Level = 1
+			b.Durability = b.MaxDurability
+		default:
+			// Start construction on a fresh site (materials paid now; it now shows on Home
+			// as "en construction" and a follow-up build finishes it).
+			b.UnderConstruction = true
 		}
 		return nil
 

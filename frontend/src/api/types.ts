@@ -88,6 +88,7 @@ export interface TownBuilding {
   id: string;
   name: string;
   built: boolean;
+  underConstruction: boolean; // site whose build has been started (visible on Home as a chantier)
   level: number;
   durability: number;
   maxDurability: number;

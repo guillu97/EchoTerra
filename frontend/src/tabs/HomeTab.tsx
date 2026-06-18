@@ -1,7 +1,39 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useStore } from "../store";
-import { TOWN_BUILDINGS, type BuildingLayout } from "../data/buildings";
-import { assetUrl } from "../assets";
+import { TOWN_BUILDINGS, ISO_TOWN, ISO_TOWN_TILES, ISO_BUILDING_CELL, type BuildingLayout, type IsoTileKind } from "../data/buildings";
+import { assetUrl, type AssetKey } from "../assets";
+
+// Iso tile kind -> asset key.
+const ISO_TILE_ASSET: Record<IsoTileKind, AssetKey> = {
+  grass: "iso-grass", stone: "iso-stone", water: "iso-water",
+  sand: "iso-sand", forest: "iso-forest", snow: "iso-snow", bridge: "iso-bridge",
+};
+
+// Screen position of grid cell (gx,gy), centred on the grid, scaled by `scale`.
+function isoPos(gx: number, gy: number, scale: number) {
+  const cx = gx - ISO_TOWN.center;
+  const cy = gy - ISO_TOWN.center;
+  return {
+    x: (cx - cy) * (ISO_TOWN.tileW / 2) * scale,
+    y: (cx + cy) * (ISO_TOWN.tileH / 2) * scale,
+  };
+}
+
+// Track a container's width and derive the iso scale factor (responsive sizing).
+function useIsoScale() {
+  const ref = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(1);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const update = () => setScale((el.clientWidth || ISO_TOWN.refWidth) / ISO_TOWN.refWidth);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  return { ref, scale };
+}
 import type { TownBuilding } from "../api/types";
 import { HeroChips } from "../components/HeroChips";
 import { TownWorker, useWorkerPA } from "../components/TownWorker";
@@ -136,6 +168,7 @@ export function HomeTab() {
   const toggleTownStatus = useStore((s) => s.toggleTownStatus);
   const setTab = useStore((s) => s.setTab);
   const [selected, setSelected] = useState<string | null>(null);
+  const { ref: townRef, scale } = useIsoScale();
   const remaining = useWaveRemaining(game);
   const buildingState = (id: string) => game?.town.buildings?.find((x) => x.id === id);
   const sel = selected ? TOWN_BUILDINGS.find((b) => b.id === selected) : null;
@@ -152,7 +185,7 @@ export function HomeTab() {
   };
 
   return (
-    <div className="town-wrap" style={{ position: "absolute", inset: 0 }}>
+    <div className="town-wrap" ref={townRef} style={{ position: "absolute", inset: 0 }}>
       <button className="wave-banner" onClick={() => toggleTownStatus(true)} title="Voir l'état de la ville">
         Next wave in
         <br />
@@ -165,37 +198,63 @@ export function HomeTab() {
       </div>
 
       <div className={`town ${selected ? "dim" : ""}`} onClick={() => setSelected(null)}>
-        <div className="island">
-          {assetUrl("town-island")
-            ? <img src={assetUrl("town-island")} alt="🏰" className="island-img" />
-            : "🏰"}
+        {/* Isometric tile platform: layered rendering — ground tiles, then buildings. */}
+        <div className="iso-stage">
+          {/* Layer 1 — ground tiles (depth-sorted among tiles). */}
+          <div className="iso-layer iso-tiles">
+            {ISO_TOWN_TILES.map((t) => {
+              const { x, y } = isoPos(t.gx, t.gy, scale);
+              const src = assetUrl(ISO_TILE_ASSET[t.kind]);
+              if (!src) return null;
+              return (
+                <img
+                  key={`t-${t.gx}-${t.gy}`}
+                  src={src}
+                  className="iso-tile"
+                  alt=""
+                  style={{ left: x, top: y, width: ISO_TOWN.cube * scale, zIndex: t.gx + t.gy }}
+                />
+              );
+            })}
+          </div>
+
+          {/* Layer 2 — buildings (depth-sorted among buildings, always above tiles). */}
+          <div className="iso-layer iso-buildings">
+          {TOWN_BUILDINGS.map((b) => {
+            const cell = ISO_BUILDING_CELL[b.id];
+            if (!cell) return null;
+            const bs = buildingState(b.id);
+            if (!bs || (!bs.built && !bs.underConstruction)) return null;
+            const site = !bs.built; // under construction
+            const imgSrc = site ? assetUrl("building-scaffold") : assetUrl(b.assetKey);
+            const { x, y } = isoPos(cell.gx, cell.gy, scale);
+            return (
+              <button
+                key={b.id}
+                className={`building ${selected === b.id ? "active" : ""} ${site ? "site" : ""}`}
+                style={{ left: x, top: y, zIndex: Math.round(cell.gx + cell.gy) }}
+                title={site ? `${b.name} — en construction` : b.name}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onBuildingClick(b.id);
+                }}
+              >
+                <span
+                  className={`ic ${imgSrc ? "has-img" : ""}`}
+                  style={imgSrc ? { width: ISO_TOWN.build * scale, height: ISO_TOWN.build * scale } : undefined}
+                >
+                  {imgSrc
+                    ? <img src={imgSrc} alt={b.icon} className="building-img" />
+                    : site
+                    ? "🏗️"
+                    : b.icon}
+                </span>
+                <span className="nm">{b.name}</span>
+              </button>
+            );
+          })}
+          </div>
         </div>
-        {TOWN_BUILDINGS.map((b) => {
-          const bs = buildingState(b.id);
-          const site = bs && !bs.built;
-          const imgSrc = !site ? assetUrl(b.assetKey) : undefined;
-          return (
-            <button
-              key={b.id}
-              className={`building ${selected === b.id ? "active" : ""} ${site ? "site" : ""}`}
-              style={{ left: `${b.x}%`, top: `${b.y}%` }}
-              title={site ? `${b.name} — chantier (à construire)` : b.name}
-              onClick={(e) => {
-                e.stopPropagation();
-                onBuildingClick(b.id);
-              }}
-            >
-              <span className="ic">
-                {site
-                  ? "🏗️"
-                  : imgSrc
-                  ? <img src={imgSrc} alt={b.icon} className="building-img" />
-                  : b.icon}
-              </span>
-              <span className="nm">{b.name}</span>
-            </button>
-          );
-        })}
 
         <div className="shinki">
           <div className="face">🦊</div>

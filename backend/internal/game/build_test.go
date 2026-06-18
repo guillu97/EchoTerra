@@ -25,17 +25,38 @@ func TestBuildConsumesBankMaterials(t *testing.T) {
 
 	// Stock the required materials (tower: Bois x2, Pierre x3 at level 0).
 	g.Town.Storage = []Item{{Type: "objet", Name: "Bois", Qty: 5}, {Type: "minerai", Name: "Pierre", Qty: 5}}
+
+	// Phase 1 — START: consumes materials + labour, marks the site "en construction"
+	// (not built yet, so still no defense).
 	if err := g.TownAction("tower", "build", 1, "h1"); err != nil {
-		t.Fatalf("build failed: %v", err)
+		t.Fatalf("start build failed: %v", err)
 	}
-	if !tower.Built || tower.Level != 1 {
-		t.Fatalf("tower should be built at level 1, got built=%v level=%d", tower.Built, tower.Level)
+	if tower.Built || !tower.UnderConstruction {
+		t.Fatalf("after starting, tower should be under construction, got built=%v uc=%v", tower.Built, tower.UnderConstruction)
 	}
 	if g.storageQty("Bois") != 3 || g.storageQty("Pierre") != 2 {
 		t.Fatalf("materials not consumed correctly: Bois=%d Pierre=%d", g.storageQty("Bois"), g.storageQty("Pierre"))
 	}
-	if h.PA != 4 { // cost.pa at level 0 = 2
-		t.Fatalf("expected hero PA 6-2=4, got %d", h.PA)
+	if h.PA != 4 { // start cost.pa = 2
+		t.Fatalf("expected hero PA 6-2=4 after start, got %d", h.PA)
+	}
+	g.Recompute()
+	if g.TownDefense() != defBefore {
+		t.Fatalf("defense must NOT rise while only under construction: %d -> %d", defBefore, g.TownDefense())
+	}
+
+	// Phase 2 — FINISH: labour only, building becomes built (level 1) and now defends.
+	if err := g.TownAction("tower", "build", 1, "h1"); err != nil {
+		t.Fatalf("finish build failed: %v", err)
+	}
+	if !tower.Built || tower.UnderConstruction || tower.Level != 1 {
+		t.Fatalf("tower should be built at level 1, got built=%v uc=%v level=%d", tower.Built, tower.UnderConstruction, tower.Level)
+	}
+	if g.storageQty("Bois") != 3 || g.storageQty("Pierre") != 2 {
+		t.Fatalf("finishing must not consume more materials: Bois=%d Pierre=%d", g.storageQty("Bois"), g.storageQty("Pierre"))
+	}
+	if h.PA != 2 { // finish cost.pa = 2
+		t.Fatalf("expected hero PA 4-2=2 after finish, got %d", h.PA)
 	}
 	g.Recompute()
 	if g.TownDefense() <= defBefore {
