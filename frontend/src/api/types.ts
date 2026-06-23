@@ -29,6 +29,7 @@ export interface Tile {
   height: number;
   resources: number;
   monsterId?: string;
+  discovered?: boolean; // fog of war: false until a hero has seen the tile (shared by all players)
 }
 
 export interface Hero {

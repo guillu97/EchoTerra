@@ -4,7 +4,8 @@ import { assetUrl } from "../assets";
 
 // "Ecran de titre" — main menu.
 export function TitleScreen() {
-  const { startAdventure, openSettings, pushLog, startTestGame, continueTestGame, busy } = useStore();
+  const { startAdventure, openSettings, pushLog, startTestGame, continueTestGame, busy, setScreen } =
+    useStore();
 
   return (
     <div className="screen parchment">
@@ -37,6 +38,9 @@ export function TitleScreen() {
           </button>
           <button className="pill dev-pill" disabled={busy} onClick={() => continueTestGame()}>
             ▶ Continuer
+          </button>
+          <button className="pill dev-pill" onClick={() => setScreen("editor")}>
+            🗺️ Éditeur
           </button>
         </div>
       </div>

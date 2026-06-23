@@ -1,0 +1,473 @@
+# Echo Terra — Asset catalog
+
+Searchable index of generated assets. Machine-readable copy: `catalog.json`.
+Each entry: id, category, title, file path, tags, style (near/far for buildings), prompt.
+To find an asset in a later session, grep this file or `catalog.json` by title / tag / category.
+
+## bg (3)
+
+- **matches the cloud-sky mockup** `app-bg` — `assets/bg/app-bg.png` · tags: app, backdrop, background, behind, bg, cloud, matches, mockup, scene, screen, sky
+- **bridge connecting floating islands (rotated/scaled per connection)** `bridge` — `assets/bg/bridge.png` · tags: backdrop, background, bg, bridge, connecting, connection, floating, home, islands, per, rotated, scaled, scene
+- **buildings render on top by % position** `town-island` — `assets/bg/town-island.png` · tags: backdrop, background, base, bg, buildings, central, hometab, island, isometric, position, render, scene, top
+
+## buildings (217)
+
+- **abbey** `bld-abbey` — `assets/buildings/bld-abbey.png` · near · tags: abbey, building, buildings, iso, isometric, near, structure
+- **academy** `bld-academy` — `assets/buildings/bld-academy.png` · near · tags: academy, building, buildings, iso, isometric, near, structure
+- **desert adobe house** `bld-adobe-house` — `assets/buildings/bld-adobe-house.png` · near · tags: adobe, building, buildings, desert, house, iso, isometric, near, structure
+- **airship dock** `bld-airshipdock` — `assets/buildings/bld-airshipdock.png` · near · tags: airship, airshipdock, building, buildings, dock, iso, isometric, near, structure
+- **almshouse** `bld-almshouse` — `assets/buildings/bld-almshouse.png` · near · tags: almshouse, building, buildings, iso, isometric, near, structure
+- **altar** `bld-altar` — `assets/buildings/bld-altar.png` · near · tags: altar, building, buildings, iso, isometric, near, structure
+- **animal pen** `bld-animalpen` — `assets/buildings/bld-animalpen.png` · near · tags: animal, animalpen, building, buildings, iso, isometric, near, pen, structure
+- **apiary** `bld-apiary` — `assets/buildings/bld-apiary.png` · near · tags: apiary, building, buildings, iso, isometric, near, structure
+- **apothecary** `bld-apothecary` — `assets/buildings/bld-apothecary.png` · near · tags: apothecary, building, buildings, iso, isometric, near, structure
+- **aqueduct** `bld-aqueduct` — `assets/buildings/bld-aqueduct.png` · near · tags: aqueduct, building, buildings, iso, isometric, near, structure
+- **archery tower** `bld-archerytower` — `assets/buildings/bld-archerytower.png` · near · tags: archery, archerytower, building, buildings, iso, isometric, near, structure, tower
+- **arena** `bld-arena` — `assets/buildings/bld-arena.png` · near · tags: arena, building, buildings, iso, isometric, near, structure
+- **armory** `bld-armory` — `assets/buildings/bld-armory.png` · near · tags: armory, building, buildings, iso, isometric, near, structure
+- **bakery** `bld-bakery` — `assets/buildings/bld-bakery.png` · near · tags: bakery, building, buildings, iso, isometric, near, structure
+- **ballista** `bld-ballista` — `assets/buildings/bld-ballista.png` · near · tags: ballista, building, buildings, iso, isometric, near, structure
+- **barn** `bld-barn` — `assets/buildings/bld-barn.png` · near · tags: barn, building, buildings, iso, isometric, near, structure
+- **barracks** `bld-barracks` — `assets/buildings/bld-barracks.png` · near · tags: barracks, building, buildings, iso, isometric, near, structure
+- **barricade** `bld-barricade` — `assets/buildings/bld-barricade.png` · near · tags: barricade, building, buildings, iso, isometric, near, structure
+- **bastion** `bld-bastion` — `assets/buildings/bld-bastion.png` · near · tags: bastion, building, buildings, iso, isometric, near, structure
+- **bathhouse** `bld-bathhouse` — `assets/buildings/bld-bathhouse.png` · near · tags: bathhouse, building, buildings, iso, isometric, near, structure
+- **beacon** `bld-beacon` — `assets/buildings/bld-beacon.png` · near · tags: beacon, building, buildings, iso, isometric, near, structure
+- **bellcote** `bld-bellcote` — `assets/buildings/bld-bellcote.png` · near · tags: bellcote, building, buildings, iso, isometric, near, structure
+- **bellfoundry** `bld-bellfoundry` — `assets/buildings/bld-bellfoundry.png` · near · tags: bellfoundry, building, buildings, iso, isometric, near, structure
+- **bell tower** `bld-belltower` — `assets/buildings/bld-belltower.png` · near · tags: bell, belltower, building, buildings, iso, isometric, near, structure, tower
+- **blacksmith** `bld-blacksmith` — `assets/buildings/bld-blacksmith.png` · near · tags: blacksmith, building, buildings, iso, isometric, near, structure
+- **boathouse** `bld-boathouse` — `assets/buildings/bld-boathouse.png` · near · tags: boathouse, building, buildings, iso, isometric, near, structure
+- **bowyer** `bld-bowyer` — `assets/buildings/bld-bowyer.png` · near · tags: bowyer, building, buildings, iso, isometric, near, structure
+- **brewery** `bld-brewery` — `assets/buildings/bld-brewery.png` · near · tags: brewery, building, buildings, iso, isometric, near, structure
+- **brick kiln** `bld-brickkiln` — `assets/buildings/bld-brickkiln.png` · near · tags: brick, brickkiln, building, buildings, iso, isometric, kiln, near, structure
+- **butcher (no base)** `bld-butcher` — `assets/buildings/bld-butcher.png` · near · tags: base, building, buildings, butcher, iso, isometric, near, structure
+- **canal lock** `bld-canallock` — `assets/buildings/bld-canallock.png` · near · tags: building, buildings, canal, canallock, iso, isometric, lock, near, structure
+- **cannon** `bld-cannon` — `assets/buildings/bld-cannon.png` · near · tags: building, buildings, cannon, iso, isometric, near, structure
+- **cannon tower** `bld-cannontower` — `assets/buildings/bld-cannontower.png` · near · tags: building, buildings, cannon, cannontower, iso, isometric, near, structure, tower
+- **carpenter** `bld-carpenter` — `assets/buildings/bld-carpenter.png` · near · tags: building, buildings, carpenter, iso, isometric, near, structure
+- **cartographer** `bld-cartographer` — `assets/buildings/bld-cartographer.png` · near · tags: building, buildings, cartographer, iso, isometric, near, structure
+- **grand castle** `bld-castle` — `assets/buildings/bld-castle.png` · near · tags: building, buildings, castle, grand, iso, isometric, near, structure
+- **catapult** `bld-catapult` — `assets/buildings/bld-catapult.png` · near · tags: building, buildings, catapult, iso, isometric, near, structure
+- **cathedral** `bld-cathedral` — `assets/buildings/bld-cathedral.png` · near · tags: building, buildings, cathedral, iso, isometric, near, structure
+- **chandler** `bld-chandler` — `assets/buildings/bld-chandler.png` · near · tags: building, buildings, chandler, iso, isometric, near, structure
+- **chapel** `bld-chapel` — `assets/buildings/bld-chapel.png` · near · tags: building, buildings, chapel, iso, isometric, near, structure
+- **charcoal kiln** `bld-charcoalkiln` — `assets/buildings/bld-charcoalkiln.png` · near · tags: building, buildings, charcoal, charcoalkiln, iso, isometric, kiln, near, structure
+- **cheesemonger** `bld-cheesemonger` — `assets/buildings/bld-cheesemonger.png` · near · tags: building, buildings, cheesemonger, iso, isometric, near, structure
+- **chicken coop** `bld-chickencoop` — `assets/buildings/bld-chickencoop.png` · near · tags: building, buildings, chicken, chickencoop, coop, iso, isometric, near, structure
+- **chocolatier** `bld-chocolatier` — `assets/buildings/bld-chocolatier.png` · near · tags: building, buildings, chocolatier, iso, isometric, near, structure
+- **church** `bld-church` — `assets/buildings/bld-church.png` · near · tags: building, buildings, church, iso, isometric, near, structure
+- **cistern** `bld-cistern` — `assets/buildings/bld-cistern.png` · near · tags: building, buildings, cistern, iso, isometric, near, structure
+- **citadel** `bld-citadel` — `assets/buildings/bld-citadel.png` · near · tags: building, buildings, citadel, iso, isometric, near, structure
+- **clock tower** `bld-clocktower` — `assets/buildings/bld-clocktower.png` · near · tags: building, buildings, clock, clocktower, iso, isometric, near, structure, tower
+- **cloister** `bld-cloister` — `assets/buildings/bld-cloister.png` · near · tags: building, buildings, cloister, iso, isometric, near, structure
+- **cobbler** `bld-cobbler` — `assets/buildings/bld-cobbler.png` · near · tags: building, buildings, cobbler, iso, isometric, near, structure
+- **coffeehouse** `bld-coffeehouse` — `assets/buildings/bld-coffeehouse.png` · near · tags: building, buildings, coffeehouse, iso, isometric, near, structure
+- **cooper** `bld-cooper` — `assets/buildings/bld-cooper.png` · near · tags: building, buildings, cooper, iso, isometric, near, structure
+- **corner tower** `bld-cornertower` — `assets/buildings/bld-cornertower.png` · near · tags: building, buildings, corner, cornertower, iso, isometric, near, structure, tower
+- **cottage** `bld-cottage` — `assets/buildings/bld-cottage.png` · near · tags: building, buildings, cottage, iso, isometric, near, structure
+- **courthouse** `bld-courthouse` — `assets/buildings/bld-courthouse.png` · near · tags: building, buildings, courthouse, iso, isometric, near, structure
+- **crypt** `bld-crypt` — `assets/buildings/bld-crypt.png` · near · tags: building, buildings, crypt, iso, isometric, near, structure
+- **crystal tower** `bld-crystaltower` — `assets/buildings/bld-crystaltower.png` · near · tags: building, buildings, crystal, crystaltower, iso, isometric, near, structure, tower
+- **customs house** `bld-customshouse` — `assets/buildings/bld-customshouse.png` · near · tags: building, buildings, customs, customshouse, house, iso, isometric, near, structure
+- **dairy** `bld-dairy` — `assets/buildings/bld-dairy.png` · near · tags: building, buildings, dairy, iso, isometric, near, structure
+- **dark tower** `bld-darktower` — `assets/buildings/bld-darktower.png` · near · tags: building, buildings, dark, darktower, iso, isometric, near, structure, tower
+- **desert tent** `bld-desert-tent` — `assets/buildings/bld-desert-tent.png` · near · tags: building, buildings, desert, iso, isometric, near, structure, tent
+- **dock** `bld-dock` — `assets/buildings/bld-dock.png` · near · tags: building, buildings, dock, iso, isometric, near, structure
+- **dovecote** `bld-dovecote` — `assets/buildings/bld-dovecote.png` · near · tags: building, buildings, dovecote, iso, isometric, near, structure
+- **drawbridge** `bld-drawbridge` — `assets/buildings/bld-drawbridge.png` · near · tags: building, buildings, drawbridge, iso, isometric, near, structure
+- **dwarven forge** `bld-dwarven-forge` — `assets/buildings/bld-dwarven-forge.png` · near · tags: building, buildings, dwarven, forge, iso, isometric, near, structure
+- **dyehouse** `bld-dyehouse` — `assets/buildings/bld-dyehouse.png` · near · tags: building, buildings, dyehouse, iso, isometric, near, structure
+- **elven house** `bld-elven-house` — `assets/buildings/bld-elven-house.png` · near · tags: building, buildings, elven, house, iso, isometric, near, structure
+- **exchange** `bld-exchange` — `assets/buildings/bld-exchange.png` · near · tags: building, buildings, exchange, iso, isometric, near, structure
+- **fairy hut** `bld-fairyhut` — `assets/buildings/bld-fairyhut.png` · near · tags: building, buildings, fairy, fairyhut, hut, iso, isometric, near, structure
+- **falconry** `bld-falconry` — `assets/buildings/bld-falconry.png` · near · tags: building, buildings, falconry, iso, isometric, near, structure
+- **farmhouse** `bld-farmhouse` — `assets/buildings/bld-farmhouse.png` · near · tags: building, buildings, farmhouse, iso, isometric, near, structure
+- **fish drying racks** `bld-fishdryingracks` — `assets/buildings/bld-fishdryingracks.png` · near · tags: building, buildings, drying, fish, fishdryingracks, iso, isometric, near, racks, structure
+- **fisher hut** `bld-fisherhut` — `assets/buildings/bld-fisherhut.png` · near · tags: building, buildings, fisher, fisherhut, hut, iso, isometric, near, structure
+- **fish market** `bld-fishmarket` — `assets/buildings/bld-fishmarket.png` · near · tags: building, buildings, fish, fishmarket, iso, isometric, market, near, structure
+- **flagpole** `bld-flagpole` — `assets/buildings/bld-flagpole.png` · near · tags: building, buildings, flagpole, iso, isometric, near, structure
+- **fletcher** `bld-fletcher` — `assets/buildings/bld-fletcher.png` · near · tags: building, buildings, fletcher, iso, isometric, near, structure
+- **flower shop** `bld-flowershop` — `assets/buildings/bld-flowershop.png` · near · tags: building, buildings, flower, flowershop, iso, isometric, near, shop, structure
+- **fortuneteller** `bld-fortuneteller` — `assets/buildings/bld-fortuneteller.png` · near · tags: building, buildings, fortuneteller, iso, isometric, near, structure
+- **foundry** `bld-foundry` — `assets/buildings/bld-foundry.png` · near · tags: building, buildings, foundry, iso, isometric, near, structure
+- **fountain** `bld-fountain` — `assets/buildings/bld-fountain.png` · near · tags: building, buildings, fountain, iso, isometric, near, structure
+- **furrier** `bld-furrier` — `assets/buildings/bld-furrier.png` · near · tags: building, buildings, furrier, iso, isometric, near, structure
+- **gatehouse** `bld-gatehouse` — `assets/buildings/bld-gatehouse.png` · near · tags: building, buildings, gatehouse, iso, isometric, near, structure
+- **gazebo** `bld-gazebo` — `assets/buildings/bld-gazebo.png` · near · tags: building, buildings, gazebo, iso, isometric, near, structure
+- **glassblower** `bld-glassblower` — `assets/buildings/bld-glassblower.png` · near · tags: building, buildings, glassblower, iso, isometric, near, structure
+- **gnome house** `bld-gnomehouse` — `assets/buildings/bld-gnomehouse.png` · near · tags: building, buildings, gnome, gnomehouse, house, iso, isometric, near, structure
+- **goldsmith** `bld-goldsmith` — `assets/buildings/bld-goldsmith.png` · near · tags: building, buildings, goldsmith, iso, isometric, near, structure
+- **granary** `bld-granary` — `assets/buildings/bld-granary.png` · near · tags: building, buildings, granary, iso, isometric, near, structure
+- **graveyard** `bld-graveyard` — `assets/buildings/bld-graveyard.png` · near · tags: building, buildings, graveyard, iso, isometric, near, structure
+- **greenhouse** `bld-greenhouse` — `assets/buildings/bld-greenhouse.png` · near · tags: building, buildings, greenhouse, iso, isometric, near, structure
+- **guardhouse** `bld-guardhouse` — `assets/buildings/bld-guardhouse.png` · near · tags: building, buildings, guardhouse, iso, isometric, near, structure
+- **guild hall** `bld-guildhall` — `assets/buildings/bld-guildhall.png` · near · tags: building, buildings, guild, guildhall, hall, iso, isometric, near, structure
+- **harbour crane** `bld-harborcrane` — `assets/buildings/bld-harborcrane.png` · near · tags: building, buildings, crane, harborcrane, harbour, iso, isometric, near, structure
+- **hatter** `bld-hatter` — `assets/buildings/bld-hatter.png` · near · tags: building, buildings, hatter, iso, isometric, near, structure
+- **herbgarden** `bld-herbgarden` — `assets/buildings/bld-herbgarden.png` · near · tags: building, buildings, herbgarden, iso, isometric, near, structure
+- **hermitage** `bld-hermitage` — `assets/buildings/bld-hermitage.png` · near · tags: building, buildings, hermitage, iso, isometric, near, structure
+- **house** `bld-house` — `assets/buildings/bld-house.png` · near · tags: building, buildings, house, iso, isometric, near, structure
+- **house variant (blue roof)** `bld-house-blue` — `assets/buildings/bld-house-blue.png` · near · tags: blue, building, buildings, house, iso, isometric, near, roof, structure, variant
+- **house (burnt)** `bld-house-burnt` — `assets/buildings/bld-house-burnt.png` · near · tags: building, buildings, burnt, house, iso, isometric, near, structure
+- **house (damaged state)** `bld-house-damaged` — `assets/buildings/bld-house-damaged.png` · near · tags: building, buildings, damaged, house, iso, isometric, near, state, structure
+- **house variant (large)** `bld-house-large` — `assets/buildings/bld-house-large.png` · near · tags: building, buildings, house, iso, isometric, near, structure, variant
+- **house variant (stone)** `bld-house-stone` — `assets/buildings/bld-house-stone.png` · near · tags: building, buildings, house, iso, isometric, near, stone, structure, variant
+- **ice tower** `bld-ice-tower` — `assets/buildings/bld-ice-tower.png` · near · tags: building, buildings, ice, iso, isometric, near, structure, tower
+- **icehouse** `bld-icehouse` — `assets/buildings/bld-icehouse.png` · near · tags: building, buildings, icehouse, iso, isometric, near, structure
+- **igloo** `bld-igloo` — `assets/buildings/bld-igloo.png` · near · tags: building, buildings, igloo, iso, isometric, near, structure
+- **infirmary** `bld-infirmary` — `assets/buildings/bld-infirmary.png` · near · tags: building, buildings, infirmary, iso, isometric, near, structure
+- **inn** `bld-inn` — `assets/buildings/bld-inn.png` · near · tags: building, buildings, inn, iso, isometric, near, structure
+- **jail** `bld-jail` — `assets/buildings/bld-jail.png` · near · tags: building, buildings, iso, isometric, jail, near, structure
+- **jeweler** `bld-jeweler` — `assets/buildings/bld-jeweler.png` · near · tags: building, buildings, iso, isometric, jeweler, near, structure
+- **castle keep** `bld-keep` — `assets/buildings/bld-keep.png` · near · tags: building, buildings, castle, iso, isometric, keep, near, structure
+- **kennel** `bld-kennel` — `assets/buildings/bld-kennel.png` · near · tags: building, buildings, iso, isometric, kennel, near, structure
+- **library** `bld-library` — `assets/buildings/bld-library.png` · near · tags: building, buildings, iso, isometric, library, near, structure
+- **lighthouse** `bld-lighthouse` — `assets/buildings/bld-lighthouse.png` · near · tags: building, buildings, iso, isometric, lighthouse, near, structure
+- **lime kiln** `bld-limekiln` — `assets/buildings/bld-limekiln.png` · near · tags: building, buildings, iso, isometric, kiln, lime, limekiln, near, structure
+- **locksmith** `bld-locksmith` — `assets/buildings/bld-locksmith.png` · near · tags: building, buildings, iso, isometric, locksmith, near, structure
+- **log cabin** `bld-logcabin` — `assets/buildings/bld-logcabin.png` · near · tags: building, buildings, cabin, iso, isometric, log, logcabin, near, structure
+- **viking longhouse** `bld-longhouse` — `assets/buildings/bld-longhouse.png` · near · tags: building, buildings, iso, isometric, longhouse, near, structure, viking
+- **lumber mill** `bld-lumbermill` — `assets/buildings/bld-lumbermill.png` · near · tags: building, buildings, iso, isometric, lumber, lumbermill, mill, near, structure
+- **mage guild** `bld-mageguild` — `assets/buildings/bld-mageguild.png` · near · tags: building, buildings, guild, iso, isometric, mage, mageguild, near, structure
+- **manor** `bld-manor` — `assets/buildings/bld-manor.png` · near · tags: building, buildings, iso, isometric, manor, near, structure
+- **market stall** `bld-market` — `assets/buildings/bld-market.png` · near · tags: building, buildings, iso, isometric, market, near, stall, structure
+- **mausoleum** `bld-mausoleum` — `assets/buildings/bld-mausoleum.png` · near · tags: building, buildings, iso, isometric, mausoleum, near, structure
+- **mine entrance** `bld-mine` — `assets/buildings/bld-mine.png` · near · tags: building, buildings, entrance, iso, isometric, mine, near, structure
+- **mint** `bld-mint` — `assets/buildings/bld-mint.png` · near · tags: building, buildings, iso, isometric, mint, near, structure
+- **monastery** `bld-monastery` — `assets/buildings/bld-monastery.png` · near · tags: building, buildings, iso, isometric, monastery, near, structure
+- **monument** `bld-monument` — `assets/buildings/bld-monument.png` · near · tags: building, buildings, iso, isometric, monument, near, structure
+- **mountain fort** `bld-mountain-fort` — `assets/buildings/bld-mountain-fort.png` · near · tags: building, buildings, fort, iso, isometric, mountain, near, structure
+- **mushroomfarm** `bld-mushroomfarm` — `assets/buildings/bld-mushroomfarm.png` · near · tags: building, buildings, iso, isometric, mushroomfarm, near, structure
+- **mushroom house** `bld-mushroomhouse` — `assets/buildings/bld-mushroomhouse.png` · near · tags: building, buildings, house, iso, isometric, mushroom, mushroomhouse, near, structure
+- **nailmaker** `bld-nailmaker` — `assets/buildings/bld-nailmaker.png` · near · tags: building, buildings, iso, isometric, nailmaker, near, structure
+- **oasis well** `bld-oasis-well` — `assets/buildings/bld-oasis-well.png` · near · tags: building, buildings, iso, isometric, near, oasis, structure, well
+- **obelisk** `bld-obelisk` — `assets/buildings/bld-obelisk.png` · near · tags: building, buildings, iso, isometric, near, obelisk, structure
+- **observatory** `bld-observatory` — `assets/buildings/bld-observatory.png` · near · tags: building, buildings, iso, isometric, near, observatory, structure
+- **orphanage** `bld-orphanage` — `assets/buildings/bld-orphanage.png` · near · tags: building, buildings, iso, isometric, near, orphanage, structure
+- **ossuary** `bld-ossuary` — `assets/buildings/bld-ossuary.png` · near · tags: building, buildings, iso, isometric, near, ossuary, structure
+- **pagoda** `bld-pagoda` — `assets/buildings/bld-pagoda.png` · near · tags: building, buildings, iso, isometric, near, pagoda, structure
+- **palace** `bld-palace` — `assets/buildings/bld-palace.png` · near · tags: building, buildings, iso, isometric, near, palace, structure
+- **palisade wall** `bld-palisade` — `assets/buildings/bld-palisade.png` · near · tags: building, buildings, iso, isometric, near, palisade, structure, wall
+- **papermill** `bld-papermill` — `assets/buildings/bld-papermill.png` · near · tags: building, buildings, iso, isometric, near, papermill, structure
+- **pawnshop** `bld-pawnshop` — `assets/buildings/bld-pawnshop.png` · near · tags: building, buildings, iso, isometric, near, pawnshop, structure
+- **pier** `bld-pier` — `assets/buildings/bld-pier.png` · near · tags: building, buildings, iso, isometric, near, pier, structure
+- **pig pen** `bld-pigpen` — `assets/buildings/bld-pigpen.png` · near · tags: building, buildings, iso, isometric, near, pen, pig, pigpen, structure
+- **magic portal** `bld-portal` — `assets/buildings/bld-portal.png` · near · tags: building, buildings, iso, isometric, magic, near, portal, structure
+- **pottery** `bld-pottery` — `assets/buildings/bld-pottery.png` · near · tags: building, buildings, iso, isometric, near, pottery, structure
+- **printing house** `bld-printinghouse` — `assets/buildings/bld-printinghouse.png` · near · tags: building, buildings, house, iso, isometric, near, printing, printinghouse, structure
+- **pumphouse** `bld-pumphouse` — `assets/buildings/bld-pumphouse.png` · near · tags: building, buildings, iso, isometric, near, pumphouse, structure
+- **puppettheater** `bld-puppettheater` — `assets/buildings/bld-puppettheater.png` · near · tags: building, buildings, iso, isometric, near, puppettheater, structure
+- **rampart** `bld-rampart` — `assets/buildings/bld-rampart.png` · near · tags: building, buildings, iso, isometric, near, rampart, structure
+- **rope bridge** `bld-ropebridge` — `assets/buildings/bld-ropebridge.png` · near · tags: bridge, building, buildings, iso, isometric, near, rope, ropebridge, structure
+- **ropemaker** `bld-ropemaker` — `assets/buildings/bld-ropemaker.png` · near · tags: building, buildings, iso, isometric, near, ropemaker, structure
+- **roundhouse** `bld-roundhouse` — `assets/buildings/bld-roundhouse.png` · near · tags: building, buildings, iso, isometric, near, roundhouse, structure
+- **rubble (destroyed)** `bld-rubble` — `assets/buildings/bld-rubble.png` · near · tags: building, buildings, destroyed, iso, isometric, near, rubble, structure
+- **generic ruins** `bld-ruins` — `assets/buildings/bld-ruins.png` · near · tags: building, buildings, generic, iso, isometric, near, ruins, structure
+- **saltworks** `bld-saltworks` — `assets/buildings/bld-saltworks.png` · near · tags: building, buildings, iso, isometric, near, saltworks, structure
+- **sawmill** `bld-sawmill` — `assets/buildings/bld-sawmill.png` · near · tags: building, buildings, iso, isometric, near, sawmill, structure
+- **schoolhouse** `bld-schoolhouse` — `assets/buildings/bld-schoolhouse.png` · near · tags: building, buildings, iso, isometric, near, schoolhouse, structure
+- **scriptorium** `bld-scriptorium` — `assets/buildings/bld-scriptorium.png` · near · tags: building, buildings, iso, isometric, near, scriptorium, structure
+- **sheepfold** `bld-sheepfold` — `assets/buildings/bld-sheepfold.png` · near · tags: building, buildings, iso, isometric, near, sheepfold, structure
+- **shipyard** `bld-shipyard` — `assets/buildings/bld-shipyard.png` · near · tags: building, buildings, iso, isometric, near, shipyard, structure
+- **shrine** `bld-shrine` — `assets/buildings/bld-shrine.png` · near · tags: building, buildings, iso, isometric, near, shrine, structure
+- **signaltower** `bld-signaltower` — `assets/buildings/bld-signaltower.png` · near · tags: building, buildings, iso, isometric, near, signaltower, structure
+- **silo (no base)** `bld-silo` — `assets/buildings/bld-silo.png` · near · tags: base, building, buildings, iso, isometric, near, silo, structure
+- **smokehouse** `bld-smokehouse` — `assets/buildings/bld-smokehouse.png` · near · tags: building, buildings, iso, isometric, near, smokehouse, structure
+- **snow cabin** `bld-snow-cabin` — `assets/buildings/bld-snow-cabin.png` · near · tags: building, buildings, cabin, iso, isometric, near, snow, structure
+- **spike wall** `bld-spikewall` — `assets/buildings/bld-spikewall.png` · near · tags: building, buildings, iso, isometric, near, spike, spikewall, structure, wall
+- **stable** `bld-stable` — `assets/buildings/bld-stable.png` · near · tags: building, buildings, iso, isometric, near, stable, structure
+- **standing stones** `bld-standingstones` — `assets/buildings/bld-standingstones.png` · near · tags: building, buildings, iso, isometric, near, standing, standingstones, stones, structure
+- **hero statue** `bld-statue` — `assets/buildings/bld-statue.png` · near · tags: building, buildings, hero, iso, isometric, near, statue, structure
+- **stone bridge** `bld-stonebridge` — `assets/buildings/bld-stonebridge.png` · near · tags: bridge, building, buildings, iso, isometric, near, stone, stonebridge, structure
+- **stonemason** `bld-stonemason` — `assets/buildings/bld-stonemason.png` · near · tags: building, buildings, iso, isometric, near, stonemason, structure
+- **supply depot** `bld-supplydepot` — `assets/buildings/bld-supplydepot.png` · near · tags: building, buildings, depot, iso, isometric, near, structure, supply, supplydepot
+- **swamp hut** `bld-swamp-hut` — `assets/buildings/bld-swamp-hut.png` · near · tags: building, buildings, hut, iso, isometric, near, structure, swamp
+- **tailor** `bld-tailor` — `assets/buildings/bld-tailor.png` · near · tags: building, buildings, iso, isometric, near, structure, tailor
+- **tannery (no base)** `bld-tannery` — `assets/buildings/bld-tannery.png` · near · tags: base, building, buildings, iso, isometric, near, structure, tannery
+- **tarkiln** `bld-tarkiln` — `assets/buildings/bld-tarkiln.png` · near · tags: building, buildings, iso, isometric, near, structure, tarkiln
+- **tavern** `bld-tavern` — `assets/buildings/bld-tavern.png` · near · tags: building, buildings, iso, isometric, near, structure, tavern
+- **teahouse** `bld-teahouse` — `assets/buildings/bld-teahouse.png` · near · tags: building, buildings, iso, isometric, near, structure, teahouse
+- **temple** `bld-temple` — `assets/buildings/bld-temple.png` · near · tags: building, buildings, iso, isometric, near, structure, temple
+- **tent camp** `bld-tent-camp` — `assets/buildings/bld-tent-camp.png` · near · tags: building, buildings, camp, iso, isometric, near, structure, tent
+- **theater** `bld-theater` — `assets/buildings/bld-theater.png` · near · tags: building, buildings, iso, isometric, near, structure, theater
+- **tollhouse** `bld-tollhouse` — `assets/buildings/bld-tollhouse.png` · near · tags: building, buildings, iso, isometric, near, structure, tollhouse
+- **totem pole** `bld-totempole` — `assets/buildings/bld-totempole.png` · near · tags: building, buildings, iso, isometric, near, pole, structure, totem, totempole
+- **tower** `bld-tower` — `assets/buildings/bld-tower.png` · near · tags: building, buildings, iso, isometric, near, structure, tower
+- **tower (damaged)** `bld-tower-damaged` — `assets/buildings/bld-tower-damaged.png` · near · tags: building, buildings, damaged, iso, isometric, near, structure, tower
+- **toy shop** `bld-toyshop` — `assets/buildings/bld-toyshop.png` · near · tags: building, buildings, iso, isometric, near, shop, structure, toy, toyshop
+- **trading post** `bld-tradingpost` — `assets/buildings/bld-tradingpost.png` · near · tags: building, buildings, iso, isometric, near, post, structure, trading, tradingpost
+- **trebuchet** `bld-trebuchet` — `assets/buildings/bld-trebuchet.png` · near · tags: building, buildings, iso, isometric, near, structure, trebuchet
+- **treehouse** `bld-treehouse` — `assets/buildings/bld-treehouse.png` · near · tags: building, buildings, iso, isometric, near, structure, treehouse
+- **villa** `bld-villa` — `assets/buildings/bld-villa.png` · near · tags: building, buildings, iso, isometric, near, structure, villa
+- **merchant wagon** `bld-wagon` — `assets/buildings/bld-wagon.png` · near · tags: building, buildings, iso, isometric, merchant, near, structure, wagon
+- **broken wall** `bld-wall-broken` — `assets/buildings/bld-wall-broken.png` · near · tags: broken, building, buildings, iso, isometric, near, structure, wall
+- **warehouse** `bld-warehouse` — `assets/buildings/bld-warehouse.png` · near · tags: building, buildings, iso, isometric, near, structure, warehouse
+- **washhouse** `bld-washhouse` — `assets/buildings/bld-washhouse.png` · near · tags: building, buildings, iso, isometric, near, structure, washhouse
+- **watchpost** `bld-watchpost` — `assets/buildings/bld-watchpost.png` · near · tags: building, buildings, iso, isometric, near, structure, watchpost
+- **watchtower** `bld-watchtower` — `assets/buildings/bld-watchtower.png` · near · tags: building, buildings, iso, isometric, near, structure, watchtower
+- **watermill** `bld-watermill` — `assets/buildings/bld-watermill.png` · near · tags: building, buildings, iso, isometric, near, structure, watermill
+- **wayshrine** `bld-wayshrine` — `assets/buildings/bld-wayshrine.png` · near · tags: building, buildings, iso, isometric, near, structure, wayshrine
+- **weaponsmith** `bld-weaponsmith` — `assets/buildings/bld-weaponsmith.png` · near · tags: building, buildings, iso, isometric, near, structure, weaponsmith
+- **weaver** `bld-weaver` — `assets/buildings/bld-weaver.png` · near · tags: building, buildings, iso, isometric, near, structure, weaver
+- **well** `bld-well` — `assets/buildings/bld-well.png` · near · tags: building, buildings, iso, isometric, near, structure, well
+- **wheelwright** `bld-wheelwright` — `assets/buildings/bld-wheelwright.png` · near · tags: building, buildings, iso, isometric, near, structure, wheelwright
+- **windmill** `bld-windmill` — `assets/buildings/bld-windmill.png` · near · tags: building, buildings, iso, isometric, near, structure, windmill
+- **windmill tower** `bld-windmilltower` — `assets/buildings/bld-windmilltower.png` · near · tags: building, buildings, iso, isometric, near, structure, tower, windmill, windmilltower
+- **windpump** `bld-windpump` — `assets/buildings/bld-windpump.png` · near · tags: building, buildings, iso, isometric, near, structure, windpump
+- **winery** `bld-winery` — `assets/buildings/bld-winery.png` · near · tags: building, buildings, iso, isometric, near, structure, winery
+- **witch hut** `bld-witch-hut` — `assets/buildings/bld-witch-hut.png` · near · tags: building, buildings, hut, iso, isometric, near, structure, witch
+- **wooden bridge** `bld-woodbridge` — `assets/buildings/bld-woodbridge.png` · near · tags: bridge, building, buildings, iso, isometric, near, structure, woodbridge, wooden
+- **yurt** `bld-yurt` — `assets/buildings/bld-yurt.png` · near · tags: building, buildings, iso, isometric, near, structure, yurt
+- **bank / storage** `building-bank` — `assets/buildings/bank.png` · near · tags: bank, building, buildings, hometab, icon, iso, isometric, near, storage, structure
+- **gate** `building-gate` — `assets/buildings/gate.png` · near · tags: building, buildings, gate, hometab, icon, iso, isometric, near, structure
+- **kitchen (crafting)** `building-kitchen` — `assets/buildings/kitchen.png` · near · tags: building, buildings, crafting, hometab, icon, iso, isometric, kitchen, near, structure
+- **town notice board** `building-panel` — `assets/buildings/panel.png` · near · tags: board, building, buildings, hometab, icon, iso, isometric, near, notice, panel, structure, town
+- **Generic 'en construction' overlay shown on Home for any under-construction building** `building-scaffold` — `assets/buildings/scaffold.png` · near · tags: any, building, buildings, construction, for, generic, home, iso, isometric, near, overlay, scaffold, shown, structure, under
+- **tower** `building-tower` — `assets/buildings/tower.png` · near · tags: building, buildings, hometab, icon, iso, isometric, near, structure, tower
+- **townhall (revive heroes)** `building-townhall` — `assets/buildings/townhall.png` · near · tags: building, buildings, heroes, hometab, icon, iso, isometric, near, revive, structure, townhall
+- **wall** `building-wall` — `assets/buildings/wall.png` · near · tags: building, buildings, hometab, icon, iso, isometric, near, structure, wall
+- **well** `building-well` — `assets/buildings/well.png` · near · tags: building, buildings, hometab, icon, iso, isometric, near, structure, well
+- **workshop** `building-workshop` — `assets/buildings/workshop.png` · near · tags: building, buildings, hometab, icon, iso, isometric, near, structure, workshop
+
+## characters (12)
+
+- **archer** `char-archer` — `assets/characters/char-archer.png` · tags: archer, character, characters, chibi, hero, isometric, npc, person, portrait, rpg, unit
+- **bard** `char-bard` — `assets/characters/char-bard.png` · tags: bard, character, characters, chibi, hero, isometric, npc, person, portrait, rpg, unit
+- **builder** `char-builder` — `assets/characters/char-builder.png` · tags: builder, character, characters, chibi, hero, isometric, npc, person, portrait, rpg, unit
+- **farmer** `char-farmer` — `assets/characters/char-farmer.png` · tags: character, characters, chibi, farmer, hero, isometric, npc, person, portrait, rpg, unit
+- **healer** `char-healer` — `assets/characters/char-healer.png` · tags: character, characters, chibi, healer, hero, isometric, npc, person, portrait, rpg, unit
+- **hunter** `char-hunter` — `assets/characters/char-hunter.png` · tags: character, characters, chibi, hero, hunter, isometric, npc, person, portrait, rpg, unit
+- **knight** `char-knight` — `assets/characters/char-knight.png` · tags: character, characters, chibi, hero, isometric, knight, npc, person, portrait, rpg, unit
+- **merchant** `char-merchant` — `assets/characters/char-merchant.png` · tags: character, characters, chibi, hero, isometric, merchant, npc, person, portrait, rpg, unit
+- **miner** `char-miner` — `assets/characters/char-miner.png` · tags: character, characters, chibi, hero, isometric, miner, npc, person, portrait, rpg, unit
+- **rogue** `char-rogue` — `assets/characters/char-rogue.png` · tags: character, characters, chibi, hero, isometric, npc, person, portrait, rogue, rpg, unit
+- **scout** `char-scout` — `assets/characters/char-scout.png` · tags: character, characters, chibi, hero, isometric, npc, person, portrait, rpg, scout, unit
+- **wizard** `char-wizard` — `assets/characters/char-wizard.png` · tags: character, characters, chibi, hero, isometric, npc, person, portrait, rpg, unit, wizard
+
+## heroes (7)
+
+- **Chasseur class** `hero-chasseur` — `assets/heroes/hero-chasseur.png` · tags: character, chasseur, chibi, class, hero, heroes, herooverlay, isometric, person, portrait, rpg, unit
+- **Éclaireur class** `hero-eclaireur` — `assets/heroes/hero-eclaireur.png` · tags: character, chibi, claireur, class, eclaireur, hero, heroes, herooverlay, isometric, person, portrait, rpg, unit
+- **Gardien class** `hero-gardien` — `assets/heroes/hero-gardien.png` · tags: character, chibi, class, gardien, hero, heroes, herooverlay, isometric, person, portrait, rpg, unit
+- **Herboriste class** `hero-herboriste` — `assets/heroes/hero-herboriste.png` · tags: character, chibi, class, herboriste, hero, heroes, herooverlay, isometric, person, portrait, rpg, unit
+- **Pionnier class** `hero-pionnier` — `assets/heroes/hero-pionnier.png` · tags: character, chibi, class, hero, heroes, herooverlay, isometric, person, pionnier, portrait, rpg, unit
+- **Récupérateur class** `hero-recuperateur` — `assets/heroes/hero-recuperateur.png` · tags: character, chibi, class, cup, hero, heroes, herooverlay, isometric, person, portrait, rateur, recuperateur, rpg, unit
+- **hero without class (tier 0)** `hero-sans-classe` — `assets/heroes/hero-0.png` · tags: character, chibi, class, classe, hero, heroes, herooverlay, isometric, person, portrait, rpg, sans, tier, unit, without
+
+## islands (7)
+
+- **Core (civic) island, buildings baked in (built state)** `scene-core-built` — `assets/islands/core-built.png` · tags: baked, biome, buildings, built, civic, core, island, islands, iso, isometric, map, state, terrain
+- **Ideogram v4 bbox-composed core island (built state)** `scene-core-ideo` — `assets/islands/core-ideo.png` · tags: bbox, biome, built, composed, core, ideo, ideogram, island, islands, iso, isometric, map, poc, state, terrain
+- **core island, one building under construction (state variant)** `scene-core-wip` — `assets/islands/core-wip.png` · tags: biome, construction, core, island, islands, iso, isometric, map, poc, state, terrain, under, variant, wip
+- **Defense island, buildings baked in (built state)** `scene-defense-built` — `assets/islands/defense-built.png` · tags: baked, biome, buildings, built, defense, island, islands, iso, isometric, map, state, terrain
+- **Ideogram v4 defense island (built)** `scene-defense-ideo` — `assets/islands/defense-ideo.png` · tags: biome, built, defense, ideo, ideogram, island, islands, iso, isometric, map, poc, terrain
+- **Production island, buildings baked in (built state)** `scene-production-built` — `assets/islands/production-built.png` · tags: baked, biome, buildings, built, island, islands, iso, isometric, map, production, state, terrain
+- **Ideogram v4 production island (built)** `scene-production-ideo` — `assets/islands/production-ideo.png` · tags: biome, built, ideo, ideogram, island, islands, iso, isometric, map, poc, production, terrain
+
+## isotiles (55)
+
+- **volcanic ash** `iso-ash` — `assets/isotiles/ash.png` · tags: ash, biome, block, cube, ground, iso, isometric, isotiles, terrain, tile, volcanic
+- **basalt** `iso-basalt` — `assets/isotiles/basalt.png` · tags: basalt, biome, block, cube, ground, iso, isometric, isotiles, terrain, tile
+- **bog** `iso-bog` — `assets/isotiles/bog.png` · tags: biome, block, bog, cube, ground, iso, isometric, isotiles, terrain, tile
+- **brick** `iso-brick` — `assets/isotiles/brick.png` · tags: biome, block, brick, cube, ground, iso, isometric, isotiles, terrain, tile
+- **wooden bridge tile (connects iso platforms)** `iso-bridge` — `assets/isotiles/bridge.png` · tags: biome, block, bridge, connects, cube, ground, iso, isometric, isotiles, platforms, terrain, tile, wooden
+- **desert hardpan (flat)** `iso-cactus` — `assets/isotiles/cactus.png` · tags: biome, block, cactus, cube, desert, flat, ground, hardpan, iso, isometric, isotiles, terrain, tile
+- **clay** `iso-clay` — `assets/isotiles/clay.png` · tags: biome, block, clay, cube, ground, iso, isometric, isotiles, terrain, tile
+- **coal ore block** `iso-coalblock` — `assets/isotiles/coalblock.png` · tags: biome, block, coal, coalblock, cube, ground, iso, isometric, isotiles, ore, terrain, tile
+- **cobblestone path** `iso-cobblestone` — `assets/isotiles/cobblestone.png` · tags: biome, block, cobblestone, cube, ground, iso, isometric, isotiles, path, terrain, tile
+- **copper ore block** `iso-copperblock` — `assets/isotiles/copperblock.png` · tags: biome, block, copper, copperblock, cube, ground, iso, isometric, isotiles, ore, terrain, tile
+- **coral reef** `iso-coral` — `assets/isotiles/coral.png` · tags: biome, block, coral, cube, ground, iso, isometric, isotiles, reef, terrain, tile
+- **cracked earth** `iso-crackedearth` — `assets/isotiles/crackedearth.png` · tags: biome, block, cracked, crackedearth, cube, earth, ground, iso, isometric, isotiles, terrain, tile
+- **crystal (flat)** `iso-crystal` — `assets/isotiles/crystal.png` · tags: biome, block, crystal, cube, flat, ground, iso, isometric, isotiles, terrain, tile
+- **dark grass** `iso-darkgrass` — `assets/isotiles/darkgrass.png` · tags: biome, block, cube, dark, darkgrass, grass, ground, iso, isometric, isotiles, terrain, tile
+- **dark stone** `iso-darkstone` — `assets/isotiles/darkstone.png` · tags: biome, block, cube, dark, darkstone, ground, iso, isometric, isotiles, stone, terrain, tile
+- **deep snow** `iso-deepsnow` — `assets/isotiles/deepsnow.png` · tags: biome, block, cube, deep, deepsnow, ground, iso, isometric, isotiles, snow, terrain, tile
+- **dirt** `iso-dirt` — `assets/isotiles/dirt.png` · tags: biome, block, cube, dirt, ground, iso, isometric, isotiles, terrain, tile
+- **dungeon stone** `iso-dungeon` — `assets/isotiles/dungeon.png` · tags: biome, block, cube, dungeon, ground, iso, isometric, isotiles, stone, terrain, tile
+- **fall grass** `iso-fallgrass` — `assets/isotiles/fallgrass.png` · tags: biome, block, cube, fall, fallgrass, grass, ground, iso, isometric, isotiles, terrain, tile
+- **farmland** `iso-farmland` — `assets/isotiles/farmland.png` · tags: biome, block, cube, farmland, ground, iso, isometric, isotiles, terrain, tile
+- **flower meadow** `iso-flowers` — `assets/isotiles/flowers.png` · tags: biome, block, cube, flower, flowers, ground, iso, isometric, isotiles, meadow, terrain, tile
+- **biome 3 Forest** `iso-forest` — `assets/isotiles/forest.png` · tags: biome, block, cube, forest, ground, iso, isometric, isotiles, terrain, tile
+- **gold ore block** `iso-goldblock` — `assets/isotiles/goldblock.png` · tags: biome, block, cube, gold, goldblock, ground, iso, isometric, isotiles, ore, terrain, tile
+- **granite** `iso-granite` — `assets/isotiles/granite.png` · tags: biome, block, cube, granite, ground, iso, isometric, isotiles, terrain, tile
+- **biome 2 Grass (also town ground)** `iso-grass` — `assets/isotiles/grass.png` · tags: also, biome, block, cube, grass, ground, iso, isometric, isotiles, terrain, tile, town
+- **gravel** `iso-gravel` — `assets/isotiles/gravel.png` · tags: biome, block, cube, gravel, ground, iso, isometric, isotiles, terrain, tile
+- **hay block** `iso-hay` — `assets/isotiles/hay.png` · tags: biome, block, cube, ground, hay, iso, isometric, isotiles, terrain, tile
+- **ice** `iso-ice` — `assets/isotiles/ice.png` · tags: biome, block, cube, ground, ice, iso, isometric, isotiles, terrain, tile
+- **iron ore block** `iso-ironblock` — `assets/isotiles/ironblock.png` · tags: biome, block, cube, ground, iron, ironblock, iso, isometric, isotiles, ore, terrain, tile
+- **jungle floor** `iso-jungle` — `assets/isotiles/jungle.png` · tags: biome, block, cube, floor, ground, iso, isometric, isotiles, jungle, terrain, tile
+- **jungle grass** `iso-junglegrass` — `assets/isotiles/junglegrass.png` · tags: biome, block, cube, grass, ground, iso, isometric, isotiles, jungle, junglegrass, terrain, tile
+- **lava rock** `iso-lava` — `assets/isotiles/lava.png` · tags: biome, block, cube, ground, iso, isometric, isotiles, lava, rock, terrain, tile
+- **limestone** `iso-limestone` — `assets/isotiles/limestone.png` · tags: biome, block, cube, ground, iso, isometric, isotiles, limestone, terrain, tile
+- **marble** `iso-marble` — `assets/isotiles/marble.png` · tags: biome, block, cube, ground, iso, isometric, isotiles, marble, terrain, tile
+- **meadow** `iso-meadow` — `assets/isotiles/meadow.png` · tags: biome, block, cube, ground, iso, isometric, isotiles, meadow, terrain, tile
+- **mossy stone** `iso-mossstone` — `assets/isotiles/mossstone.png` · tags: biome, block, cube, ground, iso, isometric, isotiles, mossstone, mossy, stone, terrain, tile
+- **mud** `iso-mud` — `assets/isotiles/mud.png` · tags: biome, block, cube, ground, iso, isometric, isotiles, mud, terrain, tile
+- **mushroom ground** `iso-mushroom` — `assets/isotiles/mushroom.png` · tags: biome, block, cube, ground, iso, isometric, isotiles, mushroom, terrain, tile
+- **obsidian** `iso-obsidian` — `assets/isotiles/obsidian.png` · tags: biome, block, cube, ground, iso, isometric, isotiles, obsidian, terrain, tile
+- **permafrost** `iso-permafrost` — `assets/isotiles/permafrost.png` · tags: biome, block, cube, ground, iso, isometric, isotiles, permafrost, terrain, tile
+- **taiga (flat)** `iso-pineforest` — `assets/isotiles/pineforest.png` · tags: biome, block, cube, flat, ground, iso, isometric, isotiles, pineforest, taiga, terrain, tile
+- **quartz** `iso-quartz` — `assets/isotiles/quartz.png` · tags: biome, block, cube, ground, iso, isometric, isotiles, quartz, terrain, tile
+- **red sand** `iso-redsand` — `assets/isotiles/redsand.png` · tags: biome, block, cube, ground, iso, isometric, isotiles, red, redsand, sand, terrain, tile
+- **salt flat** `iso-saltflat` — `assets/isotiles/saltflat.png` · tags: biome, block, cube, flat, ground, iso, isometric, isotiles, salt, saltflat, terrain, tile
+- **biome 1 Sand** `iso-sand` — `assets/isotiles/sand.png` · tags: biome, block, cube, ground, iso, isometric, isotiles, sand, terrain, tile
+- **sandstone** `iso-sandstone` — `assets/isotiles/sandstone.png` · tags: biome, block, cube, ground, iso, isometric, isotiles, sandstone, terrain, tile
+- **savanna** `iso-savanna` — `assets/isotiles/savanna.png` · tags: biome, block, cube, ground, iso, isometric, isotiles, savanna, terrain, tile
+- **slate** `iso-slate` — `assets/isotiles/slate.png` · tags: biome, block, cube, ground, iso, isometric, isotiles, slate, terrain, tile
+- **biome 5 Snow** `iso-snow` — `assets/isotiles/snow.png` · tags: biome, block, cube, ground, iso, isometric, isotiles, snow, terrain, tile
+- **biome 4 Mountain/stone (also town plaza)** `iso-stone` — `assets/isotiles/stone.png` · tags: also, biome, block, cube, ground, iso, isometric, isotiles, mountain, plaza, stone, terrain, tile, town
+- **swamp** `iso-swamp` — `assets/isotiles/swamp.png` · tags: biome, block, cube, ground, iso, isometric, isotiles, swamp, terrain, tile
+- **thatch** `iso-thatch` — `assets/isotiles/thatch.png` · tags: biome, block, cube, ground, iso, isometric, isotiles, terrain, thatch, tile
+- **volcanic rock** `iso-volcanic` — `assets/isotiles/volcanic.png` · tags: biome, block, cube, ground, iso, isometric, isotiles, rock, terrain, tile, volcanic
+- **biome 0 Water** `iso-water` — `assets/isotiles/water.png` · tags: biome, block, cube, ground, iso, isometric, isotiles, terrain, tile, water
+- **wood floor** `iso-woodfloor` — `assets/isotiles/woodfloor.png` · tags: biome, block, cube, floor, ground, iso, isometric, isotiles, terrain, tile, wood, woodfloor
+
+## monsters (10)
+
+- **bat** `mob-bat` — `assets/monsters/mob-bat.png` · tags: bat, creature, enemy, isometric, mob, monster, monsters
+- **ghost** `mob-ghost` — `assets/monsters/mob-ghost.png` · tags: creature, enemy, ghost, isometric, mob, monster, monsters
+- **goblin (Goblin Pillard)** `mob-goblin` — `assets/monsters/mob-goblin.png` · tags: creature, enemy, goblin, isometric, mob, monster, monsters, pillard
+- **mushroomling** `mob-mushroomling` — `assets/monsters/mob-mushroomling.png` · tags: creature, enemy, isometric, mob, monster, monsters, mushroomling
+- **orc** `mob-orc` — `assets/monsters/mob-orc.png` · tags: creature, enemy, isometric, mob, monster, monsters, orc
+- **skeleton** `mob-skeleton` — `assets/monsters/mob-skeleton.png` · tags: creature, enemy, isometric, mob, monster, monsters, skeleton
+- **slime (Slime Vorace)** `mob-slime` — `assets/monsters/mob-slime.png` · tags: creature, enemy, isometric, mob, monster, monsters, slime, vorace
+- **spider** `mob-spider` — `assets/monsters/mob-spider.png` · tags: creature, enemy, isometric, mob, monster, monsters, spider
+- **wind elemental (Élémentaire de Vent)** `mob-windelemental` — `assets/monsters/mob-windelemental.png` · tags: creature, elemental, enemy, isometric, mentaire, mob, monster, monsters, vent, wind, windelemental
+- **wolf** `mob-wolf` — `assets/monsters/mob-wolf.png` · tags: creature, enemy, isometric, mob, monster, monsters, wolf
+
+## npc (1)
+
+- **Shinki NPC (currently 🦊 emoji)** `shinki-npc` — `assets/npc/shinki.png` · tags: character, chibi, currently, emoji, hometab, isometric, npc, person, shinki, unit
+
+## objects (53)
+
+- **apple** `food-apple` — `assets/objects/food-apple.png` · tags: apple, food, icon, inventory, item, loot, object, objects
+- **berries** `food-berries` — `assets/objects/food-berries.png` · tags: berries, food, icon, inventory, item, loot, object, objects
+- **bread** `food-bread` — `assets/objects/food-bread.png` · tags: bread, food, icon, inventory, item, loot, object, objects
+- **carrot** `food-carrot` — `assets/objects/food-carrot.png` · tags: carrot, food, icon, inventory, item, loot, object, objects
+- **eggs** `food-egg` — `assets/objects/food-egg.png` · tags: egg, eggs, food, icon, inventory, item, loot, object, objects
+- **fish** `food-fish` — `assets/objects/food-fish.png` · tags: fish, food, icon, inventory, item, loot, object, objects
+- **meat** `food-meat` — `assets/objects/food-meat.png` · tags: food, icon, inventory, item, loot, meat, object, objects
+- **mushroom** `food-mushroom` — `assets/objects/food-mushroom.png` · tags: food, icon, inventory, item, loot, mushroom, object, objects
+- **potato** `food-potato` — `assets/objects/food-potato.png` · tags: food, icon, inventory, item, loot, object, objects, potato
+- **pumpkin** `food-pumpkin` — `assets/objects/food-pumpkin.png` · tags: food, icon, inventory, item, loot, object, objects, pumpkin
+- **water flask** `food-waterflask` — `assets/objects/food-waterflask.png` · tags: consumable, flask, icon, inventory, item, loot, object, objects, water, waterflask
+- **wheat** `food-wheat` — `assets/objects/food-wheat.png` · tags: food, icon, inventory, item, loot, object, objects, wheat
+- **coal** `mat-coal` — `assets/objects/mat-coal.png` · tags: coal, icon, inventory, item, loot, material, object, objects
+- **gold ore** `mat-goldore` — `assets/objects/mat-goldore.png` · tags: gold, goldore, icon, inventory, item, loot, material, object, objects, ore
+- **iron ore** `mat-ironore` — `assets/objects/mat-ironore.png` · tags: icon, inventory, iron, ironore, item, loot, material, object, objects, ore
+- **planks** `mat-plank` — `assets/objects/mat-plank.png` · tags: icon, inventory, item, loot, material, object, objects, plank, planks
+- **stone** `mat-stone` — `assets/objects/mat-stone.png` · tags: icon, inventory, item, loot, material, object, objects, stone
+- **wood logs** `mat-wood` — `assets/objects/mat-wood.png` · tags: icon, inventory, item, logs, loot, material, object, objects, wood
+- **bandage** `med-bandage` — `assets/objects/med-bandage.png` · tags: bandage, icon, inventory, item, loot, medical, object, objects
+- **first aid kit** `med-firstaid` — `assets/objects/med-firstaid.png` · tags: aid, first, firstaid, icon, inventory, item, kit, loot, medical, object, objects
+- **herbs** `med-herbs` — `assets/objects/med-herbs.png` · tags: herbs, icon, inventory, item, loot, medical, object, objects
+- **pills** `med-pills` — `assets/objects/med-pills.png` · tags: icon, inventory, item, loot, medical, object, objects, pills
+- **syringe** `med-syringe` — `assets/objects/med-syringe.png` · tags: icon, inventory, item, loot, medical, object, objects, syringe
+- **book stack** `misc-bookstack` — `assets/objects/misc-bookstack.png` · tags: book, bookstack, icon, inventory, item, loot, misc, object, objects, stack
+- **gem** `misc-gem` — `assets/objects/misc-gem.png` · tags: gem, icon, inventory, item, loot, misc, object, objects
+- **key** `misc-key` — `assets/objects/misc-key.png` · tags: icon, inventory, item, key, loot, misc, object, objects
+- **treasure map** `misc-map` — `assets/objects/misc-map.png` · tags: icon, inventory, item, loot, map, misc, object, objects, treasure
+- **scroll** `misc-scroll` — `assets/objects/misc-scroll.png` · tags: icon, inventory, item, loot, misc, object, objects, scroll
+- **barrel** `obj-barrel` — `assets/objects/obj-barrel.png` · tags: barrel, icon, inventory, item, loot, object, objects
+- **chest** `obj-chest` — `assets/objects/obj-chest.png` · tags: chest, icon, inventory, item, loot, object, objects
+- **coins** `obj-coins` — `assets/objects/obj-coins.png` · tags: coins, icon, inventory, item, loot, object, objects
+- **crate** `obj-crate` — `assets/objects/obj-crate.png` · tags: crate, icon, inventory, item, loot, object, objects
+- **lantern** `obj-lantern` — `assets/objects/obj-lantern.png` · tags: icon, inventory, item, lantern, loot, object, objects
+- **rope** `obj-rope` — `assets/objects/obj-rope.png` · tags: icon, inventory, item, loot, object, objects, rope
+- **sack** `obj-sack` — `assets/objects/obj-sack.png` · tags: icon, inventory, item, loot, object, objects, sack
+- **torch** `obj-torch` — `assets/objects/obj-torch.png` · tags: icon, inventory, item, loot, object, objects, torch
+- **mana blue** `potion-blue` — `assets/objects/potion-blue.png` · tags: blue, icon, inventory, item, loot, mana, object, objects, potion
+- **green** `potion-green` — `assets/objects/potion-green.png` · tags: green, icon, inventory, item, loot, object, objects, potion
+- **health red** `potion-red` — `assets/objects/potion-red.png` · tags: health, icon, inventory, item, loot, object, objects, potion, red
+- **fishing rod** `tool-fishingrod` — `assets/objects/tool-fishingrod.png` · tags: fishing, fishingrod, icon, inventory, item, loot, object, objects, rod, tool
+- **hammer** `tool-hammer` — `assets/objects/tool-hammer.png` · tags: hammer, icon, inventory, item, loot, object, objects, tool
+- **pickaxe** `tool-pickaxe` — `assets/objects/tool-pickaxe.png` · tags: icon, inventory, item, loot, object, objects, pickaxe, tool
+- **scythe** `tool-scythe` — `assets/objects/tool-scythe.png` · tags: icon, inventory, item, loot, object, objects, scythe, tool
+- **shovel** `tool-shovel` — `assets/objects/tool-shovel.png` · tags: icon, inventory, item, loot, object, objects, shovel, tool
+- **telescope** `tool-telescope` — `assets/objects/tool-telescope.png` · tags: icon, inventory, item, loot, object, objects, telescope, tool
+- **wrench set** `tool-wrenchset` — `assets/objects/tool-wrenchset.png` · tags: icon, inventory, item, loot, object, objects, set, tool, wrench, wrenchset
+- **axe** `weapon-axe` — `assets/objects/weapon-axe.png` · tags: axe, icon, inventory, item, loot, object, objects, weapon
+- **bow** `weapon-bow` — `assets/objects/weapon-bow.png` · tags: bow, icon, inventory, item, loot, object, objects, weapon
+- **dagger** `weapon-dagger` — `assets/objects/weapon-dagger.png` · tags: dagger, icon, inventory, item, loot, object, objects, weapon
+- **mace** `weapon-mace` — `assets/objects/weapon-mace.png` · tags: icon, inventory, item, loot, mace, object, objects, weapon
+- **shield** `weapon-shield` — `assets/objects/weapon-shield.png` · tags: icon, inventory, item, loot, object, objects, shield, weapon
+- **spear** `weapon-spear` — `assets/objects/weapon-spear.png` · tags: icon, inventory, item, loot, object, objects, spear, weapon
+- **sword** `weapon-sword` — `assets/objects/weapon-sword.png` · tags: icon, inventory, item, loot, object, objects, sword, weapon
+
+## props (26)
+
+- **birch tree** `prop-birchtree` — `assets/props/prop-birchtree.png` · tags: birch, birchtree, decoration, iso, isometric, prop, props, scenery, tree
+- **boulder** `prop-boulder` — `assets/props/prop-boulder.png` · tags: boulder, decoration, iso, isometric, prop, props, scenery
+- **bush** `prop-bush` — `assets/props/prop-bush.png` · tags: bush, decoration, iso, isometric, prop, props, scenery
+- **campfire** `prop-campfire` — `assets/props/prop-campfire.png` · tags: campfire, decoration, iso, isometric, prop, props, scenery
+- **cattails** `prop-cattails` — `assets/props/prop-cattails.png` · tags: cattails, decoration, iso, isometric, prop, props, scenery
+- **cherry tree** `prop-cherrytree` — `assets/props/prop-cherrytree.png` · tags: cherry, cherrytree, decoration, iso, isometric, prop, props, scenery, tree
+- **fence** `prop-fence` — `assets/props/prop-fence.png` · tags: decoration, fence, iso, isometric, prop, props, scenery
+- **fern** `prop-fern` — `assets/props/prop-fern.png` · tags: decoration, fern, iso, isometric, prop, props, scenery
+- **flower bed** `prop-flowerbed` — `assets/props/prop-flowerbed.png` · tags: bed, decoration, flower, flowerbed, iso, isometric, prop, props, scenery
+- **flower patch** `prop-flowers` — `assets/props/prop-flowers.png` · tags: decoration, flower, flowers, iso, isometric, patch, prop, props, scenery
+- **haystack** `prop-haystack` — `assets/props/prop-haystack.png` · tags: decoration, haystack, iso, isometric, prop, props, scenery
+- **lamp post** `prop-lamppost` — `assets/props/prop-lamppost.png` · tags: decoration, iso, isometric, lamp, lamppost, post, prop, props, scenery
+- **lily pad** `prop-lilypad` — `assets/props/prop-lilypad.png` · tags: decoration, iso, isometric, lily, lilypad, pad, prop, props, scenery
+- **log pile** `prop-logpile` — `assets/props/prop-logpile.png` · tags: decoration, iso, isometric, log, logpile, pile, prop, props, scenery
+- **mushroom cluster** `prop-mushroomcluster` — `assets/props/prop-mushroomcluster.png` · tags: cluster, decoration, iso, isometric, mushroom, mushroomcluster, prop, props, scenery
+- **palm tree** `prop-palmtree` — `assets/props/prop-palmtree.png` · tags: decoration, iso, isometric, palm, palmtree, prop, props, scenery, tree
+- **large rock** `prop-rocklarge` — `assets/props/prop-rocklarge.png` · tags: decoration, iso, isometric, prop, props, rock, rocklarge, scenery
+- **rock pile** `prop-rockpile` — `assets/props/prop-rockpile.png` · tags: decoration, iso, isometric, pile, prop, props, rock, rockpile, scenery
+- **small rocks** `prop-rocksmall` — `assets/props/prop-rocksmall.png` · tags: decoration, iso, isometric, prop, props, rocks, rocksmall, scenery
+- **signpost** `prop-signpost` — `assets/props/prop-signpost.png` · tags: decoration, iso, isometric, prop, props, scenery, signpost
+- **stump** `prop-stump` — `assets/props/prop-stump.png` · tags: decoration, iso, isometric, prop, props, scenery, stump
+- **tent** `prop-tent` — `assets/props/prop-tent.png` · tags: decoration, iso, isometric, prop, props, scenery, tent
+- **dead tree** `prop-treedead` — `assets/props/prop-treedead.png` · tags: dead, decoration, iso, isometric, prop, props, scenery, tree, treedead
+- **oak tree** `prop-treeoak` — `assets/props/prop-treeoak.png` · tags: decoration, iso, isometric, oak, prop, props, scenery, tree, treeoak
+- **pine tree** `prop-treepine` — `assets/props/prop-treepine.png` · tags: decoration, iso, isometric, pine, prop, props, scenery, tree, treepine
+- **willow tree** `prop-willowtree` — `assets/props/prop-willowtree.png` · tags: decoration, iso, isometric, prop, props, scenery, tree, willow, willowtree
+
+## structures (12)
+
+- **anvil** `str-anvil` — `assets/structures/str-anvil.png` · tags: anvil, building, iso, isometric, structure, structures
+- **barrel rack** `str-barrelrack` — `assets/structures/str-barrelrack.png` · tags: barrel, barrelrack, building, iso, isometric, rack, structure, structures
+- **bed** `str-bed` — `assets/structures/str-bed.png` · tags: bed, building, iso, isometric, structure, structures
+- **bookshelf** `str-bookshelf` — `assets/structures/str-bookshelf.png` · tags: bookshelf, building, iso, isometric, structure, structures
+- **cauldron** `str-cauldron` — `assets/structures/str-cauldron.png` · tags: building, cauldron, iso, isometric, structure, structures
+- **chest** `str-chest` — `assets/structures/str-chest.png` · tags: building, chest, iso, isometric, structure, structures
+- **cooking pot** `str-cookingpot` — `assets/structures/str-cookingpot.png` · tags: building, cooking, cookingpot, iso, isometric, pot, structure, structures
+- **crafting table** `str-craftingtable` — `assets/structures/str-craftingtable.png` · tags: building, crafting, craftingtable, iso, isometric, structure, structures, table
+- **furnace** `str-furnace` — `assets/structures/str-furnace.png` · tags: building, furnace, iso, isometric, structure, structures
+- **grindstone** `str-grindstone` — `assets/structures/str-grindstone.png` · tags: building, grindstone, iso, isometric, structure, structures
+- **table** `str-table` — `assets/structures/str-table.png` · tags: building, iso, isometric, structure, structures, table
+- **well** `str-well` — `assets/structures/str-well.png` · tags: building, iso, isometric, structure, structures, well
+
+## tiles (18)
+
+- **beach** `mtile-beach` — `assets/tiles/beach.png` · tags: beach, biome, ground, map, terrain, tile, tiles, top-down
+- **deep water** `mtile-deepwater` — `assets/tiles/deepwater.png` · tags: biome, deep, deepwater, ground, map, terrain, tile, tiles, top-down, water
+- **dense forest** `mtile-denseforest` — `assets/tiles/denseforest.png` · tags: biome, dense, denseforest, forest, ground, map, terrain, tile, tiles, top-down
+- **desert dunes** `mtile-desert` — `assets/tiles/desert.png` · tags: biome, desert, dunes, ground, map, terrain, tile, tiles, top-down
+- **farm field** `mtile-farmfield` — `assets/tiles/farmfield.png` · tags: biome, farm, farmfield, field, ground, map, terrain, tile, tiles, top-down
+- **hills** `mtile-hills` — `assets/tiles/hills.png` · tags: biome, ground, hills, map, terrain, tile, tiles, top-down
+- **plains** `mtile-plains` — `assets/tiles/plains.png` · tags: biome, ground, map, plains, terrain, tile, tiles, top-down
+- **dirt road** `mtile-roaddirt` — `assets/tiles/roaddirt.png` · tags: biome, dirt, ground, map, road, roaddirt, terrain, tile, tiles, top-down
+- **rocky mountain** `mtile-rockymountain` — `assets/tiles/rockymountain.png` · tags: biome, ground, map, mountain, rocky, rockymountain, terrain, tile, tiles, top-down
+- **shallow water** `mtile-shallowwater` — `assets/tiles/shallowwater.png` · tags: biome, ground, map, shallow, shallowwater, terrain, tile, tiles, top-down, water
+- **swamp** `mtile-swamp` — `assets/tiles/swamp.png` · tags: biome, ground, map, swamp, terrain, tile, tiles, top-down
+- **tundra** `mtile-tundra` — `assets/tiles/tundra.png` · tags: biome, ground, map, terrain, tile, tiles, top-down, tundra
+- **biome 3 Forest** `tile-forest` — `assets/tiles/forest.png` · tags: biome, forest, ground, map, terrain, tile, tiles, top-down
+- **biome 2 Grass** `tile-grass` — `assets/tiles/grass.png` · tags: biome, grass, ground, map, terrain, tile, tiles, top-down
+- **biome 4 Mountain** `tile-mountain` — `assets/tiles/mountain.png` · tags: biome, ground, map, mountain, terrain, tile, tiles, top-down
+- **biome 1 Sand** `tile-sand` — `assets/tiles/sand.png` · tags: biome, ground, map, sand, terrain, tile, tiles, top-down
+- **biome 5 Snow** `tile-snow` — `assets/tiles/snow.png` · tags: biome, ground, map, snow, terrain, tile, tiles, top-down
+- **biome 0 Water** `tile-water` — `assets/tiles/water.png` · tags: biome, ground, map, terrain, tile, tiles, top-down, water
+
+## ui (7)
+
+- **animated bird (currently 🐦 emoji)** `bird` — `assets/ui/bird.png` · tags: animated, bird, button, currently, emoji, hud, icon, interface, titlescreen, ui
+- **Craft tab icon** `nav-craft` — `assets/ui/nav-craft.png` · tags: bottomnav, button, craft, hud, icon, interface, tab, ui
+- **Home tab icon** `nav-home` — `assets/ui/nav-home.png` · tags: bottomnav, button, home, hud, icon, interface, tab, ui
+- **Map tab icon** `nav-map` — `assets/ui/nav-map.png` · tags: bottomnav, button, hud, icon, interface, map, tab, ui
+- **Stock tab icon** `nav-stock` — `assets/ui/nav-stock.png` · tags: bottomnav, button, hud, icon, interface, stock, tab, ui
+- **Structure tab icon** `nav-structure` — `assets/ui/nav-structure.png` · tags: bottomnav, button, hud, icon, interface, structure, tab, ui
+- **skull (currently 💀 emoji)** `skull` — `assets/ui/skull.png` · tags: button, currently, emoji, gameover, hud, icon, interface, screen, skull, ui
+

@@ -10,7 +10,7 @@ const LS_SETTINGS = "echoterra:settings";
 type View = "map" | "combat";
 type CombatMode = "move" | "attack" | "skill";
 
-export type AppScreen = "loading" | "title" | "cinematic" | "game";
+export type AppScreen = "loading" | "title" | "cinematic" | "game" | "editor";
 export type Tab = "home" | "map" | "stock" | "structure" | "craft";
 export type SettingsScreen = "menu" | "setting" | "language" | "notifications";
 
@@ -51,6 +51,7 @@ interface StoreState {
   heroOverlay?: string; // hero id whose character screen is open
   townStatusOpen: boolean; // town status panel overlay
   cheatOpen: boolean;
+  debugNoFog: boolean; // debug: reveal the whole map (ignore fog of war) — client-side only
   townHeroId?: string; // preferred hero paying for town work
   recipes: Recipe[];
   classes: ClassDef[];
@@ -76,6 +77,7 @@ interface StoreState {
   closeHero: () => void;
   toggleTownStatus: (open?: boolean) => void;
   toggleCheat: () => void;
+  toggleFog: () => void;
   startTestGame: () => Promise<void>;
   continueTestGame: () => Promise<void>;
   townAction: (
@@ -117,9 +119,9 @@ export const useStore = create<StoreState>((set, get) => {
   const pushLog = (msg: string) => set((s) => ({ log: [...s.log.slice(-40), msg] }));
 
   const renderMap = () => {
-    const { game, selectedHeroId } = get();
+    const { game, selectedHeroId, debugNoFog } = get();
     bus.emit(EV.ShowScene, "map");
-    bus.emit(EV.MapRender, { game, selectedHeroId });
+    bus.emit(EV.MapRender, { game, selectedHeroId, revealAll: debugNoFog });
   };
 
   const renderCombat = () => {
@@ -157,6 +159,7 @@ export const useStore = create<StoreState>((set, get) => {
     settings: loadSettings(),
     townStatusOpen: false,
     cheatOpen: false,
+    debugNoFog: false,
     recipes: [],
     classes: [],
 
@@ -187,6 +190,10 @@ export const useStore = create<StoreState>((set, get) => {
     toggleTownStatus: (open) =>
       set((s) => ({ townStatusOpen: open === undefined ? !s.townStatusOpen : open })),
     toggleCheat: () => set((s) => ({ cheatOpen: !s.cheatOpen })),
+    toggleFog: () => {
+      set((s) => ({ debugNoFog: !s.debugNoFog }));
+      if (get().view === "map") renderMap(); // re-push so the scene re-renders with/without fog
+    },
 
     startTestGame: () =>
       withBusy(async () => {

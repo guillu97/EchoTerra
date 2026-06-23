@@ -31,7 +31,7 @@ import { mkdirSync, existsSync, writeFileSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { spawnSync } from "child_process";
-import { ASSETS, STYLE } from "./asset-manifest.mjs";
+import { ASSETS, STYLE, STYLE_NEAR } from "./asset-manifest.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUTPUT_BASE = join(__dirname, "../frontend/public/assets");
@@ -93,6 +93,11 @@ const REMBG = args.includes("--rembg"); // strip backgrounds (real alpha) after 
 const ONLY_IDS = args.includes("--id")
   ? new Set((args[args.indexOf("--id") + 1] || "").split(",").map((s) => s.trim()).filter(Boolean))
   : null;
+// --seed N pins a FIXED seed for every asset (style-cohesion experiments). Without it,
+// each asset gets its own pseudo-random seed (more variety, less uniform lighting).
+const FIXED_SEED = args.includes("--seed")
+  ? Number(args[args.indexOf("--seed") + 1])
+  : null;
 
 // ComfyUI's embedded Python (where rembg is installed) — used for --rembg.
 const PYTHON =
@@ -105,7 +110,10 @@ const outputPath = (a) => join(OUTPUT_BASE, a.category, a.filename);
 // for the Ideogram backend). Otherwise prepend the style prefix (a.style or global STYLE).
 const fullPrompt = (a) => {
   if (a.raw) return a.prompt;
-  const pre = a.style !== undefined ? a.style : STYLE;
+  // Buildings default to the cohesive NEAR look (bold outline, fixed light/angle);
+  // an explicit a.style (e.g. STYLE_FAR for distant buildings) always wins.
+  const fallback = a.category === "buildings" ? STYLE_NEAR : STYLE;
+  const pre = a.style !== undefined ? a.style : fallback;
   return pre ? `${pre}, ${a.prompt}` : a.prompt;
 };
 const assetW = (a) => Number(a.width) || SIZE;
@@ -114,7 +122,10 @@ const ensureDir = (a) => mkdirSync(join(OUTPUT_BASE, a.category), { recursive: t
 
 // A simple, deterministic-ish seed that still varies per asset + run.
 let seedCounter = process.pid % 100000;
-const nextSeed = () => (seedCounter = (seedCounter * 1103515245 + 12345) & 0x7fffffff);
+const nextSeed = () =>
+  FIXED_SEED !== null
+    ? FIXED_SEED
+    : (seedCounter = (seedCounter * 1103515245 + 12345) & 0x7fffffff);
 
 // ── ComfyUI prompt graphs (API format) ──────────────────────────────────────────
 function buildWorkflow(prompt, seed, w, h) {
@@ -311,6 +322,21 @@ function runRembg(paths) {
   }
 }
 
+// ── Catalog + PNG metadata (post-generation) ─────────────────────────────────────
+// Rebuild the searchable catalog and embed tEXt metadata so assets stay findable
+// (by title / tags / category) from any later session.
+function buildCatalogAndMeta() {
+  console.log(`\n🗂  Building asset catalog + embedding PNG metadata…`);
+  const cat = spawnSync(process.execPath, [join(__dirname, "build-catalog.mjs")], {
+    stdio: "inherit",
+  });
+  if (cat.status !== 0) {
+    console.error(`  ✗ catalog build failed (skipping metadata embed)`);
+    return;
+  }
+  spawnSync(PYTHON, [join(__dirname, "embed_png_meta.py")], { stdio: "inherit" });
+}
+
 // ── Main ───────────────────────────────────────────────────────────────────────
 async function main() {
   const toGenerate = ASSETS.filter((a) => (ONLY_IDS ? ONLY_IDS.has(a.id) : true));
@@ -365,6 +391,7 @@ async function main() {
 
   console.log(`\n✅ Done: ${success} generated, ${failed} failed.`);
   if (REMBG && toStrip.length) runRembg(toStrip);
+  if (success > 0) buildCatalogAndMeta();
   if (success > 0) {
     console.log(`\nNext: commit the generated assets.`);
     console.log(`  cd .. && git add frontend/public/assets && git commit -m "assets: generated via ComfyUI"`);

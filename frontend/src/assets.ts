@@ -96,3 +96,67 @@ export async function detectAvailableAssets(): Promise<void> {
     }),
   );
 }
+
+// ── Asset library (bulk-generated set under /assets/{category}/) ──────────────────
+// These aren't HEAD-probed (there are ~160 of them); reference them directly by
+// category + filename. Components should keep an emoji/colour fallback.
+export const libUrl = (category: string, file: string) => `${ASSET_BASE}/${category}/${file}.png`;
+
+// Game item name -> { category, file } sprite. Falls back to a per-type sprite.
+const ITEM_BY_NAME: Record<string, [string, string]> = {
+  "Bois": ["objects", "mat-wood"],
+  "Pierre": ["objects", "mat-stone"],
+  "Minerai de fer": ["objects", "mat-ironore"],
+  "Ration d'eau": ["objects", "food-waterflask"],
+  "Viande": ["objects", "food-meat"],
+  "Fleur": ["props", "prop-flowers"],
+  "Herbe médicinale": ["objects", "med-herbs"],
+  "Potion de soin": ["objects", "potion-red"],
+  "Jus de fruit": ["objects", "potion-green"],
+  "Lame de fer": ["objects", "weapon-dagger"],
+  "Totem de bois": ["objects", "obj-crate"],
+  "Mapo Curry": ["objects", "food-meat"],
+};
+const ITEM_BY_TYPE: Record<string, [string, string]> = {
+  aliment: ["objects", "food-bread"],
+  eau: ["objects", "food-waterflask"],
+  plante: ["objects", "med-herbs"],
+  minerai: ["objects", "mat-stone"],
+  objet: ["objects", "obj-crate"],
+  arme: ["objects", "weapon-sword"],
+  consommable: ["objects", "potion-red"],
+  deco: ["objects", "mat-wood"],
+};
+export function itemAssetUrl(item: { type: string; name: string }): string | undefined {
+  const m = ITEM_BY_NAME[item.name] ?? ITEM_BY_TYPE[item.type];
+  return m ? libUrl(m[0], m[1]) : undefined;
+}
+
+// Monster species -> creature sprite. (Keyed without accents too, to be safe.)
+const MONSTER_BY_SPECIES: Record<string, string> = {
+  "Goblin Pillard": "mob-goblin",
+  "Slime Vorace": "mob-slime",
+  "Elementaire de Vent": "mob-windelemental",
+  "Élémentaire de Vent": "mob-windelemental",
+};
+export function monsterAssetUrl(species: string): string | undefined {
+  const f = MONSTER_BY_SPECIES[species];
+  return f ? libUrl("monsters", f) : undefined;
+}
+export const monsterTexKey = (species: string): string | undefined => MONSTER_BY_SPECIES[species];
+
+// Hero class -> chibi character sprite (for map/combat tokens). Defaults to the scout.
+const HERO_BY_CLASS: Record<string, string> = {
+  "Sans classe": "char-scout",
+  "Pionnier": "char-builder",
+  "Chasseur": "char-archer",
+  "Éclaireur": "char-scout",
+  "Gardien": "char-knight",
+  "Récupérateur": "char-merchant",
+  "Herboriste": "char-healer",
+};
+export const HERO_TEX_KEYS = ["char-scout", "char-builder", "char-archer", "char-knight", "char-merchant", "char-healer", "char-wizard"];
+export const heroTexKey = (cls?: string): string => (cls && HERO_BY_CLASS[cls]) || "char-scout";
+export function heroAssetUrl(cls?: string): string {
+  return libUrl("characters", heroTexKey(cls));
+}

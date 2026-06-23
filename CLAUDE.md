@@ -27,12 +27,36 @@ warm pastel hand-painted storybook) so every asset is cohesive; edit `DA` to res
 fall back to emoji when an asset is missing (asset keys abstracted in `frontend/src/assets.ts`). Run:
 `node scripts/generate-assets-comfy.mjs --force --rembg` (ComfyUI must be running: `run_nvidia_gpu.bat`).
 
+**Asset library** (~160 PNGs under `frontend/public/assets/`): `isotiles/` (iso cube biomes/materials —
+2:1 blocks), `tiles/` (top-down orthogonal map biomes), `objects/` (items: materials, food, tools,
+weapons, medical, potions, misc), `buildings/` (iso buildings), `characters/` (chibi RPG heroes),
+`props/` (iso trees/rocks/fences…), `monsters/` (goblin/slime/wind-elemental + enemies). Iso cubes are
+made uniform (same width + base) by `scripts/normalize_iso.py` — **re-run it after generating any iso
+tile**. `scripts/contact_sheet.py` builds per-category review sheets into `asset-index/`. Per-style
+prompt prefixes live in `scripts/asset-manifest.mjs` (DA, ISO_TILE, ITEM_STYLE, CHAR_STYLE, PROP_STYLE,
+MONSTER_STYLE, TILE_STYLE) — all derive from `DA`.
+
+**Finding an asset (searchable catalog).** `scripts/build-catalog.mjs` reads the manifest and writes
+`asset-index/catalog.json` + `asset-index/CATALOG.md` — every asset with `{id, category, title, file,
+tags[], style, prompt}`, grouped/sorted by category. **To pick an asset in any session, grep these by
+title / tag / category** (e.g. an "isometric character" → `tags` includes `isometric`+`character`,
+spanning `characters`/`heroes`/`npc`). Each generated PNG also carries the same info as tEXt chunks
+(`embed_png_meta.py`: Title/Category/Style/Keywords/Description). Both run automatically at the end of a
+generation pass; rebuild manually with `node scripts/build-catalog.mjs`.
+
+**Building art styles (LOD).** Buildings default to `STYLE_NEAR` (bold dark outline, crisp cel shading,
+fixed upper-left light, 2:1 iso — for foreground); distant/landscape buildings can set `style: STYLE_FAR`
+(no harsh outline, softer, simplified — recedes). The generator applies `STYLE_NEAR` to any `category:
+"buildings"` asset unless an explicit `style` overrides it. Buildings also append the `NB` tail (no
+ground/grass/terrain base, cut at the stone foundation) so they sit cleanly on the iso tile layer. A
+fixed seed (`--seed N`, e.g. 42) is used for cohesion across the library.
+
 ## 2. Tech stack & how to run
 
 | Layer | Tech |
 |---|---|
 | Backend | **Go** (`chi` router), REST, state serialized as JSON in **SQLite** (`modernc.org/sqlite`, pure-Go, no CGo) |
-| Frontend | **React + Vite + TypeScript**, **Phaser 3** (orthogonal MapScene + isometric CombatScene), **Zustand** store |
+| Frontend | **React + Vite + TypeScript**, **Phaser 3** (isometric MapScene + isometric CombatScene), **Zustand** store |
 | Map gen | Perlin (`aquilax/go-perlin`) → heightmap → biomes |
 
 ```bash
@@ -220,10 +244,106 @@ POST /api/games/{id}/combat/{c}/action            {unitId, action: move|attack|s
   actions (Well "Puiser de l'eau" free, Gate "Open/Close", etc.), "Améliorer (Structure)", and Restore.
 - **TownStatus** panel: town HP, **defense total + per-building breakdown** (who defends, how much, durability,
   open/unbuilt), every building's durability, and the last-wave report.
-- **Map** (`MapTab`): Phaser orthogonal map; tap a hero (or the **⚡ Actions** button) opens a **radial action menu**
+- **Map** (`MapTab`): Phaser **isometric** map (`MapScene.ts`) — every tile is a 2:1 iso cube PILLAR. The **plains
+  are the level-0 ground** (water/sand/grass stay flat); only forest/mountain/snow rise, by their Perlin height
+  above the `GROUND_LEVEL` baseline (FFTA2-style relief). Cube textures are normalized at runtime from the 1024²
+  `isotiles/` PNGs (opaque-bbox crop → uniform box, like the editor's `cubeAt`); clicks use a height-aware inverse
+  projection (topmost visible tile). Starts **zoomed in & centered on the town** (no more fit-all); **wheel + pinch
+  zoom** clamp 0.35–2.5. **Fog of war**: tiles are hidden (dark `FOG_TINT`, resources/monsters concealed) until a
+  hero has seen them — `Tile.Discovered` is **server-authoritative & shared by all players** (`fog.go`:
+  `RevealVision` runs in `Recompute`, revealing a Chebyshev ring around the town + every live hero; the town is
+  always visible). Debug: the CheatPanel **👁️ Révéler la carte** toggles `store.debugNoFog` (client-side reveal-all,
+  passed to the scene via `MapRender.revealAll`). Heroes/monsters reuse the same chibi/creature sprites,
+  depth-sorted into the cube stack. Tap a hero (or the **⚡ Actions** button) opens a **radial action menu**
   (Fight if monster on tile / **🔥 Fire ball -2 PA when a pack is on/adjacent** / Search / Hide / **Escape only when
   Tétanisé**). Combat reached from the map.
 - Server timer: `nextWaveAt` drives "Next wave in"; GameScreen polls every 20s so scheduler waves show up.
+
+## 7b. Map editor (dev tool — `frontend/src/editor/`)
+
+A self-contained, full-screen **isometric map editor** ("juste pour moi", inspired by Tiled). Reached via a
+🗺️ **Éditeur** button on the TitleScreen (dev section) OR the `#editor` URL hash; `appScreen === "editor"` is
+rendered by `App.tsx` **outside** the phone frame. Independent of the game's Phaser scenes — it uses **plain
+canvas2d** so the SAME `drawMap()` feeds both the live canvas and the PNG export.
+
+- `assetIndex.ts` — enumerates every `public/assets/**/*.png` via `import.meta.glob` (keys only, **no bundling**;
+  URLs are the public `/assets/cat/file.png` paths) and groups them by category for the palette.
+- `types.ts` — `MapDoc { gridW, gridH, cells[Cell], layers[] }`. **`Cell { blocks: (AssetRef|null)[]; height }`** —
+  `blocks` is a STACK of iso cubes indexed by elevation level (so different tiles can stack: stone at lvl 0, sand at
+  lvl 1; `null` = a gap → floating blocks are allowed). `height` = top occupied level (kept in sync via
+  `recomputeCell`, used for picking/object anchoring). `normalizeCell` migrates legacy `{height, ground}` cells on
+  import. Layer 0 is the special **ground** layer; other layers are **object** layers. `emptyDoc()` seeds Sol +
+  Bâtiments + Décor + Objets.
+- `editorStore.ts` — zustand store (separate from the game store; DEV hook `window.__ed`). Tools: paint / select /
+  erase / raise / lower / marquee / stamp / pan. `beginStroke()`+`applyAt()` with per-stroke dedup; undo/redo
+  history; layer add/remove/rename/reorder/visibility; grid resize. `MAX_HEIGHT=8`. Selecting an `isotiles` asset
+  auto-routes to the ground layer; other assets route to an object layer.
+- **Active elevation level** (`store.level`, toolbar "Niveau" + `[` / `]`): painting on the ground layer **stacks a
+  block at the active level** (`cell.blocks[level] = tile`) — stone at lvl 0, sand at lvl 1 on one cell, terraces,
+  floating blocks. Erase removes the block at the active level; raise/lower add/remove the top block. The single
+  **grid plane is drawn at the active level's top-face, BEFORE the blocks** (`DrawOpts.{grid,focusLevel}`) so placed
+  blocks read as sitting ON TOP of the grid. The hover floats at the active level. Toggles: **🔍 Focus**
+  (`store.levelFocus` → `DrawOpts.focusDim`) dims blocks not at the active level to `DIM_ALPHA`; **🏛 Colonne**
+  (`store.fillColumn`) fills levels 0..active with one tile in a single click (solid pillar); **👁 Niveaux**
+  (`store.showLevels`) overlays each cell's top-level number.
+- **Object transforms** (Select tool `V`): a `Placement` carries optional `scale`, `rot` (deg), `flipX`, `lift`
+  (height levels raised above the ground), `dx/dy` (free pixel move) and `crop` (source sub-rect, fractions). The
+  Select tool picks the topmost object (`screenToObject`), drag = move (`nudgeSelected`), Delete = remove; the
+  floating `Inspector.tsx` edits size/rotation/flip/height/position/reset. `objectGeom()` is the single source of
+  truth for an object's screen rect (used by both draw and hit-test). **Crop**: `CropModal.tsx` lets you drag a
+  sub-rectangle on the source image; only that region renders, anchored centre-bottom on the tile. Two targets:
+  a **placement** crop (Inspector "Recadrer", per object) and an **asset** crop (palette HUD "Recadrer la source").
+- **Per-asset source crop** (`assetCrops.ts`): a global `cat/file → CropRect` map (localStorage, standalone module
+  to avoid import cycles — `isoRender` reads it directly). It re-frames an asset **everywhere** it's used —
+  **ground cubes** (`cubeAt` honours it; the crop region is shown tileW-wide, so a tight crop tessellates) AND
+  objects (`effCrop` = placement crop ?? asset crop). Use it to normalize slightly-misframed iso tiles (e.g.
+  `brick`) once. `store.assetCropRev` bumps to drive redraws/badges; the palette shows a ✂ badge on cropped assets.
+- **Auto-crop** (`detectContentCrop` in `assetCrops.ts`, using `spriteMetrics` opaque-bbox incl. `fTop`): one click
+  sets an asset's crop to the tight content box so the block fully fills the frame. Available per-asset (palette HUD
+  "⤢ Auto-crop", and "⤢ Auto" in the crop modal to preview) and as a per-category batch (palette title "⤢" →
+  `autoCropAssets`).
+- **Iso block size** (`store.gridTile`, `setIsoTileSize` in `isoRender`): the block size is one grid-linked variable
+  (toolbar "Bloc", px, persisted in `echoterra:editor:tileW`, applied at startup). `setIsoTileSize(w)` mutates the
+  live `ISO` object (tileW/tileH/elev/cubeDepth/objW scale linearly off `ISO_BASE`); `project` reads `ISO` live so
+  the whole grid + every block rescales uniformly, no call-site threading. Blocks are uniform-size by construction
+  (see `cubeAt` above), so "⤢ Auto-ajuster iso" (`autoResizeAllIso` → auto-crop all `isotiles`) is now mainly to
+  bake a tight source region for tiles whose auto-detected content bbox includes junk.
+- **Brush + randomization** (`BrushPanel.tsx`, `store.brush`): `applyAt` paints a footprint (`size` radius, with
+  per-cell `density` scatter) instead of one cell, and on object paint applies random `rot`/`scale`/`flipX`/jitter
+  from the brush settings. A non-empty `assetSet` makes each placement pick a random asset from the set (scatter
+  forests etc.). A size-1, no-random, empty-set brush == classic single-cell paint. The hover outlines the
+  footprint (`DrawOpts.hoverRadius`). Scatter brushes intentionally stack; the plain brush still de-dups drags.
+- **Presets** (`PresetsPanel.tsx`, `presets.ts`, `store.{region,presets,stamp}`): the **Marquee** tool (`M`) drags
+  a cell rectangle (`region`); "Capturer" snapshots that region's cells (height + ground) and objects (with their
+  transforms) — relative to the top-left — into a named `Preset` with a rendered thumbnail. Presets persist in
+  `localStorage` (`echoterra:editor:presets`) and export/import as JSON. Arming a preset switches to the **Stamp**
+  tool (`T`); clicking stamps it (`stampAt`) — cells overwrite, objects append to the active object layer.
+  `presetToDoc()` builds a throwaway `MapDoc` reused for the thumbnail.
+- `isoRender.ts` — projection + `drawMap()` + `screenToCell()` (height-aware) + **`screenToCellAtLevel(x,y,doc,level)`**
+  (inverts the projection at a level's top-face plane — paint tools use THIS so the cursor matches the active-level
+  grid; picking by each cell's own height drifts more as the level rises) + `contentBounds()`. `MAX_HEIGHT=32`.
+  The editor doc is **autosaved to `localStorage` (`echoterra:editor:doc`, debounced) and restored on load**, so a
+  refresh/HMR reload never loses the map (`loadSavedDoc` runs `normalizeCell` migration). Canvas `pointerdown`
+  blurs the active element and the Space pan-modifier `preventDefault`s — so a toolbar button that kept DOM focus
+  can't be re-triggered by a later Space/Enter (was spuriously toggling 🔍 Focus while placing buildings).
+  **Heights (FFTA2-style)**: a cell at height h draws its ground cube stacked `h+1` times (each level shifted up by
+  `ISO.elev`) so it reads as a solid pillar; objects sit on the top face. Tunables in `ISO`: `tileW/tileH`, `elev`,
+  `cubeBottomDrop`, `objW`, `objBottomDrop`.
+- `spriteMetrics.ts` — **the iso cubes are NOT uniformly framed** (content width 0.63–0.81 of the canvas, content
+  height varies ~57–69px; `normalize_iso.py` not re-run on the newer tiles). Each sprite's opaque content bbox
+  (`fLeft/fRight/fTop/fBottom`) is measured once and cached. **`cubeAt` draws EVERY block into one uniform box**
+  (`tileW × (tileH + cubeDepth)`) from its content bbox (or explicit crop) as the source region, **bottom-anchored
+  so the front-bottom vertex sits on the cell** (`p.sy + tileH/2`). This is the key to alignment: all blocks are the
+  same size, **sit ON the grid** (grid = block bases, not buried under them), and line up top AND bottom. `cubeDepth`
+  == `elev` so stacked height levels connect. Minor vertical stretch (≤~10%) is the trade for guaranteed uniformity.
+  Objects (`objectGeom`) stand on the block top, which sits `cubeDepth` above the cell centre.
+- `editorExport.ts` — `renderDocToCanvas()` (shared), `exportPng()` (flat full-map PNG, pan/zoom-independent),
+  `exportJson()` / `importJson()` (positions+heights+layers round-trip; DEV hook `window.__edExport`).
+- `EditorScreen.tsx` (layout) + `EditorCanvas.tsx` (pan/zoom/paint, rAF redraw) + `AssetPalette.tsx` (left) +
+  `LayersPanel.tsx` (right) + `Toolbar.tsx` (top) + `editor.css`.
+- **Gotcha**: the live canvas redraws via `requestAnimationFrame`, which is paused in the headless preview tab →
+  `preview_screenshot` of the editor times out (a pending rAF never goes idle). Verify the renderer instead via
+  `window.__edExport.renderDocToCanvas(doc)` → inspect pixels, or inject the data-URL into a non-canvas page.
 
 ## 8. Conventions & gotchas
 

@@ -2,12 +2,16 @@ import Phaser from "phaser";
 import type { Combat, CombatCurrent, CombatUnit } from "../api/types";
 import { bus, EV } from "../eventBus";
 import { ISO, isoProject, darken, speciesColor, HERO_COLOR, MONSTER_COLOR } from "./render";
+import { monsterTexKey, heroTexKey, HERO_TEX_KEYS } from "../assets";
+
+const COMBAT_MONSTER_FILES = ["mob-goblin", "mob-slime", "mob-windelemental"];
 
 // CombatScene renders the isometric battle (FFTA2-style) with elevation, and picks
 // tiles/units from pointer clicks by inverse projection (front-to-back hit testing).
 export class CombatScene extends Phaser.Scene {
   private g!: Phaser.GameObjects.Graphics;
   private texts: Phaser.GameObjects.Text[] = [];
+  private sprites: Phaser.GameObjects.Image[] = []; // unit sprites (rebuilt each draw)
   private combat?: Combat;
   private current?: CombatCurrent;
   private mode: string = "move";
@@ -16,6 +20,12 @@ export class CombatScene extends Phaser.Scene {
 
   constructor() {
     super("combat");
+  }
+
+  preload() {
+    // Unit sprites (optional — fall back to tokens if absent).
+    COMBAT_MONSTER_FILES.forEach((k) => this.load.image(k, `/assets/monsters/${k}.png`));
+    HERO_TEX_KEYS.forEach((k) => this.load.image(k, `/assets/characters/${k}.png`));
   }
 
   create() {
@@ -47,6 +57,8 @@ export class CombatScene extends Phaser.Scene {
     const cleanup = () => {
       offRender();
       this.scale.off("resize", onResize);
+      this.sprites.forEach((s) => s.destroy());
+      this.sprites = [];
     };
     this.events.once("shutdown", cleanup);
     this.events.once("destroy", cleanup);
@@ -143,6 +155,8 @@ export class CombatScene extends Phaser.Scene {
     const c = this.combat;
     this.g.clear();
     this.clearTexts();
+    this.sprites.forEach((s) => s.destroy());
+    this.sprites = [];
 
     const order: { x: number; y: number }[] = [];
     for (let y = 0; y < c.gridH; y++) for (let x = 0; x < c.gridW; x++) order.push({ x, y });
@@ -227,11 +241,20 @@ export class CombatScene extends Phaser.Scene {
         this.g.strokeCircle(sx, cy, 15);
       }
 
-      // Token.
-      this.g.fillStyle(u.side === "hero" ? base : MONSTER_COLOR, 1);
-      this.g.fillCircle(sx, cy, 11);
-      this.g.lineStyle(2, darken(base, 0.5), 1);
-      this.g.strokeCircle(sx, cy, 11);
+      // Token — a unit sprite when available, else the coloured circle.
+      const tex = u.side === "hero" ? heroTexKey(u.kind) : monsterTexKey(u.kind);
+      if (tex && this.textures.exists(tex)) {
+        const img = this.add
+          .image(sx, cy - 6, tex)
+          .setDisplaySize(34, 34)
+          .setDepth(10);
+        this.sprites.push(img);
+      } else {
+        this.g.fillStyle(u.side === "hero" ? base : MONSTER_COLOR, 1);
+        this.g.fillCircle(sx, cy, 11);
+        this.g.lineStyle(2, darken(base, 0.5), 1);
+        this.g.strokeCircle(sx, cy, 11);
+      }
 
       // HP bar.
       const w = 26;

@@ -6,6 +6,8 @@ export function CheatPanel() {
   const advance = useStore((s) => s.advance);
   const skipDay = useStore((s) => s.skipDay);
   const newGame = useStore((s) => s.newGame);
+  const toggleFog = useStore((s) => s.toggleFog);
+  const debugNoFog = useStore((s) => s.debugNoFog);
   const busy = useStore((s) => s.busy);
   const game = useStore((s) => s.game);
 
@@ -28,6 +30,9 @@ export function CheatPanel() {
         </button>
         <button className="pill" disabled={busy || !game} onClick={() => skipDay()}>
           ⏩ +1 Jour (×2 vagues)
+        </button>
+        <button className="pill" onClick={() => toggleFog()}>
+          {debugNoFog ? "🌫️ Réactiver le brouillard" : "👁️ Révéler la carte (fog off)"}
         </button>
         <button className="pill red" disabled={busy} onClick={() => { toggleCheat(); newGame(); }}>
           🔄 Nouvelle partie
