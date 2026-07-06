@@ -1,4 +1,18 @@
-import type { ClassDef, CombatResponse, FireballReport, GameState, Item, Recipe } from "./types";
+import type {
+  ClassDef,
+  CombatResponse,
+  FireballReport,
+  GameState,
+  GameSummary,
+  Item,
+  Player,
+  Recipe,
+} from "./types";
+
+export interface JoinResponse {
+  game: GameState;
+  player: Player;
+}
 
 // Relative base: Vite proxies /api to the Go backend during development.
 async function req<T>(method: string, url: string, body?: unknown): Promise<T> {
@@ -20,6 +34,29 @@ export const api = {
     req<GameState>("POST", "/api/games", opts),
 
   getGame: (id: string) => req<GameState>("GET", `/api/games/${id}`),
+
+  // --- lobby / multiplayer ---
+  listGames: (status?: "lobby" | "active" | "gameover") =>
+    req<GameSummary[]>("GET", `/api/games${status ? `?status=${status}` : ""}`),
+
+  createLobby: (opts: {
+    name?: string;
+    playerName: string;
+    minPlayers?: number;
+    maxPlayers?: number;
+    width?: number;
+    height?: number;
+    seed?: number;
+  }) => req<JoinResponse>("POST", "/api/games/lobby", opts),
+
+  joinByCode: (code: string, playerName: string) =>
+    req<JoinResponse>("POST", "/api/games/join", { code, playerName }),
+
+  joinGame: (gameId: string, playerName: string) =>
+    req<JoinResponse>("POST", `/api/games/${gameId}/join`, { playerName }),
+
+  startGame: (gameId: string, playerId: string) =>
+    req<GameState>("POST", `/api/games/${gameId}/start`, { playerId }),
 
   move: (gameId: string, heroId: string, dx: number, dy: number) =>
     req<GameState>("POST", `/api/games/${gameId}/heroes/${heroId}/move`, { DX: dx, DY: dy }),

@@ -141,8 +141,32 @@ export interface WaveReport {
   gameOver: boolean;
 }
 
+// A human participant in one game (lobby/multiplayer). Each player owns one hero.
+export interface Player {
+  id: string;
+  name: string;
+  heroId: string;
+  host: boolean;
+  joinedAt: string;
+}
+
+// Lightweight game listing DTO returned by GET /api/games.
+export interface GameSummary {
+  id: string;
+  name: string;
+  joinCode?: string;
+  status: "lobby" | "active" | "gameover";
+  players: Player[];
+  minPlayers: number;
+  maxPlayers: number;
+  day: number;
+  waveNumber: number;
+  createdAt: string;
+}
+
 export interface GameState {
   id: string;
+  name?: string;
   seed: number;
   width: number;
   height: number;
@@ -153,7 +177,13 @@ export interface GameState {
   wave: number;
   waveNumber: number;
   nextWaveAt: string;
-  status: "active" | "gameover";
+  status: "lobby" | "active" | "gameover";
+  joinCode?: string;
+  minPlayers: number;
+  maxPlayers: number;
+  players: Player[];
+  createdAt: string;
+  startedAt?: string;
   lastWave?: WaveReport;
   town: {
     x: number;

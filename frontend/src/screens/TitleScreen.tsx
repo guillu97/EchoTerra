@@ -4,8 +4,16 @@ import { assetUrl } from "../assets";
 
 // "Ecran de titre" — main menu.
 export function TitleScreen() {
-  const { startAdventure, openSettings, pushLog, startTestGame, continueTestGame, busy, setScreen } =
-    useStore();
+  const {
+    startAdventure,
+    openSettings,
+    openLobby,
+    pushLog,
+    startTestGame,
+    continueTestGame,
+    busy,
+    setScreen,
+  } = useStore();
 
   return (
     <div className="screen parchment">
@@ -18,6 +26,9 @@ export function TitleScreen() {
       <div className="menu">
         <button className="pill red" onClick={() => startAdventure()}>
           Start the game
+        </button>
+        <button className="pill" onClick={() => openLobby()}>
+          🌐 Multijoueur
         </button>
         <button className="pill" onClick={() => pushLog("Classement — bientôt")}>
           Ranking

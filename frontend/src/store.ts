@@ -1,16 +1,19 @@
 import { create } from "zustand";
 import { api } from "./api/client";
-import type { ClassDef, CombatCurrent, Combat, GameState, Recipe } from "./api/types";
+import type { ClassDef, CombatCurrent, Combat, GameState, GameSummary, Recipe } from "./api/types";
 import { bus, EV } from "./eventBus";
 import { effectiveTownHeroId } from "./townUtils";
 
 const LS_GAME = "echoterra:gameId";
 const LS_SETTINGS = "echoterra:settings";
+const LS_PLAYER_NAME = "echoterra:playerName";
+// Per-game player identity: which player *I* am in that game (multiplayer lobby flow).
+const lsPlayerKey = (gameId: string) => `echoterra:player:${gameId}`;
 
 type View = "map" | "combat";
 type CombatMode = "move" | "attack" | "skill";
 
-export type AppScreen = "loading" | "title" | "cinematic" | "game" | "editor";
+export type AppScreen = "loading" | "title" | "cinematic" | "game" | "editor" | "lobby";
 export type Tab = "home" | "map" | "stock" | "structure" | "craft";
 export type SettingsScreen = "menu" | "setting" | "language" | "notifications";
 
@@ -56,6 +59,11 @@ interface StoreState {
   recipes: Recipe[];
   classes: ClassDef[];
 
+  // --- lobby / multiplayer ---
+  playerId?: string; // my player id in the current game (undefined in legacy solo games)
+  playerName: string; // persisted display name
+  lobbies: GameSummary[]; // open lobbies (join screen)
+
   // --- game / map / combat ---
   game?: GameState;
   combat?: Combat;
@@ -80,6 +88,15 @@ interface StoreState {
   toggleFog: () => void;
   startTestGame: () => Promise<void>;
   continueTestGame: () => Promise<void>;
+  // lobby actions
+  openLobby: () => void;
+  setPlayerName: (name: string) => void;
+  fetchLobbies: () => Promise<void>;
+  createLobby: (opts: { name?: string; minPlayers: number; maxPlayers: number }) => Promise<void>;
+  joinLobby: (code: string) => Promise<void>;
+  startLobby: () => Promise<void>;
+  refreshLobby: () => Promise<void>;
+  leaveLobby: () => void;
   townAction: (
     buildingId: string,
     action: "build" | "restore" | "use" | "water" | "toggle",
@@ -152,6 +169,32 @@ export const useStore = create<StoreState>((set, get) => {
     }
   };
 
+  const loadCatalogs = async () => {
+    if (get().recipes.length === 0) try { set({ recipes: await api.recipes() }); } catch { /* non-critical */ }
+    if (get().classes.length === 0) try { set({ classes: await api.classes() }); } catch { /* non-critical */ }
+  };
+
+  // Adopt a (re)loaded game: remember it + my player identity, select my own hero.
+  const adoptGame = (game: GameState, playerId?: string) => {
+    localStorage.setItem(LS_GAME, game.id);
+    if (playerId) localStorage.setItem(lsPlayerKey(game.id), playerId);
+    const pid = playerId ?? localStorage.getItem(lsPlayerKey(game.id)) ?? undefined;
+    const myHero = game.players?.find((p) => p.id === pid)?.heroId;
+    set({
+      game,
+      playerId: pid,
+      view: "map",
+      combat: undefined,
+      current: undefined,
+      selectedHeroId: myHero ?? game.heroes[0]?.id,
+    });
+  };
+
+  const enterActiveGame = async () => {
+    await loadCatalogs();
+    set({ appScreen: "game", tab: "home", settingsScreen: null });
+  };
+
   return {
     appScreen: "loading",
     tab: "home",
@@ -162,6 +205,8 @@ export const useStore = create<StoreState>((set, get) => {
     debugNoFog: false,
     recipes: [],
     classes: [],
+    playerName: localStorage.getItem(LS_PLAYER_NAME) ?? "",
+    lobbies: [],
 
     view: "map",
     combatMode: "move",
@@ -199,11 +244,9 @@ export const useStore = create<StoreState>((set, get) => {
       withBusy(async () => {
         const game = await api.createGame({ width: 22, height: 22 });
         localStorage.setItem(LS_GAME, game.id);
-        set({ game, view: "map", selectedHeroId: game.heroes[0]?.id, combat: undefined, current: undefined });
+        set({ game, view: "map", selectedHeroId: game.heroes[0]?.id, combat: undefined, current: undefined, playerId: undefined });
         pushLog(`Nouvelle partie — jour ${game.day}. La ville est à (${game.town.x}, ${game.town.y}).`);
-        if (get().recipes.length === 0) try { set({ recipes: await api.recipes() }); } catch {}
-        if (get().classes.length === 0) try { set({ classes: await api.classes() }); } catch {}
-        set({ appScreen: "game", tab: "home", settingsScreen: null });
+        await enterActiveGame();
       }),
 
     continueTestGame: () =>
@@ -212,25 +255,92 @@ export const useStore = create<StoreState>((set, get) => {
         if (saved) {
           try {
             const game = await api.getGame(saved);
-            set({ game, view: "map", selectedHeroId: game.heroes[0]?.id });
+            adoptGame(game);
+            if (game.status === "lobby") {
+              // The saved game is still a waiting room: resume there instead.
+              set({ appScreen: "lobby" });
+              pushLog(`🎪 Retour au salon "${game.name}" (code ${game.joinCode}).`);
+              return;
+            }
             pushLog(`Partie reprise — jour ${game.day}, vague ${game.waveNumber}.`);
           } catch {
             localStorage.removeItem(LS_GAME);
             const game = await api.createGame({ width: 22, height: 22 });
             localStorage.setItem(LS_GAME, game.id);
-            set({ game, view: "map", selectedHeroId: game.heroes[0]?.id, combat: undefined, current: undefined });
+            set({ game, view: "map", selectedHeroId: game.heroes[0]?.id, combat: undefined, current: undefined, playerId: undefined });
             pushLog("⚠️ Partie introuvable — nouvelle partie créée.");
           }
         } else {
           const game = await api.createGame({ width: 22, height: 22 });
           localStorage.setItem(LS_GAME, game.id);
-          set({ game, view: "map", selectedHeroId: game.heroes[0]?.id, combat: undefined, current: undefined });
+          set({ game, view: "map", selectedHeroId: game.heroes[0]?.id, combat: undefined, current: undefined, playerId: undefined });
           pushLog("Aucune partie sauvegardée — nouvelle partie créée.");
         }
-        if (get().recipes.length === 0) try { set({ recipes: await api.recipes() }); } catch {}
-        if (get().classes.length === 0) try { set({ classes: await api.classes() }); } catch {}
-        set({ appScreen: "game", tab: "home", settingsScreen: null });
+        await enterActiveGame();
       }),
+
+    // --- lobby / multiplayer -------------------------------------------------
+    openLobby: () => set({ appScreen: "lobby", error: undefined }),
+
+    setPlayerName: (name) => {
+      try {
+        localStorage.setItem(LS_PLAYER_NAME, name);
+      } catch {
+        /* ignore */
+      }
+      set({ playerName: name });
+    },
+
+    fetchLobbies: async () => {
+      try {
+        set({ lobbies: await api.listGames("lobby") });
+      } catch {
+        /* listing is best-effort */
+      }
+    },
+
+    createLobby: (opts) =>
+      withBusy(async () => {
+        const playerName = get().playerName.trim() || "Aventurier";
+        const res = await api.createLobby({ ...opts, playerName, width: 22, height: 22 });
+        adoptGame(res.game, res.player.id);
+        pushLog(`🎪 Partie "${res.game.name}" créée — code ${res.game.joinCode}.`);
+      }),
+
+    joinLobby: (code) =>
+      withBusy(async () => {
+        const playerName = get().playerName.trim() || "Aventurier";
+        const res = await api.joinByCode(code, playerName);
+        adoptGame(res.game, res.player.id);
+        pushLog(`🤝 Partie "${res.game.name}" rejointe (${res.game.players.length}/${res.game.maxPlayers} joueurs).`);
+      }),
+
+    startLobby: () =>
+      withBusy(async () => {
+        const { game, playerId } = get();
+        if (!game || !playerId) return;
+        const next = await api.startGame(game.id, playerId);
+        adoptGame(next);
+        pushLog(`⚔️ La partie commence — jour ${next.day} !`);
+        await enterActiveGame();
+      }),
+
+    refreshLobby: async () => {
+      const { game, appScreen } = get();
+      if (!game || appScreen !== "lobby") return;
+      try {
+        const next = await api.getGame(game.id);
+        adoptGame(next);
+        if (next.status !== "lobby") {
+          pushLog("⚔️ L'hôte a lancé la partie !");
+          await enterActiveGame();
+        }
+      } catch {
+        /* polling is best-effort */
+      }
+    },
+
+    leaveLobby: () => set({ appScreen: "title", game: undefined, playerId: undefined }),
 
     townAction: (buildingId, action, points) =>
       withBusy(async () => {
@@ -305,28 +415,19 @@ export const useStore = create<StoreState>((set, get) => {
           if (saved) {
             try {
               const game = await api.getGame(saved);
-              set({ game, selectedHeroId: game.heroes[0]?.id });
+              adoptGame(game);
             } catch {
               localStorage.removeItem(LS_GAME);
             }
           }
           if (!get().game) await get().newGame();
         }
-        if (get().recipes.length === 0) {
-          try {
-            set({ recipes: await api.recipes() });
-          } catch {
-            /* recipes are non-critical */
-          }
+        if (get().game?.status === "lobby") {
+          // A lobby cannot be played yet — go to the waiting room instead.
+          set({ appScreen: "lobby" });
+          return;
         }
-        if (get().classes.length === 0) {
-          try {
-            set({ classes: await api.classes() });
-          } catch {
-            /* classes are non-critical */
-          }
-        }
-        set({ appScreen: "game", tab: "home", settingsScreen: null });
+        await enterActiveGame();
       }),
 
     leaveTown: () => set({ appScreen: "title", settingsScreen: null }),
@@ -347,6 +448,7 @@ export const useStore = create<StoreState>((set, get) => {
           selectedHeroId: game.heroes[0]?.id,
           combat: undefined,
           current: undefined,
+          playerId: undefined,
         });
         pushLog(`Nouvelle partie — jour ${game.day}. La ville est à (${game.town.x}, ${game.town.y}).`);
       }),

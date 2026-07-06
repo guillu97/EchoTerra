@@ -49,6 +49,33 @@ func (s *Store) Save(gs *game.GameState) error {
 	return err
 }
 
+// List returns the most recently updated games (newest first), up to limit.
+// The prototype stores state as a JSON blob, so listing decodes each row; fine at
+// prototype scale (add real columns/indexes before any public deployment).
+func (s *Store) List(limit int) ([]*game.GameState, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	rows, err := s.db.Query(`SELECT state FROM games ORDER BY updated_at DESC LIMIT ?`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []*game.GameState
+	for rows.Next() {
+		var blob string
+		if err := rows.Scan(&blob); err != nil {
+			return nil, err
+		}
+		var gs game.GameState
+		if err := json.Unmarshal([]byte(blob), &gs); err != nil {
+			continue // skip unreadable/legacy rows rather than failing the whole list
+		}
+		out = append(out, &gs)
+	}
+	return out, rows.Err()
+}
+
 // Load fetches a game state by id. Returns (nil, nil) if not found.
 func (s *Store) Load(id string) (*game.GameState, error) {
 	var blob string

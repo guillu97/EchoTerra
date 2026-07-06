@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -92,9 +93,14 @@ func (s *Server) Router() http.Handler {
 	})
 
 	r.Route("/api/games", func(r chi.Router) {
+		r.Get("/", s.listGames)
 		r.Post("/", s.createGame)
+		r.Post("/lobby", s.createLobby)
+		r.Post("/join", s.joinByCode)
 		r.Route("/{gameID}", func(r chi.Router) {
 			r.Get("/", s.getGame)
+			r.Post("/join", s.joinGame)
+			r.Post("/start", s.startGame)
 			r.Get("/world", s.getWorld)
 			r.Post("/advance", s.advance)
 			r.Post("/town/action", s.townAction)
@@ -172,6 +178,168 @@ func (s *Server) createGame(w http.ResponseWriter, r *http.Request) {
 	gs := worldgen.NewGame(body.Width, body.Height, body.Seed)
 	s.persist(gs)
 	writeJSON(w, http.StatusCreated, gs)
+}
+
+// --- lobby / multiplayer -----------------------------------------------------
+
+// gameSummary is the lightweight listing DTO (no tiles/monsters payload).
+type gameSummary struct {
+	ID         string       `json:"id"`
+	Name       string       `json:"name"`
+	JoinCode   string       `json:"joinCode,omitempty"`
+	Status     string       `json:"status"`
+	Players    []*game.Player `json:"players"`
+	MinPlayers int          `json:"minPlayers"`
+	MaxPlayers int          `json:"maxPlayers"`
+	Day        int          `json:"day"`
+	WaveNumber int          `json:"waveNumber"`
+	CreatedAt  time.Time    `json:"createdAt"`
+}
+
+func summarize(gs *game.GameState) gameSummary {
+	players := gs.Players
+	if players == nil {
+		players = []*game.Player{}
+	}
+	return gameSummary{
+		ID: gs.ID, Name: gs.Name, JoinCode: gs.JoinCode, Status: gs.Status,
+		Players: players, MinPlayers: gs.MinPlayers, MaxPlayers: gs.MaxPlayers,
+		Day: gs.Day, WaveNumber: gs.WaveNumber, CreatedAt: gs.CreatedAt,
+	}
+}
+
+// listGames returns recent games as summaries. ?status=lobby filters to open lobbies.
+func (s *Server) listGames(w http.ResponseWriter, r *http.Request) {
+	games, err := s.store.List(50)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	status := r.URL.Query().Get("status")
+	out := []gameSummary{}
+	for _, gs := range games {
+		if status != "" && gs.Status != status {
+			continue
+		}
+		out = append(out, summarize(gs))
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+// createLobby creates a game in "lobby" status and joins the creator as host.
+func (s *Server) createLobby(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Name       string `json:"name"`
+		PlayerName string `json:"playerName"`
+		MinPlayers int    `json:"minPlayers"`
+		MaxPlayers int    `json:"maxPlayers"`
+		Width      int    `json:"width"`
+		Height     int    `json:"height"`
+		Seed       int64  `json:"seed"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&body)
+	if body.Width == 0 {
+		body.Width = 22
+	}
+	if body.Height == 0 {
+		body.Height = 22
+	}
+	if body.Seed == 0 {
+		body.Seed = time.Now().UnixNano()
+	}
+	if body.MinPlayers == 0 {
+		body.MinPlayers = 2
+	}
+	if body.Name == "" {
+		if body.PlayerName != "" {
+			body.Name = "Partie de " + body.PlayerName
+		} else {
+			body.Name = "Nouvelle expédition"
+		}
+	}
+	gs := worldgen.NewLobby(body.Width, body.Height, body.Seed, body.Name, body.MinPlayers, body.MaxPlayers)
+	p, err := gs.AddPlayer(body.PlayerName, time.Now())
+	if err != nil {
+		writeActionErr(w, err)
+		return
+	}
+	s.persist(gs)
+	writeJSON(w, http.StatusCreated, map[string]any{"game": gs, "player": p})
+}
+
+// joinByCode resolves a join code against open lobbies (newest first) and joins it.
+func (s *Server) joinByCode(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Code       string `json:"code"`
+		PlayerName string `json:"playerName"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Code == "" {
+		writeErr(w, http.StatusBadRequest, "code de partie requis")
+		return
+	}
+	code := strings.ToUpper(strings.TrimSpace(body.Code))
+	games, err := s.store.List(200)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	for _, cand := range games {
+		if cand.Status == game.StatusLobby && (cand.JoinCode == code || cand.ID == body.Code) {
+			s.join(w, cand.ID, body.PlayerName)
+			return
+		}
+	}
+	writeErr(w, http.StatusNotFound, "aucune partie ouverte avec ce code")
+}
+
+// joinGame joins the lobby named by the URL.
+func (s *Server) joinGame(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		PlayerName string `json:"playerName"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&body)
+	s.join(w, chi.URLParam(r, "gameID"), body.PlayerName)
+}
+
+// join loads the canonical (cached) game and adds the player.
+func (s *Server) join(w http.ResponseWriter, gameID, playerName string) {
+	gs, err := s.load(gameID)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if gs == nil {
+		writeErr(w, http.StatusNotFound, "partie introuvable")
+		return
+	}
+	p, err := gs.AddPlayer(playerName, time.Now())
+	if err != nil {
+		writeActionErr(w, err)
+		return
+	}
+	s.persist(gs)
+	writeJSON(w, http.StatusOK, map[string]any{"game": gs, "player": p})
+}
+
+// startGame launches a lobby (host only, requires MinPlayers players).
+func (s *Server) startGame(w http.ResponseWriter, r *http.Request) {
+	gs := s.mustGame(w, r)
+	if gs == nil {
+		return
+	}
+	var body struct {
+		PlayerID string `json:"playerId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeErr(w, http.StatusBadRequest, "corps invalide")
+		return
+	}
+	if err := gs.StartGame(body.PlayerID, time.Now()); err != nil {
+		writeActionErr(w, err)
+		return
+	}
+	s.persist(gs)
+	writeJSON(w, http.StatusOK, gs)
 }
 
 func (s *Server) getGame(w http.ResponseWriter, r *http.Request) {
