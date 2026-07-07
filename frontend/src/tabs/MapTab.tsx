@@ -218,24 +218,33 @@ function CombatControls() {
 }
 
 // Map tab = the global Phaser world map (and the isometric combat that branches from it).
-export function MapTab() {
+// It is mounted for the whole game session and hidden with CSS when another tab is
+// active (`active` prop) so the Phaser instance and its textures survive tab switches.
+export function MapTab({ active = true }: { active?: boolean }) {
   const view = useStore((s) => s.view);
   const syncScene = useStore((s) => s.syncScene);
 
   // Re-push the current scene state to Phaser whenever we (re)enter the Map tab, and
-  // nudge Phaser's RESIZE scale manager so the canvas matches the (now sized) container.
+  // nudge Phaser's RESIZE scale manager so the canvas matches the (now sized) container
+  // (while hidden the container has zero size — the resize must run after re-display).
+  // Hidden pre-warm: as soon as MapScene has registered its handlers, push the state
+  // so it bakes its pillar atlas and builds the tile layer in the background
+  // (PhaserGame gates the scene wake-up), making the first real open of the tab instant.
+  useEffect(() => bus.on(EV.MapSceneReady, () => syncScene()), [syncScene]);
+
   useEffect(() => {
+    if (!active) return;
     const t1 = setTimeout(() => window.dispatchEvent(new Event("resize")), 40);
     const t2 = setTimeout(() => syncScene(), 80);
     return () => {
       clearTimeout(t1);
       clearTimeout(t2);
     };
-  }, [syncScene]);
+  }, [active, syncScene]);
 
   return (
-    <div className="map-host">
-      <PhaserGame />
+    <div className={active ? "map-host" : "map-host map-host-hidden"}>
+      <PhaserGame active={active} />
       {view !== "combat" && <ActionMenu />}
       {view === "combat" ? <CombatControls /> : <MapControls />}
     </div>

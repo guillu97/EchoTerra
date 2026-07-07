@@ -6,6 +6,36 @@
 
 ---
 
+## 2026-07-07 (10) — Perf : l'onglet Map ne recharge plus tout à chaque ouverture
+
+### Fait
+- **Cause du « Map met longtemps à charger »** : `GameScreen` montait `<MapTab />` conditionnellement →
+  chaque sortie de l'onglet détruisait l'instance Phaser (`game.destroy(true)`) et chaque retour
+  recréait le contexte WebGL, re-téléchargeait/re-décodait **~17 PNG 1024² (~8,5 Mo)** (isotiles,
+  persos, monstres, église), re-normalisait les cubes, recuisait l'atlas de piliers et reconstruisait
+  la couche de tuiles.
+- **Fix** : l'onglet Map reste **monté toute la partie** — `GameScreen` le rend en permanence avec une
+  prop `active`, caché via `.map-host-hidden` (`visibility:hidden` + `pointer-events:none` ; PAS
+  `display:none` : en `Scale.RESIZE` un parent 0×0 casse le framebuffer WebGL — vu en test, erreur
+  « Framebuffer status: Incomplete Attachment »).
+- Caché : `PhaserGame` **endort les deux scènes** et gate `ShowScene` par `activeRef` pour que
+  `renderMap` (actions + poll 20 s) ne les réveille pas. Réveil au retour via `syncScene` (MapTab).
+- **Pré-chauffage** : `MapScene.create()` émet `EV.MapSceneReady` → MapTab re-pousse l'état même
+  caché → textures normalisées + atlas + couche de tuiles construits en arrière-plan pendant qu'on
+  est sur Home.
+
+### Fonctionnel (vérifié — Playwright headless sur dev servers)
+- Atlas pré-cuit pendant l'onglet Home ; **1re ouverture Map ≈ 19 ms**, réouverture ≈ 10 ms.
+- Changement d'onglet : même instance Phaser, scène `map` endormie, `refreshGame()` ne la réveille
+  pas, **0 re-téléchargement** de PNG ; capture d'écran de la carte OK (terrain iso, fog, ville, héros).
+- `npx tsc -b` + `npm run build` OK.
+
+### Reste à faire
+- Le payload initial (~8,5 Mo de PNG 1024² affichés à ≤100 px) mériterait des variantes réduites
+  (256²) pour la 1re visite sur réseau mobile.
+
+---
+
 ## 2026-07-07 (9) — Google Sign-In (« Continuer avec Google »)
 
 ### Fait

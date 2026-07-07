@@ -29,6 +29,7 @@ export const EV = {
   CombatRender: "combat:render", // { resp, mode }
   ShowScene: "scene:show", // "map" | "combat"
   // Phaser -> React
+  MapSceneReady: "map:sceneReady", // MapScene.create done (handlers registered) — re-push state
   MapTileClick: "map:tileClick", // { x, y }
   MapHeroClick: "map:heroClick", // { heroId }
   MapHeroMenu: "map:heroMenu", // { sx, sy } — open the radial action menu at screen coords

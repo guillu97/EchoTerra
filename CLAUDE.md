@@ -332,7 +332,14 @@ POST /api/games/{id}/combat/{c}/action            {unitId, action: move|attack|s
   empilés) et un seul batch texture ; la couche de tuiles est construite **une fois par partie, jamais
   reconstruite** — brouillard/ombrage appliqués par diff de `setTint` par tuile ; les pips de ressources sont des
   bobs de **`Blitter`** (un Graphics re-tesselle ses ~400 cercles à CHAQUE frame — ne pas y revenir) ; les PNG
-  bruts 1024² sont libérés après normalisation ; mipmaps trilinéaires (`PhaserGame.tsx`). Starts **zoomed in &
+  bruts 1024² sont libérés après normalisation ; mipmaps trilinéaires (`PhaserGame.tsx`). **L'onglet Map reste
+  MONTÉ toute la partie** (`GameScreen` le rend en permanence avec une prop `active`, caché via
+  `visibility:hidden` — PAS `display:none` : en mode `Scale.RESIZE` un parent 0×0 casse le framebuffer WebGL) —
+  démonter/recréer Phaser à chaque changement d'onglet re-téléchargeait ~17 PNG 1024² (~8,5 Mo) et refaisait
+  normalisation + atlas + couche de tuiles à CHAQUE visite (c'était le « Map met longtemps à charger »). Caché,
+  les scènes sont endormies et `PhaserGame` gate `ShowScene` par `activeRef` (le poll 20 s ne les réveille pas) ;
+  au `create()` la scène émet `EV.MapSceneReady` → MapTab re-pousse l'état → tout se pré-cuit en arrière-plan
+  pendant qu'on est sur Home → ouverture de l'onglet quasi instantanée. Starts **zoomed in &
   centered on the town** (no more fit-all); **wheel + pinch
   zoom** clamp 0.35–2.5. **Fog of war**: tiles are hidden (dark `FOG_TINT`, resources/monsters concealed) until a
   hero has seen them — `Tile.Discovered` is **server-authoritative & shared by all players** (`fog.go`:

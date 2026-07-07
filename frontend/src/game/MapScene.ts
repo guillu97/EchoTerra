@@ -200,6 +200,11 @@ export class MapScene extends Phaser.Scene {
         this.zoomBy(dy > 0 ? 0.9 : 1.1, ptr.x, ptr.y);
       },
     );
+
+    // Handlers are registered — ask React to (re)push the current state. This is what
+    // lets the scene pre-build its tile layer while the Map tab is still hidden (a
+    // push sent before create() would find no listener).
+    bus.emit(EV.MapSceneReady);
   }
 
   // Multiply the camera zoom by `factor` (clamped), keeping the world point under the
