@@ -111,6 +111,7 @@ interface StoreState {
   openAccount: () => void;
   registerAccount: (email: string, name: string, password: string) => Promise<void>;
   loginAccount: (email: string, password: string) => Promise<void>;
+  loginGoogleAccount: (credential: string) => Promise<void>;
   logoutAccount: () => Promise<void>;
   fetchMyGames: () => Promise<void>;
   resumeGame: (g: MyGameSummary) => Promise<void>;
@@ -372,6 +373,16 @@ export const useStore = create<StoreState>((set, get) => {
         set({ user: res.user });
         get().setPlayerName(res.user.name);
         pushLog(`👤 Connecté : ${res.user.name}.`);
+        await get().fetchMyGames();
+      }),
+
+    loginGoogleAccount: (credential) =>
+      withBusy(async () => {
+        const res = await api.loginGoogle(credential);
+        setAuthToken(res.token);
+        set({ user: res.user });
+        get().setPlayerName(res.user.name);
+        pushLog(`👤 Connecté avec Google : ${res.user.name}.`);
         await get().fetchMyGames();
       }),
 

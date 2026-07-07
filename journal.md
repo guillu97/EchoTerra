@@ -6,6 +6,46 @@
 
 ---
 
+## 2026-07-07 (9) — Google Sign-In (« Continuer avec Google »)
+
+### Fait
+- **Backend** (`api/google.go`) : `POST /api/auth/google` — le front envoie le `credential`
+  (id_token Google Identity Services), le serveur le vérifie auprès de
+  `oauth2.googleapis.com/tokeninfo` (signature + expiration par Google) puis contrôle lui-même
+  l'**audience** (= `ECHOTERRA_GOOGLE_CLIENT_ID`) et `email_verified`. Vérificateur injectable
+  (`verifyGoogleIDToken` var) pour les tests. 1er login = création du compte (provider `"google"`,
+  `PassHash` vide) ; email déjà inscrit (compte email) = connexion sur CE compte (email vérifié par
+  Google → même personne). Login mot de passe sur un compte Google-only → 401 avec message dédié.
+- **`GET /api/auth/config`** → `{googleClientId}` : le front découvre à l'exécution si Google est
+  activé (rien à rebuilder ; vide = bouton masqué, 501 sur /google).
+- **Frontend** : `googleAuth.ts` (chargeur du script GIS + typings), `AccountScreen` → carte
+  « Autres connexions » avec le VRAI bouton Google officiel (rendu par GIS, `renderButton`,
+  locale fr) quand configuré, sinon hint « non configuré » ; `api.authConfig` / `api.loginGoogle` ;
+  action store `loginGoogleAccount` (token + user + pseudo + mes parties, comme le login email).
+- **Apple** : confirmé écarté — Sign in with Apple exige l'Apple Developer Program (~99 $/an),
+  donc pas gratuit. Mentionné dans l'UI et `DEPLOY.md`.
+- **Docs** : `DEPLOY.md` (création du client OAuth GCP : origins localhost:5173 + domaine Vercel,
+  env sur le service backend), `CLAUDE.md` (section comptes + API + layout).
+
+### Fonctionnel (vérifié)
+- `go test ./...` OK — nouveau `api/google_test.go` (1er harnais httptest du package api) :
+  non configuré → config vide + 501 ; création de compte + session utilisable sur `/me` ;
+  re-login sans doublon ; compte email existant réutilisé tel quel (pseudo conservé, mdp toujours
+  valide) ; mauvais aud / email non vérifié / email absent / jeton inconnu → 401 ; credential
+  manquant → 400.
+- E2E serveur réel : `/auth/config` vide puis rempli selon l'env ; `/auth/google` → 501 sans
+  client ID, 401 sur un faux jeton avec un VRAI appel tokeninfo (réseau sortant OK), 400 sans
+  credential ; register email intact.
+- `tsc -b` + `npm run build` OK.
+
+### À faire / limites connues
+- Poser un vrai `ECHOTERRA_GOOGLE_CLIENT_ID` (console GCP, gratuit) pour tester le bouton en vrai —
+  le flux complet navigateur (GIS → credential → session) n'a pas pu être cliqué sans client ID.
+- tokeninfo = 1 appel réseau par login Google (OK à cette échelle) ; passer à la vérif JWKS locale
+  si le volume monte. Toujours pas de reset de mot de passe ni de rate-limiting sur /login.
+
+---
+
 ## 2026-07-07 (8) — Connexion utilisateur (email + mot de passe, sessions, reprise multi-appareils)
 
 ### Fait

@@ -109,12 +109,19 @@ export const api = {
   soloGame: (playerName: string) =>
     req<JoinResponse>("POST", "/api/games/solo", { playerName }),
 
-  // --- user accounts (email+password; Google possible later, Apple = payant) ---
+  // --- user accounts (email+password et Google Sign-In; Apple = payant) ---
+  // The server tells us at runtime whether Google is configured (empty = hidden).
+  authConfig: () => req<{ googleClientId: string }>("GET", "/api/auth/config"),
+
   register: (email: string, name: string, password: string) =>
     req<{ user: User; token: string }>("POST", "/api/auth/register", { email, name, password }),
 
   login: (email: string, password: string) =>
     req<{ user: User; token: string }>("POST", "/api/auth/login", { email, password }),
+
+  // credential = the ID token minted by Google Identity Services in the browser.
+  loginGoogle: (credential: string) =>
+    req<{ user: User; token: string }>("POST", "/api/auth/google", { credential }),
 
   logout: () => req<{ ok: boolean }>("POST", "/api/auth/logout", {}),
 
