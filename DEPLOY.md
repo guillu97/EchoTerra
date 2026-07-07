@@ -31,11 +31,26 @@ l'écran titre doit lister l'« Expédition publique ».
 | `DATABASE_URL` / `POSTGRES_URL` | DSN Postgres (posée par l'intégration Neon). |
 | `ECHOTERRA_DB` | Prioritaire (URL `postgres://` ou chemin SQLite). |
 | `ECHOTERRA_WAVE_SECONDS` | Intervalle entre vagues (défaut 600 ; 60 pour tester). |
+| `ECHOTERRA_GOOGLE_CLIENT_ID` | Active « Continuer avec Google » (voir ci-dessous). Vide = bouton masqué. |
 | `PORT` / `VERCEL` | Posées par Vercel — ne pas les définir à la main. |
 
 Sans base configurée, le backend retombe sur un SQLite local **éphémère** (le disque des
 instances Vercel ne survit pas) : OK pour une démo, mais les parties disparaissent aux
 redémarrages — branche Neon pour de la vraie persistance.
+
+### Connexion Google (gratuite, optionnelle)
+
+1. [console.cloud.google.com](https://console.cloud.google.com) → APIs & Services →
+   Credentials → **Create OAuth client ID**, type **Web application** (l'écran de
+   consentement "External" suffit, pas de vérification pour le simple login).
+2. **Authorized JavaScript origins** : `http://localhost:5173` (dev) + l'URL du
+   déploiement (ex. `https://echoterra.vercel.app`). Pas de redirect URI (flux GIS).
+3. Poser le client ID dans `ECHOTERRA_GOOGLE_CLIENT_ID` **sur le service backend**
+   (le front le découvre à l'exécution via `GET /api/auth/config` — aucun rebuild).
+
+Le serveur vérifie chaque `id_token` auprès de Google (`tokeninfo` : signature,
+expiration, audience, email vérifié). Apple Sign-In n'est pas proposé : il exige
+l'Apple Developer Program (~99 $/an).
 
 ## Ce qui change quand `VERCEL` est présent (vs dev local)
 

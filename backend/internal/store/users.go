@@ -1,9 +1,9 @@
 package store
 
-// User accounts and sessions ("savoir qui est qui"). Email+password is the free
-// baseline; the provider column leaves room for Google OAuth later (free, needs a
-// GCP client id) — Sign in with Apple is NOT free (Apple Developer Program) and is
-// intentionally not implemented.
+// User accounts and sessions ("savoir qui est qui"). Providers: "email"
+// (password, bcrypt) and "google" (ID token verified server-side, PassHash empty).
+// Sign in with Apple is NOT free (Apple Developer Program) and is intentionally
+// not implemented.
 
 import (
 	"database/sql"
@@ -17,7 +17,7 @@ type User struct {
 	ID        string `json:"id"`
 	Email     string `json:"email"`
 	Name      string `json:"name"`
-	Provider  string `json:"provider"` // "email" (future: "google")
+	Provider  string `json:"provider"` // "email" | "google"
 	CreatedAt int64  `json:"createdAt"`
 	PassHash  string `json:"-"`
 }

@@ -1,8 +1,8 @@
 package api
 
 // User accounts: register / login with email+password (free), bearer-token
-// sessions, and "my games" for multi-device reconnection. Google OAuth can slot in
-// later as another provider (free, needs a GCP client id); Sign in with Apple is
+// sessions, and "my games" for multi-device reconnection. Google Sign-In lives in
+// google.go (free, enabled by ECHOTERRA_GOOGLE_CLIENT_ID); Sign in with Apple is
 // NOT free (Apple Developer Program) and is deliberately out of scope.
 
 import (
@@ -64,8 +64,10 @@ func (s *Server) userFromReq(r *http.Request) *store.User {
 }
 
 func (s *Server) authRoutes(r chi.Router) {
+	r.Get("/config", s.authConfig)
 	r.Post("/register", s.register)
 	r.Post("/login", s.login)
+	r.Post("/google", s.loginGoogle)
 	r.Post("/logout", s.logout)
 	r.Get("/me", s.me)
 	r.Get("/me/games", s.myGames)
@@ -133,6 +135,11 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	u, err := s.store.UserByEmail(body.Email)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if u != nil && u.PassHash == "" {
+		// Google-only account: no password to compare against.
+		writeErr(w, http.StatusUnauthorized, "ce compte utilise « Continuer avec Google »")
 		return
 	}
 	if u == nil || bcrypt.CompareHashAndPassword([]byte(u.PassHash), []byte(body.Password)) != nil {
