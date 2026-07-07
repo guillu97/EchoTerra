@@ -305,8 +305,14 @@ POST /api/games/{id}/combat/{c}/action            {unitId, action: move|attack|s
 - **Map** (`MapTab`): Phaser **isometric** map (`MapScene.ts`) — every tile is a 2:1 iso cube PILLAR. The **plains
   are the level-0 ground** (water/sand/grass stay flat); only forest/mountain/snow rise, by their Perlin height
   above the `GROUND_LEVEL` baseline (FFTA2-style relief). Cube textures are normalized at runtime from the 1024²
-  `isotiles/` PNGs (opaque-bbox crop → uniform box, like the editor's `cubeAt`); clicks use a height-aware inverse
-  projection (topmost visible tile). Starts **zoomed in & centered on the town** (no more fit-all); **wheel + pinch
+  `isotiles/` PNGs (opaque-bbox crop → uniform box, like the editor's `cubeAt`; mesure sur copie ≤256px); clicks
+  use a height-aware inverse projection (topmost visible tile). **Perf** : les piliers (biome × hauteur) sont
+  pré-cuits dans UN atlas canvas partagé (`ensurePillarAtlas`) → **1 Image par tuile** (au lieu de h+1 cubes
+  empilés) et un seul batch texture ; la couche de tuiles est construite **une fois par partie, jamais
+  reconstruite** — brouillard/ombrage appliqués par diff de `setTint` par tuile ; les pips de ressources sont des
+  bobs de **`Blitter`** (un Graphics re-tesselle ses ~400 cercles à CHAQUE frame — ne pas y revenir) ; les PNG
+  bruts 1024² sont libérés après normalisation ; mipmaps trilinéaires (`PhaserGame.tsx`). Starts **zoomed in &
+  centered on the town** (no more fit-all); **wheel + pinch
   zoom** clamp 0.35–2.5. **Fog of war**: tiles are hidden (dark `FOG_TINT`, resources/monsters concealed) until a
   hero has seen them — `Tile.Discovered` is **server-authoritative & shared by all players** (`fog.go`:
   `RevealVision` runs in `Recompute`, revealing a Chebyshev ring around the town + every live hero; the town is
