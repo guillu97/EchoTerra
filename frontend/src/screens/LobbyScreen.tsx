@@ -36,6 +36,9 @@ function LobbyForms() {
     return () => clearInterval(t);
   }, [fetchLobbies]);
 
+  // Only public lobbies are listed — private games are joined by code.
+  const publicLobbies = lobbies.filter((l) => l.visibility === "public");
+
   return (
     <div className="lobby-panel">
       <label className="lobby-field">
@@ -87,18 +90,26 @@ function LobbyForms() {
         <button className="pill" disabled={busy || !code.trim()} onClick={() => joinLobby(code.trim())}>
           Rejoindre par code
         </button>
-        {lobbies.length > 0 && (
+      </div>
+
+      <div className="lobby-card">
+        <div className="lobby-card-title">🌍 Parties publiques</div>
+        <div className="lobby-hint">
+          Elles démarrent automatiquement dès que le nombre minimal de joueurs est atteint.
+        </div>
+        {publicLobbies.length === 0 && <div className="lobby-hint">Recherche de parties…</div>}
+        {publicLobbies.length > 0 && (
           <div className="lobby-list">
-            {lobbies.map((l) => (
+            {publicLobbies.map((l) => (
               <button
                 key={l.id}
                 className="lobby-row"
                 disabled={busy || l.players.length >= l.maxPlayers}
-                onClick={() => joinLobby(l.joinCode ?? l.id)}
+                onClick={() => joinLobby(l.id)}
               >
                 <span className="lobby-row-name">{l.name}</span>
                 <span className="lobby-row-count">
-                  {l.players.length}/{l.maxPlayers} joueurs · min {l.minPlayers}
+                  {l.players.length}/{l.maxPlayers} joueurs · départ à {l.minPlayers}
                 </span>
               </button>
             ))}
@@ -129,7 +140,8 @@ function WaitingRoom() {
   if (!game) return null;
 
   const me = game.players.find((p) => p.id === playerId);
-  const isHost = !!me?.host;
+  const isPublic = game.visibility === "public";
+  const isHost = !!me?.host && !isPublic; // public games have no host powers
   const enough = game.players.length >= game.minPlayers;
 
   const copyCode = async () => {
@@ -145,11 +157,21 @@ function WaitingRoom() {
   return (
     <div className="lobby-panel">
       <div className="lobby-card">
-        <div className="lobby-card-title">🎪 {game.name || "Salon"}</div>
-        <button className="lobby-code" onClick={copyCode} title="Copier le code">
-          {game.joinCode} {copied ? "✅" : "📋"}
-        </button>
-        <div className="lobby-hint">Partage ce code pour inviter d'autres joueurs.</div>
+        <div className="lobby-card-title">
+          {isPublic ? "🌍" : "🎪"} {game.name || "Salon"}
+        </div>
+        {isPublic ? (
+          <div className="lobby-hint">
+            Partie publique — elle démarre automatiquement à {game.minPlayers} joueurs.
+          </div>
+        ) : (
+          <>
+            <button className="lobby-code" onClick={copyCode} title="Copier le code">
+              {game.joinCode} {copied ? "✅" : "📋"}
+            </button>
+            <div className="lobby-hint">Partage ce code pour inviter d'autres joueurs.</div>
+          </>
+        )}
 
         <div className="lobby-players">
           {game.players.map((p) => (
@@ -165,6 +187,16 @@ function WaitingRoom() {
                   onClick={() => kickFromLobby(p.id)}
                 >
                   ✕
+                </button>
+              )}
+              {isPublic && p.id !== playerId && !p.bot && (
+                <button
+                  className="lobby-kick"
+                  disabled={busy}
+                  title={`Voter pour expulser ${p.name}`}
+                  onClick={() => kickFromLobby(p.id)}
+                >
+                  🗳️{(game.kickVotes?.[p.id]?.length ?? 0) > 0 ? ` ${game.kickVotes?.[p.id]?.length}` : ""}
                 </button>
               )}
             </div>
@@ -200,7 +232,11 @@ function WaitingRoom() {
             </button>
           </>
         ) : (
-          <div className="lobby-hint">L'hôte lancera la partie quand tout le monde sera là.</div>
+          <div className="lobby-hint">
+            {isPublic
+              ? "Départ automatique dès que le salon est assez rempli."
+              : "L'hôte lancera la partie quand tout le monde sera là."}
+          </div>
         )}
       </div>
 

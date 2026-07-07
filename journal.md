@@ -6,6 +6,48 @@
 
 ---
 
+## 2026-07-07 (4) — Parties publiques auto-lancées, vote d'expulsion, mode solo 4 bots
+
+### Fait
+- **Visibilité des parties** (`GameState.Visibility`, consts `VisibilityPrivate/Public`, "" = private
+  legacy) : les parties PRIVÉES restent le flux existant (créées par un joueur, join par code, lancées
+  par l'hôte, kick = pouvoir de l'hôte). Les parties PUBLIQUES sont **créées automatiquement par le
+  serveur** ("Expédition publique", min 2 / max 4) et **démarrent seules dès `minPlayers` atteint**
+  (`MaybeAutoStart` appelé après chaque join ; `launch()` extrait de `StartGame`). Garde-fous : start
+  manuel refusé, bots interdits, pas de pouvoirs d'hôte en public.
+- **Toujours un salon public ouvert** : `ensurePublicLobby` au démarrage du serveur, dans le janitor
+  (10 min), et immédiatement après chaque auto-start (remplacement). Les résumés (`GET /api/games`)
+  exposent `visibility` et **n'exposent plus jamais le joinCode** (une partie privée se rejoint par
+  code partagé hors-jeu, pas depuis la liste).
+- **Vote d'expulsion en public** (`VoteKick`, `GameState.KickVotes{target→voters}`) : majorité stricte
+  des AUTRES joueurs humains (bots ni électeurs ni comptés) ; anti double-vote, anti self-vote,
+  lobby uniquement ; votes purgés quand un votant/une cible part ; `launch()` efface le registre.
+  La route `/kick` est unifiée : privé → hôte (`{game,kicked:true}`), public → vote
+  (`{game,votes,needed,kicked}`).
+- **Mode solo 4 bots** : `POST /api/games/solo` `{playerName}` → partie privée min 1/max 5, créateur +
+  4 bots, **lancée immédiatement** → `{game,player}` (15 héros, 12 packs). Bouton menu
+  "🤖 Solo (avec 4 bots)" sur l'écran titre (`store.startSoloBots`).
+- Frontend : liste "🌍 Parties publiques" (join par id, filtre `visibility`), salle d'attente publique
+  sans code/lancer/bots avec mention du départ auto, bouton 🗳️ de vote avec compteur
+  (`game.kickVotes`), entrée directe en jeu si MON join déclenche l'auto-start.
+
+### Fonctionnel (vérifié)
+- `go test ./...` OK — nouveaux : auto-start public à min joueurs (+ refus start manuel/bots),
+  vote majoritaire (1/2 puis 2/2 → expulsé, héros retirés), double/self-vote refusés, purge des votes
+  au départ du votant.
+- E2E serveur réel : salon public présent au boot (sans code exposé) · join 1/2 reste lobby · join 2/2
+  → ACTIVE (6 héros, 6 packs) · nouveau salon public recréé aussitôt · solo = 1 humain + 4 bots
+  (15 héros, 12 packs) actif en un appel · kick hôte privé inchangé.
+- `tsc -b` + `npm run build` OK.
+
+### À faire / limites connues
+- Vote d'expulsion limité à la salle d'attente (en partie active, à définir : remplacer le joueur par
+  un bot ?).
+- Matchmaking public basique : un seul salon ouvert à la fois (pas de file par région/taille).
+- Reste : consommation d'objets (craft bots), hordePower ∝ joueurs, reconnexion sans localStorage.
+
+---
+
 ## 2026-07-07 (3) — Bots v2 : combat iso auto-résolu + évolution de classe
 
 ### Fait

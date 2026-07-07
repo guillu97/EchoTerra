@@ -19,6 +19,18 @@ const (
 	StatusGameOver = "gameover"
 )
 
+// Game visibility values. Private games are player-created, joined by code, launched
+// by their host, and moderated by the host (kick). Public games are auto-created by
+// the server, listed openly, auto-start once MinPlayers is reached, and are
+// moderated by majority vote. An empty Visibility is treated as private (legacy).
+const (
+	VisibilityPrivate = "private"
+	VisibilityPublic  = "public"
+)
+
+// IsPublic reports whether this is a server-created public game.
+func (g *GameState) IsPublic() bool { return g.Visibility == VisibilityPublic }
+
 // HeroesPerPlayer is the size of each player's team (GDD: 1 joueur = 3 héros).
 const HeroesPerPlayer = 3
 
@@ -130,6 +142,9 @@ var botNames = []string{"Marcel", "Odile", "Gustave", "Colette", "Firmin", "Suze
 // AddBot lets the host add a computer-controlled player to the lobby. Bots count
 // toward MinPlayers/MaxPlayers exactly like humans and field a 3-hero team.
 func (g *GameState) AddBot(hostID string, now time.Time) (*Player, error) {
+	if g.IsPublic() {
+		return nil, ActionError{"pas de bots dans une partie publique"}
+	}
 	host := g.PlayerByID(hostID)
 	if host == nil {
 		return nil, ActionError{"joueur inconnu"}
@@ -153,11 +168,15 @@ func (g *GameState) AddBot(hostID string, now time.Time) (*Player, error) {
 	return p, nil
 }
 
-// StartGame launches a lobby: only the host may start, and only once at least
-// MinPlayers players have joined. Waves are scheduled from the launch instant.
+// StartGame launches a PRIVATE lobby: only the host may start, and only once at
+// least MinPlayers players have joined. Public lobbies start on their own (see
+// MaybeAutoStart) — a manual start is rejected to keep the rule unambiguous.
 func (g *GameState) StartGame(playerID string, now time.Time) error {
 	if g.Status != StatusLobby {
 		return ActionError{"la partie a déjà commencé"}
+	}
+	if g.IsPublic() {
+		return ActionError{"partie publique — elle démarre automatiquement quand assez de joueurs ont rejoint"}
 	}
 	p := g.PlayerByID(playerID)
 	if p == nil {
@@ -169,13 +188,29 @@ func (g *GameState) StartGame(playerID string, now time.Time) error {
 	if len(g.Players) < g.MinPlayers {
 		return ActionError{fmt.Sprintf("en attente de joueurs (%d/%d minimum)", len(g.Players), g.MinPlayers)}
 	}
+	g.launch(now)
+	return nil
+}
+
+// launch flips a lobby to active: waves scheduled and starting monsters seeded from
+// the final player count. Callers own the validation.
+func (g *GameState) launch(now time.Time) {
 	g.Status = StatusActive
 	g.StartedAt = now
 	g.NextWaveAt = now.Add(WaveInterval)
-	// The world's starting monsters are seeded at launch, scaled by the crowd size.
+	g.KickVotes = nil // lobby-only state
 	g.SeedStartingMonsters(len(g.Players))
 	g.Recompute()
-	return nil
+}
+
+// MaybeAutoStart launches a PUBLIC lobby once MinPlayers is reached (public games
+// have no launching host). Returns true if the game just started.
+func (g *GameState) MaybeAutoStart(now time.Time) bool {
+	if !g.IsPublic() || g.Status != StatusLobby || len(g.Players) < g.MinPlayers {
+		return false
+	}
+	g.launch(now)
+	return true
 }
 
 // CheckHeroOwnership validates that the player may control the hero. Games without
@@ -223,11 +258,30 @@ func (g *GameState) RemovePlayer(playerID string) (int, error) {
 	if p.Host && len(g.Players) > 0 {
 		g.Players[0].Host = true
 	}
+	// Prune the departed player from the kick-vote ledger (as target AND as voter).
+	delete(g.KickVotes, playerID)
+	for target, votes := range g.KickVotes {
+		kept := votes[:0]
+		for _, v := range votes {
+			if v != playerID {
+				kept = append(kept, v)
+			}
+		}
+		if len(kept) == 0 {
+			delete(g.KickVotes, target)
+		} else {
+			g.KickVotes[target] = kept
+		}
+	}
 	return len(g.Players), nil
 }
 
-// KickPlayer lets the host remove another player from the lobby.
+// KickPlayer lets the host remove another player from a PRIVATE lobby. In public
+// games expulsion goes through a majority vote instead (VoteKick).
 func (g *GameState) KickPlayer(hostID, targetID string) (int, error) {
+	if g.IsPublic() {
+		return len(g.Players), ActionError{"partie publique — l'expulsion se décide par un vote"}
+	}
 	host := g.PlayerByID(hostID)
 	if host == nil {
 		return len(g.Players), ActionError{"joueur inconnu"}
@@ -239,6 +293,62 @@ func (g *GameState) KickPlayer(hostID, targetID string) (int, error) {
 		return len(g.Players), ActionError{"l'hôte ne peut pas s'expulser lui-même (quitter le salon)"}
 	}
 	return g.RemovePlayer(targetID)
+}
+
+// VoteKick registers an expulsion vote in a PUBLIC lobby. When a strict majority of
+// the OTHER human players agrees, the target (and their heroes) is removed. Returns
+// (votes, needed, kicked): current vote count for the target, the majority
+// threshold, and whether the kick just happened.
+func (g *GameState) VoteKick(voterID, targetID string) (int, int, bool, error) {
+	if !g.IsPublic() {
+		return 0, 0, false, ActionError{"partie privée — seul l'hôte peut expulser"}
+	}
+	if g.Status != StatusLobby {
+		return 0, 0, false, ActionError{"le vote d'expulsion n'existe qu'en salle d'attente"}
+	}
+	voter := g.PlayerByID(voterID)
+	target := g.PlayerByID(targetID)
+	if voter == nil || target == nil {
+		return 0, 0, false, ActionError{"joueur inconnu"}
+	}
+	if voter.Bot {
+		return 0, 0, false, ActionError{"les bots ne votent pas"}
+	}
+	if voterID == targetID {
+		return 0, 0, false, ActionError{"impossible de voter contre soi-même (quitter le salon)"}
+	}
+	if g.KickVotes == nil {
+		g.KickVotes = map[string][]string{}
+	}
+	votes := g.KickVotes[targetID]
+	for _, v := range votes {
+		if v == voterID {
+			return len(votes), g.kickMajority(targetID), false, ActionError{"tu as déjà voté contre ce joueur"}
+		}
+	}
+	votes = append(votes, voterID)
+	g.KickVotes[targetID] = votes
+
+	needed := g.kickMajority(targetID)
+	if len(votes) >= needed {
+		delete(g.KickVotes, targetID)
+		if _, err := g.RemovePlayer(targetID); err != nil {
+			return len(votes), needed, false, err
+		}
+		return len(votes), needed, true, nil
+	}
+	return len(votes), needed, false, nil
+}
+
+// kickMajority is the strict majority of human players other than the target.
+func (g *GameState) kickMajority(targetID string) int {
+	eligible := 0
+	for _, p := range g.Players {
+		if !p.Bot && p.ID != targetID {
+			eligible++
+		}
+	}
+	return eligible/2 + 1
 }
 
 // joinCodeAlphabet avoids ambiguous characters (0/O, 1/I/L).

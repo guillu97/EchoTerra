@@ -242,3 +242,94 @@ func TestStartingMonstersScaleWithPlayers(t *testing.T) {
 		t.Fatalf("4 players must field %d heroes, got %d", 4*HeroesPerPlayer, len(quad.Heroes))
 	}
 }
+
+func TestPublicLobbyAutoStartsAtMinPlayers(t *testing.T) {
+	g := grassLobby(2, 4)
+	g.Visibility = VisibilityPublic
+	now := time.Now()
+
+	a, _ := g.AddPlayer("A", now)
+	if g.MaybeAutoStart(now) {
+		t.Fatal("must not auto-start below MinPlayers")
+	}
+	// Manual start is rejected on public games, even for the first joiner.
+	if err := g.StartGame(a.ID, now); err == nil {
+		t.Fatal("manual start must be rejected on a public game")
+	}
+	// No bots in public games.
+	if _, err := g.AddBot(a.ID, now); err == nil {
+		t.Fatal("bots must be rejected in public games")
+	}
+
+	if _, err := g.AddPlayer("B", now); err != nil {
+		t.Fatal(err)
+	}
+	if !g.MaybeAutoStart(now) {
+		t.Fatal("public game must auto-start once MinPlayers is reached")
+	}
+	if g.Status != StatusActive || g.NextWaveAt.IsZero() || len(g.Monsters) == 0 {
+		t.Fatalf("auto-start must fully launch the game: status=%q monsters=%d", g.Status, len(g.Monsters))
+	}
+}
+
+func TestVoteKickMajorityInPublicGame(t *testing.T) {
+	g := grassLobby(2, 4)
+	g.Visibility = VisibilityPublic
+	now := time.Now()
+	a, _ := g.AddPlayer("A", now)
+	b, _ := g.AddPlayer("B", now)
+	c, _ := g.AddPlayer("C", now)
+	target, _ := g.AddPlayer("Cible", now)
+
+	// Host kick is disabled on public games.
+	if _, err := g.KickPlayer(a.ID, target.ID); err == nil {
+		t.Fatal("host kick must be rejected on a public game")
+	}
+	// 3 voters (A,B,C) -> majority = 2.
+	votes, needed, kicked, err := g.VoteKick(a.ID, target.ID)
+	if err != nil || kicked || votes != 1 || needed != 2 {
+		t.Fatalf("first vote: votes=%d needed=%d kicked=%v err=%v", votes, needed, kicked, err)
+	}
+	// Double vote rejected.
+	if _, _, _, err := g.VoteKick(a.ID, target.ID); err == nil {
+		t.Fatal("double vote must be rejected")
+	}
+	// Self-vote rejected.
+	if _, _, _, err := g.VoteKick(target.ID, target.ID); err == nil {
+		t.Fatal("self vote must be rejected")
+	}
+	votes, needed, kicked, err = g.VoteKick(b.ID, target.ID)
+	if err != nil || !kicked || votes != 2 {
+		t.Fatalf("majority vote should kick: votes=%d needed=%d kicked=%v err=%v", votes, needed, kicked, err)
+	}
+	if g.PlayerByID(target.ID) != nil {
+		t.Fatal("target must be removed after the vote")
+	}
+	for _, id := range target.HeroIDs {
+		if g.HeroByID(id) != nil {
+			t.Fatal("the voted-out player's heroes must be removed")
+		}
+	}
+	_ = c
+}
+
+func TestVoteKickPrunedWhenVoterLeaves(t *testing.T) {
+	g := grassLobby(2, 4)
+	g.Visibility = VisibilityPublic
+	now := time.Now()
+	a, _ := g.AddPlayer("A", now)
+	b, _ := g.AddPlayer("B", now)
+	target, _ := g.AddPlayer("Cible", now)
+
+	if _, _, _, err := g.VoteKick(a.ID, target.ID); err != nil {
+		t.Fatal(err)
+	}
+	// The lone voter leaves: their vote must vanish with them.
+	if _, err := g.RemovePlayer(a.ID); err != nil {
+		t.Fatal(err)
+	}
+	if len(g.KickVotes[target.ID]) != 0 {
+		t.Fatalf("votes must be pruned when the voter leaves: %v", g.KickVotes)
+	}
+	_ = b
+}

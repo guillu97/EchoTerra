@@ -147,7 +147,14 @@ per-building `defense`, per-building `cost`, `bank.capacity = sum(storage qty)`,
 
 ## 5. Game systems
 
-**Lobby / multijoueur** (`lobby.go`, `LobbyScreen.tsx`) — une partie naît en statut **`lobby`** :
+**Lobby / multijoueur** (`lobby.go`, `LobbyScreen.tsx`) — deux visibilités (`GameState.Visibility`,
+"" = private legacy) : **privée** = créée par un joueur, join par CODE, lancée par l'HÔTE, kick = hôte ;
+**publique** = créée automatiquement par le serveur ("Expédition publique", `ensurePublicLobby` au boot
++ janitor + après chaque auto-start → il y a toujours un salon public ouvert), listée sans joinCode,
+**démarre seule dès `minPlayers` atteint** (`MaybeAutoStart`), start manuel/bots/pouvoirs d'hôte
+refusés, expulsion par **vote majoritaire** (`VoteKick`, `KickVotes`, majorité stricte des autres
+humains, lobby only, votes purgés aux départs). **Mode solo** : `POST /api/games/solo` = partie privée
+créateur + 4 bots lancée immédiatement (bouton menu "🤖 Solo"). Une partie naît en statut **`lobby`** :
 `POST /api/games/lobby` génère le monde SANS héros, SANS monstres ni vague programmée, avec un `joinCode`
 (5 car.) et auto-join du créateur (= hôte 👑). Chaque `join` (par code ou id) spawn l'ÉQUIPE de 3 héros du
 joueur en ville (stats du pool GDD cyclées). L'hôte lance via `POST /{id}/start` **une fois `minPlayers`
@@ -240,11 +247,13 @@ GET  /api/recipes
 GET  /api/games?status=lobby                      list game summaries (id,name,joinCode,players,min/max…)
 POST /api/games                                  {width?,height?,seed?} -> GameState (legacy solo, 3 héros)
 POST /api/games/lobby                            {playerName,name?,minPlayers?,maxPlayers?,…} -> {game,player}
+POST /api/games/solo                             {playerName} -> {game,player} (privée + 4 bots, lancée)
 POST /api/games/join                             {code,playerName} -> {game,player} (code OU id)
 POST /api/games/{id}/join                        {playerName} -> {game,player}
 POST /api/games/{id}/start                       {playerId} -> GameState (hôte, exige minPlayers)
 POST /api/games/{id}/leave                       {playerId} -> {left,deleted[,game]} (lobby only)
-POST /api/games/{id}/kick                        {playerId,targetId} -> GameState (hôte)
+POST /api/games/{id}/kick                        {playerId,targetId} -> privé: {game,kicked} (hôte) ;
+                                                 public: {game,votes,needed,kicked} (vote majoritaire)
 POST /api/games/{id}/bots                        {playerId} -> {game,player} (hôte; ajoute un joueur-IA)
 GET  /api/games/{id}                              (runs wave catch-up)
 GET  /api/games/{id}/world

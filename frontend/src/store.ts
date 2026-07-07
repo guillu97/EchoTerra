@@ -99,6 +99,7 @@ interface StoreState {
   leaveLobby: () => Promise<void>;
   kickFromLobby: (targetId: string) => Promise<void>;
   addBot: () => Promise<void>;
+  startSoloBots: () => Promise<void>; // menu: private game with me + 4 bots, launched
   townAction: (
     buildingId: string,
     action: "build" | "restore" | "use" | "water" | "toggle",
@@ -347,6 +348,12 @@ export const useStore = create<StoreState>((set, get) => {
         const res = await api.joinByCode(code, playerName);
         adoptGame(res.game, res.player.id);
         pushLog(`🤝 Partie "${res.game.name}" rejointe (${res.game.players.length}/${res.game.maxPlayers} joueurs).`);
+        // Joining a public game as its Nth player can trigger the auto-start:
+        // in that case skip the waiting room entirely.
+        if (res.game.status !== "lobby") {
+          pushLog("⚔️ La partie démarre !");
+          await enterActiveGame();
+        }
       }),
 
     startLobby: () =>
@@ -374,7 +381,7 @@ export const useStore = create<StoreState>((set, get) => {
         }
         adoptGame(next);
         if (next.status !== "lobby") {
-          pushLog("⚔️ L'hôte a lancé la partie !");
+          pushLog("⚔️ La partie démarre !");
           await enterActiveGame();
         }
       } catch {
@@ -386,9 +393,22 @@ export const useStore = create<StoreState>((set, get) => {
       withBusy(async () => {
         const { game, playerId } = get();
         if (!game || !playerId) return;
-        const next = await api.kickPlayer(game.id, playerId, targetId);
-        adoptGame(next);
-        pushLog("🚪 Joueur expulsé du salon.");
+        const res = await api.kickPlayer(game.id, playerId, targetId);
+        adoptGame(res.game);
+        if (res.kicked) {
+          pushLog("🚪 Joueur expulsé du salon.");
+        } else {
+          pushLog(`🗳️ Vote enregistré (${res.votes}/${res.needed} pour expulser).`);
+        }
+      }),
+
+    startSoloBots: () =>
+      withBusy(async () => {
+        const playerName = get().playerName.trim() || "Aventurier";
+        const res = await api.soloGame(playerName);
+        adoptGame(res.game, res.player.id);
+        pushLog(`🤖 Partie solo lancée : toi + 4 bots (${res.game.heroes.length} héros).`);
+        await enterActiveGame();
       }),
 
     addBot: () =>

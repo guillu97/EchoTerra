@@ -65,11 +65,22 @@ export const api = {
       { playerId },
     ),
 
+  // Private game: host kick (kicked=true immediately). Public game: registers an
+  // expulsion vote — kicked flips once a majority of the other players agreed.
   kickPlayer: (gameId: string, playerId: string, targetId: string) =>
-    req<GameState>("POST", `/api/games/${gameId}/kick`, { playerId, targetId }),
+    req<{ game: GameState; kicked: boolean; votes?: number; needed?: number }>(
+      "POST",
+      `/api/games/${gameId}/kick`,
+      { playerId, targetId },
+    ),
 
   addBot: (gameId: string, playerId: string) =>
     req<JoinResponse>("POST", `/api/games/${gameId}/bots`, { playerId }),
+
+  // One call for the menu's solo mode: private game with the player + 4 bots,
+  // already launched.
+  soloGame: (playerName: string) =>
+    req<JoinResponse>("POST", "/api/games/solo", { playerName }),
 
   // Hero actions carry the acting player's id: multiplayer games enforce server-side
   // that a player only controls their OWN hero (legacy solo games ignore it).

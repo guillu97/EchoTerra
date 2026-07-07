@@ -152,12 +152,13 @@ export interface Player {
   joinedAt: string;
 }
 
-// Lightweight game listing DTO returned by GET /api/games.
+// Lightweight game listing DTO returned by GET /api/games. Join codes are never
+// listed (private lobbies are joined by sharing their code out-of-band).
 export interface GameSummary {
   id: string;
   name: string;
-  joinCode?: string;
   status: "lobby" | "active" | "gameover";
+  visibility: "private" | "public";
   players: Player[];
   minPlayers: number;
   maxPlayers: number;
@@ -181,11 +182,13 @@ export interface GameState {
   nextWaveAt: string;
   status: "lobby" | "active" | "gameover";
   joinCode?: string;
+  visibility?: "private" | "public"; // absent/"private" = player-created; "public" = server-created, auto-starts
   minPlayers: number;
   maxPlayers: number;
   players: Player[];
   createdAt: string;
   startedAt?: string;
+  kickVotes?: Record<string, string[]>; // public lobbies: target player id -> voter ids
   lastWave?: WaveReport;
   town: {
     x: number;

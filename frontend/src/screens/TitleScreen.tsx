@@ -8,6 +8,7 @@ export function TitleScreen() {
     startAdventure,
     openSettings,
     openLobby,
+    startSoloBots,
     pushLog,
     startTestGame,
     continueTestGame,
@@ -26,6 +27,9 @@ export function TitleScreen() {
       <div className="menu">
         <button className="pill red" onClick={() => startAdventure()}>
           Start the game
+        </button>
+        <button className="pill" disabled={busy} onClick={() => startSoloBots()}>
+          🤖 Solo (avec 4 bots)
         </button>
         <button className="pill" onClick={() => openLobby()}>
           🌐 Multijoueur
