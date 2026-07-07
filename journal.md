@@ -6,6 +6,40 @@
 
 ---
 
+## 2026-07-07 (6) — Optimisation de l'affichage de la map (MapScene)
+
+### Fait
+- **Atlas de piliers** (`ensurePillarAtlas`, `MapScene.ts`) : chaque combinaison (biome × hauteur de rendu)
+  est pré-cuite dans UN canvas partagé (cube empilé h+1 fois) → **1 Image Phaser par tuile** au lieu de
+  h+1 cubes empilés (~490 objets au lieu de ~1000-1500), et une seule texture pour tout le terrain = un
+  seul batch WebGL (avant : 6 textures qui cassaient le batching).
+- **Plus AUCUNE reconstruction de la couche de tuiles en cours de partie** : la clé de cache ne contient
+  plus la signature du brouillard (`fog${count}`) — avant, CHAQUE case découverte (donc chaque déplacement)
+  détruisait et recréait toutes les images (gros hitch + GC). Le brouillard/ombrage est maintenant appliqué
+  par **diff de `setTint` par tuile** (`tileTintAt`), qui gère aussi le toggle 👁️ reveal-all.
+- **Pips de ressources → `Blitter`** (2 blitters vert/rouge, textures 6×6) : un `Graphics` Phaser
+  re-tesselle ses commandes à CHAQUE frame — ~400 `fillCircle` par frame partaient en tessellation CPU
+  permanente. Les bobs de Blitter sont quasi gratuits. Le Graphics overlay ne garde que les surbrillances,
+  le plinth de la ville et les fallbacks (≤10 formes).
+- **Mémoire GPU** : les PNG bruts 1024² (`iso-raw-*`, `town-raw`) sont libérés après normalisation
+  (~28 Mo) ; `opaqueBBox` mesure sur une copie ≤256px (~16× moins de pixels scannés au démarrage, marge
+  de sécurité d'1 px source). Mipmaps trilinéaires + `powerPreference: high-performance` (`PhaserGame.tsx`)
+  pour les sprites 1024² affichés à ~40px.
+
+### Fonctionnel (vérifié)
+- `tsc -b` + `npm run build` OK. Vérifié en vrai (backend Go + Vite + Playwright/Chromium) : partie test,
+  onglet Map → atlas construit, 484 images de tuiles, raws libérés, pips bobs OK ; déplacement d'un héros
+  (5 pas) → nouvelles tuiles révélées **sans reconstruction** (mêmes instances d'Image, même `tilesKey`,
+  seuls les tints changent) ; toggle reveal-all → 0 tuile embrumée, 479 pips ; screenshot du rendu conforme
+  (relief, ville, unités, surbrillances).
+
+### À faire / notes
+- Les sprites unités/bâtiments restent des PNG 1024² individuels (peu nombreux, mipmappés) — si un jour il
+  y a beaucoup d'unités, les baker en petit atlas comme les piliers.
+- Ne PAS remettre les pips (ou toute forme répétée ~N tuiles) dans un Graphics : re-tessellation par frame.
+
+---
+
 ## 2026-07-07 (5) — Déploiement Vercel gratuit (fonction Go serverless + Postgres/Neon)
 
 ### Fait

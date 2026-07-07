@@ -23,7 +23,9 @@ export function PhaserGame() {
       backgroundColor: "#0e1626",
       scale: { mode: Phaser.Scale.RESIZE, autoCenter: Phaser.Scale.NO_CENTER },
       scene: [MapScene, CombatScene],
-      render: { antialias: true },
+      // Mipmaps: the 1024² unit/building PNGs render at ~40px — trilinear minification
+      // is both faster (texture-cache friendly) and less shimmery than raw LINEAR.
+      render: { antialias: true, mipmapFilter: "LINEAR_MIPMAP_LINEAR", powerPreference: "high-performance" },
     });
     gameRef.current = game;
     if (import.meta.env.DEV) (window as any).__phaser = game;

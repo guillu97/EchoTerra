@@ -41,11 +41,19 @@ const TOWN_BUILDING_FILE = "bld-church";
 // React<->Phaser contract (MapRender / MapTileClick / MapHeroClick / MapHeroMenu)
 // is unchanged, so the rest of the app is agnostic to the iso switch.
 export class MapScene extends Phaser.Scene {
-  private g!: Phaser.GameObjects.Graphics; // overlay (pips, highlights, town) — always on top
+  private g!: Phaser.GameObjects.Graphics; // overlay (highlights, town plinth) — always on top
   private labels: Phaser.GameObjects.Text[] = [];
-  private tileImgs: Phaser.GameObjects.Image[] = []; // static cube layer (rebuilt on map change)
-  private tilesKey = ""; // game id + dims the cube layer was built for
+  // Static terrain layer: ONE image per tile (a pre-baked pillar frame from the shared
+  // atlas), built once per game. Fog/shade is applied by diffing tints — never rebuilt.
+  private tileImgAt: (Phaser.GameObjects.Image | null)[] = []; // indexed y*width+x
+  private tileTintAt: number[] = []; // last tint applied per tile (avoids redundant setTint)
+  private tilesKey = ""; // game id + dims the tile layer was built for
+  private atlasPairs = new Set<string>(); // "biome:height" pillars baked into pillar-atlas
   private unitSprites: Phaser.GameObjects.Image[] = []; // hero/monster sprites (rebuilt each draw)
+  // Resource pips as Blitter bobs: Graphics re-tessellates every frame, a Blitter is
+  // a single cheap batched quad list — with ~400 pips that difference is the frame budget.
+  private pipOk?: Phaser.GameObjects.Blitter;
+  private pipEmpty?: Phaser.GameObjects.Blitter;
   private cubesReady = false; // normalized cube textures built?
   private townBuildingAspect = 0; // height/width of the normalized town building (0 = not ready)
   private gs?: GameState;
@@ -76,6 +84,10 @@ export class MapScene extends Phaser.Scene {
     this.g = this.add.graphics();
     this.g.setDepth(10000); // overlay sits above every cube + unit
     this.cameras.main.setBackgroundColor("#0e1626");
+
+    this.buildPipTextures();
+    this.pipOk = this.add.blitter(0, 0, "pip-ok").setDepth(10000);
+    this.pipEmpty = this.add.blitter(0, 0, "pip-empty").setDepth(10000);
 
     this.buildCubeTextures();
     this.buildTownBuilding();
@@ -113,11 +125,14 @@ export class MapScene extends Phaser.Scene {
       offRender();
       this.scale.off("resize", onResize);
       this.load.off(Phaser.Loader.Events.COMPLETE, onLoaded);
-      this.tileImgs.forEach((im) => im.destroy());
-      this.tileImgs = [];
+      this.tileImgAt.forEach((im) => im?.destroy());
+      this.tileImgAt = [];
+      this.tileTintAt = [];
       this.tilesKey = "";
       this.unitSprites.forEach((s) => s.destroy());
       this.unitSprites = [];
+      this.pipOk = undefined;
+      this.pipEmpty = undefined;
     };
     this.events.once("shutdown", cleanup);
     this.events.once("destroy", cleanup);
@@ -244,6 +259,8 @@ export class MapScene extends Phaser.Scene {
       octx.drawImage(src, left, top, sw, sh, 0, 0, W, H);
       if (this.textures.exists(cubeKey)) this.textures.remove(cubeKey);
       this.textures.addCanvas(cubeKey, out);
+      // The raw 1024² source is only needed for this normalization — free its GPU copy.
+      this.textures.remove(rawKey);
       built++;
     }
     if (built === ISO_TILE_FILES.length) this.cubesReady = true;
@@ -254,29 +271,34 @@ export class MapScene extends Phaser.Scene {
     return this.textures.exists(key) ? key : undefined;
   }
 
-  // Measure a sprite's opaque content bounding box (alpha > 16). Falls back to the full
-  // image if pixels can't be read.
+  // Measure a sprite's opaque content bounding box (alpha > 16). The scan runs on a
+  // ≤256px downscaled copy (≈16× fewer pixels than the 1024² sources) and the box is
+  // mapped back with a 1-source-pixel safety margin — startup no longer stalls on
+  // seven full-resolution getImageData scans. Falls back to the full image on error.
   private opaqueBBox(
     src: HTMLImageElement | HTMLCanvasElement,
   ): { left: number; top: number; sw: number; sh: number } | null {
     const nw = (src as HTMLImageElement).naturalWidth || src.width;
     const nh = (src as HTMLImageElement).naturalHeight || src.height;
     if (!nw || !nh) return null;
+    const scale = Math.min(1, 256 / Math.max(nw, nh));
+    const mw = Math.max(1, Math.round(nw * scale));
+    const mh = Math.max(1, Math.round(nh * scale));
     const meas = document.createElement("canvas");
-    meas.width = nw;
-    meas.height = nh;
+    meas.width = mw;
+    meas.height = mh;
     const mctx = meas.getContext("2d");
     if (!mctx) return null;
-    mctx.drawImage(src, 0, 0);
-    let left = nw,
+    mctx.drawImage(src, 0, 0, mw, mh);
+    let left = mw,
       right = 0,
-      top = nh,
+      top = mh,
       bottom = 0;
     try {
-      const data = mctx.getImageData(0, 0, nw, nh).data;
-      for (let y = 0; y < nh; y++) {
-        for (let x = 0; x < nw; x++) {
-          if (data[(y * nw + x) * 4 + 3] > 16) {
+      const data = mctx.getImageData(0, 0, mw, mh).data;
+      for (let y = 0; y < mh; y++) {
+        for (let x = 0; x < mw; x++) {
+          if (data[(y * mw + x) * 4 + 3] > 16) {
             if (x < left) left = x;
             if (x > right) right = x;
             if (y < top) top = y;
@@ -288,7 +310,83 @@ export class MapScene extends Phaser.Scene {
       return { left: 0, top: 0, sw: nw, sh: nh };
     }
     if (right < left || bottom < top) return { left: 0, top: 0, sw: nw, sh: nh };
-    return { left, top, sw: right - left + 1, sh: bottom - top + 1 };
+    const pad = scale < 1 ? 1 : 0; // downscaling can blur a source pixel away — keep it
+    const L = Math.max(0, Math.floor(left / scale) - pad);
+    const T = Math.max(0, Math.floor(top / scale) - pad);
+    const R = Math.min(nw, Math.ceil((right + 1) / scale) + pad);
+    const B = Math.min(nh, Math.ceil((bottom + 1) / scale) + pad);
+    return { left: L, top: T, sw: R - L, sh: B - T };
+  }
+
+  // Two tiny circle textures for the resource pips (green = resources left, red = empty).
+  private buildPipTextures() {
+    const make = (key: string, color: string) => {
+      if (this.textures.exists(key)) return;
+      const c = document.createElement("canvas");
+      c.width = 6;
+      c.height = 6;
+      const ctx = c.getContext("2d");
+      if (!ctx) return;
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(3, 3, 2.4, 0, Math.PI * 2);
+      ctx.fill();
+      this.textures.addCanvas(key, c);
+    };
+    make("pip-ok", "#9ae66e");
+    make("pip-empty", "#c0392b");
+  }
+
+  // --- pillar atlas ------------------------------------------------------------
+  // Bake every (biome, render-height) pillar the map needs — the biome cube stacked
+  // h+1 times — into ONE shared canvas atlas. Each tile then becomes a single Image
+  // using its atlas frame instead of h+1 stacked cube images: ~500 objects instead of
+  // ~1500, and one shared texture so the whole terrain renders as a single batch.
+  private ensurePillarAtlas(game: GameState): boolean {
+    if (!this.cubeKeyFor(Biome.Grass)) return false; // cube textures not ready yet
+    const need = new Set<string>();
+    for (const t of game.tiles) {
+      if (!this.cubeKeyFor(t.biome)) continue; // missing biome texture -> tile skipped
+      need.add(`${t.biome}:${this.renderHeight(t)}`);
+    }
+    if (need.size === 0) return false;
+    let covered = this.textures.exists("pillar-atlas");
+    for (const p of need) if (!this.atlasPairs.has(p)) covered = false;
+    if (covered) return true;
+
+    const all = new Set([...this.atlasPairs, ...need]);
+    const pairs = [...all].map((p) => {
+      const [b, h] = p.split(":").map(Number);
+      return { p, b, h };
+    });
+    const cellW = TILE_W * SS;
+    const pillarH = (h: number) => (TILE_H + CUBE_DEPTH + h * ELEV) * SS;
+    const cellH = Math.max(...pairs.map((q) => pillarH(q.h)));
+    const cols = Math.min(8, pairs.length);
+    const rows = Math.ceil(pairs.length / cols);
+    const canvas = document.createElement("canvas");
+    canvas.width = cols * cellW;
+    canvas.height = rows * cellH;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return false;
+    for (let i = 0; i < pairs.length; i++) {
+      const { b, h } = pairs[i];
+      const cube = this.textures.get(`iso-cube-${b}`).getSourceImage() as HTMLCanvasElement;
+      const cx = (i % cols) * cellW;
+      const bottom = (Math.floor(i / cols) + 1) * cellH;
+      for (let lvl = 0; lvl <= h; lvl++) {
+        ctx.drawImage(cube, cx, bottom - (TILE_H + CUBE_DEPTH + lvl * ELEV) * SS);
+      }
+    }
+    if (this.textures.exists("pillar-atlas")) this.textures.remove("pillar-atlas");
+    const tex = this.textures.addCanvas("pillar-atlas", canvas);
+    if (!tex) return false;
+    for (let i = 0; i < pairs.length; i++) {
+      const { p, h } = pairs[i];
+      tex.add(`p${p}`, 0, (i % cols) * cellW, (Math.floor(i / cols) + 1) * cellH - pillarH(h), cellW, pillarH(h));
+    }
+    this.atlasPairs = all;
+    return true;
   }
 
   // Build a tight, content-cropped texture for the town building (preserving aspect),
@@ -311,6 +409,7 @@ export class MapScene extends Phaser.Scene {
     if (!octx) return;
     octx.drawImage(src, bb.left, bb.top, bb.sw, bb.sh, 0, 0, bb.sw, bb.sh);
     this.textures.addCanvas("town-building", out);
+    this.textures.remove("town-raw"); // cropped copy replaces the raw source
     this.townBuildingAspect = bb.sh / bb.sw;
   }
 
@@ -460,44 +559,58 @@ export class MapScene extends Phaser.Scene {
     this.unitSprites = [];
 
     const hero = this.selectedHero();
-    const haveCubes = !!this.cubeKeyFor(Biome.Grass);
 
-    // Build the static cube layer once per game (id + dimensions). Each tile is a
-    // stacked pillar of its biome cube from level 0 to its render height. The fog
-    // signature (how many tiles are discovered + the debug flag) is part of the key
-    // so the layer rebuilds and re-tints whenever the explored set grows.
-    let discoveredCount = 0;
-    for (const t of game.tiles) if (t.discovered) discoveredCount++;
-    const key = `${game.id}:${game.width}x${game.height}:fog${discoveredCount}:all${this.revealAll}`;
-    if (haveCubes && this.tilesKey !== key) {
-      this.tileImgs.forEach((im) => im.destroy());
-      this.tileImgs = [];
+    // Build the static tile layer ONCE per game (id + dimensions): one pillar image
+    // per tile from the shared atlas. Fog/exploration changes do NOT rebuild it —
+    // they only adjust tints below (destroying/recreating ~1500 images on every
+    // discovered tile was the main source of per-action jank).
+    const key = `${game.id}:${game.width}x${game.height}`;
+    if (this.tilesKey !== key) {
+      // Drop the previous game's layer first, even if the atlas isn't ready yet.
+      this.tileImgAt.forEach((im) => im?.destroy());
+      this.tileImgAt = new Array(game.tiles.length).fill(null);
+      this.tileTintAt = new Array(game.tiles.length).fill(-1);
+      this.tilesKey = "";
+    }
+    if (this.tilesKey !== key && this.ensurePillarAtlas(game)) {
       for (let y = 0; y < game.height; y++) {
         for (let x = 0; x < game.width; x++) {
           const t = game.tiles[y * game.width + x];
           const h = this.renderHeight(t);
-          const cubeKey = this.cubeKeyFor(t.biome);
-          if (!cubeKey) continue;
-          const visible = this.isVisible(x, y);
-          // Subtle elevation shade so relief reads even on flat lighting.
-          const shade = Math.min(0.8 + Math.min(h, 6) * 0.033, 1);
-          for (let lvl = 0; lvl <= h; lvl++) {
-            const sy = this.projSy(x, y, lvl);
-            const img = this.add
-              .image(this.projSx(x, y), sy + TILE_H / 2, cubeKey)
-              .setOrigin(0.5, 1)
-              .setDisplaySize(TILE_W, TILE_H + CUBE_DEPTH)
-              .setDepth((x + y) * 100 + lvl);
-            img.setTint(visible ? darken(0xffffff, shade) : FOG_TINT);
-            this.tileImgs.push(img);
-          }
+          if (!this.atlasPairs.has(`${t.biome}:${h}`)) continue;
+          const img = this.add
+            .image(this.projSx(x, y), this.projSy(x, y, 0) + TILE_H / 2, "pillar-atlas", `p${t.biome}:${h}`)
+            .setOrigin(0.5, 1)
+            .setDisplaySize(TILE_W, TILE_H + CUBE_DEPTH + h * ELEV)
+            .setDepth((x + y) * 100 + h);
+          this.tileImgAt[y * game.width + x] = img;
         }
       }
       this.tilesKey = key;
     }
+    const haveTileLayer = this.tilesKey === key;
 
-    // Flat fallback terrain when cube textures aren't available.
-    if (!haveCubes) {
+    // Fog + elevation shading: diff the tint per tile and only touch what changed.
+    if (haveTileLayer) {
+      for (let i = 0; i < game.tiles.length; i++) {
+        const img = this.tileImgAt[i];
+        if (!img) continue;
+        const t = game.tiles[i];
+        const h = this.renderHeight(t);
+        // Subtle elevation shade so relief reads even on flat lighting.
+        const shade = Math.min(0.8 + Math.min(h, 6) * 0.033, 1);
+        const tint = this.isVisible(i % game.width, (i / game.width) | 0)
+          ? darken(0xffffff, shade)
+          : FOG_TINT;
+        if (this.tileTintAt[i] !== tint) {
+          img.setTint(tint);
+          this.tileTintAt[i] = tint;
+        }
+      }
+    }
+
+    // Flat fallback terrain while the pillar atlas isn't available yet.
+    if (!haveTileLayer) {
       const order: { x: number; y: number }[] = [];
       for (let y = 0; y < game.height; y++)
         for (let x = 0; x < game.width; x++) order.push({ x, y });
@@ -513,14 +626,17 @@ export class MapScene extends Phaser.Scene {
     }
 
     // --- overlay (resource pips, highlights, town) — always on top -----------
+    // Pips are Blitter bobs (repopulated on each state push, near-free per frame).
+    this.pipOk?.clear();
+    this.pipEmpty?.clear();
     for (let y = 0; y < game.height; y++) {
       for (let x = 0; x < game.width; x++) {
         const t = game.tiles[y * game.width + x];
         if (t.biome === Biome.Water) continue;
         if (!this.isVisible(x, y)) continue; // resources stay hidden under fog
         const f = this.topFace(x, y, this.renderHeight(t));
-        this.g.fillStyle(t.resources > 0 ? 0x9ae66e : 0xc0392b, 1);
-        this.g.fillCircle(f.sx - TILE_W / 4, f.sy, 2);
+        const pip = t.resources > 0 ? this.pipOk : this.pipEmpty;
+        pip?.create(f.sx - TILE_W / 4 - 3, f.sy - 3);
       }
     }
 
