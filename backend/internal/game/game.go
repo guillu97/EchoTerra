@@ -154,6 +154,7 @@ type GameState struct {
 	// Horde / wave scheduling (server-authoritative).
 	WaveNumber int          `json:"waveNumber"` // total waves resolved so far
 	NextWaveAt time.Time    `json:"nextWaveAt"` // when the next wave hits the town
+	LastBotAt  time.Time    `json:"lastBotAt,omitzero"` // last lazy bot round (serverless catch-up, see bots.go)
 	Status     string       `json:"status"`     // "lobby" | "active" | "gameover"
 	LastWave   *WaveReport  `json:"lastWave,omitempty"`
 	Town       struct {

@@ -1,5 +1,7 @@
 package game
 
+import "time"
+
 // Bot players. A bot is a Player with Bot=true whose 3-hero team is driven by the
 // server: between waves the heroes draw water, drop loot in the Bank, help build and
 // repair, go out gathering, and come home (or hide) before the horde hits — the same
@@ -7,6 +9,55 @@ package game
 //
 // BotAct performs at most ONE action per bot hero per call, so behaviour spreads
 // over the scheduler's ticks instead of a bot burning its whole day instantly.
+
+// BotCatchUpInterval paces bot heroes when the server has no background scheduler
+// (serverless deployments): one BotAct round per elapsed interval, replayed lazily
+// on the next request that touches the game.
+const BotCatchUpInterval = time.Minute
+
+// botCatchUpMaxRounds bounds a lazy catch-up so a game left idle for hours doesn't
+// replay hundreds of bot rounds on the next request — bots are PA-bound anyway, a
+// few rounds spend everything they have until the next wave regen.
+const botCatchUpMaxRounds = 6
+
+// BotCatchUp is the lazy (serverless) counterpart of the wave scheduler's BotAct
+// pacing. Returns true when the state changed and must be persisted.
+func (g *GameState) BotCatchUp(now time.Time) bool {
+	if g.Status != StatusActive {
+		return false
+	}
+	hasBots := false
+	for _, p := range g.Players {
+		if p.Bot {
+			hasBots = true
+			break
+		}
+	}
+	if !hasBots {
+		return false
+	}
+	if g.LastBotAt.IsZero() {
+		// Persist the baseline so the next request measures a real elapsed time.
+		g.LastBotAt = now
+		return true
+	}
+	rounds := int(now.Sub(g.LastBotAt) / BotCatchUpInterval)
+	if rounds <= 0 {
+		return false
+	}
+	if rounds > botCatchUpMaxRounds {
+		rounds = botCatchUpMaxRounds
+	}
+	g.LastBotAt = now
+	changed := false
+	for i := 0; i < rounds; i++ {
+		if !g.BotAct() {
+			break
+		}
+		changed = true
+	}
+	return changed
+}
 
 // BotAct runs one action for every bot-owned hero able to act. Returns true if any
 // state changed. No-op while a combat is open (map actions are blocked then).

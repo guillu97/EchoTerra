@@ -6,6 +6,40 @@
 
 ---
 
+## 2026-07-07 (5) — Déploiement Vercel gratuit (fonction Go serverless + Postgres/Neon)
+
+### Fait
+- **Store bi-dialecte** (`store.go`) : `Open(dsn)` détecte un DSN `postgres://`/`postgresql://`
+  (driver `lib/pq`, pur Go) sinon SQLite ; schéma commun (`updated_at BIGINT` passé depuis Go),
+  placeholders rebindés `?`→`$n` pour PG. Tests : `dialect_test.go` (rebind), round-trip SQLite inchangé.
+- **Mode serverless de l'API** (`api.NewServerless`, flag `Server.stateless`) : pas de goroutines
+  (scheduler/janitor) ni de cache inter-requêtes (plusieurs instances de fonction → le store est la
+  seule vérité ; `load` relit toujours la base). Rattrapage paresseux : vagues déjà lazy (`tick`), +
+  **`BotCatchUp`** (`bots.go`, ~1 round bot/minute écoulée, plafonné à 6, timestamp `GameState.LastBotAt`
+  persisté) + **`lazyHousekeeping`** sur `GET /api/games` (purge lobbies >24 h + recréation du salon
+  public).
+- **Entrée Vercel** : `backend/serverless/serverless.go` (package PUBLIC — le module racine ne peut pas
+  importer `internal/`) lit `ECHOTERRA_DB`/`DATABASE_URL`/`POSTGRES_URL` (fallback SQLite éphémère
+  `/tmp`) ; `api/index.go` (module racine `go.mod` avec `replace echoterra => ./backend`) délègue.
+  `vercel.json` : build Vite (`frontend/dist`) + rewrites `/api/*` et `/healthz` → la fonction.
+  `.vercelignore` exclut `asset-index/` (141 Mo), `scripts/`, `journal.md`.
+- **`DEPLOY.md`** : marche à suivre (import repo → Storage → Neon gratuit → redeploy), variables,
+  limites connues (cold starts, verrou par instance seulement → lost updates théoriques multi-instances).
+
+### Fonctionnel (vérifié)
+- `go -C backend test ./...` OK — dont nouveau test e2e `serverless_test.go` (healthz, housekeeping
+  crée le salon public, partie solo 4 bots jouable à travers le Handler stateless).
+- `go build ./...` OK sur les DEUX modules (racine + backend) ; `tsc -b` + `npm run build` OK.
+- Non vérifié en vrai : le déploiement Vercel lui-même (à faire par Guillaume : importer le repo sur
+  vercel.com/new puis brancher Neon — 5 min, voir `DEPLOY.md`).
+
+### À faire / limites connues
+- Concurrence multi-instances : verrou seulement par instance → passer à un verrou en base ou à une
+  écriture optimiste (colonne version) avant ouverture publique sérieuse.
+- Postgres non testé contre un vrai serveur (schéma/requêtes triviaux, rebind testé unitairement).
+
+---
+
 ## 2026-07-07 (4) — Parties publiques auto-lancées, vote d'expulsion, mode solo 4 bots
 
 ### Fait

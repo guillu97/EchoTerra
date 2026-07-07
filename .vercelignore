@@ -1,0 +1,5 @@
+# Not needed to build or serve the game on Vercel.
+asset-index/
+scripts/
+journal.md
+*.db
