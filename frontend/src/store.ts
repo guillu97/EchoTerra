@@ -180,14 +180,14 @@ export const useStore = create<StoreState>((set, get) => {
     localStorage.setItem(LS_GAME, game.id);
     if (playerId) localStorage.setItem(lsPlayerKey(game.id), playerId);
     const pid = playerId ?? localStorage.getItem(lsPlayerKey(game.id)) ?? undefined;
-    const myHero = game.players?.find((p) => p.id === pid)?.heroId;
+    const myFirstHero = game.players?.find((p) => p.id === pid)?.heroIds?.[0];
     set({
       game,
       playerId: pid,
       view: "map",
       combat: undefined,
       current: undefined,
-      selectedHeroId: myHero ?? game.heroes[0]?.id,
+      selectedHeroId: myFirstHero ?? game.heroes[0]?.id,
     });
   };
 
@@ -196,27 +196,35 @@ export const useStore = create<StoreState>((set, get) => {
     set({ appScreen: "game", tab: "home", settingsScreen: null });
   };
 
-  // My hero's id in a multiplayer game (undefined in legacy solo games).
-  const myHeroId = () => {
+  // My team's hero ids in a multiplayer game (empty in legacy solo games).
+  const myHeroIds = () => {
     const { game, playerId } = get();
-    return game?.players?.find((p) => p.id === playerId)?.heroId;
+    return game?.players?.find((p) => p.id === playerId)?.heroIds ?? [];
   };
 
-  // In multiplayer, map/hero actions are limited to MY hero (the server enforces it
+  // In multiplayer, map/hero actions are limited to MY team (the server enforces it
   // too — this guard just gives instant feedback instead of a request round-trip).
   const ownsHero = (heroId?: string) => {
     const { game } = get();
     if (!game || !game.players?.length) return true; // legacy solo: control everyone
-    if (heroId && heroId === myHeroId()) return true;
+    if (heroId && myHeroIds().includes(heroId)) return true;
     pushLog("⚠️ Ce héros appartient à un autre joueur.");
     return false;
   };
 
-  // The town worker paying PA: in multiplayer always MY hero, otherwise the chosen one.
+  // The town worker paying PA: in multiplayer one of MY in-town heroes (the chosen
+  // one when it's mine), otherwise the legacy chosen/in-town hero.
   const townWorkerId = () => {
     const { game, townHeroId } = get();
     if (!game) return undefined;
-    if (game.players?.length) return myHeroId();
+    if (game.players?.length) {
+      const mine = myHeroIds();
+      const inTown = game.heroes.filter(
+        (h) => mine.includes(h.id) && h.hp > 0 && h.x === game.town.x && h.y === game.town.y,
+      );
+      if (townHeroId && inTown.some((h) => h.id === townHeroId)) return townHeroId;
+      return inTown[0]?.id;
+    }
     return effectiveTownHeroId(game, townHeroId);
   };
 

@@ -6,6 +6,45 @@
 
 ---
 
+## 2026-07-07 — 3 héros par joueur, spawns proportionnels aux joueurs, verrous par partie
+
+### Fait
+- **1 joueur = 3 héros** (demande du jour) : `HeroesPerPlayer = 3` ; `Player.HeroIDs []string`
+  (remplace `HeroID`) + `Player.OwnsHero`. `AddPlayer` spawn une ÉQUIPE de 3 héros en ville : le 1er
+  porte le nom du joueur, les 2 autres piochent dans `companionNames` (pool de 12, cyclé sur le nombre
+  total de héros) ; stats du pool GDD cyclées par index de héros. `RemovePlayer`/`KickPlayer` retirent
+  toute l'équipe. Le dépôt de banque multijoueur vide les sacs de TOUTE mon équipe en ville
+  (`DepositHeroLoot(only []string)`).
+- **Spawns de monstres ∝ joueurs** : le seeding initial quitte `worldgen` →
+  `game.SeedStartingMonsters(players)` appelé AU LANCEMENT (`StartGame`), quand le nombre de joueurs
+  est connu : `packs = 4 + 2*(joueurs-1)` (solo 4, 4 joueurs 10), taille des packs `+rand(joueurs)` si
+  multi. Un lobby n'a AUCUN monstre avant le lancement. `worldgen.NewGame` (solo legacy) seed pour 1
+  joueur (comportement identique à avant : 3 héros, 4 packs).
+- **Verrous par partie** : `Server.locks map[gameID]*sync.Mutex` + `lockGame(id)` ;
+  `gameLockMiddleware` sérialise TOUTES les requêtes `/{gameID}` (même les GET, qui mutent via le
+  catch-up des vagues) ; le scheduler de vagues et le `lobbyJanitor` prennent le même verrou ;
+  `join` (par code) verrouille lui-même. Fini les mutations concurrentes non protégées.
+- Frontend : `Player.heroIds: string[]`, `myHeroIds()`/`ownsHero` par équipe, `adoptGame` sélectionne
+  le 1er héros de MON équipe, `townWorkerId` choisit un de MES héros en ville (respecte `townHeroId`
+  s'il est à moi), textes lobby ("3 héros par joueur", compteur de héros au départ).
+
+### Fonctionnel (vérifié)
+- `go test ./...` OK (tests mis à jour équipe de 3 + nouveau `TestStartingMonstersScaleWithPlayers`).
+- `tsc -b` + `npm run build` OK.
+- E2E serveur réel : solo legacy 3 héros/4 packs · lobby 0 monstre avant start · 3 joueurs → 9 héros
+  (Guillaume+Brisa+Cael / Bob+Ewen+Fara / Carl+Hilda+Ilan) et 8 packs au lancement · Bob contrôle ses
+  3 héros, Guillaume rejeté sur un héros de Bob · 30 requêtes concurrentes (GET + advance) sans panic
+  ni corruption d'état.
+
+### À faire / limites connues
+- Reconnexion sans localStorage (retrouver son `playerId` par nom ?) ; présence en ligne ; pas de push
+  (poll 3 s).
+- UI : griser/distinguer visuellement les héros des autres joueurs sur la carte et les chips.
+- Équilibrage : `hordePower` des vagues ne dépend pas (encore) du nombre de joueurs — seulement le
+  seeding initial. À considérer.
+
+---
+
 ## 2026-07-06 (2) — Ownership des héros, quitter/expulser un joueur, purge des salons
 
 ### Fait

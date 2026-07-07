@@ -50,6 +50,10 @@ function LobbyForms() {
 
       <div className="lobby-card">
         <div className="lobby-card-title">🆕 Créer une partie</div>
+        <div className="lobby-hint">
+          Chaque joueur incarne une équipe de 3 héros. Plus il y a de joueurs, plus la horde initiale
+          est nombreuse.
+        </div>
         <label className="lobby-field row">
           <span>Joueurs minimum</span>
           <select value={minPlayers} onChange={(e) => setMinPlayers(Number(e.target.value))}>
@@ -177,6 +181,9 @@ function WaitingRoom() {
           {enough
             ? `Prêt à partir (${game.players.length}/${game.minPlayers} minimum atteint)`
             : `En attente de joueurs : ${game.players.length}/${game.minPlayers} minimum`}
+        </div>
+        <div className="lobby-hint">
+          {game.players.length * 3} héros partiront à l'aventure (3 par joueur).
         </div>
 
         {isHost ? (

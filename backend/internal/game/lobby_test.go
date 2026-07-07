@@ -29,8 +29,16 @@ func TestLobbyJoinAndStart(t *testing.T) {
 	if !host.Host {
 		t.Fatal("first player should be the host")
 	}
-	if h := g.HeroByID(host.HeroID); h == nil || h.Name != "Guillaume" || h.X != g.Town.X || h.Y != g.Town.Y {
-		t.Fatalf("host hero not spawned in town with the player's name: %+v", g.Heroes)
+	if len(host.HeroIDs) != HeroesPerPlayer || len(g.Heroes) != HeroesPerPlayer {
+		t.Fatalf("a player must own a team of %d heroes, got %d/%d", HeroesPerPlayer, len(host.HeroIDs), len(g.Heroes))
+	}
+	if h := g.HeroByID(host.HeroIDs[0]); h == nil || h.Name != "Guillaume" || h.X != g.Town.X || h.Y != g.Town.Y {
+		t.Fatalf("host's first hero not spawned in town with the player's name: %+v", g.Heroes)
+	}
+	for _, id := range host.HeroIDs[1:] {
+		if h := g.HeroByID(id); h == nil || h.Name == "Guillaume" || h.Name == "" {
+			t.Fatalf("companion heroes must exist with distinct names: %+v", g.Heroes)
+		}
 	}
 
 	// Below MinPlayers: the host cannot launch yet.
@@ -51,8 +59,8 @@ func TestLobbyJoinAndStart(t *testing.T) {
 	if guest.Name == "" {
 		t.Fatal("guest should get a default name")
 	}
-	if len(g.Heroes) != 2 || len(g.Players) != 2 {
-		t.Fatalf("expected 2 players/2 heroes, got %d/%d", len(g.Players), len(g.Heroes))
+	if len(g.Players) != 2 || len(g.Heroes) != 2*HeroesPerPlayer {
+		t.Fatalf("expected 2 players/%d heroes, got %d/%d", 2*HeroesPerPlayer, len(g.Players), len(g.Heroes))
 	}
 
 	// Only the host can launch.
@@ -118,13 +126,15 @@ func TestHeroOwnership(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := g.CheckHeroOwnership(a.ID, a.HeroID); err != nil {
-		t.Fatalf("owner must control their hero: %v", err)
+	for _, id := range a.HeroIDs {
+		if err := g.CheckHeroOwnership(a.ID, id); err != nil {
+			t.Fatalf("owner must control every hero of their team: %v", err)
+		}
 	}
-	if err := g.CheckHeroOwnership(a.ID, b.HeroID); err == nil {
+	if err := g.CheckHeroOwnership(a.ID, b.HeroIDs[0]); err == nil {
 		t.Fatal("controlling another player's hero must be rejected")
 	}
-	if err := g.CheckHeroOwnership("ghost", a.HeroID); err == nil {
+	if err := g.CheckHeroOwnership("ghost", a.HeroIDs[0]); err == nil {
 		t.Fatal("unknown player must be rejected")
 	}
 
@@ -152,8 +162,16 @@ func TestRemoveAndKickPlayer(t *testing.T) {
 	if _, err := g.KickPlayer(host.ID, third.ID); err != nil {
 		t.Fatal(err)
 	}
-	if g.PlayerByID(third.ID) != nil || g.HeroByID(third.HeroID) != nil {
-		t.Fatal("kicked player/hero must be removed")
+	if g.PlayerByID(third.ID) != nil {
+		t.Fatal("kicked player must be removed")
+	}
+	for _, id := range third.HeroIDs {
+		if g.HeroByID(id) != nil {
+			t.Fatal("every hero of the kicked player's team must be removed")
+		}
+	}
+	if len(g.Heroes) != 2*HeroesPerPlayer {
+		t.Fatalf("remaining heroes = %d, want %d", len(g.Heroes), 2*HeroesPerPlayer)
 	}
 
 	// The host leaves: the remaining guest inherits the host role.
@@ -176,5 +194,51 @@ func TestRemoveAndKickPlayer(t *testing.T) {
 	_ = g2.StartGame(p.ID, now)
 	if _, err := g2.RemovePlayer(p.ID); err == nil {
 		t.Fatal("leaving an active game must be rejected")
+	}
+}
+
+// grassLobby builds a lobby on an all-grass world big enough to seed many packs.
+func grassLobby(minPlayers, maxPlayers int) *GameState {
+	g := &GameState{Width: 15, Height: 15, Monsters: map[string]*Monster{}}
+	g.Tiles = make([]Tile, 15*15)
+	for i := range g.Tiles {
+		g.Tiles[i] = Tile{Biome: BiomeGrass, Resources: 3}
+	}
+	g.Town.X, g.Town.Y = 7, 7
+	g.Town.HP, g.Town.MaxHP = 100, 100
+	g.Town.Buildings = DefaultBuildings()
+	g.Status = StatusLobby
+	g.MinPlayers, g.MaxPlayers = minPlayers, maxPlayers
+	g.Day = 1
+	return g
+}
+
+func TestStartingMonstersScaleWithPlayers(t *testing.T) {
+	now := time.Now()
+
+	solo := grassLobby(1, 1)
+	p, _ := solo.AddPlayer("Solo", now)
+	if err := solo.StartGame(p.ID, now); err != nil {
+		t.Fatal(err)
+	}
+	if len(solo.Monsters) != 4 {
+		t.Fatalf("solo launch should seed 4 packs, got %d", len(solo.Monsters))
+	}
+
+	quad := grassLobby(1, 4)
+	host, _ := quad.AddPlayer("A", now)
+	for _, n := range []string{"B", "C", "D"} {
+		if _, err := quad.AddPlayer(n, now); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := quad.StartGame(host.ID, now); err != nil {
+		t.Fatal(err)
+	}
+	if len(quad.Monsters) != 10 { // 4 + 2*(4-1)
+		t.Fatalf("4-player launch should seed 10 packs, got %d", len(quad.Monsters))
+	}
+	if len(quad.Heroes) != 4*HeroesPerPlayer {
+		t.Fatalf("4 players must field %d heroes, got %d", 4*HeroesPerPlayer, len(quad.Heroes))
 	}
 }

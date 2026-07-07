@@ -23,17 +23,45 @@ import (
 // Server wires the store and an in-memory cache of live games.
 type Server struct {
 	store *store.Store
-	mu    sync.Mutex
+	mu    sync.Mutex // guards cache + locks maps
 	cache map[string]*game.GameState
+	locks map[string]*sync.Mutex // per-game mutex: one writer/reader at a time per game
 }
 
 // New creates a Server backed by the given store and starts the wave scheduler and
 // the lobby janitor.
 func New(st *store.Store) *Server {
-	s := &Server{store: st, cache: map[string]*game.GameState{}}
+	s := &Server{store: st, cache: map[string]*game.GameState{}, locks: map[string]*sync.Mutex{}}
 	go s.waveScheduler()
 	go s.lobbyJanitor()
 	return s
+}
+
+// lockGame acquires the per-game mutex and returns its unlock func. Every access to
+// a game's state (HTTP handlers, wave scheduler, janitor) must hold this lock —
+// GameState itself has no internal synchronization.
+func (s *Server) lockGame(id string) func() {
+	s.mu.Lock()
+	l, ok := s.locks[id]
+	if !ok {
+		l = &sync.Mutex{}
+		s.locks[id] = l
+	}
+	s.mu.Unlock()
+	l.Lock()
+	return l.Unlock
+}
+
+// gameLockMiddleware serializes all requests touching one game (even GETs mutate via
+// the lazy wave catch-up in tick).
+func (s *Server) gameLockMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if id := chi.URLParam(r, "gameID"); id != "" {
+			unlock := s.lockGame(id)
+			defer unlock()
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // lobbyTTL is how long an un-launched lobby survives before being purged.
@@ -50,7 +78,9 @@ func (s *Server) lobbyJanitor() {
 		cutoff := time.Now().Add(-lobbyTTL)
 		for _, gs := range games {
 			if gs.Status == game.StatusLobby && !gs.CreatedAt.IsZero() && gs.CreatedAt.Before(cutoff) {
+				unlock := s.lockGame(gs.ID)
 				s.drop(gs.ID)
+				unlock()
 			}
 		}
 	}
@@ -62,7 +92,8 @@ func (s *Server) lobbyJanitor() {
 	}
 }
 
-// drop removes a game from the cache and the store.
+// drop removes a game from the cache and the store. Callers must hold the game lock;
+// the lock entry itself is left in place (tiny, and avoids unlock-after-delete races).
 func (s *Server) drop(id string) {
 	s.mu.Lock()
 	delete(s.cache, id)
@@ -97,10 +128,12 @@ func (s *Server) waveScheduler() {
 		}
 		s.mu.Unlock()
 		for _, g := range games {
+			unlock := s.lockGame(g.ID)
 			if g.CatchUpWaves(now) {
 				g.Recompute()
 				_ = s.store.Save(g)
 			}
+			unlock()
 		}
 	}
 }
@@ -134,6 +167,7 @@ func (s *Server) Router() http.Handler {
 		r.Post("/lobby", s.createLobby)
 		r.Post("/join", s.joinByCode)
 		r.Route("/{gameID}", func(r chi.Router) {
+			r.Use(s.gameLockMiddleware)
 			r.Get("/", s.getGame)
 			r.Post("/join", s.joinGame)
 			r.Post("/start", s.startGame)
@@ -339,8 +373,11 @@ func (s *Server) joinGame(w http.ResponseWriter, r *http.Request) {
 	s.join(w, chi.URLParam(r, "gameID"), body.PlayerName)
 }
 
-// join loads the canonical (cached) game and adds the player.
+// join loads the canonical (cached) game and adds the player. It takes the game lock
+// itself because joinByCode reaches here outside the /{gameID} route middleware.
 func (s *Server) join(w http.ResponseWriter, gameID, playerName string) {
+	unlock := s.lockGame(gameID)
+	defer unlock()
 	gs, err := s.load(gameID)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, err.Error())
@@ -637,18 +674,18 @@ func (s *Server) townDeposit(w http.ResponseWriter, r *http.Request) {
 	if gs == nil {
 		return
 	}
-	// In multiplayer, a player only deposits their own hero's bag; legacy solo games
+	// In multiplayer, a player only deposits their own team's bags; legacy solo games
 	// (no players) keep the deposit-everyone behaviour.
-	heroID := ""
+	var only []string
 	if pid := decodePlayer(r); len(gs.Players) > 0 {
 		p := gs.PlayerByID(pid)
 		if p == nil {
 			writeErr(w, http.StatusBadRequest, "joueur inconnu — reconnecte-toi à la partie")
 			return
 		}
-		heroID = p.HeroID
+		only = p.HeroIDs
 	}
-	moved, err := gs.DepositHeroLoot(heroID)
+	moved, err := gs.DepositHeroLoot(only)
 	if err != nil {
 		writeActionErr(w, err)
 		return

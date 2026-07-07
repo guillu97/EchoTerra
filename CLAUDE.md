@@ -120,7 +120,8 @@ frontend/src/
 - **GameState**: `id, name, seed, width(22), height(22), tiles[], heroes[], monsters{id->Monster}, day(1),
   wave(0), waveNumber, nextWaveAt(time), status("lobby"|"active"|"gameover"), lastWave?, town, activeCombat?,
   combats{}` + lobby: `joinCode, minPlayers, maxPlayers, players[], createdAt, startedAt`.
-- **Player** (lobby.go): `id, name, heroId, host, joinedAt` — 1 joueur = 1 héros ; le 1er joueur est l'hôte.
+- **Player** (lobby.go): `id, name, heroIds[3], host, joinedAt` — **1 joueur = 3 héros** (équipe : le 1er
+  héros porte le nom du joueur, les 2 autres viennent du pool `companionNames`) ; le 1er joueur est l'hôte.
 - **Town** (inline in GameState): `x, y, hp(100), maxHp(100), defense(computed), buildings[], storage[]`.
   **`storage` = the Bank** (shared town stash).
 - **Hero**: `id, name, x, y, pa(6), maxPa, hp, maxHp, stats{force,dexterite,agilite,endurance,athletisme,
@@ -146,10 +147,11 @@ per-building `defense`, per-building `cost`, `bank.capacity = sum(storage qty)`,
 ## 5. Game systems
 
 **Lobby / multijoueur** (`lobby.go`, `LobbyScreen.tsx`) — une partie naît en statut **`lobby`** :
-`POST /api/games/lobby` génère le monde SANS héros ni vague programmée, avec un `joinCode` (5 car.) et
-auto-join du créateur (= hôte 👑). Chaque `join` (par code ou id) spawn le héros du joueur en ville
-(stats du pool GDD cyclées, héros nommé comme le joueur). L'hôte lance via `POST /{id}/start` **une fois
-`minPlayers` atteint** (min défaut 2, max défaut 4, clamp 1–8) → statut `active`, 1re vague programmée.
+`POST /api/games/lobby` génère le monde SANS héros, SANS monstres ni vague programmée, avec un `joinCode`
+(5 car.) et auto-join du créateur (= hôte 👑). Chaque `join` (par code ou id) spawn l'ÉQUIPE de 3 héros du
+joueur en ville (stats du pool GDD cyclées). L'hôte lance via `POST /{id}/start` **une fois `minPlayers`
+atteint** (min défaut 2, max défaut 4, clamp 1–8) → statut `active`, 1re vague programmée, et **seeding
+des monstres ∝ joueurs** (`SeedStartingMonsters`: packs = 4+2*(joueurs-1), taille +rand(joueurs)).
 Les vagues sont inertes en lobby. Tout est persisté en SQLite (le salon survit à un redémarrage ; les
 salons ouverts se listent via `GET /api/games?status=lobby`). Le front garde l'identité par partie dans
 `localStorage` (`echoterra:player:<gameId>`, nom dans `echoterra:playerName`) ; la salle d'attente poll
@@ -383,8 +385,9 @@ canvas2d** so the SAME `drawMap()` feeds both the live canvas and the PNG export
 - **Preview/screenshot tooling** is flaky in the headless tab (RAF pauses → screenshots/Phaser snapshots time out;
   synthetic Phaser pointer events need a preceding `pointermove` and aren't reliable). Verify via
   `preview_eval` + the dev hook **`window.__eg = { store, bus, EV }`** (DEV only) and `preview_snapshot`/`preview_inspect`.
-- **Scheduler concurrency**: the 15s wave goroutine mutates cached games without per-game locks — fine for
-  single-player prototyping, add locking before real multiplayer.
+- **Per-game locking**: every access to a game's state must hold its per-game mutex (`Server.lockGame`).
+  HTTP requests get it automatically via `gameLockMiddleware` on the `/{gameID}` route; the wave scheduler,
+  `lobbyJanitor` and `join`-by-code take it explicitly. `GameState` itself has NO internal synchronization.
 
 ## 9. Pending / next steps
 
@@ -398,8 +401,9 @@ canvas2d** so the SAME `drawMap()` feeds both the live canvas and the PNG export
 3. Combat **Defend/Guard** action (3rd button on mockup page 3).
 3b. ✅ **Lobby multijoueur** (créer / rejoindre par code / attente `minPlayers` / lancement hôte,
    persisté SQLite) — DONE (2026-07-06, voir `journal.md`). ✅ Ownership serveur des héros par joueur,
-   quitter/expulser un joueur, purge des salons abandonnés (même jour). Restent : verrous par partie,
-   reconnexion sans localStorage, présence en ligne.
+   quitter/expulser un joueur, purge des salons abandonnés (même jour). ✅ 2026-07-07 : 1 joueur =
+   3 héros (équipes), spawns initiaux ∝ nombre de joueurs (au lancement), verrous par partie.
+   Restent : reconnexion sans localStorage, présence en ligne, hordePower ∝ joueurs.
 4. **Building skills** — multiple upgradable skills per building (mockup page 6), beyond a single level.
 5. ✅ **Gardien** class counting as 3 in the Tétanisé calc — DONE. `gardienWeight()` in `wave.go`;
    tests `TestGardienCountsAsThreeForTetanise` / `TestNonGardienGetsStuckOnLargePack` in `evolve_test.go`.

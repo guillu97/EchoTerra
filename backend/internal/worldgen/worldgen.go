@@ -139,7 +139,6 @@ func newWorld(width, height int, seed int64) *game.GameState {
 	gs.Town.HP, gs.Town.MaxHP = 100, 100
 	gs.Town.Buildings = game.DefaultBuildings()
 	gs.Town.Storage = []game.Item{}
-	seedMonsters(gs)
 	return gs
 }
 
@@ -179,43 +178,14 @@ func NewGame(width, height int, seed int64) *game.GameState {
 	gs.StartedAt = time.Now()
 	gs.NextWaveAt = time.Now().Add(game.WaveInterval)
 
-	// Three classless starter heroes (per the GDD early game).
+	// Three classless starter heroes (per the GDD early game: 1 joueur = 3 héros).
 	for _, name := range []string{"Aldric", "Brisa", "Cael"} {
 		gs.Heroes = append(gs.Heroes, game.NewStarterHero(len(gs.Heroes), name, gs.Town.X, gs.Town.Y))
 	}
+	gs.SeedStartingMonsters(1)
 	gs.Recompute()
 	return gs
 }
 
-// seedMonsters places a handful of monsters on walkable tiles a few cells away from
-// the town so the player can reach combat quickly in the vertical slice.
-func seedMonsters(gs *game.GameState) {
-	species := game.MonsterSpecies
-	placed := 0
-	for radius := 2; radius <= 5 && placed < 4; radius++ {
-		for dy := -radius; dy <= radius && placed < 4; dy++ {
-			for dx := -radius; dx <= radius && placed < 4; dx++ {
-				if abs(dx)+abs(dy) != radius {
-					continue
-				}
-				x, y := gs.Town.X+dx, gs.Town.Y+dy
-				t := gs.TileAt(x, y)
-				if t == nil || !t.Biome.Walkable() || t.MonsterID != "" {
-					continue
-				}
-				sp := species[placed%len(species)]
-				m := game.NewMonster(sp, x, y)
-				gs.Monsters[m.ID] = m
-				t.MonsterID = m.ID
-				placed++
-			}
-		}
-	}
-}
-
-func abs(v int) int {
-	if v < 0 {
-		return -v
-	}
-	return v
-}
+// (Initial monster seeding lives in game.SeedStartingMonsters — it runs at launch
+// time, scaled by the number of players.)

@@ -141,11 +141,12 @@ export interface WaveReport {
   gameOver: boolean;
 }
 
-// A human participant in one game (lobby/multiplayer). Each player owns one hero.
+// A human participant in one game (lobby/multiplayer). Each player owns a team of
+// 3 heroes (GDD: 1 joueur = 3 héros).
 export interface Player {
   id: string;
   name: string;
-  heroId: string;
+  heroIds: string[];
   host: boolean;
   joinedAt: string;
 }

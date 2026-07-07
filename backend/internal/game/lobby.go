@@ -19,13 +19,27 @@ const (
 	StatusGameOver = "gameover"
 )
 
-// Player is a human participant in one game. Each player owns exactly one hero.
+// HeroesPerPlayer is the size of each player's team (GDD: 1 joueur = 3 héros).
+const HeroesPerPlayer = 3
+
+// Player is a human participant in one game. Each player owns a team of
+// HeroesPerPlayer heroes.
 type Player struct {
 	ID       string    `json:"id"`
 	Name     string    `json:"name"`
-	HeroID   string    `json:"heroId"`
+	HeroIDs  []string  `json:"heroIds"`
 	Host     bool      `json:"host"` // the creator; only the host can launch the game
 	JoinedAt time.Time `json:"joinedAt"`
+}
+
+// OwnsHero reports whether this player's team contains the hero.
+func (p *Player) OwnsHero(heroID string) bool {
+	for _, id := range p.HeroIDs {
+		if id == heroID {
+			return true
+		}
+	}
+	return false
 }
 
 // PlayerByID returns the player with the given id, or nil.
@@ -69,8 +83,16 @@ func NewStarterHero(i int, name string, x, y int) *Hero {
 	}
 }
 
-// AddPlayer joins a player to the lobby, spawning their hero in town. The first
-// player to join becomes the host. Fails once the game has started or is full.
+// companionNames is the pool of names for the 2nd/3rd hero of each player's team
+// (the 1st hero carries the player's own name), cycled over total hero count.
+var companionNames = []string{
+	"Aldric", "Brisa", "Cael", "Dara", "Ewen", "Fara",
+	"Garen", "Hilda", "Ilan", "Jora", "Kellan", "Lyra",
+}
+
+// AddPlayer joins a player to the lobby, spawning their team of HeroesPerPlayer
+// heroes in town (the first hero is named after the player). The first player to
+// join becomes the host. Fails once the game has started or is full.
 func (g *GameState) AddPlayer(name string, now time.Time) (*Player, error) {
 	if g.Status != StatusLobby {
 		return nil, ActionError{"la partie a déjà commencé"}
@@ -81,14 +103,20 @@ func (g *GameState) AddPlayer(name string, now time.Time) (*Player, error) {
 	if name == "" {
 		name = fmt.Sprintf("Aventurier %d", len(g.Players)+1)
 	}
-	h := NewStarterHero(len(g.Players), name, g.Town.X, g.Town.Y)
-	g.Heroes = append(g.Heroes, h)
 	p := &Player{
 		ID:       uuid.NewString(),
 		Name:     name,
-		HeroID:   h.ID,
 		Host:     len(g.Players) == 0,
 		JoinedAt: now,
+	}
+	for j := 0; j < HeroesPerPlayer; j++ {
+		heroName := name
+		if j > 0 {
+			heroName = companionNames[(len(g.Heroes))%len(companionNames)]
+		}
+		h := NewStarterHero(len(g.Heroes), heroName, g.Town.X, g.Town.Y)
+		g.Heroes = append(g.Heroes, h)
+		p.HeroIDs = append(p.HeroIDs, h.ID)
 	}
 	g.Players = append(g.Players, p)
 	return p, nil
@@ -113,6 +141,8 @@ func (g *GameState) StartGame(playerID string, now time.Time) error {
 	g.Status = StatusActive
 	g.StartedAt = now
 	g.NextWaveAt = now.Add(WaveInterval)
+	// The world's starting monsters are seeded at launch, scaled by the crowd size.
+	g.SeedStartingMonsters(len(g.Players))
 	g.Recompute()
 	return nil
 }
@@ -128,7 +158,7 @@ func (g *GameState) CheckHeroOwnership(playerID, heroID string) error {
 	if p == nil {
 		return ActionError{"joueur inconnu — reconnecte-toi à la partie"}
 	}
-	if p.HeroID != heroID {
+	if !p.OwnsHero(heroID) {
 		return ActionError{"ce héros appartient à un autre joueur"}
 	}
 	return nil
@@ -147,7 +177,7 @@ func (g *GameState) RemovePlayer(playerID string) (int, error) {
 	}
 	heroes := g.Heroes[:0]
 	for _, h := range g.Heroes {
-		if h.ID != p.HeroID {
+		if !p.OwnsHero(h.ID) {
 			heroes = append(heroes, h)
 		}
 	}

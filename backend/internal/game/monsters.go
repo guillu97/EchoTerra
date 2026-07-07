@@ -35,3 +35,44 @@ func NewMonster(species string, x, y int) *Monster {
 		Count:   1 + rand.Intn(2),
 	}
 }
+
+// SeedStartingMonsters places the initial monster packs on walkable tiles around the
+// town, scaled by the number of players: more players means more packs (4 for solo,
+// +2 per extra player) and slightly bigger packs. Called at game launch, when the
+// final player count is known. Returns how many packs were placed.
+func (g *GameState) SeedStartingMonsters(players int) int {
+	if players < 1 {
+		players = 1
+	}
+	target := 4 + 2*(players-1)
+	placed := 0
+	for radius := 2; radius <= g.Width && placed < target; radius++ {
+		for dy := -radius; dy <= radius && placed < target; dy++ {
+			for dx := -radius; dx <= radius && placed < target; dx++ {
+				if absInt(dx)+absInt(dy) != radius {
+					continue
+				}
+				x, y := g.Town.X+dx, g.Town.Y+dy
+				t := g.TileAt(x, y)
+				if t == nil || !t.Biome.Walkable() || t.MonsterID != "" {
+					continue
+				}
+				m := NewMonster(MonsterSpecies[placed%len(MonsterSpecies)], x, y)
+				if players > 1 {
+					m.Count += rand.Intn(players) // bigger crowds attract bigger packs
+				}
+				g.Monsters[m.ID] = m
+				t.MonsterID = m.ID
+				placed++
+			}
+		}
+	}
+	return placed
+}
+
+func absInt(v int) int {
+	if v < 0 {
+		return -v
+	}
+	return v
+}
