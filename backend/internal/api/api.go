@@ -27,11 +27,47 @@ type Server struct {
 	cache map[string]*game.GameState
 }
 
-// New creates a Server backed by the given store and starts the wave scheduler.
+// New creates a Server backed by the given store and starts the wave scheduler and
+// the lobby janitor.
 func New(st *store.Store) *Server {
 	s := &Server{store: st, cache: map[string]*game.GameState{}}
 	go s.waveScheduler()
+	go s.lobbyJanitor()
 	return s
+}
+
+// lobbyTTL is how long an un-launched lobby survives before being purged.
+const lobbyTTL = 24 * time.Hour
+
+// lobbyJanitor periodically deletes abandoned lobbies (created long ago, never
+// launched) so the open-lobby list and the DB don't fill up with dead salons.
+func (s *Server) lobbyJanitor() {
+	purge := func() {
+		games, err := s.store.List(500)
+		if err != nil {
+			return
+		}
+		cutoff := time.Now().Add(-lobbyTTL)
+		for _, gs := range games {
+			if gs.Status == game.StatusLobby && !gs.CreatedAt.IsZero() && gs.CreatedAt.Before(cutoff) {
+				s.drop(gs.ID)
+			}
+		}
+	}
+	purge()
+	ticker := time.NewTicker(10 * time.Minute)
+	defer ticker.Stop()
+	for range ticker.C {
+		purge()
+	}
+}
+
+// drop removes a game from the cache and the store.
+func (s *Server) drop(id string) {
+	s.mu.Lock()
+	delete(s.cache, id)
+	s.mu.Unlock()
+	_ = s.store.Delete(id)
 }
 
 // tick resolves any due wave for a freshly loaded game and refreshes derived fields.
@@ -101,6 +137,8 @@ func (s *Server) Router() http.Handler {
 			r.Get("/", s.getGame)
 			r.Post("/join", s.joinGame)
 			r.Post("/start", s.startGame)
+			r.Post("/leave", s.leaveGame)
+			r.Post("/kick", s.kickPlayer)
 			r.Get("/world", s.getWorld)
 			r.Post("/advance", s.advance)
 			r.Post("/town/action", s.townAction)
@@ -321,6 +359,56 @@ func (s *Server) join(w http.ResponseWriter, gameID, playerName string) {
 	writeJSON(w, http.StatusOK, map[string]any{"game": gs, "player": p})
 }
 
+// leaveGame removes the calling player (and their hero) from a lobby. An emptied
+// lobby is deleted outright.
+func (s *Server) leaveGame(w http.ResponseWriter, r *http.Request) {
+	gs := s.mustGame(w, r)
+	if gs == nil {
+		return
+	}
+	var body struct {
+		PlayerID string `json:"playerId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeErr(w, http.StatusBadRequest, "corps invalide")
+		return
+	}
+	remaining, err := gs.RemovePlayer(body.PlayerID)
+	if err != nil {
+		writeActionErr(w, err)
+		return
+	}
+	if remaining == 0 {
+		s.drop(gs.ID)
+		writeJSON(w, http.StatusOK, map[string]any{"left": true, "deleted": true})
+		return
+	}
+	s.persist(gs)
+	writeJSON(w, http.StatusOK, map[string]any{"left": true, "deleted": false, "game": gs})
+}
+
+// kickPlayer lets the host expel another player from the lobby.
+func (s *Server) kickPlayer(w http.ResponseWriter, r *http.Request) {
+	gs := s.mustGame(w, r)
+	if gs == nil {
+		return
+	}
+	var body struct {
+		PlayerID string `json:"playerId"`
+		TargetID string `json:"targetId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeErr(w, http.StatusBadRequest, "corps invalide")
+		return
+	}
+	if _, err := gs.KickPlayer(body.PlayerID, body.TargetID); err != nil {
+		writeActionErr(w, err)
+		return
+	}
+	s.persist(gs)
+	writeJSON(w, http.StatusOK, gs)
+}
+
 // startGame launches a lobby (host only, requires MinPlayers players).
 func (s *Server) startGame(w http.ResponseWriter, r *http.Request) {
 	gs := s.mustGame(w, r)
@@ -370,14 +458,30 @@ func (s *Server) getWorld(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// ownHero enforces per-player hero ownership on multiplayer games; it writes the
+// rejection and returns false when the caller may not act with this hero.
+func (s *Server) ownHero(w http.ResponseWriter, gs *game.GameState, playerID, heroID string) bool {
+	if err := gs.CheckHeroOwnership(playerID, heroID); err != nil {
+		writeActionErr(w, err)
+		return false
+	}
+	return true
+}
+
 func (s *Server) moveHero(w http.ResponseWriter, r *http.Request) {
 	gs := s.mustGame(w, r)
 	if gs == nil {
 		return
 	}
-	var body struct{ DX, DY int }
+	var body struct {
+		DX, DY   int
+		PlayerID string `json:"playerId"`
+	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeErr(w, http.StatusBadRequest, "corps invalide")
+		return
+	}
+	if !s.ownHero(w, gs, body.PlayerID, chi.URLParam(r, "heroID")) {
 		return
 	}
 	if err := gs.MoveHero(chi.URLParam(r, "heroID"), body.DX, body.DY); err != nil {
@@ -388,9 +492,23 @@ func (s *Server) moveHero(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, gs)
 }
 
+// heroActionBody is the shared optional body of parameterless hero actions.
+type heroActionBody struct {
+	PlayerID string `json:"playerId"`
+}
+
+func decodePlayer(r *http.Request) string {
+	var body heroActionBody
+	_ = json.NewDecoder(r.Body).Decode(&body)
+	return body.PlayerID
+}
+
 func (s *Server) searchTile(w http.ResponseWriter, r *http.Request) {
 	gs := s.mustGame(w, r)
 	if gs == nil {
+		return
+	}
+	if !s.ownHero(w, gs, decodePlayer(r), chi.URLParam(r, "heroID")) {
 		return
 	}
 	it, err := gs.SearchTile(chi.URLParam(r, "heroID"))
@@ -407,6 +525,9 @@ func (s *Server) hideHero(w http.ResponseWriter, r *http.Request) {
 	if gs == nil {
 		return
 	}
+	if !s.ownHero(w, gs, decodePlayer(r), chi.URLParam(r, "heroID")) {
+		return
+	}
 	if err := gs.HideHero(chi.URLParam(r, "heroID")); err != nil {
 		writeActionErr(w, err)
 		return
@@ -420,6 +541,9 @@ func (s *Server) escapeHero(w http.ResponseWriter, r *http.Request) {
 	if gs == nil {
 		return
 	}
+	if !s.ownHero(w, gs, decodePlayer(r), chi.URLParam(r, "heroID")) {
+		return
+	}
 	if err := gs.EscapeHero(chi.URLParam(r, "heroID")); err != nil {
 		writeActionErr(w, err)
 		return
@@ -431,6 +555,9 @@ func (s *Server) escapeHero(w http.ResponseWriter, r *http.Request) {
 func (s *Server) fireballHero(w http.ResponseWriter, r *http.Request) {
 	gs := s.mustGame(w, r)
 	if gs == nil {
+		return
+	}
+	if !s.ownHero(w, gs, decodePlayer(r), chi.URLParam(r, "heroID")) {
 		return
 	}
 	rep, err := gs.FireballHero(chi.URLParam(r, "heroID"))
@@ -448,10 +575,14 @@ func (s *Server) evolveHero(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body struct {
-		ClassID string `json:"classId"`
+		ClassID  string `json:"classId"`
+		PlayerID string `json:"playerId"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeErr(w, http.StatusBadRequest, "corps invalide")
+		return
+	}
+	if !s.ownHero(w, gs, body.PlayerID, chi.URLParam(r, "heroID")) {
 		return
 	}
 	if err := gs.EvolveHero(chi.URLParam(r, "heroID"), body.ClassID); err != nil {
@@ -482,9 +613,14 @@ func (s *Server) townAction(w http.ResponseWriter, r *http.Request) {
 		Action     string `json:"action"`
 		Points     int    `json:"points"`
 		HeroID     string `json:"heroId"`
+		PlayerID   string `json:"playerId"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeErr(w, http.StatusBadRequest, "corps invalide")
+		return
+	}
+	// The town worker paying the PA must be the calling player's own hero.
+	if body.HeroID != "" && !s.ownHero(w, gs, body.PlayerID, body.HeroID) {
 		return
 	}
 	if err := gs.TownAction(body.BuildingID, body.Action, body.Points, body.HeroID); err != nil {
@@ -501,7 +637,18 @@ func (s *Server) townDeposit(w http.ResponseWriter, r *http.Request) {
 	if gs == nil {
 		return
 	}
-	moved, err := gs.DepositHeroLoot()
+	// In multiplayer, a player only deposits their own hero's bag; legacy solo games
+	// (no players) keep the deposit-everyone behaviour.
+	heroID := ""
+	if pid := decodePlayer(r); len(gs.Players) > 0 {
+		p := gs.PlayerByID(pid)
+		if p == nil {
+			writeErr(w, http.StatusBadRequest, "joueur inconnu — reconnecte-toi à la partie")
+			return
+		}
+		heroID = p.HeroID
+	}
+	moved, err := gs.DepositHeroLoot(heroID)
 	if err != nil {
 		writeActionErr(w, err)
 		return
@@ -518,9 +665,14 @@ func (s *Server) townCraft(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		RecipeID string `json:"recipeId"`
 		HeroID   string `json:"heroId"`
+		PlayerID string `json:"playerId"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeErr(w, http.StatusBadRequest, "corps invalide")
+		return
+	}
+	// The crafting hero (paying the PA) must belong to the calling player.
+	if body.HeroID != "" && !s.ownHero(w, gs, body.PlayerID, body.HeroID) {
 		return
 	}
 	out, err := gs.Craft(body.RecipeID, body.HeroID)
@@ -535,6 +687,9 @@ func (s *Server) townCraft(w http.ResponseWriter, r *http.Request) {
 func (s *Server) startCombat(w http.ResponseWriter, r *http.Request) {
 	gs := s.mustGame(w, r)
 	if gs == nil {
+		return
+	}
+	if !s.ownHero(w, gs, decodePlayer(r), chi.URLParam(r, "heroID")) {
 		return
 	}
 	c, err := gs.StartCombat(chi.URLParam(r, "heroID"))
@@ -575,10 +730,20 @@ func (s *Server) combatAction(w http.ResponseWriter, r *http.Request) {
 		X        int    `json:"x"`
 		Y        int    `json:"y"`
 		TargetID string `json:"targetId"`
+		PlayerID string `json:"playerId"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeErr(w, http.StatusBadRequest, "corps invalide")
 		return
+	}
+	// A hero unit may only be played by the player owning the underlying hero.
+	for _, u := range c.Units {
+		if u.ID == body.UnitID && u.Side == "hero" {
+			if !s.ownHero(w, gs, body.PlayerID, u.RefID) {
+				return
+			}
+			break
+		}
 	}
 	if err := c.PlayerAction(body.UnitID, body.Action, body.X, body.Y, body.TargetID); err != nil {
 		writeActionErr(w, err)

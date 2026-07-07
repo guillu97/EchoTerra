@@ -117,6 +117,69 @@ func (g *GameState) StartGame(playerID string, now time.Time) error {
 	return nil
 }
 
+// CheckHeroOwnership validates that the player may control the hero. Games without
+// players (legacy solo / dev "Test rapide") are unrestricted; multiplayer games
+// require the caller to identify as the player owning that hero.
+func (g *GameState) CheckHeroOwnership(playerID, heroID string) error {
+	if len(g.Players) == 0 {
+		return nil
+	}
+	p := g.PlayerByID(playerID)
+	if p == nil {
+		return ActionError{"joueur inconnu — reconnecte-toi à la partie"}
+	}
+	if p.HeroID != heroID {
+		return ActionError{"ce héros appartient à un autre joueur"}
+	}
+	return nil
+}
+
+// RemovePlayer removes a player and their hero from a lobby (pre-launch only).
+// If the host leaves, the next player inherits the host role. Returns the number
+// of players remaining (0 means the lobby is now empty and can be deleted).
+func (g *GameState) RemovePlayer(playerID string) (int, error) {
+	if g.Status != StatusLobby {
+		return len(g.Players), ActionError{"impossible de quitter une partie déjà lancée"}
+	}
+	p := g.PlayerByID(playerID)
+	if p == nil {
+		return len(g.Players), ActionError{"joueur inconnu"}
+	}
+	heroes := g.Heroes[:0]
+	for _, h := range g.Heroes {
+		if h.ID != p.HeroID {
+			heroes = append(heroes, h)
+		}
+	}
+	g.Heroes = heroes
+	players := g.Players[:0]
+	for _, pl := range g.Players {
+		if pl.ID != playerID {
+			players = append(players, pl)
+		}
+	}
+	g.Players = players
+	if p.Host && len(g.Players) > 0 {
+		g.Players[0].Host = true
+	}
+	return len(g.Players), nil
+}
+
+// KickPlayer lets the host remove another player from the lobby.
+func (g *GameState) KickPlayer(hostID, targetID string) (int, error) {
+	host := g.PlayerByID(hostID)
+	if host == nil {
+		return len(g.Players), ActionError{"joueur inconnu"}
+	}
+	if !host.Host {
+		return len(g.Players), ActionError{"seul l'hôte peut expulser un joueur"}
+	}
+	if hostID == targetID {
+		return len(g.Players), ActionError{"l'hôte ne peut pas s'expulser lui-même (quitter le salon)"}
+	}
+	return g.RemovePlayer(targetID)
+}
+
 // joinCodeAlphabet avoids ambiguous characters (0/O, 1/I/L).
 const joinCodeAlphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
 

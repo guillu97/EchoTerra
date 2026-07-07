@@ -154,7 +154,11 @@ Les vagues sont inertes en lobby. Tout est persisté en SQLite (le salon survit 
 salons ouverts se listent via `GET /api/games?status=lobby`). Le front garde l'identité par partie dans
 `localStorage` (`echoterra:player:<gameId>`, nom dans `echoterra:playerName`) ; la salle d'attente poll
 toutes les 3 s et bascule tout le monde en jeu quand l'hôte lance. `POST /api/games` (legacy) reste le
-flux solo instantané à 3 héros pour "Test rapide". ⚠️ Pas encore d'ownership serveur des héros par joueur.
+flux solo instantané à 3 héros pour "Test rapide". **Ownership serveur** : dans une partie AVEC joueurs,
+toute action héros (move/search/hide/escape/fireball/evolve/combat, worker de ville, unité de combat)
+exige le `playerId` propriétaire (`CheckHeroOwnership`; legacy 0-players = libre) ; `town/deposit` ne
+dépose que le sac de SON héros. `POST /{id}/leave` (lobby only, salon vidé = supprimé, hôte transféré),
+`POST /{id}/kick` (hôte). Goroutine `lobbyJanitor` purge les lobbies non lancés de +24 h (`store.Delete`).
 Tests: `lobby_test.go`, `store_test.go`, worldgen `TestNewLobby*`.
 
 **Movement / PA** — 6 PA/hero/day. Move = 1 PA/orthogonal step (blocked if `Tétanisé`; clears `Caché`;
@@ -229,6 +233,8 @@ POST /api/games/lobby                            {playerName,name?,minPlayers?,m
 POST /api/games/join                             {code,playerName} -> {game,player} (code OU id)
 POST /api/games/{id}/join                        {playerName} -> {game,player}
 POST /api/games/{id}/start                       {playerId} -> GameState (hôte, exige minPlayers)
+POST /api/games/{id}/leave                       {playerId} -> {left,deleted[,game]} (lobby only)
+POST /api/games/{id}/kick                        {playerId,targetId} -> GameState (hôte)
 GET  /api/games/{id}                              (runs wave catch-up)
 GET  /api/games/{id}/world
 POST /api/games/{id}/advance                      force a wave (dev)
@@ -391,8 +397,9 @@ canvas2d** so the SAME `drawMap()` feeds both the live canvas and the PNG export
    Mage [MAP] class once the class-evolution system exists — currently every hero can cast it.)
 3. Combat **Defend/Guard** action (3rd button on mockup page 3).
 3b. ✅ **Lobby multijoueur** (créer / rejoindre par code / attente `minPlayers` / lancement hôte,
-   persisté SQLite) — DONE (2026-07-06, voir `journal.md`). Restent : ownership serveur des héros par
-   joueur, quitter/expulser un joueur, nettoyage des salons abandonnés, verrous par partie.
+   persisté SQLite) — DONE (2026-07-06, voir `journal.md`). ✅ Ownership serveur des héros par joueur,
+   quitter/expulser un joueur, purge des salons abandonnés (même jour). Restent : verrous par partie,
+   reconnexion sans localStorage, présence en ligne.
 4. **Building skills** — multiple upgradable skills per building (mockup page 6), beyond a single level.
 5. ✅ **Gardien** class counting as 3 in the Tétanisé calc — DONE. `gardienWeight()` in `wave.go`;
    tests `TestGardienCountsAsThreeForTetanise` / `TestNonGardienGetsStuckOnLargePack` in `evolve_test.go`.

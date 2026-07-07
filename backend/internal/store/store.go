@@ -49,6 +49,12 @@ func (s *Store) Save(gs *game.GameState) error {
 	return err
 }
 
+// Delete removes a game row (used to purge empty/abandoned lobbies).
+func (s *Store) Delete(id string) error {
+	_, err := s.db.Exec(`DELETE FROM games WHERE id = ?`, id)
+	return err
+}
+
 // List returns the most recently updated games (newest first), up to limit.
 // The prototype stores state as a JSON blob, so listing decodes each row; fine at
 // prototype scale (add real columns/indexes before any public deployment).

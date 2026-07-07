@@ -6,6 +6,41 @@
 
 ---
 
+## 2026-07-06 (2) — Ownership des héros, quitter/expulser un joueur, purge des salons
+
+### Fait
+- **Ownership serveur des héros** (`lobby.go` `CheckHeroOwnership`, api `ownHero`/`decodePlayer`) :
+  toutes les actions héros (`move/search/hide/escape/fireball/evolve/combat start`) + le worker de
+  ville (`town/action`, `town/craft`) + les unités héros en combat (`combat/action`) exigent le
+  `playerId` du propriétaire dans les parties multijoueur. Les parties legacy (0 players, "Test
+  rapide") restent sans restriction. `town/deposit` en multijoueur ne dépose QUE le sac de SON héros
+  (`DepositHeroLoot(heroID)` filtré ; `""` = tous, comportement solo conservé).
+- **Quitter / expulser** : `RemovePlayer` (lobby uniquement, retire joueur + héros, transfert du rôle
+  d'hôte au suivant), `KickPlayer` (hôte uniquement, pas soi-même). Routes `POST /{id}/leave`
+  (`{playerId}` → le salon vidé est **supprimé** de la base) et `POST /{id}/kick` (`{playerId,targetId}`).
+- **Purge des salons abandonnés** : goroutine `lobbyJanitor` (au démarrage puis toutes les 10 min)
+  supprime les lobbies jamais lancés créés il y a plus de 24 h (`lobbyTTL`) ; `store.Delete(id)`.
+- **Frontend** : `playerId` envoyé sur toutes les actions (client.ts) ; garde `ownsHero` dans le store
+  (feedback immédiat "ce héros appartient à un autre joueur" sans aller-retour serveur) ; en
+  multijoueur le worker de ville = TOUJOURS mon héros (`townWorkerId`) ; `leaveLobby` appelle
+  l'API et nettoie le localStorage ; bouton ✕ d'expulsion (hôte) dans la salle d'attente ;
+  `refreshLobby` détecte l'expulsion (retour au titre avec message).
+
+### Fonctionnel (vérifié)
+- `go test ./...` OK (nouveaux : `TestHeroOwnership`, `TestRemoveAndKickPlayer`) ; `tsc -b` + build OK.
+- E2E serveur réel : kick par invité refusé / kick hôte OK (joueur + héros retirés) / bouger le héros
+  d'un autre refusé / bouger le sien OK / action sans `playerId` en multi refusée / quitter une partie
+  lancée refusé / dernier joueur qui quitte → salon supprimé (404 ensuite) / solo legacy sans restriction.
+
+### À faire / limites connues
+- Toujours pas de verrous par partie (scheduler + handlers) avant du vrai multi simultané.
+- Unicité du `joinCode` non garantie ; pas de reconnexion par nom si localStorage perdu.
+- La salle d'attente poll (pas de push) ; pas de présence "en ligne/hors ligne".
+- UI : les héros des autres joueurs restent sélectionnables (lecture seule de fait — les actions sont
+  bloquées) ; on pourrait griser les boutons d'action plutôt que d'afficher un message.
+
+---
+
 ## 2026-07-06 — Lobby multijoueur : créer / rejoindre / attente / lancement (+ persistance SQLite)
 
 ### Fait

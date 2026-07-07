@@ -58,27 +58,39 @@ export const api = {
   startGame: (gameId: string, playerId: string) =>
     req<GameState>("POST", `/api/games/${gameId}/start`, { playerId }),
 
-  move: (gameId: string, heroId: string, dx: number, dy: number) =>
-    req<GameState>("POST", `/api/games/${gameId}/heroes/${heroId}/move`, { DX: dx, DY: dy }),
+  leaveGame: (gameId: string, playerId: string) =>
+    req<{ left: boolean; deleted: boolean; game?: GameState }>(
+      "POST",
+      `/api/games/${gameId}/leave`,
+      { playerId },
+    ),
 
-  search: (gameId: string, heroId: string) =>
+  kickPlayer: (gameId: string, playerId: string, targetId: string) =>
+    req<GameState>("POST", `/api/games/${gameId}/kick`, { playerId, targetId }),
+
+  // Hero actions carry the acting player's id: multiplayer games enforce server-side
+  // that a player only controls their OWN hero (legacy solo games ignore it).
+  move: (gameId: string, heroId: string, dx: number, dy: number, playerId?: string) =>
+    req<GameState>("POST", `/api/games/${gameId}/heroes/${heroId}/move`, { DX: dx, DY: dy, playerId }),
+
+  search: (gameId: string, heroId: string, playerId?: string) =>
     req<{ loot: Item; game: GameState }>(
       "POST",
       `/api/games/${gameId}/heroes/${heroId}/search`,
-      {},
+      { playerId },
     ),
 
-  hide: (gameId: string, heroId: string) =>
-    req<GameState>("POST", `/api/games/${gameId}/heroes/${heroId}/hide`, {}),
+  hide: (gameId: string, heroId: string, playerId?: string) =>
+    req<GameState>("POST", `/api/games/${gameId}/heroes/${heroId}/hide`, { playerId }),
 
-  escape: (gameId: string, heroId: string) =>
-    req<GameState>("POST", `/api/games/${gameId}/heroes/${heroId}/escape`, {}),
+  escape: (gameId: string, heroId: string, playerId?: string) =>
+    req<GameState>("POST", `/api/games/${gameId}/heroes/${heroId}/escape`, { playerId }),
 
-  fireball: (gameId: string, heroId: string) =>
+  fireball: (gameId: string, heroId: string, playerId?: string) =>
     req<{ report: FireballReport; game: GameState }>(
       "POST",
       `/api/games/${gameId}/heroes/${heroId}/fireball`,
-      {},
+      { playerId },
     ),
 
   advance: (gameId: string) => req<GameState>("POST", `/api/games/${gameId}/advance`, {}),
@@ -87,8 +99,8 @@ export const api = {
 
   classes: () => req<ClassDef[]>("GET", "/api/classes"),
 
-  evolve: (gameId: string, heroId: string, classId: string) =>
-    req<GameState>("POST", `/api/games/${gameId}/heroes/${heroId}/evolve`, { classId }),
+  evolve: (gameId: string, heroId: string, classId: string, playerId?: string) =>
+    req<GameState>("POST", `/api/games/${gameId}/heroes/${heroId}/evolve`, { classId, playerId }),
 
   townAction: (
     gameId: string,
@@ -97,17 +109,22 @@ export const api = {
       action: "build" | "restore" | "use" | "water" | "toggle";
       points?: number;
       heroId?: string;
+      playerId?: string;
     },
   ) => req<GameState>("POST", `/api/games/${gameId}/town/action`, payload),
 
-  townDeposit: (gameId: string) =>
-    req<{ moved: number; game: GameState }>("POST", `/api/games/${gameId}/town/deposit`, {}),
+  townDeposit: (gameId: string, playerId?: string) =>
+    req<{ moved: number; game: GameState }>("POST", `/api/games/${gameId}/town/deposit`, { playerId }),
 
-  craft: (gameId: string, recipeId: string, heroId?: string) =>
-    req<{ crafted: Item; game: GameState }>("POST", `/api/games/${gameId}/town/craft`, { recipeId, heroId }),
+  craft: (gameId: string, recipeId: string, heroId?: string, playerId?: string) =>
+    req<{ crafted: Item; game: GameState }>("POST", `/api/games/${gameId}/town/craft`, {
+      recipeId,
+      heroId,
+      playerId,
+    }),
 
-  startCombat: (gameId: string, heroId: string) =>
-    req<CombatResponse>("POST", `/api/games/${gameId}/heroes/${heroId}/combat/start`, {}),
+  startCombat: (gameId: string, heroId: string, playerId?: string) =>
+    req<CombatResponse>("POST", `/api/games/${gameId}/heroes/${heroId}/combat/start`, { playerId }),
 
   getCombat: (gameId: string, combatId: string) =>
     req<CombatResponse>("GET", `/api/games/${gameId}/combat/${combatId}`),
@@ -115,6 +132,13 @@ export const api = {
   combatAction: (
     gameId: string,
     combatId: string,
-    payload: { unitId: string; action: string; x?: number; y?: number; targetId?: string },
+    payload: {
+      unitId: string;
+      action: string;
+      x?: number;
+      y?: number;
+      targetId?: string;
+      playerId?: string;
+    },
   ) => req<CombatResponse>("POST", `/api/games/${gameId}/combat/${combatId}/action`, payload),
 };

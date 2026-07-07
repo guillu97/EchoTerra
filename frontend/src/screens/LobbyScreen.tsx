@@ -113,7 +113,8 @@ function LobbyForms() {
 // --- waiting room --------------------------------------------------------------
 
 function WaitingRoom() {
-  const { game, playerId, startLobby, refreshLobby, leaveLobby, busy, error } = useStore();
+  const { game, playerId, startLobby, refreshLobby, leaveLobby, kickFromLobby, busy, error } =
+    useStore();
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -152,6 +153,16 @@ function WaitingRoom() {
               <span>{p.host ? "👑" : "🧝"}</span>
               <span className="lobby-player-name">{p.name}</span>
               {p.id === playerId && <span className="lobby-me-tag">(toi)</span>}
+              {isHost && p.id !== playerId && (
+                <button
+                  className="lobby-kick"
+                  disabled={busy}
+                  title={`Expulser ${p.name}`}
+                  onClick={() => kickFromLobby(p.id)}
+                >
+                  ✕
+                </button>
+              )}
             </div>
           ))}
           {Array.from({ length: game.maxPlayers - game.players.length }).map((_, i) => (

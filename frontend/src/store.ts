@@ -96,7 +96,8 @@ interface StoreState {
   joinLobby: (code: string) => Promise<void>;
   startLobby: () => Promise<void>;
   refreshLobby: () => Promise<void>;
-  leaveLobby: () => void;
+  leaveLobby: () => Promise<void>;
+  kickFromLobby: (targetId: string) => Promise<void>;
   townAction: (
     buildingId: string,
     action: "build" | "restore" | "use" | "water" | "toggle",
@@ -193,6 +194,30 @@ export const useStore = create<StoreState>((set, get) => {
   const enterActiveGame = async () => {
     await loadCatalogs();
     set({ appScreen: "game", tab: "home", settingsScreen: null });
+  };
+
+  // My hero's id in a multiplayer game (undefined in legacy solo games).
+  const myHeroId = () => {
+    const { game, playerId } = get();
+    return game?.players?.find((p) => p.id === playerId)?.heroId;
+  };
+
+  // In multiplayer, map/hero actions are limited to MY hero (the server enforces it
+  // too — this guard just gives instant feedback instead of a request round-trip).
+  const ownsHero = (heroId?: string) => {
+    const { game } = get();
+    if (!game || !game.players?.length) return true; // legacy solo: control everyone
+    if (heroId && heroId === myHeroId()) return true;
+    pushLog("⚠️ Ce héros appartient à un autre joueur.");
+    return false;
+  };
+
+  // The town worker paying PA: in multiplayer always MY hero, otherwise the chosen one.
+  const townWorkerId = () => {
+    const { game, townHeroId } = get();
+    if (!game) return undefined;
+    if (game.players?.length) return myHeroId();
+    return effectiveTownHeroId(game, townHeroId);
   };
 
   return {
@@ -326,10 +351,18 @@ export const useStore = create<StoreState>((set, get) => {
       }),
 
     refreshLobby: async () => {
-      const { game, appScreen } = get();
+      const { game, appScreen, playerId } = get();
       if (!game || appScreen !== "lobby") return;
       try {
         const next = await api.getGame(game.id);
+        // Kicked (or identity lost) while waiting: back to the title screen.
+        if (playerId && next.players?.length && !next.players.some((p) => p.id === playerId)) {
+          localStorage.removeItem(lsPlayerKey(game.id));
+          if (localStorage.getItem(LS_GAME) === game.id) localStorage.removeItem(LS_GAME);
+          set({ appScreen: "title", game: undefined, playerId: undefined });
+          pushLog("🚪 Tu as été retiré du salon.");
+          return;
+        }
         adoptGame(next);
         if (next.status !== "lobby") {
           pushLog("⚔️ L'hôte a lancé la partie !");
@@ -340,14 +373,38 @@ export const useStore = create<StoreState>((set, get) => {
       }
     },
 
-    leaveLobby: () => set({ appScreen: "title", game: undefined, playerId: undefined }),
+    kickFromLobby: (targetId) =>
+      withBusy(async () => {
+        const { game, playerId } = get();
+        if (!game || !playerId) return;
+        const next = await api.kickPlayer(game.id, playerId, targetId);
+        adoptGame(next);
+        pushLog("🚪 Joueur expulsé du salon.");
+      }),
+
+    leaveLobby: () =>
+      withBusy(async () => {
+        const { game, playerId } = get();
+        // Really leave the salon server-side (frees the slot; an emptied lobby is deleted).
+        if (game && playerId && game.status === "lobby") {
+          try {
+            await api.leaveGame(game.id, playerId);
+            localStorage.removeItem(lsPlayerKey(game.id));
+            if (localStorage.getItem(LS_GAME) === game.id) localStorage.removeItem(LS_GAME);
+            pushLog("👋 Salon quitté.");
+          } catch {
+            /* leaving is best-effort — still return to the title screen */
+          }
+        }
+        set({ appScreen: "title", game: undefined, playerId: undefined });
+      }),
 
     townAction: (buildingId, action, points) =>
       withBusy(async () => {
-        const { game, townHeroId } = get();
+        const { game, playerId } = get();
         if (!game) return;
-        const heroId = effectiveTownHeroId(game, townHeroId);
-        const next = await api.townAction(game.id, { buildingId, action, points, heroId });
+        const heroId = townWorkerId();
+        const next = await api.townAction(game.id, { buildingId, action, points, heroId, playerId });
         set({ game: next });
         renderMap();
       }),
@@ -356,9 +413,9 @@ export const useStore = create<StoreState>((set, get) => {
 
     townDeposit: () =>
       withBusy(async () => {
-        const { game } = get();
+        const { game, playerId } = get();
         if (!game) return;
-        const res = await api.townDeposit(game.id);
+        const res = await api.townDeposit(game.id, playerId);
         set({ game: res.game });
         pushLog(`📦 ${res.moved} objet(s) déposé(s) dans la Banque.`);
         renderMap();
@@ -366,13 +423,14 @@ export const useStore = create<StoreState>((set, get) => {
 
     craft: (recipeId) =>
       withBusy(async () => {
-        const { game, townHeroId, selectedHeroId } = get();
+        const { game, selectedHeroId, playerId } = get();
         if (!game) return;
         const inTown = game.heroes.some((h) => h.hp > 0 && h.x === game.town.x && h.y === game.town.y);
-        // In town: the chosen town worker crafts from the Maison. In the field: the
-        // selected hero crafts from their own bag (reduced recipe set).
-        const heroId = inTown ? effectiveTownHeroId(game, townHeroId) : selectedHeroId;
-        const res = await api.craft(game.id, recipeId, heroId);
+        // In town: the town worker crafts from the Maison (in multiplayer, always MY
+        // hero). In the field: the selected hero crafts from their own bag.
+        const heroId = inTown ? townWorkerId() : selectedHeroId;
+        if (!inTown && !ownsHero(heroId)) return;
+        const res = await api.craft(game.id, recipeId, heroId, playerId);
         set({ game: res.game });
         pushLog(
           inTown
@@ -383,10 +441,11 @@ export const useStore = create<StoreState>((set, get) => {
       }),
     evolve: (classId) =>
       withBusy(async () => {
-        const { game, heroOverlay } = get();
+        const { game, heroOverlay, playerId } = get();
         if (!game || !heroOverlay) return;
+        if (!ownsHero(heroOverlay)) return;
         const hero = game.heroes.find((h) => h.id === heroOverlay);
-        const next = await api.evolve(game.id, heroOverlay, classId);
+        const next = await api.evolve(game.id, heroOverlay, classId, playerId);
         const evolved = next.heroes.find((h) => h.id === heroOverlay);
         set({ game: next });
         pushLog(`✨ ${hero?.name ?? "Le héros"} évolue en ${evolved?.class ?? classId} !`);
@@ -466,9 +525,10 @@ export const useStore = create<StoreState>((set, get) => {
 
     move: (dx, dy) =>
       withBusy(async () => {
-        const { game, selectedHeroId } = get();
+        const { game, selectedHeroId, playerId } = get();
         if (!game || !selectedHeroId) return;
-        const next = await api.move(game.id, selectedHeroId, dx, dy);
+        if (!ownsHero(selectedHeroId)) return;
+        const next = await api.move(game.id, selectedHeroId, dx, dy, playerId);
         set({ game: next });
         // If the last hero just left town, leave any town-only tab.
         const inTown = next.heroes.some((h) => h.hp > 0 && h.x === next.town.x && h.y === next.town.y);
@@ -481,9 +541,10 @@ export const useStore = create<StoreState>((set, get) => {
 
     search: () =>
       withBusy(async () => {
-        const { game, selectedHeroId } = get();
+        const { game, selectedHeroId, playerId } = get();
         if (!game || !selectedHeroId) return;
-        const res = await api.search(game.id, selectedHeroId);
+        if (!ownsHero(selectedHeroId)) return;
+        const res = await api.search(game.id, selectedHeroId, playerId);
         set({ game: res.game });
         pushLog(`🔎 Fouille : ${res.loot.name} (${res.loot.type}).`);
         renderMap();
@@ -491,10 +552,11 @@ export const useStore = create<StoreState>((set, get) => {
 
     hide: () =>
       withBusy(async () => {
-        const { game, selectedHeroId } = get();
+        const { game, selectedHeroId, playerId } = get();
         if (!game || !selectedHeroId) return;
+        if (!ownsHero(selectedHeroId)) return;
         const name = game.heroes.find((h) => h.id === selectedHeroId)?.name ?? "Le héros";
-        const next = await api.hide(game.id, selectedHeroId);
+        const next = await api.hide(game.id, selectedHeroId, playerId);
         set({ game: next });
         pushLog(`🫥 ${name} se dissimule (épargné par la prochaine vague).`);
         renderMap();
@@ -502,10 +564,11 @@ export const useStore = create<StoreState>((set, get) => {
 
     escape: () =>
       withBusy(async () => {
-        const { game, selectedHeroId } = get();
+        const { game, selectedHeroId, playerId } = get();
         if (!game || !selectedHeroId) return;
+        if (!ownsHero(selectedHeroId)) return;
         const before = game.heroes.find((h) => h.id === selectedHeroId);
-        const next = await api.escape(game.id, selectedHeroId);
+        const next = await api.escape(game.id, selectedHeroId, playerId);
         const after = next.heroes.find((h) => h.id === selectedHeroId);
         set({ game: next });
         if (before && after && (before.x !== after.x || before.y !== after.y)) {
@@ -518,10 +581,11 @@ export const useStore = create<StoreState>((set, get) => {
 
     fireball: () =>
       withBusy(async () => {
-        const { game, selectedHeroId } = get();
+        const { game, selectedHeroId, playerId } = get();
         if (!game || !selectedHeroId) return;
+        if (!ownsHero(selectedHeroId)) return;
         const name = game.heroes.find((h) => h.id === selectedHeroId)?.name ?? "Le héros";
-        const res = await api.fireball(game.id, selectedHeroId);
+        const res = await api.fireball(game.id, selectedHeroId, playerId);
         set({ game: res.game });
         const r = res.report;
         if (r.killed) {
@@ -584,9 +648,10 @@ export const useStore = create<StoreState>((set, get) => {
 
     startCombat: () =>
       withBusy(async () => {
-        const { game, selectedHeroId } = get();
+        const { game, selectedHeroId, playerId } = get();
         if (!game || !selectedHeroId) return;
-        const resp = await api.startCombat(game.id, selectedHeroId);
+        if (!ownsHero(selectedHeroId)) return;
+        const resp = await api.startCombat(game.id, selectedHeroId, playerId);
         set({ view: "combat", combatMode: "move", tab: "map" });
         pushLog("⚔️ Le combat commence !");
         applyCombat(resp);
@@ -599,7 +664,7 @@ export const useStore = create<StoreState>((set, get) => {
 
     combatTileClick: (x, y) =>
       withBusy(async () => {
-        const { game, combat, current } = get();
+        const { game, combat, current, playerId } = get();
         if (!game || !combat || !current) return;
         if (!current.reachable.some(([rx, ry]) => rx === x && ry === y)) return;
         const resp = await api.combatAction(game.id, combat.id, {
@@ -607,13 +672,14 @@ export const useStore = create<StoreState>((set, get) => {
           action: "move",
           x,
           y,
+          playerId,
         });
         applyCombat(resp);
       }),
 
     combatUnitClick: (unitId) =>
       withBusy(async () => {
-        const { game, combat, current, combatMode } = get();
+        const { game, combat, current, combatMode, playerId } = get();
         if (!game || !combat || !current) return;
         const list = combatMode === "skill" ? current.skillTargets : current.attackTargets;
         if (!list.includes(unitId)) return;
@@ -621,6 +687,7 @@ export const useStore = create<StoreState>((set, get) => {
           unitId: current.unitId,
           action: combatMode === "skill" ? "skill" : "attack",
           targetId: unitId,
+          playerId,
         });
         set({ combatMode: "move" });
         applyCombat(resp);
@@ -628,11 +695,12 @@ export const useStore = create<StoreState>((set, get) => {
 
     endTurn: () =>
       withBusy(async () => {
-        const { game, combat, current } = get();
+        const { game, combat, current, playerId } = get();
         if (!game || !combat || !current) return;
         const resp = await api.combatAction(game.id, combat.id, {
           unitId: current.unitId,
           action: "end",
+          playerId,
         });
         set({ combatMode: "move" });
         applyCombat(resp);

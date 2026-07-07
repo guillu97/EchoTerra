@@ -2211,3 +2211,19 @@ body {
   font-size: 13px;
   text-align: center;
 }
+.lobby-kick {
+  margin-left: auto;
+  border: 1px solid rgba(194, 59, 43, 0.4);
+  border-radius: 8px;
+  background: rgba(194, 59, 43, 0.1);
+  color: #a02818;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+.lobby-kick:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
