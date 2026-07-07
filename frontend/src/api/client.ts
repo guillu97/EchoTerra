@@ -5,8 +5,10 @@ import type {
   GameState,
   GameSummary,
   Item,
+  MyGameSummary,
   Player,
   Recipe,
+  User,
 } from "./types";
 
 export interface JoinResponse {
@@ -14,11 +16,36 @@ export interface JoinResponse {
   player: Player;
 }
 
+// Session token (user account). Kept in localStorage and sent as a Bearer header on
+// every call — the server links players to accounts and enables multi-device resume.
+const LS_TOKEN = "echoterra:authToken";
+
+export function getAuthToken(): string | null {
+  try {
+    return localStorage.getItem(LS_TOKEN);
+  } catch {
+    return null;
+  }
+}
+
+export function setAuthToken(token: string | null) {
+  try {
+    if (token) localStorage.setItem(LS_TOKEN, token);
+    else localStorage.removeItem(LS_TOKEN);
+  } catch {
+    /* ignore */
+  }
+}
+
 // Relative base: Vite proxies /api to the Go backend during development.
 async function req<T>(method: string, url: string, body?: unknown): Promise<T> {
+  const headers: Record<string, string> = {};
+  if (body !== undefined) headers["Content-Type"] = "application/json";
+  const token = getAuthToken();
+  if (token) headers["Authorization"] = `Bearer ${token}`;
   const res = await fetch(url, {
     method,
-    headers: body !== undefined ? { "Content-Type": "application/json" } : undefined,
+    headers: Object.keys(headers).length ? headers : undefined,
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
   const text = await res.text();
@@ -81,6 +108,19 @@ export const api = {
   // already launched.
   soloGame: (playerName: string) =>
     req<JoinResponse>("POST", "/api/games/solo", { playerName }),
+
+  // --- user accounts (email+password; Google possible later, Apple = payant) ---
+  register: (email: string, name: string, password: string) =>
+    req<{ user: User; token: string }>("POST", "/api/auth/register", { email, name, password }),
+
+  login: (email: string, password: string) =>
+    req<{ user: User; token: string }>("POST", "/api/auth/login", { email, password }),
+
+  logout: () => req<{ ok: boolean }>("POST", "/api/auth/logout", {}),
+
+  me: () => req<{ user: User }>("GET", "/api/auth/me"),
+
+  myGames: () => req<MyGameSummary[]>("GET", "/api/auth/me/games"),
 
   // Hero actions carry the acting player's id: multiplayer games enforce server-side
   // that a player only controls their OWN hero (legacy solo games ignore it).

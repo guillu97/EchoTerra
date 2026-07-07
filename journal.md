@@ -6,6 +6,44 @@
 
 ---
 
+## 2026-07-07 (8) — Connexion utilisateur (email + mot de passe, sessions, reprise multi-appareils)
+
+### Fait
+- **Comptes** (`store/users.go`, bi-dialecte SQLite/Postgres) : tables `users` (email unique lowercased,
+  `pass_hash` bcrypt, `provider` = "email" — colonne prête pour "google") et `sessions` (token 32 o hex,
+  TTL 30 j). Méthodes CreateUser/UserByEmail/UserByID/CreateSession/UserByToken/DeleteSession.
+- **API** (`api/auth.go`) : `POST /api/auth/register` (email valide, mdp ≥6, pseudo défaut = partie
+  locale de l'email) · `POST /login` · `POST /logout` · `GET /me` · `GET /me/games` (mes parties avec
+  `myPlayerId` par partie). Auth par header `Authorization: Bearer <token>` ; helper `userFromReq`
+  (anonyme TOUJOURS possible — le compte enrichit, il ne bloque pas le prototype).
+- **Lien compte ↔ joueur** : `Player.UserID` ; createLobby/solo/join lient le joueur au compte et
+  utilisent le pseudo du compte si aucun nom fourni. **Reconnexion** : rejoindre une partie où mon
+  compte a déjà un joueur → renvoie CE joueur (`rejoined:true`), pas de doublon — reprise depuis
+  n'importe quel appareil sans localStorage.
+- **Frontend** : token en localStorage (`echoterra:authToken`), header Bearer sur TOUS les appels
+  (`client.ts req`) ; restauration de session au boot (`api.me`, token invalide purgé) ;
+  `AccountScreen` (bouton 👤 en haut à droite du titre) : connexion / inscription / profil /
+  déconnexion / **🗺️ Mes parties** (reprise en un clic, salon ou partie active) ; le pseudo du compte
+  alimente `playerName`.
+- **Google/Apple** : bouton Google désactivé "(bientôt)" — gratuit mais exige un client OAuth GCP à
+  configurer ; **Apple écarté car payant** (Apple Developer Program ~99 $/an), mentionné dans l'UI.
+
+### Fonctionnel (vérifié)
+- `go test ./...` OK (nouveau `users_test.go` : round-trip user/sessions, email insensible à la casse,
+  doublon refusé, token expiré/supprimé/inconnu → nil).
+- E2E serveur réel : register (token 64 hex) · doublon refusé · mauvais mdp refusé · login email
+  insensible à la casse · `/me` OK · partie solo avec compte → joueur nommé "Guillaume" + `userId` lié ·
+  `/me/games` liste la partie avec `myPlayerId` · re-join par id → `rejoined:true` sans doublon ·
+  logout → `/me` 401 · flux anonyme intact.
+- `tsc -b` + `npm run build` OK.
+
+### À faire / limites connues
+- Google OAuth : brancher un provider "google" (vérif id_token côté serveur) quand un client ID GCP
+  existera. Pas de reset de mot de passe (pas de serveur mail) ni de rate-limiting sur /login.
+- Les parties legacy/anonymes ne sont pas liées à un compte (voulu).
+
+---
+
 ## 2026-07-07 (7) — Refonte du menu + affichage multijoueur des personnages
 
 ### Fait

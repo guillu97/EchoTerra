@@ -149,7 +149,22 @@ export interface Player {
   heroIds: string[];
   host: boolean;
   bot: boolean; // computer-controlled player (added by the host in the lobby)
+  userId?: string; // linked account (multi-device reconnect)
   joinedAt: string;
+}
+
+// A user account ("savoir qui est qui"). Email+password today; provider leaves room
+// for Google OAuth (free) — Apple Sign-In is paid and not planned.
+export interface User {
+  id: string;
+  email: string;
+  name: string;
+  provider: string;
+}
+
+// GET /api/auth/me/games: my games with my player id, for any-device resume.
+export interface MyGameSummary extends GameSummary {
+  myPlayerId: string;
 }
 
 // Lightweight game listing DTO returned by GET /api/games. Join codes are never

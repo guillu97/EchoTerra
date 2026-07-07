@@ -108,6 +108,8 @@ backend/
     monsters.go                 NewMonster, MonsterSpecies
     *_test.go                   worldgen, combat, tetanise, build (TestBuildConsumesBankMaterials), evolve
   internal/store/store.go       SQLite OU Postgres (DSN postgres://): one row per game, state as JSON blob
+  internal/store/users.go       comptes (email unique, bcrypt) + sessions (token TTL 30j)
+  internal/api/auth.go          register/login/logout/me/me/games, Bearer, userFromReq (anonyme OK)
   internal/worldgen/worldgen.go GenerateTiles (Perlin->biomes), NewGame (town center, heroes, monsters)
   serverless/serverless.go      handler FaaS de secours + harnais des tests e2e du mode stateless
 vercel.json                     preset Services: services frontend (Vite) + backend (Go) + rewrites
@@ -190,6 +192,13 @@ dépose que le sac de SON héros. `POST /{id}/leave` (lobby only, salon vidé = 
 `POST /{id}/kick` (hôte). Goroutine `lobbyJanitor` purge les lobbies non lancés de +24 h (`store.Delete`).
 Tests: `lobby_test.go`, `store_test.go`, worldgen `TestNewLobby*`.
 
+**Comptes utilisateur** (`store/users.go`, `api/auth.go`, `AccountScreen.tsx`) — email+mot de passe
+(bcrypt, gratuit), sessions Bearer 30 j, bouton 👤 sur l'écran titre. `Player.UserID` lie un joueur à
+son compte : nom de joueur = pseudo du compte par défaut, re-`join` d'une partie où mon compte figure
+→ MON joueur (`rejoined:true`, reprise multi-appareils), `GET /api/auth/me/games` + "Mes parties"
+(reprise en un clic). L'anonyme reste possible partout. Google = provider futur (gratuit, client ID
+GCP requis) ; Apple écarté (payant).
+
 **Movement / PA** — 6 PA/hero/day. Move = 1 PA/orthogonal step (blocked if `Tétanisé`; clears `Caché`;
 PA→0 adds `Fatigue`). Search = 1 PA, loot by biome, decrements tile `resources`.
 
@@ -256,6 +265,10 @@ enter (`store.ts`) and the **HeroOverlay** uses it for the Evolve picker and Uni
 ```
 GET  /healthz
 GET  /api/recipes
+POST /api/auth/register                          {email,name?,password} -> {user,token} (bcrypt, session 30j)
+POST /api/auth/login                             {email,password} -> {user,token} ; POST /api/auth/logout
+GET  /api/auth/me                                 (Bearer) -> {user}
+GET  /api/auth/me/games                           (Bearer) mes parties + myPlayerId (reprise multi-appareils)
 GET  /api/games?status=lobby                      list game summaries (id,name,joinCode,players,min/max…)
 POST /api/games                                  {width?,height?,seed?} -> GameState (legacy solo, 3 héros)
 POST /api/games/lobby                            {playerName,name?,minPlayers?,maxPlayers?,…} -> {game,player}

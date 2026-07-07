@@ -46,6 +46,9 @@ func Open(dsn string) (*Store, error) {
 	)`); err != nil {
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
+	if err := s.migrateAuth(); err != nil {
+		return nil, err
+	}
 	return s, nil
 }
 

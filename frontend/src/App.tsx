@@ -3,6 +3,7 @@ import { LoadingScreen } from "./screens/LoadingScreen";
 import { TitleScreen } from "./screens/TitleScreen";
 import { CinematicScreen } from "./screens/CinematicScreen";
 import { LobbyScreen } from "./screens/LobbyScreen";
+import { AccountScreen } from "./screens/AccountScreen";
 import { GameScreen } from "./screens/GameScreen";
 import { SettingsOverlay } from "./settings/SettingsOverlay";
 import { EditorScreen } from "./editor/EditorScreen";
@@ -23,6 +24,7 @@ export default function App() {
         {appScreen === "title" && <TitleScreen />}
         {appScreen === "cinematic" && <CinematicScreen />}
         {appScreen === "lobby" && <LobbyScreen />}
+        {appScreen === "account" && <AccountScreen />}
         {appScreen === "game" && <GameScreen />}
         {settingsScreen && <SettingsOverlay />}
       </div>

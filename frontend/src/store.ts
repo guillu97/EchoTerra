@@ -1,6 +1,15 @@
 import { create } from "zustand";
-import { api } from "./api/client";
-import type { ClassDef, CombatCurrent, Combat, GameState, GameSummary, Recipe } from "./api/types";
+import { api, getAuthToken, setAuthToken } from "./api/client";
+import type {
+  ClassDef,
+  CombatCurrent,
+  Combat,
+  GameState,
+  GameSummary,
+  MyGameSummary,
+  Recipe,
+  User,
+} from "./api/types";
 import { bus, EV } from "./eventBus";
 import { effectiveTownHeroId } from "./townUtils";
 
@@ -13,7 +22,7 @@ const lsPlayerKey = (gameId: string) => `echoterra:player:${gameId}`;
 type View = "map" | "combat";
 type CombatMode = "move" | "attack" | "skill";
 
-export type AppScreen = "loading" | "title" | "cinematic" | "game" | "editor" | "lobby";
+export type AppScreen = "loading" | "title" | "cinematic" | "game" | "editor" | "lobby" | "account";
 export type Tab = "home" | "map" | "stock" | "structure" | "craft";
 export type SettingsScreen = "menu" | "setting" | "language" | "notifications";
 
@@ -66,6 +75,10 @@ interface StoreState {
   lobbyMode: "public" | "private"; // which lobby entry the menu opened
   showOthers: boolean; // map: reveal other players' heroes (as dots)
 
+  // --- user account ---
+  user?: User; // logged-in account (undefined = anonymous, always allowed)
+  myGames: MyGameSummary[]; // account screen: games I can resume from any device
+
   // --- game / map / combat ---
   game?: GameState;
   combat?: Combat;
@@ -94,6 +107,13 @@ interface StoreState {
   openLobby: (mode?: "public" | "private") => void;
   toggleOthers: () => void; // map: show/hide other players' heroes
   myHeroes: () => string[]; // my team's hero ids ([] in legacy solo)
+  // account actions
+  openAccount: () => void;
+  registerAccount: (email: string, name: string, password: string) => Promise<void>;
+  loginAccount: (email: string, password: string) => Promise<void>;
+  logoutAccount: () => Promise<void>;
+  fetchMyGames: () => Promise<void>;
+  resumeGame: (g: MyGameSummary) => Promise<void>;
   setPlayerName: (name: string) => void;
   fetchLobbies: () => Promise<void>;
   createLobby: (opts: { name?: string; minPlayers: number; maxPlayers: number }) => Promise<void>;
@@ -249,6 +269,7 @@ export const useStore = create<StoreState>((set, get) => {
     lobbies: [],
     lobbyMode: "public" as const,
     showOthers: false,
+    myGames: [],
 
     view: "map",
     combatMode: "move",
@@ -330,6 +351,65 @@ export const useStore = create<StoreState>((set, get) => {
     },
 
     myHeroes: () => myHeroIds(),
+
+    // --- user account ---------------------------------------------------------
+    openAccount: () => set({ appScreen: "account", error: undefined }),
+
+    registerAccount: (email, name, password) =>
+      withBusy(async () => {
+        const res = await api.register(email, name, password);
+        setAuthToken(res.token);
+        set({ user: res.user });
+        get().setPlayerName(res.user.name);
+        pushLog(`👤 Compte créé — bienvenue ${res.user.name} !`);
+        await get().fetchMyGames();
+      }),
+
+    loginAccount: (email, password) =>
+      withBusy(async () => {
+        const res = await api.login(email, password);
+        setAuthToken(res.token);
+        set({ user: res.user });
+        get().setPlayerName(res.user.name);
+        pushLog(`👤 Connecté : ${res.user.name}.`);
+        await get().fetchMyGames();
+      }),
+
+    logoutAccount: () =>
+      withBusy(async () => {
+        try {
+          await api.logout();
+        } catch {
+          /* the token dies anyway */
+        }
+        setAuthToken(null);
+        set({ user: undefined, myGames: [] });
+        pushLog("👋 Déconnecté.");
+      }),
+
+    fetchMyGames: async () => {
+      if (!get().user) return;
+      try {
+        set({ myGames: await api.myGames() });
+      } catch {
+        /* best-effort */
+      }
+    },
+
+    // Resume one of MY games from any device: the server knows my player id.
+    resumeGame: (g) =>
+      withBusy(async () => {
+        const game = await api.getGame(g.id);
+        localStorage.setItem(lsPlayerKey(game.id), g.myPlayerId);
+        adoptGame(game, g.myPlayerId);
+        if (game.status === "lobby") {
+          set({ appScreen: "lobby" });
+          pushLog(`🎪 Retour au salon "${game.name}".`);
+          return;
+        }
+        pushLog(`▶ Partie "${game.name || "sans nom"}" reprise — jour ${game.day}.`);
+        await enterActiveGame();
+      }),
 
     setPlayerName: (name) => {
       try {
@@ -771,6 +851,18 @@ export const useStore = create<StoreState>((set, get) => {
 // Dev-only handle for debugging from the browser console / automated checks.
 if (import.meta.env.DEV) {
   (window as any).__eg = { store: useStore, bus, EV };
+}
+
+// Restore the account session at boot (silent — anonymous play stays possible).
+if (getAuthToken()) {
+  api
+    .me()
+    .then((res) => {
+      useStore.setState({ user: res.user });
+      if (!useStore.getState().playerName) useStore.getState().setPlayerName(res.user.name);
+      void useStore.getState().fetchMyGames();
+    })
+    .catch(() => setAuthToken(null)); // expired/invalid token: drop it
 }
 
 // Wire Phaser pointer intents to store actions.

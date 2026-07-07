@@ -2227,3 +2227,24 @@ body {
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* Account chip on the title screen (top-right). */
+.account-chip {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 5;
+  border: 1px solid rgba(90, 62, 27, 0.35);
+  border-radius: 999px;
+  background: rgba(255, 253, 246, 0.85);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 7px 12px;
+  cursor: pointer;
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

@@ -191,6 +191,8 @@ func (s *Server) Router() http.Handler {
 		writeJSON(w, http.StatusOK, game.Classes)
 	})
 
+	r.Route("/api/auth", s.authRoutes)
+
 	r.Route("/api/games", func(r chi.Router) {
 		r.Get("/", s.listGames)
 		r.Post("/", s.createGame)
@@ -407,12 +409,20 @@ func (s *Server) createLobby(w http.ResponseWriter, r *http.Request) {
 			body.Name = "Nouvelle expédition"
 		}
 	}
+	// A logged-in creator plays under their account name and gets linked to it.
+	user := s.userFromReq(r)
+	if user != nil && body.PlayerName == "" {
+		body.PlayerName = user.Name
+	}
 	gs := worldgen.NewLobby(body.Width, body.Height, body.Seed, body.Name, body.MinPlayers, body.MaxPlayers)
 	gs.Visibility = game.VisibilityPrivate
 	p, err := gs.AddPlayer(body.PlayerName, time.Now())
 	if err != nil {
 		writeActionErr(w, err)
 		return
+	}
+	if user != nil {
+		p.UserID = user.ID
 	}
 	s.persist(gs)
 	writeJSON(w, http.StatusCreated, map[string]any{"game": gs, "player": p})
@@ -437,6 +447,10 @@ func (s *Server) soloGame(w http.ResponseWriter, r *http.Request) {
 	if body.Seed == 0 {
 		body.Seed = time.Now().UnixNano()
 	}
+	user := s.userFromReq(r)
+	if user != nil && body.PlayerName == "" {
+		body.PlayerName = user.Name
+	}
 	name := "Expédition solo"
 	if body.PlayerName != "" {
 		name = "Solo de " + body.PlayerName
@@ -448,6 +462,9 @@ func (s *Server) soloGame(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeActionErr(w, err)
 		return
+	}
+	if user != nil {
+		p.UserID = user.ID
 	}
 	for i := 0; i < 4; i++ {
 		if _, err := gs.AddBot(p.ID, now); err != nil {
@@ -504,7 +521,7 @@ func (s *Server) joinByCode(w http.ResponseWriter, r *http.Request) {
 		if cand.Status == game.StatusLobby && (cand.JoinCode == code || cand.ID == body.Code) {
 			// This route lives outside the /{gameID} middleware: take the lock here.
 			unlock := s.lockGame(cand.ID)
-			s.join(w, cand.ID, body.PlayerName)
+			s.join(w, r, cand.ID, body.PlayerName)
 			unlock()
 			return
 		}
@@ -518,13 +535,13 @@ func (s *Server) joinGame(w http.ResponseWriter, r *http.Request) {
 		PlayerName string `json:"playerName"`
 	}
 	_ = json.NewDecoder(r.Body).Decode(&body)
-	s.join(w, chi.URLParam(r, "gameID"), body.PlayerName)
+	s.join(w, r, chi.URLParam(r, "gameID"), body.PlayerName)
 }
 
 // join loads the canonical (cached) game and adds the player. Callers must hold the
 // game lock (the /{gameID} middleware provides it; joinByCode takes it explicitly —
 // the per-game mutex is NOT reentrant, locking here again would deadlock).
-func (s *Server) join(w http.ResponseWriter, gameID, playerName string) {
+func (s *Server) join(w http.ResponseWriter, r *http.Request, gameID, playerName string) {
 	gs, err := s.load(gameID)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, err.Error())
@@ -535,10 +552,25 @@ func (s *Server) join(w http.ResponseWriter, gameID, playerName string) {
 		return
 	}
 	now := time.Now()
+	user := s.userFromReq(r)
+	if user != nil {
+		// Already in this game under my account (other device / lost localStorage):
+		// hand back my player instead of adding a duplicate.
+		if p := gs.PlayerByUserID(user.ID); p != nil {
+			writeJSON(w, http.StatusOK, map[string]any{"game": gs, "player": p, "rejoined": true})
+			return
+		}
+		if playerName == "" {
+			playerName = user.Name
+		}
+	}
 	p, err := gs.AddPlayer(playerName, now)
 	if err != nil {
 		writeActionErr(w, err)
 		return
+	}
+	if user != nil {
+		p.UserID = user.ID
 	}
 	// Public games launch on their own the moment MinPlayers is reached — and the
 	// server immediately opens a fresh public lobby to keep one joinable.

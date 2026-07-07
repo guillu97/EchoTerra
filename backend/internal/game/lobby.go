@@ -40,9 +40,23 @@ type Player struct {
 	ID       string    `json:"id"`
 	Name     string    `json:"name"`
 	HeroIDs  []string  `json:"heroIds"`
-	Host     bool      `json:"host"` // the creator; only the host can launch the game
-	Bot      bool      `json:"bot"`  // computer-controlled player (added by the host)
+	Host     bool      `json:"host"`   // the creator; only the host can launch the game
+	Bot      bool      `json:"bot"`    // computer-controlled player (added by the host)
+	UserID   string    `json:"userId,omitempty"` // linked account (multi-device reconnect)
 	JoinedAt time.Time `json:"joinedAt"`
+}
+
+// PlayerByUserID returns the player linked to a user account, or nil.
+func (g *GameState) PlayerByUserID(userID string) *Player {
+	if userID == "" {
+		return nil
+	}
+	for _, p := range g.Players {
+		if p.UserID == userID {
+			return p
+		}
+	}
+	return nil
 }
 
 // OwnsHero reports whether this player's team contains the hero.

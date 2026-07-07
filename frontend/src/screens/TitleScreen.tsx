@@ -8,6 +8,7 @@ export function TitleScreen() {
   const {
     openSettings,
     openLobby,
+    openAccount,
     startAdventure,
     startSoloBots,
     pushLog,
@@ -15,10 +16,14 @@ export function TitleScreen() {
     continueTestGame,
     busy,
     setScreen,
+    user,
   } = useStore();
 
   return (
     <div className="screen parchment">
+      <button className="account-chip" onClick={() => openAccount()}>
+        👤 {user ? user.name : "Connexion"}
+      </button>
       <div className="ornament">
         <i />
         <i />
