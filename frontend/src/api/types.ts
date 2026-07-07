@@ -141,8 +141,35 @@ export interface WaveReport {
   gameOver: boolean;
 }
 
+// A human participant in one game (lobby/multiplayer). Each player owns a team of
+// 3 heroes (GDD: 1 joueur = 3 héros).
+export interface Player {
+  id: string;
+  name: string;
+  heroIds: string[];
+  host: boolean;
+  bot: boolean; // computer-controlled player (added by the host in the lobby)
+  joinedAt: string;
+}
+
+// Lightweight game listing DTO returned by GET /api/games. Join codes are never
+// listed (private lobbies are joined by sharing their code out-of-band).
+export interface GameSummary {
+  id: string;
+  name: string;
+  status: "lobby" | "active" | "gameover";
+  visibility: "private" | "public";
+  players: Player[];
+  minPlayers: number;
+  maxPlayers: number;
+  day: number;
+  waveNumber: number;
+  createdAt: string;
+}
+
 export interface GameState {
   id: string;
+  name?: string;
   seed: number;
   width: number;
   height: number;
@@ -153,7 +180,15 @@ export interface GameState {
   wave: number;
   waveNumber: number;
   nextWaveAt: string;
-  status: "active" | "gameover";
+  status: "lobby" | "active" | "gameover";
+  joinCode?: string;
+  visibility?: "private" | "public"; // absent/"private" = player-created; "public" = server-created, auto-starts
+  minPlayers: number;
+  maxPlayers: number;
+  players: Player[];
+  createdAt: string;
+  startedAt?: string;
+  kickVotes?: Record<string, string[]>; // public lobbies: target player id -> voter ids
   lastWave?: WaveReport;
   town: {
     x: number;

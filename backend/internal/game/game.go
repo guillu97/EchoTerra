@@ -130,6 +130,7 @@ type Monster struct {
 // GameState is the full persisted state of one game (one cooperative session).
 type GameState struct {
 	ID       string              `json:"id"`
+	Name     string              `json:"name,omitempty"` // lobby display name ("Partie de Guillaume")
 	Seed     int64               `json:"seed"`
 	Width    int                 `json:"width"`
 	Height   int                 `json:"height"`
@@ -138,10 +139,22 @@ type GameState struct {
 	Monsters map[string]*Monster `json:"monsters"`
 	Day      int                 `json:"day"`
 	Wave     int                 `json:"wave"`
+	// Lobby / multiplayer (see lobby.go). A game is created in status "lobby" and only
+	// becomes "active" once the host launches it with at least MinPlayers players.
+	JoinCode   string    `json:"joinCode,omitempty"` // short shareable code to join the lobby
+	Visibility string    `json:"visibility,omitempty"` // "private" (default) | "public" (see lobby.go)
+	MinPlayers int       `json:"minPlayers"`
+	MaxPlayers int       `json:"maxPlayers"`
+	Players    []*Player `json:"players"`
+	CreatedAt  time.Time `json:"createdAt"`
+	StartedAt  time.Time `json:"startedAt,omitzero"` // zero until the host launches the game
+	// KickVotes tracks expulsion votes in PUBLIC lobbies: target player id -> voter
+	// player ids. A strict majority of the other human players removes the target.
+	KickVotes map[string][]string `json:"kickVotes,omitempty"`
 	// Horde / wave scheduling (server-authoritative).
 	WaveNumber int          `json:"waveNumber"` // total waves resolved so far
 	NextWaveAt time.Time    `json:"nextWaveAt"` // when the next wave hits the town
-	Status     string       `json:"status"`     // "active" | "gameover"
+	Status     string       `json:"status"`     // "lobby" | "active" | "gameover"
 	LastWave   *WaveReport  `json:"lastWave,omitempty"`
 	Town       struct {
 		X         int             `json:"x"`

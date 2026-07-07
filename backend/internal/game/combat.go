@@ -543,6 +543,56 @@ func (c *Combat) stepToward(u, target *CombatUnit) bool {
 	return moved
 }
 
+// --- Auto-resolution (bot parties) ------------------------------------------
+
+// AutoResolve plays every hero turn with the same simple AI as the monsters until
+// the battle ends. Used when a bot-only party engages a pack: the whole fight is
+// resolved server-side in one call (the caller then applies FinishCombat).
+func (c *Combat) AutoResolve() {
+	for guard := 0; c.Status == "active" && guard < 400; guard++ {
+		u := c.CurrentUnit()
+		if u == nil {
+			break
+		}
+		if u.Side != "hero" { // defensive: monster turns normally auto-play already
+			c.advanceUntilHeroOrEnd()
+			continue
+		}
+		c.heroAutoTurn(u)
+	}
+}
+
+// heroAutoTurn mirrors monsterTurn for a hero unit: close on the nearest enemy and
+// strike — with the class skill in melee (its +3 bonus beats a plain attack).
+func (c *Combat) heroAutoTurn(u *CombatUnit) {
+	target := c.nearestEnemy(u)
+	if target == nil {
+		c.endTurn()
+		return
+	}
+	rng := c.baseAttackRange(u)
+	if !u.hasState("Root") {
+		for steps := u.Move; steps > 0 && manhattan(u.X, u.Y, target.X, target.Y) > rng; steps-- {
+			if !c.stepToward(u, target) {
+				break
+			}
+		}
+	}
+	if manhattan(u.X, u.Y, target.X, target.Y) <= rng {
+		sk := c.SkillFor(u)
+		label, bonus := sk.Name, 3
+		dmg := c.damage(u, target, rng > 1, bonus)
+		target.HP -= dmg
+		c.logf("%s utilise %s sur %s (-%d PV).", u.Name, label, target.Name, dmg)
+		if !target.Alive() {
+			c.logf("%s est vaincu.", target.Name)
+		}
+	} else {
+		c.logf("%s avance.", u.Name)
+	}
+	c.endTurn()
+}
+
 func (c *Combat) checkEnd() {
 	if c.aliveOnSide("monster") == 0 {
 		c.Status = "won"

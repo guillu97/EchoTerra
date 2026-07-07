@@ -194,9 +194,27 @@ func (g *GameState) removeStorage(name string, qty int) {
 	g.Town.Storage = out
 }
 
-// DepositHeroLoot moves every in-town hero's inventory into the shared storage.
-func (g *GameState) DepositHeroLoot() (int, error) {
+// DepositHeroLoot moves in-town heroes' inventories into the shared storage.
+// With a non-empty `only` filter, just those heroes deposit (multiplayer: a player
+// empties their OWN team's bags); with nil every in-town hero deposits (legacy solo).
+func (g *GameState) DepositHeroLoot(only []string) (int, error) {
 	heroes := g.HeroesInTown()
+	if len(only) > 0 {
+		allowed := map[string]bool{}
+		for _, id := range only {
+			allowed[id] = true
+		}
+		filtered := heroes[:0]
+		for _, h := range heroes {
+			if allowed[h.ID] {
+				filtered = append(filtered, h)
+			}
+		}
+		heroes = filtered
+		if len(heroes) == 0 {
+			return 0, ActionError{"aucun de tes héros n'est dans la ville"}
+		}
+	}
 	if len(heroes) == 0 {
 		return 0, ActionError{"aucun héros dans la ville"}
 	}

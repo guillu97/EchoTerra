@@ -1,16 +1,19 @@
 import { create } from "zustand";
 import { api } from "./api/client";
-import type { ClassDef, CombatCurrent, Combat, GameState, Recipe } from "./api/types";
+import type { ClassDef, CombatCurrent, Combat, GameState, GameSummary, Recipe } from "./api/types";
 import { bus, EV } from "./eventBus";
 import { effectiveTownHeroId } from "./townUtils";
 
 const LS_GAME = "echoterra:gameId";
 const LS_SETTINGS = "echoterra:settings";
+const LS_PLAYER_NAME = "echoterra:playerName";
+// Per-game player identity: which player *I* am in that game (multiplayer lobby flow).
+const lsPlayerKey = (gameId: string) => `echoterra:player:${gameId}`;
 
 type View = "map" | "combat";
 type CombatMode = "move" | "attack" | "skill";
 
-export type AppScreen = "loading" | "title" | "cinematic" | "game" | "editor";
+export type AppScreen = "loading" | "title" | "cinematic" | "game" | "editor" | "lobby";
 export type Tab = "home" | "map" | "stock" | "structure" | "craft";
 export type SettingsScreen = "menu" | "setting" | "language" | "notifications";
 
@@ -56,6 +59,11 @@ interface StoreState {
   recipes: Recipe[];
   classes: ClassDef[];
 
+  // --- lobby / multiplayer ---
+  playerId?: string; // my player id in the current game (undefined in legacy solo games)
+  playerName: string; // persisted display name
+  lobbies: GameSummary[]; // open lobbies (join screen)
+
   // --- game / map / combat ---
   game?: GameState;
   combat?: Combat;
@@ -80,6 +88,18 @@ interface StoreState {
   toggleFog: () => void;
   startTestGame: () => Promise<void>;
   continueTestGame: () => Promise<void>;
+  // lobby actions
+  openLobby: () => void;
+  setPlayerName: (name: string) => void;
+  fetchLobbies: () => Promise<void>;
+  createLobby: (opts: { name?: string; minPlayers: number; maxPlayers: number }) => Promise<void>;
+  joinLobby: (code: string) => Promise<void>;
+  startLobby: () => Promise<void>;
+  refreshLobby: () => Promise<void>;
+  leaveLobby: () => Promise<void>;
+  kickFromLobby: (targetId: string) => Promise<void>;
+  addBot: () => Promise<void>;
+  startSoloBots: () => Promise<void>; // menu: private game with me + 4 bots, launched
   townAction: (
     buildingId: string,
     action: "build" | "restore" | "use" | "water" | "toggle",
@@ -152,6 +172,64 @@ export const useStore = create<StoreState>((set, get) => {
     }
   };
 
+  const loadCatalogs = async () => {
+    if (get().recipes.length === 0) try { set({ recipes: await api.recipes() }); } catch { /* non-critical */ }
+    if (get().classes.length === 0) try { set({ classes: await api.classes() }); } catch { /* non-critical */ }
+  };
+
+  // Adopt a (re)loaded game: remember it + my player identity, select my own hero.
+  const adoptGame = (game: GameState, playerId?: string) => {
+    localStorage.setItem(LS_GAME, game.id);
+    if (playerId) localStorage.setItem(lsPlayerKey(game.id), playerId);
+    const pid = playerId ?? localStorage.getItem(lsPlayerKey(game.id)) ?? undefined;
+    const myFirstHero = game.players?.find((p) => p.id === pid)?.heroIds?.[0];
+    set({
+      game,
+      playerId: pid,
+      view: "map",
+      combat: undefined,
+      current: undefined,
+      selectedHeroId: myFirstHero ?? game.heroes[0]?.id,
+    });
+  };
+
+  const enterActiveGame = async () => {
+    await loadCatalogs();
+    set({ appScreen: "game", tab: "home", settingsScreen: null });
+  };
+
+  // My team's hero ids in a multiplayer game (empty in legacy solo games).
+  const myHeroIds = () => {
+    const { game, playerId } = get();
+    return game?.players?.find((p) => p.id === playerId)?.heroIds ?? [];
+  };
+
+  // In multiplayer, map/hero actions are limited to MY team (the server enforces it
+  // too — this guard just gives instant feedback instead of a request round-trip).
+  const ownsHero = (heroId?: string) => {
+    const { game } = get();
+    if (!game || !game.players?.length) return true; // legacy solo: control everyone
+    if (heroId && myHeroIds().includes(heroId)) return true;
+    pushLog("⚠️ Ce héros appartient à un autre joueur.");
+    return false;
+  };
+
+  // The town worker paying PA: in multiplayer one of MY in-town heroes (the chosen
+  // one when it's mine), otherwise the legacy chosen/in-town hero.
+  const townWorkerId = () => {
+    const { game, townHeroId } = get();
+    if (!game) return undefined;
+    if (game.players?.length) {
+      const mine = myHeroIds();
+      const inTown = game.heroes.filter(
+        (h) => mine.includes(h.id) && h.hp > 0 && h.x === game.town.x && h.y === game.town.y,
+      );
+      if (townHeroId && inTown.some((h) => h.id === townHeroId)) return townHeroId;
+      return inTown[0]?.id;
+    }
+    return effectiveTownHeroId(game, townHeroId);
+  };
+
   return {
     appScreen: "loading",
     tab: "home",
@@ -162,6 +240,8 @@ export const useStore = create<StoreState>((set, get) => {
     debugNoFog: false,
     recipes: [],
     classes: [],
+    playerName: localStorage.getItem(LS_PLAYER_NAME) ?? "",
+    lobbies: [],
 
     view: "map",
     combatMode: "move",
@@ -199,11 +279,9 @@ export const useStore = create<StoreState>((set, get) => {
       withBusy(async () => {
         const game = await api.createGame({ width: 22, height: 22 });
         localStorage.setItem(LS_GAME, game.id);
-        set({ game, view: "map", selectedHeroId: game.heroes[0]?.id, combat: undefined, current: undefined });
+        set({ game, view: "map", selectedHeroId: game.heroes[0]?.id, combat: undefined, current: undefined, playerId: undefined });
         pushLog(`Nouvelle partie — jour ${game.day}. La ville est à (${game.town.x}, ${game.town.y}).`);
-        if (get().recipes.length === 0) try { set({ recipes: await api.recipes() }); } catch {}
-        if (get().classes.length === 0) try { set({ classes: await api.classes() }); } catch {}
-        set({ appScreen: "game", tab: "home", settingsScreen: null });
+        await enterActiveGame();
       }),
 
     continueTestGame: () =>
@@ -212,32 +290,159 @@ export const useStore = create<StoreState>((set, get) => {
         if (saved) {
           try {
             const game = await api.getGame(saved);
-            set({ game, view: "map", selectedHeroId: game.heroes[0]?.id });
+            adoptGame(game);
+            if (game.status === "lobby") {
+              // The saved game is still a waiting room: resume there instead.
+              set({ appScreen: "lobby" });
+              pushLog(`🎪 Retour au salon "${game.name}" (code ${game.joinCode}).`);
+              return;
+            }
             pushLog(`Partie reprise — jour ${game.day}, vague ${game.waveNumber}.`);
           } catch {
             localStorage.removeItem(LS_GAME);
             const game = await api.createGame({ width: 22, height: 22 });
             localStorage.setItem(LS_GAME, game.id);
-            set({ game, view: "map", selectedHeroId: game.heroes[0]?.id, combat: undefined, current: undefined });
+            set({ game, view: "map", selectedHeroId: game.heroes[0]?.id, combat: undefined, current: undefined, playerId: undefined });
             pushLog("⚠️ Partie introuvable — nouvelle partie créée.");
           }
         } else {
           const game = await api.createGame({ width: 22, height: 22 });
           localStorage.setItem(LS_GAME, game.id);
-          set({ game, view: "map", selectedHeroId: game.heroes[0]?.id, combat: undefined, current: undefined });
+          set({ game, view: "map", selectedHeroId: game.heroes[0]?.id, combat: undefined, current: undefined, playerId: undefined });
           pushLog("Aucune partie sauvegardée — nouvelle partie créée.");
         }
-        if (get().recipes.length === 0) try { set({ recipes: await api.recipes() }); } catch {}
-        if (get().classes.length === 0) try { set({ classes: await api.classes() }); } catch {}
-        set({ appScreen: "game", tab: "home", settingsScreen: null });
+        await enterActiveGame();
+      }),
+
+    // --- lobby / multiplayer -------------------------------------------------
+    openLobby: () => set({ appScreen: "lobby", error: undefined }),
+
+    setPlayerName: (name) => {
+      try {
+        localStorage.setItem(LS_PLAYER_NAME, name);
+      } catch {
+        /* ignore */
+      }
+      set({ playerName: name });
+    },
+
+    fetchLobbies: async () => {
+      try {
+        set({ lobbies: await api.listGames("lobby") });
+      } catch {
+        /* listing is best-effort */
+      }
+    },
+
+    createLobby: (opts) =>
+      withBusy(async () => {
+        const playerName = get().playerName.trim() || "Aventurier";
+        const res = await api.createLobby({ ...opts, playerName, width: 22, height: 22 });
+        adoptGame(res.game, res.player.id);
+        pushLog(`🎪 Partie "${res.game.name}" créée — code ${res.game.joinCode}.`);
+      }),
+
+    joinLobby: (code) =>
+      withBusy(async () => {
+        const playerName = get().playerName.trim() || "Aventurier";
+        const res = await api.joinByCode(code, playerName);
+        adoptGame(res.game, res.player.id);
+        pushLog(`🤝 Partie "${res.game.name}" rejointe (${res.game.players.length}/${res.game.maxPlayers} joueurs).`);
+        // Joining a public game as its Nth player can trigger the auto-start:
+        // in that case skip the waiting room entirely.
+        if (res.game.status !== "lobby") {
+          pushLog("⚔️ La partie démarre !");
+          await enterActiveGame();
+        }
+      }),
+
+    startLobby: () =>
+      withBusy(async () => {
+        const { game, playerId } = get();
+        if (!game || !playerId) return;
+        const next = await api.startGame(game.id, playerId);
+        adoptGame(next);
+        pushLog(`⚔️ La partie commence — jour ${next.day} !`);
+        await enterActiveGame();
+      }),
+
+    refreshLobby: async () => {
+      const { game, appScreen, playerId } = get();
+      if (!game || appScreen !== "lobby") return;
+      try {
+        const next = await api.getGame(game.id);
+        // Kicked (or identity lost) while waiting: back to the title screen.
+        if (playerId && next.players?.length && !next.players.some((p) => p.id === playerId)) {
+          localStorage.removeItem(lsPlayerKey(game.id));
+          if (localStorage.getItem(LS_GAME) === game.id) localStorage.removeItem(LS_GAME);
+          set({ appScreen: "title", game: undefined, playerId: undefined });
+          pushLog("🚪 Tu as été retiré du salon.");
+          return;
+        }
+        adoptGame(next);
+        if (next.status !== "lobby") {
+          pushLog("⚔️ La partie démarre !");
+          await enterActiveGame();
+        }
+      } catch {
+        /* polling is best-effort */
+      }
+    },
+
+    kickFromLobby: (targetId) =>
+      withBusy(async () => {
+        const { game, playerId } = get();
+        if (!game || !playerId) return;
+        const res = await api.kickPlayer(game.id, playerId, targetId);
+        adoptGame(res.game);
+        if (res.kicked) {
+          pushLog("🚪 Joueur expulsé du salon.");
+        } else {
+          pushLog(`🗳️ Vote enregistré (${res.votes}/${res.needed} pour expulser).`);
+        }
+      }),
+
+    startSoloBots: () =>
+      withBusy(async () => {
+        const playerName = get().playerName.trim() || "Aventurier";
+        const res = await api.soloGame(playerName);
+        adoptGame(res.game, res.player.id);
+        pushLog(`🤖 Partie solo lancée : toi + 4 bots (${res.game.heroes.length} héros).`);
+        await enterActiveGame();
+      }),
+
+    addBot: () =>
+      withBusy(async () => {
+        const { game, playerId } = get();
+        if (!game || !playerId) return;
+        const res = await api.addBot(game.id, playerId);
+        adoptGame(res.game);
+        pushLog(`🤖 ${res.player.name} rejoint la partie (bot).`);
+      }),
+
+    leaveLobby: () =>
+      withBusy(async () => {
+        const { game, playerId } = get();
+        // Really leave the salon server-side (frees the slot; an emptied lobby is deleted).
+        if (game && playerId && game.status === "lobby") {
+          try {
+            await api.leaveGame(game.id, playerId);
+            localStorage.removeItem(lsPlayerKey(game.id));
+            if (localStorage.getItem(LS_GAME) === game.id) localStorage.removeItem(LS_GAME);
+            pushLog("👋 Salon quitté.");
+          } catch {
+            /* leaving is best-effort — still return to the title screen */
+          }
+        }
+        set({ appScreen: "title", game: undefined, playerId: undefined });
       }),
 
     townAction: (buildingId, action, points) =>
       withBusy(async () => {
-        const { game, townHeroId } = get();
+        const { game, playerId } = get();
         if (!game) return;
-        const heroId = effectiveTownHeroId(game, townHeroId);
-        const next = await api.townAction(game.id, { buildingId, action, points, heroId });
+        const heroId = townWorkerId();
+        const next = await api.townAction(game.id, { buildingId, action, points, heroId, playerId });
         set({ game: next });
         renderMap();
       }),
@@ -246,9 +451,9 @@ export const useStore = create<StoreState>((set, get) => {
 
     townDeposit: () =>
       withBusy(async () => {
-        const { game } = get();
+        const { game, playerId } = get();
         if (!game) return;
-        const res = await api.townDeposit(game.id);
+        const res = await api.townDeposit(game.id, playerId);
         set({ game: res.game });
         pushLog(`📦 ${res.moved} objet(s) déposé(s) dans la Banque.`);
         renderMap();
@@ -256,13 +461,14 @@ export const useStore = create<StoreState>((set, get) => {
 
     craft: (recipeId) =>
       withBusy(async () => {
-        const { game, townHeroId, selectedHeroId } = get();
+        const { game, selectedHeroId, playerId } = get();
         if (!game) return;
         const inTown = game.heroes.some((h) => h.hp > 0 && h.x === game.town.x && h.y === game.town.y);
-        // In town: the chosen town worker crafts from the Maison. In the field: the
-        // selected hero crafts from their own bag (reduced recipe set).
-        const heroId = inTown ? effectiveTownHeroId(game, townHeroId) : selectedHeroId;
-        const res = await api.craft(game.id, recipeId, heroId);
+        // In town: the town worker crafts from the Maison (in multiplayer, always MY
+        // hero). In the field: the selected hero crafts from their own bag.
+        const heroId = inTown ? townWorkerId() : selectedHeroId;
+        if (!inTown && !ownsHero(heroId)) return;
+        const res = await api.craft(game.id, recipeId, heroId, playerId);
         set({ game: res.game });
         pushLog(
           inTown
@@ -273,10 +479,11 @@ export const useStore = create<StoreState>((set, get) => {
       }),
     evolve: (classId) =>
       withBusy(async () => {
-        const { game, heroOverlay } = get();
+        const { game, heroOverlay, playerId } = get();
         if (!game || !heroOverlay) return;
+        if (!ownsHero(heroOverlay)) return;
         const hero = game.heroes.find((h) => h.id === heroOverlay);
-        const next = await api.evolve(game.id, heroOverlay, classId);
+        const next = await api.evolve(game.id, heroOverlay, classId, playerId);
         const evolved = next.heroes.find((h) => h.id === heroOverlay);
         set({ game: next });
         pushLog(`✨ ${hero?.name ?? "Le héros"} évolue en ${evolved?.class ?? classId} !`);
@@ -305,28 +512,19 @@ export const useStore = create<StoreState>((set, get) => {
           if (saved) {
             try {
               const game = await api.getGame(saved);
-              set({ game, selectedHeroId: game.heroes[0]?.id });
+              adoptGame(game);
             } catch {
               localStorage.removeItem(LS_GAME);
             }
           }
           if (!get().game) await get().newGame();
         }
-        if (get().recipes.length === 0) {
-          try {
-            set({ recipes: await api.recipes() });
-          } catch {
-            /* recipes are non-critical */
-          }
+        if (get().game?.status === "lobby") {
+          // A lobby cannot be played yet — go to the waiting room instead.
+          set({ appScreen: "lobby" });
+          return;
         }
-        if (get().classes.length === 0) {
-          try {
-            set({ classes: await api.classes() });
-          } catch {
-            /* classes are non-critical */
-          }
-        }
-        set({ appScreen: "game", tab: "home", settingsScreen: null });
+        await enterActiveGame();
       }),
 
     leaveTown: () => set({ appScreen: "title", settingsScreen: null }),
@@ -347,6 +545,7 @@ export const useStore = create<StoreState>((set, get) => {
           selectedHeroId: game.heroes[0]?.id,
           combat: undefined,
           current: undefined,
+          playerId: undefined,
         });
         pushLog(`Nouvelle partie — jour ${game.day}. La ville est à (${game.town.x}, ${game.town.y}).`);
       }),
@@ -364,9 +563,10 @@ export const useStore = create<StoreState>((set, get) => {
 
     move: (dx, dy) =>
       withBusy(async () => {
-        const { game, selectedHeroId } = get();
+        const { game, selectedHeroId, playerId } = get();
         if (!game || !selectedHeroId) return;
-        const next = await api.move(game.id, selectedHeroId, dx, dy);
+        if (!ownsHero(selectedHeroId)) return;
+        const next = await api.move(game.id, selectedHeroId, dx, dy, playerId);
         set({ game: next });
         // If the last hero just left town, leave any town-only tab.
         const inTown = next.heroes.some((h) => h.hp > 0 && h.x === next.town.x && h.y === next.town.y);
@@ -379,9 +579,10 @@ export const useStore = create<StoreState>((set, get) => {
 
     search: () =>
       withBusy(async () => {
-        const { game, selectedHeroId } = get();
+        const { game, selectedHeroId, playerId } = get();
         if (!game || !selectedHeroId) return;
-        const res = await api.search(game.id, selectedHeroId);
+        if (!ownsHero(selectedHeroId)) return;
+        const res = await api.search(game.id, selectedHeroId, playerId);
         set({ game: res.game });
         pushLog(`🔎 Fouille : ${res.loot.name} (${res.loot.type}).`);
         renderMap();
@@ -389,10 +590,11 @@ export const useStore = create<StoreState>((set, get) => {
 
     hide: () =>
       withBusy(async () => {
-        const { game, selectedHeroId } = get();
+        const { game, selectedHeroId, playerId } = get();
         if (!game || !selectedHeroId) return;
+        if (!ownsHero(selectedHeroId)) return;
         const name = game.heroes.find((h) => h.id === selectedHeroId)?.name ?? "Le héros";
-        const next = await api.hide(game.id, selectedHeroId);
+        const next = await api.hide(game.id, selectedHeroId, playerId);
         set({ game: next });
         pushLog(`🫥 ${name} se dissimule (épargné par la prochaine vague).`);
         renderMap();
@@ -400,10 +602,11 @@ export const useStore = create<StoreState>((set, get) => {
 
     escape: () =>
       withBusy(async () => {
-        const { game, selectedHeroId } = get();
+        const { game, selectedHeroId, playerId } = get();
         if (!game || !selectedHeroId) return;
+        if (!ownsHero(selectedHeroId)) return;
         const before = game.heroes.find((h) => h.id === selectedHeroId);
-        const next = await api.escape(game.id, selectedHeroId);
+        const next = await api.escape(game.id, selectedHeroId, playerId);
         const after = next.heroes.find((h) => h.id === selectedHeroId);
         set({ game: next });
         if (before && after && (before.x !== after.x || before.y !== after.y)) {
@@ -416,10 +619,11 @@ export const useStore = create<StoreState>((set, get) => {
 
     fireball: () =>
       withBusy(async () => {
-        const { game, selectedHeroId } = get();
+        const { game, selectedHeroId, playerId } = get();
         if (!game || !selectedHeroId) return;
+        if (!ownsHero(selectedHeroId)) return;
         const name = game.heroes.find((h) => h.id === selectedHeroId)?.name ?? "Le héros";
-        const res = await api.fireball(game.id, selectedHeroId);
+        const res = await api.fireball(game.id, selectedHeroId, playerId);
         set({ game: res.game });
         const r = res.report;
         if (r.killed) {
@@ -482,9 +686,10 @@ export const useStore = create<StoreState>((set, get) => {
 
     startCombat: () =>
       withBusy(async () => {
-        const { game, selectedHeroId } = get();
+        const { game, selectedHeroId, playerId } = get();
         if (!game || !selectedHeroId) return;
-        const resp = await api.startCombat(game.id, selectedHeroId);
+        if (!ownsHero(selectedHeroId)) return;
+        const resp = await api.startCombat(game.id, selectedHeroId, playerId);
         set({ view: "combat", combatMode: "move", tab: "map" });
         pushLog("⚔️ Le combat commence !");
         applyCombat(resp);
@@ -497,7 +702,7 @@ export const useStore = create<StoreState>((set, get) => {
 
     combatTileClick: (x, y) =>
       withBusy(async () => {
-        const { game, combat, current } = get();
+        const { game, combat, current, playerId } = get();
         if (!game || !combat || !current) return;
         if (!current.reachable.some(([rx, ry]) => rx === x && ry === y)) return;
         const resp = await api.combatAction(game.id, combat.id, {
@@ -505,13 +710,14 @@ export const useStore = create<StoreState>((set, get) => {
           action: "move",
           x,
           y,
+          playerId,
         });
         applyCombat(resp);
       }),
 
     combatUnitClick: (unitId) =>
       withBusy(async () => {
-        const { game, combat, current, combatMode } = get();
+        const { game, combat, current, combatMode, playerId } = get();
         if (!game || !combat || !current) return;
         const list = combatMode === "skill" ? current.skillTargets : current.attackTargets;
         if (!list.includes(unitId)) return;
@@ -519,6 +725,7 @@ export const useStore = create<StoreState>((set, get) => {
           unitId: current.unitId,
           action: combatMode === "skill" ? "skill" : "attack",
           targetId: unitId,
+          playerId,
         });
         set({ combatMode: "move" });
         applyCombat(resp);
@@ -526,11 +733,12 @@ export const useStore = create<StoreState>((set, get) => {
 
     endTurn: () =>
       withBusy(async () => {
-        const { game, combat, current } = get();
+        const { game, combat, current, playerId } = get();
         if (!game || !combat || !current) return;
         const resp = await api.combatAction(game.id, combat.id, {
           unitId: current.unitId,
           action: "end",
+          playerId,
         });
         set({ combatMode: "move" });
         applyCombat(resp);

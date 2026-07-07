@@ -291,6 +291,9 @@ func (g *GameState) StartCombat(heroID string) (*Combat, error) {
 		party = []*Hero{h}
 	}
 	c := NewCombat(g, party, m)
+	if g.Combats == nil { // states from legacy rows/fixtures may lack the map
+		g.Combats = map[string]*Combat{}
+	}
 	g.Combats[c.ID] = c
 	g.ActiveCombat = c.ID
 	if c.Status != "active" {

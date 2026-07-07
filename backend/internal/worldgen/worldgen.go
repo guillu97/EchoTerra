@@ -116,93 +116,76 @@ func findTown(tiles []game.Tile, width, height int) (int, int) {
 	return bestX, bestY
 }
 
-// NewGame builds a fresh, ready-to-play GameState: generated world, town at the
-// center plain, three heroes spawned on the town, and a few monsters seeded nearby.
-func NewGame(width, height int, seed int64) *game.GameState {
+// newWorld builds the shared skeleton of a game: generated world, town at the center
+// plain, default buildings, seeded monsters — but no heroes, players, or status yet.
+func newWorld(width, height int, seed int64) *game.GameState {
 	rand.Seed(seed)
 	tiles, _ := GenerateTiles(width, height, seed)
 	tx, ty := findTown(tiles, width, height)
 
 	gs := &game.GameState{
-		ID:       uuid.NewString(),
-		Seed:     seed,
-		Width:    width,
-		Height:   height,
-		Tiles:    tiles,
-		Monsters: map[string]*game.Monster{},
-		Combats:  map[string]*game.Combat{},
-		Day:      1,
-		Wave:     0,
+		ID:        uuid.NewString(),
+		Seed:      seed,
+		Width:     width,
+		Height:    height,
+		Tiles:     tiles,
+		Monsters:  map[string]*game.Monster{},
+		Combats:   map[string]*game.Combat{},
+		Day:       1,
+		Wave:      0,
+		CreatedAt: time.Now(),
 	}
 	gs.Town.X, gs.Town.Y = tx, ty
 	gs.Town.HP, gs.Town.MaxHP = 100, 100
 	gs.Town.Buildings = game.DefaultBuildings()
 	gs.Town.Storage = []game.Item{}
-	gs.Status = "active"
-	gs.NextWaveAt = time.Now().Add(game.WaveInterval)
-	gs.Recompute()
-
-	// Three classless starter heroes (per the GDD early game).
-	heroDefs := []struct {
-		name  string
-		stats game.Stats
-	}{
-		{"Aldric", game.Stats{Force: 4, Dexterite: 2, Agilite: 3, Endurance: 4, Athletisme: 3, Precision: 2}},
-		{"Brisa", game.Stats{Force: 2, Dexterite: 4, Agilite: 4, Endurance: 2, Athletisme: 3, Precision: 4}},
-		{"Cael", game.Stats{Force: 3, Dexterite: 3, Agilite: 2, Endurance: 5, Athletisme: 4, Precision: 2}},
-	}
-	for _, hd := range heroDefs {
-		hp := 8 + hd.stats.Endurance*2
-		gs.Heroes = append(gs.Heroes, &game.Hero{
-			ID:        uuid.NewString(),
-			Name:      hd.name,
-			X:         tx,
-			Y:         ty,
-			PA:        6,
-			MaxPA:     6,
-			HP:        hp,
-			MaxHP:     hp,
-			Stats:     hd.stats,
-			Class:     "Sans classe",
-			States:    []string{},
-			Inventory: []game.Item{},
-			Bars:      map[string]int{"combat": 0, "collecte": 0, "ingeniosite": 0, "athletisme": 0},
-		})
-	}
-
-	seedMonsters(gs)
 	return gs
 }
 
-// seedMonsters places a handful of monsters on walkable tiles a few cells away from
-// the town so the player can reach combat quickly in the vertical slice.
-func seedMonsters(gs *game.GameState) {
-	species := game.MonsterSpecies
-	placed := 0
-	for radius := 2; radius <= 5 && placed < 4; radius++ {
-		for dy := -radius; dy <= radius && placed < 4; dy++ {
-			for dx := -radius; dx <= radius && placed < 4; dx++ {
-				if abs(dx)+abs(dy) != radius {
-					continue
-				}
-				x, y := gs.Town.X+dx, gs.Town.Y+dy
-				t := gs.TileAt(x, y)
-				if t == nil || !t.Biome.Walkable() || t.MonsterID != "" {
-					continue
-				}
-				sp := species[placed%len(species)]
-				m := game.NewMonster(sp, x, y)
-				gs.Monsters[m.ID] = m
-				t.MonsterID = m.ID
-				placed++
-			}
-		}
+// NewLobby builds a game in "lobby" status: the world exists but no hero is spawned
+// and no wave is scheduled — players join (AddPlayer) then the host launches it
+// (StartGame) once at least minPlayers have joined.
+func NewLobby(width, height int, seed int64, name string, minPlayers, maxPlayers int) *game.GameState {
+	if maxPlayers < 1 {
+		maxPlayers = 4
 	}
+	if maxPlayers > 8 {
+		maxPlayers = 8
+	}
+	if minPlayers < 1 {
+		minPlayers = 1
+	}
+	if minPlayers > maxPlayers {
+		minPlayers = maxPlayers
+	}
+	gs := newWorld(width, height, seed)
+	gs.Name = name
+	gs.Status = game.StatusLobby
+	gs.JoinCode = game.NewJoinCode()
+	gs.MinPlayers = minPlayers
+	gs.MaxPlayers = maxPlayers
+	gs.Recompute()
+	return gs
 }
 
-func abs(v int) int {
-	if v < 0 {
-		return -v
+// NewGame builds a fresh, ready-to-play solo GameState: generated world, town at the
+// center plain, three heroes spawned on the town, and a few monsters seeded nearby.
+// (Legacy/dev path — the multiplayer flow goes through NewLobby.)
+func NewGame(width, height int, seed int64) *game.GameState {
+	gs := newWorld(width, height, seed)
+	gs.MinPlayers, gs.MaxPlayers = 1, 3
+	gs.Status = "active"
+	gs.StartedAt = time.Now()
+	gs.NextWaveAt = time.Now().Add(game.WaveInterval)
+
+	// Three classless starter heroes (per the GDD early game: 1 joueur = 3 héros).
+	for _, name := range []string{"Aldric", "Brisa", "Cael"} {
+		gs.Heroes = append(gs.Heroes, game.NewStarterHero(len(gs.Heroes), name, gs.Town.X, gs.Town.Y))
 	}
-	return v
+	gs.SeedStartingMonsters(1)
+	gs.Recompute()
+	return gs
 }
+
+// (Initial monster seeding lives in game.SeedStartingMonsters — it runs at launch
+// time, scaled by the number of players.)

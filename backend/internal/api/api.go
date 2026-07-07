@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -22,15 +23,84 @@ import (
 // Server wires the store and an in-memory cache of live games.
 type Server struct {
 	store *store.Store
-	mu    sync.Mutex
+	mu    sync.Mutex // guards cache + locks maps
 	cache map[string]*game.GameState
+	locks map[string]*sync.Mutex // per-game mutex: one writer/reader at a time per game
 }
 
-// New creates a Server backed by the given store and starts the wave scheduler.
+// New creates a Server backed by the given store and starts the wave scheduler and
+// the lobby janitor.
 func New(st *store.Store) *Server {
-	s := &Server{store: st, cache: map[string]*game.GameState{}}
+	s := &Server{store: st, cache: map[string]*game.GameState{}, locks: map[string]*sync.Mutex{}}
+	s.ensurePublicLobby() // there is always an open public game to join
 	go s.waveScheduler()
+	go s.lobbyJanitor()
 	return s
+}
+
+// lockGame acquires the per-game mutex and returns its unlock func. Every access to
+// a game's state (HTTP handlers, wave scheduler, janitor) must hold this lock —
+// GameState itself has no internal synchronization.
+func (s *Server) lockGame(id string) func() {
+	s.mu.Lock()
+	l, ok := s.locks[id]
+	if !ok {
+		l = &sync.Mutex{}
+		s.locks[id] = l
+	}
+	s.mu.Unlock()
+	l.Lock()
+	return l.Unlock
+}
+
+// gameLockMiddleware serializes all requests touching one game (even GETs mutate via
+// the lazy wave catch-up in tick).
+func (s *Server) gameLockMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if id := chi.URLParam(r, "gameID"); id != "" {
+			unlock := s.lockGame(id)
+			defer unlock()
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// lobbyTTL is how long an un-launched lobby survives before being purged.
+const lobbyTTL = 24 * time.Hour
+
+// lobbyJanitor periodically deletes abandoned lobbies (created long ago, never
+// launched) so the open-lobby list and the DB don't fill up with dead salons.
+func (s *Server) lobbyJanitor() {
+	purge := func() {
+		games, err := s.store.List(500)
+		if err != nil {
+			return
+		}
+		cutoff := time.Now().Add(-lobbyTTL)
+		for _, gs := range games {
+			if gs.Status == game.StatusLobby && !gs.CreatedAt.IsZero() && gs.CreatedAt.Before(cutoff) {
+				unlock := s.lockGame(gs.ID)
+				s.drop(gs.ID)
+				unlock()
+			}
+		}
+	}
+	purge()
+	ticker := time.NewTicker(10 * time.Minute)
+	defer ticker.Stop()
+	for range ticker.C {
+		purge()
+		s.ensurePublicLobby() // replace a purged (or started) public lobby
+	}
+}
+
+// drop removes a game from the cache and the store. Callers must hold the game lock;
+// the lock entry itself is left in place (tiny, and avoids unlock-after-delete races).
+func (s *Server) drop(id string) {
+	s.mu.Lock()
+	delete(s.cache, id)
+	s.mu.Unlock()
+	_ = s.store.Delete(id)
 }
 
 // tick resolves any due wave for a freshly loaded game and refreshes derived fields.
@@ -45,13 +115,17 @@ func (s *Server) tick(gs *game.GameState) {
 	}
 }
 
-// waveScheduler periodically advances waves for all live (cached) games so the town is
-// attacked on schedule even while a client is idle. NB: prototype-grade concurrency —
-// add per-game locking before real multiplayer load.
+// waveScheduler periodically advances waves for all live (cached) games so the town
+// is attacked on schedule even while a client is idle, and paces the bot players
+// (one action per bot hero every botEvery ticks, so a bot's day unfolds over minutes
+// instead of being burned instantly).
 func (s *Server) waveScheduler() {
+	const botEvery = 4 // bots act every 4th tick (~1/minute)
 	ticker := time.NewTicker(15 * time.Second)
 	defer ticker.Stop()
+	tickNo := 0
 	for range ticker.C {
+		tickNo++
 		now := time.Now()
 		s.mu.Lock()
 		games := make([]*game.GameState, 0, len(s.cache))
@@ -60,10 +134,16 @@ func (s *Server) waveScheduler() {
 		}
 		s.mu.Unlock()
 		for _, g := range games {
-			if g.CatchUpWaves(now) {
+			unlock := s.lockGame(g.ID)
+			changed := g.CatchUpWaves(now)
+			if tickNo%botEvery == 0 && g.BotAct() {
+				changed = true
+			}
+			if changed {
 				g.Recompute()
 				_ = s.store.Save(g)
 			}
+			unlock()
 		}
 	}
 }
@@ -92,9 +172,19 @@ func (s *Server) Router() http.Handler {
 	})
 
 	r.Route("/api/games", func(r chi.Router) {
+		r.Get("/", s.listGames)
 		r.Post("/", s.createGame)
+		r.Post("/lobby", s.createLobby)
+		r.Post("/solo", s.soloGame)
+		r.Post("/join", s.joinByCode)
 		r.Route("/{gameID}", func(r chi.Router) {
+			r.Use(s.gameLockMiddleware)
 			r.Get("/", s.getGame)
+			r.Post("/join", s.joinGame)
+			r.Post("/start", s.startGame)
+			r.Post("/leave", s.leaveGame)
+			r.Post("/kick", s.kickPlayer)
+			r.Post("/bots", s.addBot)
 			r.Get("/world", s.getWorld)
 			r.Post("/advance", s.advance)
 			r.Post("/town/action", s.townAction)
@@ -174,6 +264,335 @@ func (s *Server) createGame(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, gs)
 }
 
+// --- lobby / multiplayer -----------------------------------------------------
+
+// gameSummary is the lightweight listing DTO (no tiles/monsters payload).
+type gameSummary struct {
+	ID         string         `json:"id"`
+	Name       string         `json:"name"`
+	Status     string         `json:"status"`
+	Visibility string         `json:"visibility"`
+	Players    []*game.Player `json:"players"`
+	MinPlayers int            `json:"minPlayers"`
+	MaxPlayers int            `json:"maxPlayers"`
+	Day        int            `json:"day"`
+	WaveNumber int            `json:"waveNumber"`
+	CreatedAt  time.Time      `json:"createdAt"`
+}
+
+// summarize omits the join code on purpose: private lobbies are joined by sharing
+// their code out-of-band, never by picking them off the public list.
+func summarize(gs *game.GameState) gameSummary {
+	players := gs.Players
+	if players == nil {
+		players = []*game.Player{}
+	}
+	vis := gs.Visibility
+	if vis == "" {
+		vis = game.VisibilityPrivate
+	}
+	return gameSummary{
+		ID: gs.ID, Name: gs.Name, Status: gs.Status, Visibility: vis,
+		Players: players, MinPlayers: gs.MinPlayers, MaxPlayers: gs.MaxPlayers,
+		Day: gs.Day, WaveNumber: gs.WaveNumber, CreatedAt: gs.CreatedAt,
+	}
+}
+
+// listGames returns recent games as summaries. ?status=lobby filters to open lobbies.
+func (s *Server) listGames(w http.ResponseWriter, r *http.Request) {
+	games, err := s.store.List(50)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	status := r.URL.Query().Get("status")
+	out := []gameSummary{}
+	for _, gs := range games {
+		if status != "" && gs.Status != status {
+			continue
+		}
+		out = append(out, summarize(gs))
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+// createLobby creates a game in "lobby" status and joins the creator as host.
+func (s *Server) createLobby(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Name       string `json:"name"`
+		PlayerName string `json:"playerName"`
+		MinPlayers int    `json:"minPlayers"`
+		MaxPlayers int    `json:"maxPlayers"`
+		Width      int    `json:"width"`
+		Height     int    `json:"height"`
+		Seed       int64  `json:"seed"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&body)
+	if body.Width == 0 {
+		body.Width = 22
+	}
+	if body.Height == 0 {
+		body.Height = 22
+	}
+	if body.Seed == 0 {
+		body.Seed = time.Now().UnixNano()
+	}
+	if body.MinPlayers == 0 {
+		body.MinPlayers = 2
+	}
+	if body.Name == "" {
+		if body.PlayerName != "" {
+			body.Name = "Partie de " + body.PlayerName
+		} else {
+			body.Name = "Nouvelle expédition"
+		}
+	}
+	gs := worldgen.NewLobby(body.Width, body.Height, body.Seed, body.Name, body.MinPlayers, body.MaxPlayers)
+	gs.Visibility = game.VisibilityPrivate
+	p, err := gs.AddPlayer(body.PlayerName, time.Now())
+	if err != nil {
+		writeActionErr(w, err)
+		return
+	}
+	s.persist(gs)
+	writeJSON(w, http.StatusCreated, map[string]any{"game": gs, "player": p})
+}
+
+// soloGame creates and immediately launches a private game: the caller + 4 bots.
+// One call powers the menu's "solo" mode.
+func (s *Server) soloGame(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		PlayerName string `json:"playerName"`
+		Width      int    `json:"width"`
+		Height     int    `json:"height"`
+		Seed       int64  `json:"seed"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&body)
+	if body.Width == 0 {
+		body.Width = 22
+	}
+	if body.Height == 0 {
+		body.Height = 22
+	}
+	if body.Seed == 0 {
+		body.Seed = time.Now().UnixNano()
+	}
+	name := "Expédition solo"
+	if body.PlayerName != "" {
+		name = "Solo de " + body.PlayerName
+	}
+	now := time.Now()
+	gs := worldgen.NewLobby(body.Width, body.Height, body.Seed, name, 1, 5)
+	gs.Visibility = game.VisibilityPrivate
+	p, err := gs.AddPlayer(body.PlayerName, now)
+	if err != nil {
+		writeActionErr(w, err)
+		return
+	}
+	for i := 0; i < 4; i++ {
+		if _, err := gs.AddBot(p.ID, now); err != nil {
+			writeActionErr(w, err)
+			return
+		}
+	}
+	if err := gs.StartGame(p.ID, now); err != nil {
+		writeActionErr(w, err)
+		return
+	}
+	s.persist(gs)
+	writeJSON(w, http.StatusCreated, map[string]any{"game": gs, "player": p})
+}
+
+// publicLobbyName is the display name of server-created public games.
+const publicLobbyName = "Expédition publique"
+
+// ensurePublicLobby guarantees at least one OPEN public lobby exists, so there is
+// always a game to join without a code. Called at startup, from the janitor, and
+// after a public game auto-starts.
+func (s *Server) ensurePublicLobby() {
+	games, err := s.store.List(200)
+	if err != nil {
+		return
+	}
+	for _, gs := range games {
+		if gs.Status == game.StatusLobby && gs.IsPublic() {
+			return
+		}
+	}
+	gs := worldgen.NewLobby(22, 22, time.Now().UnixNano(), publicLobbyName, 2, 4)
+	gs.Visibility = game.VisibilityPublic
+	s.persist(gs)
+}
+
+// joinByCode resolves a join code against open lobbies (newest first) and joins it.
+func (s *Server) joinByCode(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Code       string `json:"code"`
+		PlayerName string `json:"playerName"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Code == "" {
+		writeErr(w, http.StatusBadRequest, "code de partie requis")
+		return
+	}
+	code := strings.ToUpper(strings.TrimSpace(body.Code))
+	games, err := s.store.List(200)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	for _, cand := range games {
+		if cand.Status == game.StatusLobby && (cand.JoinCode == code || cand.ID == body.Code) {
+			// This route lives outside the /{gameID} middleware: take the lock here.
+			unlock := s.lockGame(cand.ID)
+			s.join(w, cand.ID, body.PlayerName)
+			unlock()
+			return
+		}
+	}
+	writeErr(w, http.StatusNotFound, "aucune partie ouverte avec ce code")
+}
+
+// joinGame joins the lobby named by the URL.
+func (s *Server) joinGame(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		PlayerName string `json:"playerName"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&body)
+	s.join(w, chi.URLParam(r, "gameID"), body.PlayerName)
+}
+
+// join loads the canonical (cached) game and adds the player. Callers must hold the
+// game lock (the /{gameID} middleware provides it; joinByCode takes it explicitly —
+// the per-game mutex is NOT reentrant, locking here again would deadlock).
+func (s *Server) join(w http.ResponseWriter, gameID, playerName string) {
+	gs, err := s.load(gameID)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if gs == nil {
+		writeErr(w, http.StatusNotFound, "partie introuvable")
+		return
+	}
+	now := time.Now()
+	p, err := gs.AddPlayer(playerName, now)
+	if err != nil {
+		writeActionErr(w, err)
+		return
+	}
+	// Public games launch on their own the moment MinPlayers is reached — and the
+	// server immediately opens a fresh public lobby to keep one joinable.
+	if gs.MaybeAutoStart(now) {
+		defer s.ensurePublicLobby()
+	}
+	s.persist(gs)
+	writeJSON(w, http.StatusOK, map[string]any{"game": gs, "player": p})
+}
+
+// leaveGame removes the calling player (and their hero) from a lobby. An emptied
+// lobby is deleted outright.
+func (s *Server) leaveGame(w http.ResponseWriter, r *http.Request) {
+	gs := s.mustGame(w, r)
+	if gs == nil {
+		return
+	}
+	var body struct {
+		PlayerID string `json:"playerId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeErr(w, http.StatusBadRequest, "corps invalide")
+		return
+	}
+	remaining, err := gs.RemovePlayer(body.PlayerID)
+	if err != nil {
+		writeActionErr(w, err)
+		return
+	}
+	if remaining == 0 {
+		s.drop(gs.ID)
+		writeJSON(w, http.StatusOK, map[string]any{"left": true, "deleted": true})
+		return
+	}
+	s.persist(gs)
+	writeJSON(w, http.StatusOK, map[string]any{"left": true, "deleted": false, "game": gs})
+}
+
+// kickPlayer expels a player: host decision in private games, majority vote in
+// public ones (the response then carries the vote tally).
+func (s *Server) kickPlayer(w http.ResponseWriter, r *http.Request) {
+	gs := s.mustGame(w, r)
+	if gs == nil {
+		return
+	}
+	var body struct {
+		PlayerID string `json:"playerId"`
+		TargetID string `json:"targetId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeErr(w, http.StatusBadRequest, "corps invalide")
+		return
+	}
+	if gs.IsPublic() {
+		votes, needed, kicked, err := gs.VoteKick(body.PlayerID, body.TargetID)
+		if err != nil {
+			writeActionErr(w, err)
+			return
+		}
+		s.persist(gs)
+		writeJSON(w, http.StatusOK, map[string]any{"game": gs, "votes": votes, "needed": needed, "kicked": kicked})
+		return
+	}
+	if _, err := gs.KickPlayer(body.PlayerID, body.TargetID); err != nil {
+		writeActionErr(w, err)
+		return
+	}
+	s.persist(gs)
+	writeJSON(w, http.StatusOK, map[string]any{"game": gs, "kicked": true})
+}
+
+// addBot lets the host add a computer-controlled player to the lobby.
+func (s *Server) addBot(w http.ResponseWriter, r *http.Request) {
+	gs := s.mustGame(w, r)
+	if gs == nil {
+		return
+	}
+	var body struct {
+		PlayerID string `json:"playerId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeErr(w, http.StatusBadRequest, "corps invalide")
+		return
+	}
+	p, err := gs.AddBot(body.PlayerID, time.Now())
+	if err != nil {
+		writeActionErr(w, err)
+		return
+	}
+	s.persist(gs)
+	writeJSON(w, http.StatusOK, map[string]any{"game": gs, "player": p})
+}
+
+// startGame launches a lobby (host only, requires MinPlayers players).
+func (s *Server) startGame(w http.ResponseWriter, r *http.Request) {
+	gs := s.mustGame(w, r)
+	if gs == nil {
+		return
+	}
+	var body struct {
+		PlayerID string `json:"playerId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeErr(w, http.StatusBadRequest, "corps invalide")
+		return
+	}
+	if err := gs.StartGame(body.PlayerID, time.Now()); err != nil {
+		writeActionErr(w, err)
+		return
+	}
+	s.persist(gs)
+	writeJSON(w, http.StatusOK, gs)
+}
+
 func (s *Server) getGame(w http.ResponseWriter, r *http.Request) {
 	gs, err := s.load(chi.URLParam(r, "gameID"))
 	if err != nil {
@@ -202,14 +621,30 @@ func (s *Server) getWorld(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// ownHero enforces per-player hero ownership on multiplayer games; it writes the
+// rejection and returns false when the caller may not act with this hero.
+func (s *Server) ownHero(w http.ResponseWriter, gs *game.GameState, playerID, heroID string) bool {
+	if err := gs.CheckHeroOwnership(playerID, heroID); err != nil {
+		writeActionErr(w, err)
+		return false
+	}
+	return true
+}
+
 func (s *Server) moveHero(w http.ResponseWriter, r *http.Request) {
 	gs := s.mustGame(w, r)
 	if gs == nil {
 		return
 	}
-	var body struct{ DX, DY int }
+	var body struct {
+		DX, DY   int
+		PlayerID string `json:"playerId"`
+	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeErr(w, http.StatusBadRequest, "corps invalide")
+		return
+	}
+	if !s.ownHero(w, gs, body.PlayerID, chi.URLParam(r, "heroID")) {
 		return
 	}
 	if err := gs.MoveHero(chi.URLParam(r, "heroID"), body.DX, body.DY); err != nil {
@@ -220,9 +655,23 @@ func (s *Server) moveHero(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, gs)
 }
 
+// heroActionBody is the shared optional body of parameterless hero actions.
+type heroActionBody struct {
+	PlayerID string `json:"playerId"`
+}
+
+func decodePlayer(r *http.Request) string {
+	var body heroActionBody
+	_ = json.NewDecoder(r.Body).Decode(&body)
+	return body.PlayerID
+}
+
 func (s *Server) searchTile(w http.ResponseWriter, r *http.Request) {
 	gs := s.mustGame(w, r)
 	if gs == nil {
+		return
+	}
+	if !s.ownHero(w, gs, decodePlayer(r), chi.URLParam(r, "heroID")) {
 		return
 	}
 	it, err := gs.SearchTile(chi.URLParam(r, "heroID"))
@@ -239,6 +688,9 @@ func (s *Server) hideHero(w http.ResponseWriter, r *http.Request) {
 	if gs == nil {
 		return
 	}
+	if !s.ownHero(w, gs, decodePlayer(r), chi.URLParam(r, "heroID")) {
+		return
+	}
 	if err := gs.HideHero(chi.URLParam(r, "heroID")); err != nil {
 		writeActionErr(w, err)
 		return
@@ -252,6 +704,9 @@ func (s *Server) escapeHero(w http.ResponseWriter, r *http.Request) {
 	if gs == nil {
 		return
 	}
+	if !s.ownHero(w, gs, decodePlayer(r), chi.URLParam(r, "heroID")) {
+		return
+	}
 	if err := gs.EscapeHero(chi.URLParam(r, "heroID")); err != nil {
 		writeActionErr(w, err)
 		return
@@ -263,6 +718,9 @@ func (s *Server) escapeHero(w http.ResponseWriter, r *http.Request) {
 func (s *Server) fireballHero(w http.ResponseWriter, r *http.Request) {
 	gs := s.mustGame(w, r)
 	if gs == nil {
+		return
+	}
+	if !s.ownHero(w, gs, decodePlayer(r), chi.URLParam(r, "heroID")) {
 		return
 	}
 	rep, err := gs.FireballHero(chi.URLParam(r, "heroID"))
@@ -280,10 +738,14 @@ func (s *Server) evolveHero(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body struct {
-		ClassID string `json:"classId"`
+		ClassID  string `json:"classId"`
+		PlayerID string `json:"playerId"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeErr(w, http.StatusBadRequest, "corps invalide")
+		return
+	}
+	if !s.ownHero(w, gs, body.PlayerID, chi.URLParam(r, "heroID")) {
 		return
 	}
 	if err := gs.EvolveHero(chi.URLParam(r, "heroID"), body.ClassID); err != nil {
@@ -314,9 +776,14 @@ func (s *Server) townAction(w http.ResponseWriter, r *http.Request) {
 		Action     string `json:"action"`
 		Points     int    `json:"points"`
 		HeroID     string `json:"heroId"`
+		PlayerID   string `json:"playerId"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeErr(w, http.StatusBadRequest, "corps invalide")
+		return
+	}
+	// The town worker paying the PA must be the calling player's own hero.
+	if body.HeroID != "" && !s.ownHero(w, gs, body.PlayerID, body.HeroID) {
 		return
 	}
 	if err := gs.TownAction(body.BuildingID, body.Action, body.Points, body.HeroID); err != nil {
@@ -333,7 +800,18 @@ func (s *Server) townDeposit(w http.ResponseWriter, r *http.Request) {
 	if gs == nil {
 		return
 	}
-	moved, err := gs.DepositHeroLoot()
+	// In multiplayer, a player only deposits their own team's bags; legacy solo games
+	// (no players) keep the deposit-everyone behaviour.
+	var only []string
+	if pid := decodePlayer(r); len(gs.Players) > 0 {
+		p := gs.PlayerByID(pid)
+		if p == nil {
+			writeErr(w, http.StatusBadRequest, "joueur inconnu — reconnecte-toi à la partie")
+			return
+		}
+		only = p.HeroIDs
+	}
+	moved, err := gs.DepositHeroLoot(only)
 	if err != nil {
 		writeActionErr(w, err)
 		return
@@ -350,9 +828,14 @@ func (s *Server) townCraft(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		RecipeID string `json:"recipeId"`
 		HeroID   string `json:"heroId"`
+		PlayerID string `json:"playerId"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeErr(w, http.StatusBadRequest, "corps invalide")
+		return
+	}
+	// The crafting hero (paying the PA) must belong to the calling player.
+	if body.HeroID != "" && !s.ownHero(w, gs, body.PlayerID, body.HeroID) {
 		return
 	}
 	out, err := gs.Craft(body.RecipeID, body.HeroID)
@@ -367,6 +850,9 @@ func (s *Server) townCraft(w http.ResponseWriter, r *http.Request) {
 func (s *Server) startCombat(w http.ResponseWriter, r *http.Request) {
 	gs := s.mustGame(w, r)
 	if gs == nil {
+		return
+	}
+	if !s.ownHero(w, gs, decodePlayer(r), chi.URLParam(r, "heroID")) {
 		return
 	}
 	c, err := gs.StartCombat(chi.URLParam(r, "heroID"))
@@ -407,10 +893,20 @@ func (s *Server) combatAction(w http.ResponseWriter, r *http.Request) {
 		X        int    `json:"x"`
 		Y        int    `json:"y"`
 		TargetID string `json:"targetId"`
+		PlayerID string `json:"playerId"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeErr(w, http.StatusBadRequest, "corps invalide")
 		return
+	}
+	// A hero unit may only be played by the player owning the underlying hero.
+	for _, u := range c.Units {
+		if u.ID == body.UnitID && u.Side == "hero" {
+			if !s.ownHero(w, gs, body.PlayerID, u.RefID) {
+				return
+			}
+			break
+		}
 	}
 	if err := c.PlayerAction(body.UnitID, body.Action, body.X, body.Y, body.TargetID); err != nil {
 		writeActionErr(w, err)

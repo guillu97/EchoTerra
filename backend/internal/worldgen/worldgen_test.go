@@ -56,3 +56,29 @@ func TestBiomeThresholds(t *testing.T) {
 		}
 	}
 }
+
+func TestNewLobbyStartsEmptyAndUnscheduled(t *testing.T) {
+	gs := NewLobby(22, 22, 42, "Partie test", 2, 4)
+	if gs.Status != game.StatusLobby {
+		t.Fatalf("status = %q, want lobby", gs.Status)
+	}
+	if len(gs.Heroes) != 0 || len(gs.Players) != 0 {
+		t.Fatalf("a fresh lobby must have no heroes/players, got %d/%d", len(gs.Heroes), len(gs.Players))
+	}
+	if gs.JoinCode == "" || len(gs.JoinCode) != 5 {
+		t.Fatalf("join code missing/malformed: %q", gs.JoinCode)
+	}
+	if !gs.NextWaveAt.IsZero() {
+		t.Fatal("no wave must be scheduled before launch")
+	}
+	if gs.MinPlayers != 2 || gs.MaxPlayers != 4 {
+		t.Fatalf("min/max players = %d/%d, want 2/4", gs.MinPlayers, gs.MaxPlayers)
+	}
+}
+
+func TestNewLobbyClampsPlayerBounds(t *testing.T) {
+	gs := NewLobby(10, 10, 1, "x", 9, 0) // min > default max, max unset
+	if gs.MaxPlayers != 4 || gs.MinPlayers != 4 {
+		t.Fatalf("bounds not clamped: min=%d max=%d", gs.MinPlayers, gs.MaxPlayers)
+	}
+}

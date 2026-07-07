@@ -85,6 +85,8 @@ backend/
   internal/api/api.go           chi routes, CORS, in-memory cache + SQLite, wave scheduler, handlers
   internal/game/
     game.go                     GameState, Hero, Tile, Monster, Biome, Stats, Item (+ Town struct inline)
+    lobby.go                    Player, AddPlayer, AddBot, StartGame, NewStarterHero, NewJoinCode, Status*
+    bots.go                     BotAct: joueurs-IA (survie/ville/récolte), 1 action/héros bot par tick
     actions.go                  MoveHero, SearchTile, HideHero, EscapeHero, Advance(legacy), state consts
     classes.go                  ClassDef/ClassSkill catalog (Classes), EvolveHero, EvolveDayIntermediate/Advanced
     combat.go                   CombatUnit, Combat, NewCombat, PlayerAction (+ enemy AI), damage/AoE
@@ -106,7 +108,7 @@ frontend/src/
   townUtils.ts                  heroesInTown, townPA, effectiveTownHeroId, TOWN_TABS
   useWave.ts                    useWaveRemaining (server nextWaveAt), formatHMS
   api/{client.ts,types.ts}      REST client + TS DTOs mirroring Go JSON
-  screens/                      LoadingScreen, TitleScreen, CinematicScreen, GameScreen
+  screens/                      LoadingScreen, TitleScreen, CinematicScreen, GameScreen, LobbyScreen
   components/                   TopBar, BottomNav, HeroChips, Logo, TownWorker(+useWorkerPA),
                                 TownStatus, GameOver, HeroOverlay, ItemGrid
   tabs/                         HomeTab, MapTab, StockTab, StructureTab, CraftTab
@@ -116,8 +118,11 @@ frontend/src/
 
 ## 4. Backend domain model (the JSON the client sees)
 
-- **GameState**: `id, seed, width(22), height(22), tiles[], heroes[3], monsters{id->Monster}, day(1),
-  wave(0), waveNumber, nextWaveAt(time), status("active"|"gameover"), lastWave?, town, activeCombat?, combats{}`.
+- **GameState**: `id, name, seed, width(22), height(22), tiles[], heroes[], monsters{id->Monster}, day(1),
+  wave(0), waveNumber, nextWaveAt(time), status("lobby"|"active"|"gameover"), lastWave?, town, activeCombat?,
+  combats{}` + lobby: `joinCode, minPlayers, maxPlayers, players[], createdAt, startedAt`.
+- **Player** (lobby.go): `id, name, heroIds[3], host, joinedAt` — **1 joueur = 3 héros** (équipe : le 1er
+  héros porte le nom du joueur, les 2 autres viennent du pool `companionNames`) ; le 1er joueur est l'hôte.
 - **Town** (inline in GameState): `x, y, hp(100), maxHp(100), defense(computed), buildings[], storage[]`.
   **`storage` = the Bank** (shared town stash).
 - **Hero**: `id, name, x, y, pa(6), maxPa, hp, maxHp, stats{force,dexterite,agilite,endurance,athletisme,
@@ -141,6 +146,37 @@ frontend/src/
 per-building `defense`, per-building `cost`, `bank.capacity = sum(storage qty)`, and hero `Tétanisé`.
 
 ## 5. Game systems
+
+**Lobby / multijoueur** (`lobby.go`, `LobbyScreen.tsx`) — deux visibilités (`GameState.Visibility`,
+"" = private legacy) : **privée** = créée par un joueur, join par CODE, lancée par l'HÔTE, kick = hôte ;
+**publique** = créée automatiquement par le serveur ("Expédition publique", `ensurePublicLobby` au boot
++ janitor + après chaque auto-start → il y a toujours un salon public ouvert), listée sans joinCode,
+**démarre seule dès `minPlayers` atteint** (`MaybeAutoStart`), start manuel/bots/pouvoirs d'hôte
+refusés, expulsion par **vote majoritaire** (`VoteKick`, `KickVotes`, majorité stricte des autres
+humains, lobby only, votes purgés aux départs). **Mode solo** : `POST /api/games/solo` = partie privée
+créateur + 4 bots lancée immédiatement (bouton menu "🤖 Solo"). Une partie naît en statut **`lobby`** :
+`POST /api/games/lobby` génère le monde SANS héros, SANS monstres ni vague programmée, avec un `joinCode`
+(5 car.) et auto-join du créateur (= hôte 👑). Chaque `join` (par code ou id) spawn l'ÉQUIPE de 3 héros du
+joueur en ville (stats du pool GDD cyclées). L'hôte lance via `POST /{id}/start` **une fois `minPlayers`
+atteint** (min défaut 2, max défaut 4, clamp 1–8) → statut `active`, 1re vague programmée, et **seeding
+des monstres ∝ joueurs** (`SeedStartingMonsters`: packs = 4+2*(joueurs-1), taille +rand(joueurs)).
+Les vagues sont inertes en lobby. **Bots** : l'hôte peut ajouter des joueurs-IA (`POST /{id}/bots`,
+`Player.Bot`, noms du pool `botNames`) — équipe de 3 héros, comptent pour min/max, expulsables ; le
+scheduler les fait jouer (`bots.go BotAct`, ~1 action/héros/min : combat iso AUTO-RÉSOLU sur un pack de
+leur case si l'équipe 100% bot fait le poids (`botShouldEngage`, IA héros = `heroAutoTurn` miroir de
+l'IA monstre, bataille entière résolue sous le verrou du tick), sinon boule de feu ; retraite/cachette
+avant la vague, eau/dépôt/chantier/réparation en ville, fouille et exploration sinon, évolution de
+classe auto aux paliers jour 2/4 selon les stats (`botEvolve`) — via les actions publiques validées ;
+pas encore de craft [aucune mécanique de consommation d'objets]). Tout est persisté en SQLite (le salon survit à un redémarrage ; les
+salons ouverts se listent via `GET /api/games?status=lobby`). Le front garde l'identité par partie dans
+`localStorage` (`echoterra:player:<gameId>`, nom dans `echoterra:playerName`) ; la salle d'attente poll
+toutes les 3 s et bascule tout le monde en jeu quand l'hôte lance. `POST /api/games` (legacy) reste le
+flux solo instantané à 3 héros pour "Test rapide". **Ownership serveur** : dans une partie AVEC joueurs,
+toute action héros (move/search/hide/escape/fireball/evolve/combat, worker de ville, unité de combat)
+exige le `playerId` propriétaire (`CheckHeroOwnership`; legacy 0-players = libre) ; `town/deposit` ne
+dépose que le sac de SON héros. `POST /{id}/leave` (lobby only, salon vidé = supprimé, hôte transféré),
+`POST /{id}/kick` (hôte). Goroutine `lobbyJanitor` purge les lobbies non lancés de +24 h (`store.Delete`).
+Tests: `lobby_test.go`, `store_test.go`, worldgen `TestNewLobby*`.
 
 **Movement / PA** — 6 PA/hero/day. Move = 1 PA/orthogonal step (blocked if `Tétanisé`; clears `Caché`;
 PA→0 adds `Fatigue`). Search = 1 PA, loot by biome, decrements tile `resources`.
@@ -208,7 +244,17 @@ enter (`store.ts`) and the **HeroOverlay** uses it for the Evolve picker and Uni
 ```
 GET  /healthz
 GET  /api/recipes
-POST /api/games                                  {width?,height?,seed?} -> GameState
+GET  /api/games?status=lobby                      list game summaries (id,name,joinCode,players,min/max…)
+POST /api/games                                  {width?,height?,seed?} -> GameState (legacy solo, 3 héros)
+POST /api/games/lobby                            {playerName,name?,minPlayers?,maxPlayers?,…} -> {game,player}
+POST /api/games/solo                             {playerName} -> {game,player} (privée + 4 bots, lancée)
+POST /api/games/join                             {code,playerName} -> {game,player} (code OU id)
+POST /api/games/{id}/join                        {playerName} -> {game,player}
+POST /api/games/{id}/start                       {playerId} -> GameState (hôte, exige minPlayers)
+POST /api/games/{id}/leave                       {playerId} -> {left,deleted[,game]} (lobby only)
+POST /api/games/{id}/kick                        {playerId,targetId} -> privé: {game,kicked} (hôte) ;
+                                                 public: {game,votes,needed,kicked} (vote majoritaire)
+POST /api/games/{id}/bots                        {playerId} -> {game,player} (hôte; ajoute un joueur-IA)
 GET  /api/games/{id}                              (runs wave catch-up)
 GET  /api/games/{id}/world
 POST /api/games/{id}/advance                      force a wave (dev)
@@ -357,8 +403,9 @@ canvas2d** so the SAME `drawMap()` feeds both the live canvas and the PNG export
 - **Preview/screenshot tooling** is flaky in the headless tab (RAF pauses → screenshots/Phaser snapshots time out;
   synthetic Phaser pointer events need a preceding `pointermove` and aren't reliable). Verify via
   `preview_eval` + the dev hook **`window.__eg = { store, bus, EV }`** (DEV only) and `preview_snapshot`/`preview_inspect`.
-- **Scheduler concurrency**: the 15s wave goroutine mutates cached games without per-game locks — fine for
-  single-player prototyping, add locking before real multiplayer.
+- **Per-game locking**: every access to a game's state must hold its per-game mutex (`Server.lockGame`).
+  HTTP requests get it automatically via `gameLockMiddleware` on the `/{gameID}` route; the wave scheduler,
+  `lobbyJanitor` and `join`-by-code take it explicitly. `GameState` itself has NO internal synchronization.
 
 ## 9. Pending / next steps
 
@@ -370,6 +417,11 @@ canvas2d** so the SAME `drawMap()` feeds both the live canvas and the PNG export
    pack. Radial-menu button 🔥; route `POST /heroes/{h}/fireball`; tests in `fireball_test.go`. (TODO: gate it to a
    Mage [MAP] class once the class-evolution system exists — currently every hero can cast it.)
 3. Combat **Defend/Guard** action (3rd button on mockup page 3).
+3b. ✅ **Lobby multijoueur** (créer / rejoindre par code / attente `minPlayers` / lancement hôte,
+   persisté SQLite) — DONE (2026-07-06, voir `journal.md`). ✅ Ownership serveur des héros par joueur,
+   quitter/expulser un joueur, purge des salons abandonnés (même jour). ✅ 2026-07-07 : 1 joueur =
+   3 héros (équipes), spawns initiaux ∝ nombre de joueurs (au lancement), verrous par partie.
+   Restent : reconnexion sans localStorage, présence en ligne, hordePower ∝ joueurs.
 4. **Building skills** — multiple upgradable skills per building (mockup page 6), beyond a single level.
 5. ✅ **Gardien** class counting as 3 in the Tétanisé calc — DONE. `gardienWeight()` in `wave.go`;
    tests `TestGardienCountsAsThreeForTetanise` / `TestNonGardienGetsStuckOnLargePack` in `evolve_test.go`.
@@ -383,3 +435,7 @@ canvas2d** so the SAME `drawMap()` feeds both the live canvas and the PNG export
 
 A condensed version lives in the user's auto-memory (`echoterra-project.md` + `MEMORY.md`). This `CLAUDE.md` is
 the full reference — keep it in sync when systems change.
+
+**`journal.md`** (racine du repo) : journal inter-sessions — chaque session de travail y ajoute une
+entrée en haut (date, fait, fonctionnel/vérifié, à faire). **Le lire en début de session** pour l'état
+d'avancement réel, et le mettre à jour avant de pousser.
