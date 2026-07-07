@@ -5,6 +5,7 @@ pour le combat). Ce dépôt contient une **tranche verticale** jouable : carte g
 cases → combat isométrique sur une case occupée par un monstre → retour à la carte, avec
 état **autoritatif côté serveur**.
 
+
 ## Stack
 
 | Couche | Techno |
