@@ -42,7 +42,17 @@ func (g *GameState) botHeroAct(h *Hero) bool {
 	inTown := h.X == g.Town.X && h.Y == g.Town.Y
 	distTown := absI(g.Town.X-h.X) + absI(g.Town.Y-h.Y)
 
-	// A pack on my own tile (or pinning me) is the one thing worth a Fire ball.
+	// A pack on my own tile: fight it out when the bot party can match it (full iso
+	// combat, auto-resolved), otherwise thin it with a Fire ball.
+	if t := g.TileAt(h.X, h.Y); t != nil && t.MonsterID != "" {
+		if m := g.Monsters[t.MonsterID]; m != nil && g.botShouldEngage(h, m) {
+			if c, err := g.StartCombat(h.ID); err == nil {
+				c.AutoResolve()
+				g.FinishCombat(c)
+				return true
+			}
+		}
+	}
 	if h.PA >= FireballPACost {
 		t := g.TileAt(h.X, h.Y)
 		if (t != nil && t.MonsterID != "") || h.HasState(StateTetanise) {
@@ -53,6 +63,11 @@ func (g *GameState) botHeroAct(h *Hero) bool {
 	}
 	if h.HasState(StateTetanise) {
 		return false // pinned and unable to burn free — wait for help
+	}
+
+	// Seize a class evolution the moment its day gate opens (free, like a human would).
+	if g.botEvolve(h) {
+		return true
 	}
 
 	// Wounded, or the wave clock beats the walk home: retreat / conceal.
@@ -100,6 +115,69 @@ func (g *GameState) botHeroAct(h *Hero) bool {
 		return g.botStepToward(h, tx, ty)
 	}
 	return g.botStepToward(h, g.Town.X, g.Town.Y) // nothing left out here — drift home
+}
+
+// botShouldEngage decides whether a bot hero opens a full (auto-resolved) combat on
+// the pack sharing its tile: every living hero on the tile must be bot-owned (never
+// drag a human into a fight the server plays for them), and the party must at least
+// match the pack's combat units (capped at 4 like NewCombat).
+func (g *GameState) botShouldEngage(h *Hero, m *Monster) bool {
+	units := m.Count
+	if units < 1 {
+		units = 1
+	}
+	if units > 4 {
+		units = 4
+	}
+	party := 0
+	for _, hh := range g.Heroes {
+		if hh.HP > 0 && hh.X == h.X && hh.Y == h.Y {
+			if !g.botOwnsHero(hh.ID) {
+				return false
+			}
+			party++
+		}
+	}
+	return party >= units
+}
+
+// botOwnsHero reports whether the hero belongs to a bot player.
+func (g *GameState) botOwnsHero(heroID string) bool {
+	for _, p := range g.Players {
+		if p.Bot && p.OwnsHero(heroID) {
+			return true
+		}
+	}
+	return false
+}
+
+// botEvolve picks a class fitting the hero's stats once the day gate opens (the
+// EvolveHero validation owns the gates, so trying early is a harmless no-op).
+func (g *GameState) botEvolve(h *Hero) bool {
+	var pick string
+	switch h.ClassTier {
+	case 0:
+		switch {
+		case h.Stats.Precision >= h.Stats.Agilite && h.Stats.Precision >= h.Stats.Force:
+			pick = "chasseur"
+		case h.Stats.Agilite > h.Stats.Force:
+			pick = "eclaireur"
+		default:
+			pick = "pionnier"
+		}
+	case 1:
+		switch {
+		case h.Stats.Force+h.Stats.Endurance >= h.Stats.Dexterite+h.Stats.Agilite:
+			pick = "gardien"
+		case h.Stats.Dexterite >= h.Stats.Agilite:
+			pick = "recuperateur"
+		default:
+			pick = "herboriste"
+		}
+	default:
+		return false
+	}
+	return g.EvolveHero(h.ID, pick) == nil
 }
 
 // botBuild spends 1 PA on the most useful town work: finish/start a construction

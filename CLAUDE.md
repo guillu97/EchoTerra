@@ -155,9 +155,12 @@ atteint** (min défaut 2, max défaut 4, clamp 1–8) → statut `active`, 1re v
 des monstres ∝ joueurs** (`SeedStartingMonsters`: packs = 4+2*(joueurs-1), taille +rand(joueurs)).
 Les vagues sont inertes en lobby. **Bots** : l'hôte peut ajouter des joueurs-IA (`POST /{id}/bots`,
 `Player.Bot`, noms du pool `botNames`) — équipe de 3 héros, comptent pour min/max, expulsables ; le
-scheduler les fait jouer (`bots.go BotAct`, ~1 action/héros/min : boule de feu défensive, retraite/
-cachette avant la vague, eau/dépôt/chantier/réparation en ville, fouille et exploration sinon — via les
-actions publiques validées ; pas encore de combat iso/craft/évolution). Tout est persisté en SQLite (le salon survit à un redémarrage ; les
+scheduler les fait jouer (`bots.go BotAct`, ~1 action/héros/min : combat iso AUTO-RÉSOLU sur un pack de
+leur case si l'équipe 100% bot fait le poids (`botShouldEngage`, IA héros = `heroAutoTurn` miroir de
+l'IA monstre, bataille entière résolue sous le verrou du tick), sinon boule de feu ; retraite/cachette
+avant la vague, eau/dépôt/chantier/réparation en ville, fouille et exploration sinon, évolution de
+classe auto aux paliers jour 2/4 selon les stats (`botEvolve`) — via les actions publiques validées ;
+pas encore de craft [aucune mécanique de consommation d'objets]). Tout est persisté en SQLite (le salon survit à un redémarrage ; les
 salons ouverts se listent via `GET /api/games?status=lobby`). Le front garde l'identité par partie dans
 `localStorage` (`echoterra:player:<gameId>`, nom dans `echoterra:playerName`) ; la salle d'attente poll
 toutes les 3 s et bascule tout le monde en jeu quand l'hôte lance. `POST /api/games` (legacy) reste le

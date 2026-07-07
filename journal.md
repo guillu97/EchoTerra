@@ -6,6 +6,42 @@
 
 ---
 
+## 2026-07-07 (3) — Bots v2 : combat iso auto-résolu + évolution de classe
+
+### Fait
+- **Combat isométrique auto-résolu** (`combat.go AutoResolve/heroAutoTurn`) : quand un pack campe sur
+  la case d'une équipe de bots, ils ENGAGENT le vrai combat tactique — l'IA des unités héros est
+  symétrique à celle des monstres (approche du plus proche ennemi via `stepToward`, frappe avec la
+  compétence de classe en mêlée [+3], respect de Root/Stun) et la bataille entière est résolue
+  serveur-side dans le même tick (`ActiveCombat` posé et libéré sous le même verrou — les humains ne
+  voient jamais un combat bloquant). `FinishCombat` applique le résultat : victoire = pack retiré +
+  trophées ; défaite = retraite en ville à 1 PV + Tétanisé (règles inchangées).
+- **Décision d'engagement** (`bots.go botShouldEngage`) : combat seulement si TOUS les héros vivants de
+  la case appartiennent à des bots (jamais entraîner un humain dans un combat auto-joué) ET si l'équipe
+  égale au moins les unités du pack (cap 4 comme `NewCombat`). Sinon : boule de feu pour amincir le
+  pack (comportement v1 conservé).
+- **Évolution de classe** (`botEvolve`) : dès l'ouverture des paliers (jour 2/4, validés par
+  `EvolveHero`), chaque héros bot choisit une classe selon ses stats — précision→Chasseur,
+  agilité→Éclaireur, sinon Pionnier ; puis force+endurance→Gardien, dextérité→Récupérateur, sinon
+  Herboriste.
+- **Fix robustesse** : `StartCombat` initialise `g.Combats` si nil (parties désérialisées de lignes
+  SQLite antérieures au champ → panic évitée).
+
+### Fonctionnel (vérifié)
+- `go test ./...` OK — nouveaux tests : engagement + auto-résolution (pack retiré, combat "won",
+  `ActiveCombat` libéré) ; pas d'engagement en infériorité (4 unités vs 3 héros → boule de feu) ; veto
+  si un humain partage la case ; évolution aux paliers jour 2 puis jour 4 (tier 1 → 2, classes stats).
+
+### À faire / limites connues
+- **Craft bot non implémenté** : il n'existe pas encore de mécanique de CONSOMMATION d'objets (soins,
+  nourriture) côté serveur — un bot qui crafte ne pourrait rien en faire. À faire quand l'usage
+  d'objets existera.
+- Les bots ne montent pas la Tour/upgrades (voulu : ne pas vider la Banque en silence).
+- Reste des itérations précédentes : reconnexion sans localStorage, présence en ligne, hordePower ∝
+  joueurs, distinction UI des héros des autres joueurs.
+
+---
+
 ## 2026-07-07 (2) — Bots : l'hôte ajoute des joueurs-IA qui agissent comme des joueurs
 
 ### Fait
