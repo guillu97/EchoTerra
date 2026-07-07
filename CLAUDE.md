@@ -71,13 +71,15 @@ npm --prefix frontend run dev
 
 Verify: `go -C backend test ./...` · `npx tsc -b` (in frontend) · `npm run build` (in frontend).
 
-**Déploiement Vercel (gratuit)** — voir `DEPLOY.md`. Frontend = build Vite statique ; backend = UNE
-fonction Go serverless (`api/index.go` → package public `backend/serverless` → `api.NewServerless`,
-mode *stateless* : pas de goroutines ni de cache inter-requêtes, vagues/bots/housekeeping rattrapés
-paresseusement — `BotCatchUp` dans `bots.go`, `lazyHousekeeping` sur la liste des parties). Le store
-(`store.Open`) accepte un DSN `postgres://` (Neon via le Marketplace Vercel, var `DATABASE_URL`) en
-plus d'un chemin SQLite ; `vercel.json` route `/api/*` + `/healthz` vers la fonction ; le `go.mod`
-racine = wrapper Vercel (replace → `./backend`), le dev local reste `go -C backend …`.
+**Déploiement Vercel (gratuit)** — voir `DEPLOY.md`. Preset **Services** (`vercel.json`) : service
+`frontend` (root `frontend/`, Vite, statique CDN) + service `backend` (root `backend/`, le preset Go
+détecte `cmd/server/main.go` — le VRAI serveur, qui écoute `PORT` sur Vercel) ; rewrites `/api/*` +
+`/healthz` → backend, reste → frontend. Quand `VERCEL` est présent, `main.go` choisit
+`api.NewServerless` (mode *stateless* : pas de goroutines ni de cache inter-requêtes ; vagues déjà
+lazy, bots rattrapés par `BotCatchUp` (~1 round/min, plafonné, `GameState.LastBotAt`), purge lobbies +
+salon public par `lazyHousekeeping` sur la liste des parties). Le store (`store.Open`) accepte un DSN
+`postgres://` (Neon via le Marketplace Vercel, var `DATABASE_URL`) en plus d'un chemin SQLite.
+`backend/serverless` = handler FaaS de secours + harnais e2e du mode stateless.
 
 **Windows specifics:** dev shell is PowerShell. Go isn't on git-bash PATH → run Go via PowerShell with
 `$env:Path = [Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [Environment]::GetEnvironmentVariable("Path","User")`.
@@ -89,7 +91,7 @@ the repo) because git-bash's keys are passphrase-locked / agent not running. Rem
 
 ```
 backend/
-  cmd/server/main.go            bootstrap (router, store, env -> game.WaveInterval)
+  cmd/server/main.go            bootstrap (router, store, env; écoute PORT + stateless si VERCEL)
   internal/api/api.go           chi routes, CORS, in-memory cache + SQLite, wave scheduler, handlers
   internal/game/
     game.go                     GameState, Hero, Tile, Monster, Biome, Stats, Item (+ Town struct inline)
@@ -107,9 +109,8 @@ backend/
     *_test.go                   worldgen, combat, tetanise, build (TestBuildConsumesBankMaterials), evolve
   internal/store/store.go       SQLite OU Postgres (DSN postgres://): one row per game, state as JSON blob
   internal/worldgen/worldgen.go GenerateTiles (Perlin->biomes), NewGame (town center, heroes, monsters)
-  serverless/serverless.go      public wrapper env->store->api.NewServerless (entrée Vercel + tests e2e)
-api/index.go                    fonction serverless Vercel (délègue à backend/serverless)
-vercel.json / go.mod (racine)   config Vercel (build front + rewrites /api) / module wrapper Go
+  serverless/serverless.go      handler FaaS de secours + harnais des tests e2e du mode stateless
+vercel.json                     preset Services: services frontend (Vite) + backend (Go) + rewrites
 frontend/src/
   main.tsx                      ReactDOM (NO StrictMode — would double-mount Phaser)
   App.tsx                       phone-frame device + screen router
