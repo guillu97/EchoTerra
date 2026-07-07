@@ -71,6 +71,14 @@ npm --prefix frontend run dev
 
 Verify: `go -C backend test ./...` · `npx tsc -b` (in frontend) · `npm run build` (in frontend).
 
+**Déploiement Vercel (gratuit)** — voir `DEPLOY.md`. Frontend = build Vite statique ; backend = UNE
+fonction Go serverless (`api/index.go` → package public `backend/serverless` → `api.NewServerless`,
+mode *stateless* : pas de goroutines ni de cache inter-requêtes, vagues/bots/housekeeping rattrapés
+paresseusement — `BotCatchUp` dans `bots.go`, `lazyHousekeeping` sur la liste des parties). Le store
+(`store.Open`) accepte un DSN `postgres://` (Neon via le Marketplace Vercel, var `DATABASE_URL`) en
+plus d'un chemin SQLite ; `vercel.json` route `/api/*` + `/healthz` vers la fonction ; le `go.mod`
+racine = wrapper Vercel (replace → `./backend`), le dev local reste `go -C backend …`.
+
 **Windows specifics:** dev shell is PowerShell. Go isn't on git-bash PATH → run Go via PowerShell with
 `$env:Path = [Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [Environment]::GetEnvironmentVariable("Path","User")`.
 **Git push uses Windows-native OpenSSH** (`core.sshCommand=C:/Windows/System32/OpenSSH/ssh.exe`, set in
@@ -97,8 +105,11 @@ backend/
     craft.go                    Recipe, Recipes catalog, Craft (town vs field), hero-item helpers
     monsters.go                 NewMonster, MonsterSpecies
     *_test.go                   worldgen, combat, tetanise, build (TestBuildConsumesBankMaterials), evolve
-  internal/store/store.go       SQLite: one row per game, state as JSON blob
+  internal/store/store.go       SQLite OU Postgres (DSN postgres://): one row per game, state as JSON blob
   internal/worldgen/worldgen.go GenerateTiles (Perlin->biomes), NewGame (town center, heroes, monsters)
+  serverless/serverless.go      public wrapper env->store->api.NewServerless (entrée Vercel + tests e2e)
+api/index.go                    fonction serverless Vercel (délègue à backend/serverless)
+vercel.json / go.mod (racine)   config Vercel (build front + rewrites /api) / module wrapper Go
 frontend/src/
   main.tsx                      ReactDOM (NO StrictMode — would double-mount Phaser)
   App.tsx                       phone-frame device + screen router

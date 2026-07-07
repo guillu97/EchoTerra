@@ -26,6 +26,12 @@ type Server struct {
 	mu    sync.Mutex // guards cache + locks maps
 	cache map[string]*game.GameState
 	locks map[string]*sync.Mutex // per-game mutex: one writer/reader at a time per game
+	// stateless marks a serverless deployment (e.g. one Vercel function): no
+	// background goroutines (waves AND bots catch up lazily in tick, housekeeping
+	// runs on the lobby-list poll) and no cross-request cache — concurrent function
+	// instances would serve each other stale state, so the store is the only source
+	// of truth. The per-game mutex still serializes requests within one instance.
+	stateless bool
 }
 
 // New creates a Server backed by the given store and starts the wave scheduler and
@@ -35,6 +41,14 @@ func New(st *store.Store) *Server {
 	s.ensurePublicLobby() // there is always an open public game to join
 	go s.waveScheduler()
 	go s.lobbyJanitor()
+	return s
+}
+
+// NewServerless creates a Server for platforms without a resident process (Vercel
+// functions…): everything the goroutines of New do happens lazily instead.
+func NewServerless(st *store.Store) *Server {
+	s := &Server{store: st, cache: map[string]*game.GameState{}, locks: map[string]*sync.Mutex{}, stateless: true}
+	s.ensurePublicLobby()
 	return s
 }
 
@@ -104,11 +118,17 @@ func (s *Server) drop(id string) {
 }
 
 // tick resolves any due wave for a freshly loaded game and refreshes derived fields.
+// In stateless mode it also replays the bot rounds the missing scheduler would have
+// run since the last request.
 func (s *Server) tick(gs *game.GameState) {
 	if gs == nil {
 		return
 	}
-	changed := gs.CatchUpWaves(time.Now())
+	now := time.Now()
+	changed := gs.CatchUpWaves(now)
+	if s.stateless && gs.BotCatchUp(now) {
+		changed = true
+	}
 	gs.Recompute()
 	if changed {
 		_ = s.store.Save(gs)
@@ -216,8 +236,12 @@ func writeErr(w http.ResponseWriter, code int, msg string) {
 	writeJSON(w, code, map[string]string{"error": msg})
 }
 
-// load fetches a game from cache or the store.
+// load fetches a game from cache or the store. Stateless mode always reads the
+// store: another function instance may have written since our last request.
 func (s *Server) load(id string) (*game.GameState, error) {
+	if s.stateless {
+		return s.store.Load(id)
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if gs, ok := s.cache[id]; ok {
@@ -235,9 +259,11 @@ func (s *Server) load(id string) (*game.GameState, error) {
 
 func (s *Server) persist(gs *game.GameState) {
 	gs.Recompute() // keep derived state (town defense, Tétanisé) fresh on every write
-	s.mu.Lock()
-	s.cache[gs.ID] = gs
-	s.mu.Unlock()
+	if !s.stateless {
+		s.mu.Lock()
+		s.cache[gs.ID] = gs
+		s.mu.Unlock()
+	}
 	_ = s.store.Save(gs)
 }
 
@@ -298,8 +324,42 @@ func summarize(gs *game.GameState) gameSummary {
 	}
 }
 
+// lazyHousekeeping replaces the janitor + ensurePublicLobby goroutine work on
+// serverless: purge stale lobbies and keep one public lobby open. It runs on the
+// lobby-list poll (the title screen), i.e. whenever someone is around to care.
+func (s *Server) lazyHousekeeping() {
+	games, err := s.store.List(200)
+	if err != nil {
+		return
+	}
+	cutoff := time.Now().Add(-lobbyTTL)
+	hasPublic := false
+	for _, gs := range games {
+		if gs.Status != game.StatusLobby {
+			continue
+		}
+		if !gs.CreatedAt.IsZero() && gs.CreatedAt.Before(cutoff) {
+			unlock := s.lockGame(gs.ID)
+			s.drop(gs.ID)
+			unlock()
+			continue
+		}
+		if gs.IsPublic() {
+			hasPublic = true
+		}
+	}
+	if !hasPublic {
+		gs := worldgen.NewLobby(22, 22, time.Now().UnixNano(), publicLobbyName, 2, 4)
+		gs.Visibility = game.VisibilityPublic
+		s.persist(gs)
+	}
+}
+
 // listGames returns recent games as summaries. ?status=lobby filters to open lobbies.
 func (s *Server) listGames(w http.ResponseWriter, r *http.Request) {
+	if s.stateless {
+		s.lazyHousekeeping()
+	}
 	games, err := s.store.List(50)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, err.Error())

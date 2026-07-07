@@ -1,37 +1,71 @@
 // Package store persists game state. For the prototype it serializes the whole
-// GameState to JSON and keeps one row per game in SQLite (pure-Go driver, no CGo).
-// Swapping to PostgreSQL later only changes the DSN and driver import.
+// GameState to JSON and keeps one row per game. Two backends share the same schema:
+// SQLite (local dev, pure-Go driver, no CGo) and PostgreSQL (serverless deploys —
+// e.g. Neon behind Vercel — where the filesystem is ephemeral). The DSN picks the
+// backend: a "postgres://" / "postgresql://" URL means Postgres, anything else is
+// treated as a SQLite file path.
 package store
 
 import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strconv"
+	"strings"
+	"time"
 
+	_ "github.com/lib/pq"
 	_ "modernc.org/sqlite"
 
 	"echoterra/internal/game"
 )
 
-// Store is a thread-safe-ish persistence layer (SQLite handles its own locking).
+// Store is a thread-safe-ish persistence layer (the database handles its own locking).
 type Store struct {
-	db *sql.DB
+	db       *sql.DB
+	postgres bool
 }
 
-// Open opens (or creates) the SQLite database at path and ensures the schema.
-func Open(path string) (*Store, error) {
-	db, err := sql.Open("sqlite", path)
+// Open opens the database named by dsn (SQLite path or Postgres URL) and ensures
+// the schema.
+func Open(dsn string) (*Store, error) {
+	driver := "sqlite"
+	postgres := strings.HasPrefix(dsn, "postgres://") || strings.HasPrefix(dsn, "postgresql://")
+	if postgres {
+		driver = "postgres"
+	}
+	db, err := sql.Open(driver, dsn)
 	if err != nil {
 		return nil, fmt.Errorf("open db: %w", err)
 	}
+	s := &Store{db: db, postgres: postgres}
 	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS games (
 		id         TEXT PRIMARY KEY,
 		state      TEXT NOT NULL,
-		updated_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+		updated_at BIGINT NOT NULL
 	)`); err != nil {
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
-	return &Store{db: db}, nil
+	return s, nil
+}
+
+// rebind converts ?-style placeholders to $1..$n for Postgres.
+func (s *Store) rebind(query string) string {
+	if !s.postgres {
+		return query
+	}
+	var b strings.Builder
+	n := 0
+	for _, c := range query {
+		if c == '?' {
+			n++
+			b.WriteByte('$')
+			b.WriteString(strconv.Itoa(n))
+			continue
+		}
+		b.WriteRune(c)
+	}
+	return b.String()
 }
 
 // Close releases the database handle.
@@ -43,15 +77,15 @@ func (s *Store) Save(gs *game.GameState) error {
 	if err != nil {
 		return err
 	}
-	_, err = s.db.Exec(`INSERT INTO games (id, state, updated_at) VALUES (?, ?, strftime('%s','now'))
-		ON CONFLICT(id) DO UPDATE SET state=excluded.state, updated_at=excluded.updated_at`,
-		gs.ID, string(blob))
+	_, err = s.db.Exec(s.rebind(`INSERT INTO games (id, state, updated_at) VALUES (?, ?, ?)
+		ON CONFLICT(id) DO UPDATE SET state=excluded.state, updated_at=excluded.updated_at`),
+		gs.ID, string(blob), time.Now().Unix())
 	return err
 }
 
 // Delete removes a game row (used to purge empty/abandoned lobbies).
 func (s *Store) Delete(id string) error {
-	_, err := s.db.Exec(`DELETE FROM games WHERE id = ?`, id)
+	_, err := s.db.Exec(s.rebind(`DELETE FROM games WHERE id = ?`), id)
 	return err
 }
 
@@ -62,7 +96,7 @@ func (s *Store) List(limit int) ([]*game.GameState, error) {
 	if limit <= 0 {
 		limit = 50
 	}
-	rows, err := s.db.Query(`SELECT state FROM games ORDER BY updated_at DESC LIMIT ?`, limit)
+	rows, err := s.db.Query(s.rebind(`SELECT state FROM games ORDER BY updated_at DESC LIMIT ?`), limit)
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +119,7 @@ func (s *Store) List(limit int) ([]*game.GameState, error) {
 // Load fetches a game state by id. Returns (nil, nil) if not found.
 func (s *Store) Load(id string) (*game.GameState, error) {
 	var blob string
-	err := s.db.QueryRow(`SELECT state FROM games WHERE id = ?`, id).Scan(&blob)
+	err := s.db.QueryRow(s.rebind(`SELECT state FROM games WHERE id = ?`), id).Scan(&blob)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
