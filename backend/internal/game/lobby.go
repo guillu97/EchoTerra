@@ -29,6 +29,7 @@ type Player struct {
 	Name     string    `json:"name"`
 	HeroIDs  []string  `json:"heroIds"`
 	Host     bool      `json:"host"` // the creator; only the host can launch the game
+	Bot      bool      `json:"bot"`  // computer-controlled player (added by the host)
 	JoinedAt time.Time `json:"joinedAt"`
 }
 
@@ -119,6 +120,36 @@ func (g *GameState) AddPlayer(name string, now time.Time) (*Player, error) {
 		p.HeroIDs = append(p.HeroIDs, h.ID)
 	}
 	g.Players = append(g.Players, p)
+	return p, nil
+}
+
+// botNames is the pool of bot player names (their companions come from
+// companionNames like any player's team).
+var botNames = []string{"Marcel", "Odile", "Gustave", "Colette", "Firmin", "Suzette", "Léon", "Berthe"}
+
+// AddBot lets the host add a computer-controlled player to the lobby. Bots count
+// toward MinPlayers/MaxPlayers exactly like humans and field a 3-hero team.
+func (g *GameState) AddBot(hostID string, now time.Time) (*Player, error) {
+	host := g.PlayerByID(hostID)
+	if host == nil {
+		return nil, ActionError{"joueur inconnu"}
+	}
+	if !host.Host {
+		return nil, ActionError{"seul l'hôte peut ajouter un bot"}
+	}
+	name := botNames[len(g.Players)%len(botNames)]
+	// Avoid a duplicate name if a human already took it.
+	for _, p := range g.Players {
+		if p.Name == name {
+			name = name + " II"
+			break
+		}
+	}
+	p, err := g.AddPlayer(name, now)
+	if err != nil {
+		return nil, err
+	}
+	p.Bot = true
 	return p, nil
 }
 

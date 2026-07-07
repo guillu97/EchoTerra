@@ -6,6 +6,48 @@
 
 ---
 
+## 2026-07-07 (2) — Bots : l'hôte ajoute des joueurs-IA qui agissent comme des joueurs
+
+### Fait
+- **Ajout de bots en lobby** (`lobby.go`) : `Player.Bot bool` ; `AddBot(hostID, now)` (hôte uniquement,
+  nom du pool `botNames` — Marcel, Odile, Gustave… — suffixe "II" si collision). Un bot est un joueur
+  normal : équipe de 3 héros, compte pour `minPlayers`/`maxPlayers` (un hôte seul + 1 bot peut lancer
+  une partie min 2), expulsable via kick. Route `POST /{id}/bots` `{playerId}` → `{game, player}`.
+- **Moteur de comportement** (`bots.go`) : `BotAct()` = au plus UNE action par héros bot par appel,
+  cadencé par le scheduler (1 action/héros/minute → la journée d'un bot s'étale au lieu de brûler ses
+  6 PA d'un coup). Priorités par héros : ① boule de feu sur un pack sur SA case ou s'il est Tétanisé
+  (se libérer) ; ② blessé (<40 % PV) ou plus assez de PA pour rentrer → retraite vers la ville, et à
+  1 PA loin de tout → se cacher avant la vague ; ③ en ville : puiser sa ration d'eau si Soif, déposer
+  son butin en Banque, terminer/démarrer un chantier si la Banque le permet, réparer un bâtiment sous
+  50 % de durabilité (dès le départ ils réparent Muraille 20/100 et Porte 40/100 — vérifié), sinon
+  repartir récolter ; ④ sur le terrain : fouiller la case si elle a des ressources, sinon marcher vers
+  la ressource découverte la plus proche (contournement des packs : les 4 directions sont classées par
+  distance résultante, jamais de case à monstres sauf destination). Tout passe par les actions
+  publiques validées (MoveHero/SearchTile/TownAction/FireballHero/…) — mêmes règles que les humains.
+- **Fix deadlock** : `POST /{id}/join` passait par le middleware de verrou ET `s.join` reprenait le
+  même mutex (non réentrant) → gel. Corrigé : `join` ne verrouille plus ; `joinByCode` (hors
+  middleware) prend le verrou explicitement.
+- **Frontend** : bouton "🤖 Ajouter un bot" (hôte, salle d'attente, grisé si complet), icône 🤖 dans la
+  liste des joueurs, expulsion ✕ des bots, `Player.bot` dans les types, `api.addBot`, `store.addBot`.
+
+### Fonctionnel (vérifié)
+- `go test ./...` OK — nouveaux tests `bots_test.go` : AddBot hôte-seulement + compte pour le start,
+  fouille sur le terrain, dépôt + ration d'eau en ville, retour quand PA == distance, cachette à 1 PA,
+  boule de feu sur pack, les héros humains ne sont JAMAIS pilotés par `BotAct`.
+- E2E serveur réel : refus d'ajout par un invité · "Gustave" (bot, 3 héros) · kick d'un bot (retire
+  ses 3 héros) · join par code OK (deadlock corrigé) · 4 joueurs (dont 1 bot) → 12 héros, 10 packs ·
+  après ~1 min les héros bots ont agi (PA 6→5 : réparation des défenses endommagées).
+- `tsc -b` + `npm run build` OK.
+
+### À faire / limites connues
+- Bots v1 = mode carte uniquement : pas de combat iso (ils nettoient à la boule de feu), pas de craft,
+  pas d'évolution de classe aux jours 2/4. À ajouter (auto-résolution de combat = le gros morceau).
+- Les bots n'agissent que si la partie est en cache (scheduler) — après un redémarrage serveur, ils
+  reprennent au premier chargement de la partie (même limitation que les vagues, rattrapage lazy).
+- Le rythme (1 action/héros/min) est fixe ; pourrait dépendre de `ECHOTERRA_WAVE_SECONDS`.
+
+---
+
 ## 2026-07-07 — 3 héros par joueur, spawns proportionnels aux joueurs, verrous par partie
 
 ### Fait

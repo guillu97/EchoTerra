@@ -148,6 +148,7 @@ export interface Player {
   name: string;
   heroIds: string[];
   host: boolean;
+  bot: boolean; // computer-controlled player (added by the host in the lobby)
   joinedAt: string;
 }
 

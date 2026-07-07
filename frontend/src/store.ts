@@ -98,6 +98,7 @@ interface StoreState {
   refreshLobby: () => Promise<void>;
   leaveLobby: () => Promise<void>;
   kickFromLobby: (targetId: string) => Promise<void>;
+  addBot: () => Promise<void>;
   townAction: (
     buildingId: string,
     action: "build" | "restore" | "use" | "water" | "toggle",
@@ -388,6 +389,15 @@ export const useStore = create<StoreState>((set, get) => {
         const next = await api.kickPlayer(game.id, playerId, targetId);
         adoptGame(next);
         pushLog("🚪 Joueur expulsé du salon.");
+      }),
+
+    addBot: () =>
+      withBusy(async () => {
+        const { game, playerId } = get();
+        if (!game || !playerId) return;
+        const res = await api.addBot(game.id, playerId);
+        adoptGame(res.game);
+        pushLog(`🤖 ${res.player.name} rejoint la partie (bot).`);
       }),
 
     leaveLobby: () =>

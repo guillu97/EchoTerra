@@ -117,7 +117,7 @@ function LobbyForms() {
 // --- waiting room --------------------------------------------------------------
 
 function WaitingRoom() {
-  const { game, playerId, startLobby, refreshLobby, leaveLobby, kickFromLobby, busy, error } =
+  const { game, playerId, startLobby, refreshLobby, leaveLobby, kickFromLobby, addBot, busy, error } =
     useStore();
   const [copied, setCopied] = useState(false);
 
@@ -154,7 +154,7 @@ function WaitingRoom() {
         <div className="lobby-players">
           {game.players.map((p) => (
             <div key={p.id} className={"lobby-player" + (p.id === playerId ? " me" : "")}>
-              <span>{p.host ? "👑" : "🧝"}</span>
+              <span>{p.host ? "👑" : p.bot ? "🤖" : "🧝"}</span>
               <span className="lobby-player-name">{p.name}</span>
               {p.id === playerId && <span className="lobby-me-tag">(toi)</span>}
               {isHost && p.id !== playerId && (
@@ -187,9 +187,18 @@ function WaitingRoom() {
         </div>
 
         {isHost ? (
-          <button className="pill red" disabled={busy || !enough} onClick={() => startLobby()}>
-            ⚔️ Lancer la partie
-          </button>
+          <>
+            <button
+              className="pill"
+              disabled={busy || game.players.length >= game.maxPlayers}
+              onClick={() => addBot()}
+            >
+              🤖 Ajouter un bot
+            </button>
+            <button className="pill red" disabled={busy || !enough} onClick={() => startLobby()}>
+              ⚔️ Lancer la partie
+            </button>
+          </>
         ) : (
           <div className="lobby-hint">L'hôte lancera la partie quand tout le monde sera là.</div>
         )}

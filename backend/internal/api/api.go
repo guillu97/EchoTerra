@@ -113,13 +113,17 @@ func (s *Server) tick(gs *game.GameState) {
 	}
 }
 
-// waveScheduler periodically advances waves for all live (cached) games so the town is
-// attacked on schedule even while a client is idle. NB: prototype-grade concurrency —
-// add per-game locking before real multiplayer load.
+// waveScheduler periodically advances waves for all live (cached) games so the town
+// is attacked on schedule even while a client is idle, and paces the bot players
+// (one action per bot hero every botEvery ticks, so a bot's day unfolds over minutes
+// instead of being burned instantly).
 func (s *Server) waveScheduler() {
+	const botEvery = 4 // bots act every 4th tick (~1/minute)
 	ticker := time.NewTicker(15 * time.Second)
 	defer ticker.Stop()
+	tickNo := 0
 	for range ticker.C {
+		tickNo++
 		now := time.Now()
 		s.mu.Lock()
 		games := make([]*game.GameState, 0, len(s.cache))
@@ -129,7 +133,11 @@ func (s *Server) waveScheduler() {
 		s.mu.Unlock()
 		for _, g := range games {
 			unlock := s.lockGame(g.ID)
-			if g.CatchUpWaves(now) {
+			changed := g.CatchUpWaves(now)
+			if tickNo%botEvery == 0 && g.BotAct() {
+				changed = true
+			}
+			if changed {
 				g.Recompute()
 				_ = s.store.Save(g)
 			}
@@ -173,6 +181,7 @@ func (s *Server) Router() http.Handler {
 			r.Post("/start", s.startGame)
 			r.Post("/leave", s.leaveGame)
 			r.Post("/kick", s.kickPlayer)
+			r.Post("/bots", s.addBot)
 			r.Get("/world", s.getWorld)
 			r.Post("/advance", s.advance)
 			r.Post("/town/action", s.townAction)
@@ -357,7 +366,10 @@ func (s *Server) joinByCode(w http.ResponseWriter, r *http.Request) {
 	}
 	for _, cand := range games {
 		if cand.Status == game.StatusLobby && (cand.JoinCode == code || cand.ID == body.Code) {
+			// This route lives outside the /{gameID} middleware: take the lock here.
+			unlock := s.lockGame(cand.ID)
 			s.join(w, cand.ID, body.PlayerName)
+			unlock()
 			return
 		}
 	}
@@ -373,11 +385,10 @@ func (s *Server) joinGame(w http.ResponseWriter, r *http.Request) {
 	s.join(w, chi.URLParam(r, "gameID"), body.PlayerName)
 }
 
-// join loads the canonical (cached) game and adds the player. It takes the game lock
-// itself because joinByCode reaches here outside the /{gameID} route middleware.
+// join loads the canonical (cached) game and adds the player. Callers must hold the
+// game lock (the /{gameID} middleware provides it; joinByCode takes it explicitly —
+// the per-game mutex is NOT reentrant, locking here again would deadlock).
 func (s *Server) join(w http.ResponseWriter, gameID, playerName string) {
-	unlock := s.lockGame(gameID)
-	defer unlock()
 	gs, err := s.load(gameID)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, err.Error())
@@ -444,6 +455,28 @@ func (s *Server) kickPlayer(w http.ResponseWriter, r *http.Request) {
 	}
 	s.persist(gs)
 	writeJSON(w, http.StatusOK, gs)
+}
+
+// addBot lets the host add a computer-controlled player to the lobby.
+func (s *Server) addBot(w http.ResponseWriter, r *http.Request) {
+	gs := s.mustGame(w, r)
+	if gs == nil {
+		return
+	}
+	var body struct {
+		PlayerID string `json:"playerId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeErr(w, http.StatusBadRequest, "corps invalide")
+		return
+	}
+	p, err := gs.AddBot(body.PlayerID, time.Now())
+	if err != nil {
+		writeActionErr(w, err)
+		return
+	}
+	s.persist(gs)
+	writeJSON(w, http.StatusOK, map[string]any{"game": gs, "player": p})
 }
 
 // startGame launches a lobby (host only, requires MinPlayers players).

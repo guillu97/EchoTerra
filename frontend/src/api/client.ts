@@ -68,6 +68,9 @@ export const api = {
   kickPlayer: (gameId: string, playerId: string, targetId: string) =>
     req<GameState>("POST", `/api/games/${gameId}/kick`, { playerId, targetId }),
 
+  addBot: (gameId: string, playerId: string) =>
+    req<JoinResponse>("POST", `/api/games/${gameId}/bots`, { playerId }),
+
   // Hero actions carry the acting player's id: multiplayer games enforce server-side
   // that a player only controls their OWN hero (legacy solo games ignore it).
   move: (gameId: string, heroId: string, dx: number, dy: number, playerId?: string) =>

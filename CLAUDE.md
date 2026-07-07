@@ -85,7 +85,8 @@ backend/
   internal/api/api.go           chi routes, CORS, in-memory cache + SQLite, wave scheduler, handlers
   internal/game/
     game.go                     GameState, Hero, Tile, Monster, Biome, Stats, Item (+ Town struct inline)
-    lobby.go                    Player, AddPlayer, StartGame, NewStarterHero, NewJoinCode, Status* consts
+    lobby.go                    Player, AddPlayer, AddBot, StartGame, NewStarterHero, NewJoinCode, Status*
+    bots.go                     BotAct: joueurs-IA (survie/ville/récolte), 1 action/héros bot par tick
     actions.go                  MoveHero, SearchTile, HideHero, EscapeHero, Advance(legacy), state consts
     classes.go                  ClassDef/ClassSkill catalog (Classes), EvolveHero, EvolveDayIntermediate/Advanced
     combat.go                   CombatUnit, Combat, NewCombat, PlayerAction (+ enemy AI), damage/AoE
@@ -152,7 +153,11 @@ per-building `defense`, per-building `cost`, `bank.capacity = sum(storage qty)`,
 joueur en ville (stats du pool GDD cyclées). L'hôte lance via `POST /{id}/start` **une fois `minPlayers`
 atteint** (min défaut 2, max défaut 4, clamp 1–8) → statut `active`, 1re vague programmée, et **seeding
 des monstres ∝ joueurs** (`SeedStartingMonsters`: packs = 4+2*(joueurs-1), taille +rand(joueurs)).
-Les vagues sont inertes en lobby. Tout est persisté en SQLite (le salon survit à un redémarrage ; les
+Les vagues sont inertes en lobby. **Bots** : l'hôte peut ajouter des joueurs-IA (`POST /{id}/bots`,
+`Player.Bot`, noms du pool `botNames`) — équipe de 3 héros, comptent pour min/max, expulsables ; le
+scheduler les fait jouer (`bots.go BotAct`, ~1 action/héros/min : boule de feu défensive, retraite/
+cachette avant la vague, eau/dépôt/chantier/réparation en ville, fouille et exploration sinon — via les
+actions publiques validées ; pas encore de combat iso/craft/évolution). Tout est persisté en SQLite (le salon survit à un redémarrage ; les
 salons ouverts se listent via `GET /api/games?status=lobby`). Le front garde l'identité par partie dans
 `localStorage` (`echoterra:player:<gameId>`, nom dans `echoterra:playerName`) ; la salle d'attente poll
 toutes les 3 s et bascule tout le monde en jeu quand l'hôte lance. `POST /api/games` (legacy) reste le
@@ -237,6 +242,7 @@ POST /api/games/{id}/join                        {playerName} -> {game,player}
 POST /api/games/{id}/start                       {playerId} -> GameState (hôte, exige minPlayers)
 POST /api/games/{id}/leave                       {playerId} -> {left,deleted[,game]} (lobby only)
 POST /api/games/{id}/kick                        {playerId,targetId} -> GameState (hôte)
+POST /api/games/{id}/bots                        {playerId} -> {game,player} (hôte; ajoute un joueur-IA)
 GET  /api/games/{id}                              (runs wave catch-up)
 GET  /api/games/{id}/world
 POST /api/games/{id}/advance                      force a wave (dev)
