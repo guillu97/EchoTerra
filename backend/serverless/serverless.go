@@ -1,6 +1,8 @@
 // Package serverless exposes the Echo Terra API as a single http.HandlerFunc for
-// serverless platforms (the repo-root api/index.go Vercel function delegates here —
-// it lives in another module, so it cannot reach the internal packages itself).
+// FaaS platforms (one exported handler, lazy init, stateless server). The Vercel
+// deployment now runs cmd/server as a Services web service instead, but this
+// package stays as the e2e harness for the stateless mode (see serverless_test.go)
+// and as a ready-made entrypoint should a function-based deploy be needed again.
 //
 // Configuration comes from the environment: the database DSN from ECHOTERRA_DB,
 // DATABASE_URL or POSTGRES_URL (a postgres:// URL — e.g. Neon — or a SQLite path;

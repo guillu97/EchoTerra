@@ -18,20 +18,25 @@
   **`BotCatchUp`** (`bots.go`, ~1 round bot/minute écoulée, plafonné à 6, timestamp `GameState.LastBotAt`
   persisté) + **`lazyHousekeeping`** sur `GET /api/games` (purge lobbies >24 h + recréation du salon
   public).
-- **Entrée Vercel** : `backend/serverless/serverless.go` (package PUBLIC — le module racine ne peut pas
-  importer `internal/`) lit `ECHOTERRA_DB`/`DATABASE_URL`/`POSTGRES_URL` (fallback SQLite éphémère
-  `/tmp`) ; `api/index.go` (module racine `go.mod` avec `replace echoterra => ./backend`) délègue.
-  `vercel.json` : build Vite (`frontend/dist`) + rewrites `/api/*` et `/healthz` → la fonction.
+- **Preset Vercel « Services »** (choisi après voir l'assistant d'import le proposer de lui-même) :
+  `vercel.json` déclare 2 services — `frontend` (root `frontend/`, Vite, statique) et `backend` (root
+  `backend/`, le preset Go détecte `cmd/server/main.go` = le VRAI serveur) + rewrites `/api/*` et
+  `/healthz` → backend, catch-all → frontend. `main.go` : écoute `PORT` quand Vercel l'injecte, DSN
+  depuis `ECHOTERRA_DB`/`DATABASE_URL`/`POSTGRES_URL`, et bascule sur `api.NewServerless` quand
+  `VERCEL` est présent. (Première itération = fonction Go `api/index.go` + `go.mod` racine wrapper ;
+  retirée au profit de Services — `backend/serverless` reste comme harnais e2e/entrée FaaS de secours.)
   `.vercelignore` exclut `asset-index/` (141 Mo), `scripts/`, `journal.md`.
-- **`DEPLOY.md`** : marche à suivre (import repo → Storage → Neon gratuit → redeploy), variables,
-  limites connues (cold starts, verrou par instance seulement → lost updates théoriques multi-instances).
+- **`DEPLOY.md`** : marche à suivre (merger dans main → import vercel.com/new → Storage → Neon gratuit
+  → redeploy), variables, limites connues (cold starts, verrou par instance seulement → lost updates
+  théoriques multi-instances).
 
 ### Fonctionnel (vérifié)
 - `go -C backend test ./...` OK — dont nouveau test e2e `serverless_test.go` (healthz, housekeeping
   crée le salon public, partie solo 4 bots jouable à travers le Handler stateless).
-- `go build ./...` OK sur les DEUX modules (racine + backend) ; `tsc -b` + `npm run build` OK.
-- Non vérifié en vrai : le déploiement Vercel lui-même (à faire par Guillaume : importer le repo sur
-  vercel.com/new puis brancher Neon — 5 min, voir `DEPLOY.md`).
+- `go -C backend build ./...` OK ; `tsc -b` + `npm run build` OK ; smoke run local avec `PORT` +
+  `VERCEL=1` (serveur stateless qui écoute le bon port, healthz + salon public OK).
+- Non vérifié en vrai : le déploiement Vercel lui-même (à faire par Guillaume : merger dans main,
+  importer le repo sur vercel.com/new puis brancher Neon — 5 min, voir `DEPLOY.md`).
 
 ### À faire / limites connues
 - Concurrence multi-instances : verrou seulement par instance → passer à un verrou en base ou à une
