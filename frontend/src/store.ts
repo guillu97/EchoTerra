@@ -63,6 +63,8 @@ interface StoreState {
   playerId?: string; // my player id in the current game (undefined in legacy solo games)
   playerName: string; // persisted display name
   lobbies: GameSummary[]; // open lobbies (join screen)
+  lobbyMode: "public" | "private"; // which lobby entry the menu opened
+  showOthers: boolean; // map: reveal other players' heroes (as dots)
 
   // --- game / map / combat ---
   game?: GameState;
@@ -89,7 +91,9 @@ interface StoreState {
   startTestGame: () => Promise<void>;
   continueTestGame: () => Promise<void>;
   // lobby actions
-  openLobby: () => void;
+  openLobby: (mode?: "public" | "private") => void;
+  toggleOthers: () => void; // map: show/hide other players' heroes
+  myHeroes: () => string[]; // my team's hero ids ([] in legacy solo)
   setPlayerName: (name: string) => void;
   fetchLobbies: () => Promise<void>;
   createLobby: (opts: { name?: string; minPlayers: number; maxPlayers: number }) => Promise<void>;
@@ -139,9 +143,10 @@ export const useStore = create<StoreState>((set, get) => {
   const pushLog = (msg: string) => set((s) => ({ log: [...s.log.slice(-40), msg] }));
 
   const renderMap = () => {
-    const { game, selectedHeroId, debugNoFog } = get();
+    const { game, selectedHeroId, debugNoFog, showOthers, playerId } = get();
+    const myHeroIds = game?.players?.find((p) => p.id === playerId)?.heroIds ?? [];
     bus.emit(EV.ShowScene, "map");
-    bus.emit(EV.MapRender, { game, selectedHeroId, revealAll: debugNoFog });
+    bus.emit(EV.MapRender, { game, selectedHeroId, revealAll: debugNoFog, myHeroIds, showOthers });
   };
 
   const renderCombat = () => {
@@ -242,6 +247,8 @@ export const useStore = create<StoreState>((set, get) => {
     classes: [],
     playerName: localStorage.getItem(LS_PLAYER_NAME) ?? "",
     lobbies: [],
+    lobbyMode: "public" as const,
+    showOthers: false,
 
     view: "map",
     combatMode: "move",
@@ -315,7 +322,14 @@ export const useStore = create<StoreState>((set, get) => {
       }),
 
     // --- lobby / multiplayer -------------------------------------------------
-    openLobby: () => set({ appScreen: "lobby", error: undefined }),
+    openLobby: (mode) => set({ appScreen: "lobby", lobbyMode: mode ?? "public", error: undefined }),
+
+    toggleOthers: () => {
+      set((s) => ({ showOthers: !s.showOthers }));
+      if (get().view === "map") renderMap();
+    },
+
+    myHeroes: () => myHeroIds(),
 
     setPlayerName: (name) => {
       try {
@@ -557,6 +571,9 @@ export const useStore = create<StoreState>((set, get) => {
       }),
 
     selectHero: (id: string) => {
+      // In multiplayer only MY heroes are selectable (others are mere map markers).
+      const { game } = get();
+      if (game?.players?.length && !myHeroIds().includes(id)) return;
       set({ selectedHeroId: id });
       renderMap();
     },

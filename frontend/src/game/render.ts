@@ -24,6 +24,7 @@ export const BIOME_NAMES: Record<Biome, string> = {
 
 export const HERO_COLOR = 0x3da5ff;
 export const HERO_COLOR_SELECTED = 0x7cd0ff;
+export const OTHER_HERO_COLOR = 0x9d6bff; // other players' heroes (violet map dots)
 export const MONSTER_COLOR = 0xe2533b;
 
 // A stable color per monster species, for placeholder tokens.

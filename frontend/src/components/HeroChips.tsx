@@ -8,11 +8,15 @@ export function HeroChips() {
   const game = useStore((s) => s.game);
   const selectedHeroId = useStore((s) => s.selectedHeroId);
   const selectHero = useStore((s) => s.selectHero);
+  const myHeroes = useStore((s) => s.myHeroes);
   if (!game) return null;
+  // Multiplayer: only my team appears in the chips.
+  const mine = myHeroes();
+  const roster = mine.length ? game.heroes.filter((h) => mine.includes(h.id)) : game.heroes;
 
   return (
     <div className="hero-chips">
-      {game.heroes.slice(0, 3).map((h, i) => (
+      {roster.slice(0, 3).map((h, i) => (
         <button
           key={h.id}
           className={`hc ${h.id === selectedHeroId ? "sel" : ""}`}

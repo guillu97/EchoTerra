@@ -2,7 +2,7 @@ import Phaser from "phaser";
 import type { GameState, Hero } from "../api/types";
 import { Biome } from "../api/types";
 import { bus, EV } from "../eventBus";
-import { BIOME_COLORS, HERO_COLOR, HERO_COLOR_SELECTED, MONSTER_COLOR, darken } from "./render";
+import { BIOME_COLORS, HERO_COLOR, HERO_COLOR_SELECTED, MONSTER_COLOR, OTHER_HERO_COLOR, darken } from "./render";
 import { monsterTexKey, heroTexKey, HERO_TEX_KEYS } from "../assets";
 
 // --- Isometric tunables -----------------------------------------------------
@@ -59,6 +59,14 @@ export class MapScene extends Phaser.Scene {
   private gs?: GameState;
   private selectedHeroId?: string;
   private revealAll = false; // debug: ignore fog of war (reveal whole map)
+  // Multiplayer: my team's hero ids (empty = legacy solo, everyone is "mine").
+  // Other players' heroes render as small distinct dots, hidden unless showOthers.
+  private myHeroIds: string[] = [];
+  private showOthers = false;
+
+  private isMine(heroId: string): boolean {
+    return this.myHeroIds.length === 0 || this.myHeroIds.includes(heroId);
+  }
   private fitted = false;
   private downX = 0;
   private downY = 0;
@@ -94,11 +102,19 @@ export class MapScene extends Phaser.Scene {
 
     const offRender = bus.on(
       EV.MapRender,
-      (p: { game: GameState; selectedHeroId?: string; revealAll?: boolean }) => {
+      (p: {
+        game: GameState;
+        selectedHeroId?: string;
+        revealAll?: boolean;
+        myHeroIds?: string[];
+        showOthers?: boolean;
+      }) => {
         const changedGame = this.gs?.id !== p.game.id;
         this.gs = p.game;
         this.selectedHeroId = p.selectedHeroId;
         this.revealAll = !!p.revealAll;
+        this.myHeroIds = p.myHeroIds ?? [];
+        this.showOthers = !!p.showOthers;
         if (changedGame) this.fitted = false;
         this.draw();
       },
@@ -427,8 +443,12 @@ export class MapScene extends Phaser.Scene {
     this.fitted = true;
   }
 
+  // heroesAt only returns MY heroes: map taps select/act on my own team, never on
+  // another player's marker.
   private heroesAt(x: number, y: number): Hero[] {
-    return (this.gs?.heroes || []).filter((h) => h.x === x && h.y === y && h.hp > 0);
+    return (this.gs?.heroes || []).filter(
+      (h) => h.x === x && h.y === y && h.hp > 0 && this.isMine(h.id),
+    );
   }
 
   private selectedHero(): Hero | undefined {
@@ -704,9 +724,13 @@ export class MapScene extends Phaser.Scene {
     }
 
     // Heroes (offset slightly when stacked so they don't fully overlap).
+    // Mine render as full chibi sprites; other players' heroes are small violet
+    // dots — and only when showOthers is on ("👥" toggle).
     const stackIndex: Record<string, number> = {};
     for (const h of game.heroes) {
       if (h.hp <= 0) continue;
+      const mine = this.isMine(h.id);
+      if (!mine && !this.showOthers) continue;
       const skey = `${h.x},${h.y}`;
       const i = stackIndex[skey] || 0;
       stackIndex[skey] = i + 1;
@@ -716,6 +740,16 @@ export class MapScene extends Phaser.Scene {
       const oy = i * 3;
       const cx = f.sx + ox;
       const cy = f.sy + oy;
+      if (!mine) {
+        // Teammate marker: small violet dot with the hero's initial — clearly not
+        // one of my sprites, and never selectable.
+        this.g.fillStyle(OTHER_HERO_COLOR, 1);
+        this.g.fillCircle(cx, cy - 4, 4.5);
+        this.g.lineStyle(1.5, 0xffffff, 0.9);
+        this.g.strokeCircle(cx, cy - 4, 4.5);
+        this.text(cx, cy - 16, h.name[0], "#e6d7ff", 9);
+        continue;
+      }
       const selected = h.id === this.selectedHeroId;
       // Selection ring under the sprite (overlay).
       if (selected) {

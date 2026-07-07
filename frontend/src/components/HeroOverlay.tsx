@@ -56,16 +56,20 @@ export function HeroOverlay() {
   const close = useStore((s) => s.closeHero);
   const evolve = useStore((s) => s.evolve);
   const busy = useStore((s) => s.busy);
+  const myHeroes = useStore((s) => s.myHeroes);
   const [pickerOpen, setPickerOpen] = useState(false);
 
   if (!heroId || !game) return null;
-  const index = game.heroes.findIndex((h) => h.id === heroId);
-  const h = game.heroes[index];
+  // Multiplayer: the ◀▶ roster cycle only walks MY team.
+  const mine = myHeroes();
+  const roster = mine.length ? game.heroes.filter((x) => mine.includes(x.id)) : game.heroes;
+  const index = roster.findIndex((x) => x.id === heroId);
+  const h = index >= 0 ? roster[index] : game.heroes.find((x) => x.id === heroId);
   if (!h) return null;
-  const n = game.heroes.length;
+  const n = roster.length;
   const cycle = (delta: number) => {
     setPickerOpen(false);
-    openHero(game.heroes[(index + delta + n) % n].id);
+    if (n > 0) openHero(roster[((index < 0 ? 0 : index) + delta + n) % n].id);
   };
   const here = h.x === game.town.x && h.y === game.town.y;
 

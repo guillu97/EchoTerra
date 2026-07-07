@@ -25,16 +25,28 @@ export function LobbyScreen() {
 // --- create / join forms -----------------------------------------------------
 
 function LobbyForms() {
-  const { playerName, setPlayerName, createLobby, joinLobby, fetchLobbies, lobbies, busy, error, setScreen } =
-    useStore();
+  const {
+    playerName,
+    setPlayerName,
+    createLobby,
+    joinLobby,
+    fetchLobbies,
+    lobbies,
+    lobbyMode,
+    busy,
+    error,
+    setScreen,
+  } = useStore();
   const [minPlayers, setMinPlayers] = useState(2);
   const [code, setCode] = useState("");
+  const isPublic = lobbyMode === "public";
 
   useEffect(() => {
+    if (!isPublic) return;
     fetchLobbies();
     const t = setInterval(() => fetchLobbies(), 5000);
     return () => clearInterval(t);
-  }, [fetchLobbies]);
+  }, [fetchLobbies, isPublic]);
 
   // Only public lobbies are listed — private games are joined by code.
   const publicLobbies = lobbies.filter((l) => l.visibility === "public");
@@ -51,71 +63,76 @@ function LobbyForms() {
         />
       </label>
 
-      <div className="lobby-card">
-        <div className="lobby-card-title">🆕 Créer une partie</div>
-        <div className="lobby-hint">
-          Chaque joueur incarne une équipe de 3 héros. Plus il y a de joueurs, plus la horde initiale
-          est nombreuse.
-        </div>
-        <label className="lobby-field row">
-          <span>Joueurs minimum</span>
-          <select value={minPlayers} onChange={(e) => setMinPlayers(Number(e.target.value))}>
-            {[1, 2, 3, 4].map((n) => (
-              <option key={n} value={n}>
-                {n}
-              </option>
-            ))}
-          </select>
-        </label>
-        <button
-          className="pill red"
-          disabled={busy}
-          onClick={() => createLobby({ minPlayers, maxPlayers: 4 })}
-        >
-          Créer le salon
-        </button>
-      </div>
-
-      <div className="lobby-card">
-        <div className="lobby-card-title">🤝 Rejoindre une partie</div>
-        <label className="lobby-field row">
-          <span>Code</span>
-          <input
-            value={code}
-            maxLength={36}
-            placeholder="ABC12"
-            onChange={(e) => setCode(e.target.value.toUpperCase())}
-          />
-        </label>
-        <button className="pill" disabled={busy || !code.trim()} onClick={() => joinLobby(code.trim())}>
-          Rejoindre par code
-        </button>
-      </div>
-
-      <div className="lobby-card">
-        <div className="lobby-card-title">🌍 Parties publiques</div>
-        <div className="lobby-hint">
-          Elles démarrent automatiquement dès que le nombre minimal de joueurs est atteint.
-        </div>
-        {publicLobbies.length === 0 && <div className="lobby-hint">Recherche de parties…</div>}
-        {publicLobbies.length > 0 && (
-          <div className="lobby-list">
-            {publicLobbies.map((l) => (
-              <button
-                key={l.id}
-                className="lobby-row"
-                disabled={busy || l.players.length >= l.maxPlayers}
-                onClick={() => joinLobby(l.id)}
-              >
-                <span className="lobby-row-name">{l.name}</span>
-                <span className="lobby-row-count">
-                  {l.players.length}/{l.maxPlayers} joueurs · départ à {l.minPlayers}
-                </span>
-              </button>
-            ))}
+      {isPublic ? (
+        <div className="lobby-card">
+          <div className="lobby-card-title">🌍 Parties publiques</div>
+          <div className="lobby-hint">
+            Elles démarrent automatiquement dès que le nombre minimal de joueurs est atteint. Chaque
+            joueur incarne une équipe de 3 héros.
           </div>
-        )}
-      </div>
+          {publicLobbies.length === 0 && <div className="lobby-hint">Recherche de parties…</div>}
+          {publicLobbies.length > 0 && (
+            <div className="lobby-list">
+              {publicLobbies.map((l) => (
+                <button
+                  key={l.id}
+                  className="lobby-row"
+                  disabled={busy || l.players.length >= l.maxPlayers}
+                  onClick={() => joinLobby(l.id)}
+                >
+                  <span className="lobby-row-name">{l.name}</span>
+                  <span className="lobby-row-count">
+                    {l.players.length}/{l.maxPlayers} joueurs · départ à {l.minPlayers}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : (
+        <>
+          <div className="lobby-card">
+            <div className="lobby-card-title">🆕 Créer une partie privée</div>
+            <div className="lobby-hint">
+              Tu es l'hôte : partage le code, ajoute des bots si besoin, et lance quand tout le monde
+              est là. Chaque joueur incarne une équipe de 3 héros.
+            </div>
+            <label className="lobby-field row">
+              <span>Joueurs minimum</span>
+              <select value={minPlayers} onChange={(e) => setMinPlayers(Number(e.target.value))}>
+                {[1, 2, 3, 4].map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              className="pill red"
+              disabled={busy}
+              onClick={() => createLobby({ minPlayers, maxPlayers: 4 })}
+            >
+              Créer le salon
+            </button>
+          </div>
+
+          <div className="lobby-card">
+            <div className="lobby-card-title">🤝 Rejoindre par code</div>
+            <label className="lobby-field row">
+              <span>Code</span>
+              <input
+                value={code}
+                maxLength={36}
+                placeholder="ABC12"
+                onChange={(e) => setCode(e.target.value.toUpperCase())}
+              />
+            </label>
+            <button className="pill" disabled={busy || !code.trim()} onClick={() => joinLobby(code.trim())}>
+              Rejoindre
+            </button>
+          </div>
+        </>
+      )}
 
       {error && <div className="lobby-error">⚠️ {error}</div>}
       <button className="pill ghost" onClick={() => setScreen("title")}>

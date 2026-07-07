@@ -6,6 +6,36 @@
 
 ---
 
+## 2026-07-07 (7) — Refonte du menu + affichage multijoueur des personnages
+
+### Fait
+- **Menu titre restructuré** (`TitleScreen.tsx`) : menu principal = 🤖 **Solo (4 bots)** ·
+  🌍 **Parties publiques** · 🎪 **Parties privées** · ⚙️ Paramètres. Section **🛠 Debug** en dessous
+  (pour les tests) : Nouvelle partie test (legacy 3 héros), Continuer, 🎬 Intro (cinématique),
+  🗺️ Éditeur, Classement (placeholder).
+- **LobbyScreen à deux modes** (`store.lobbyMode`, `openLobby("public"|"private")`) : l'entrée
+  "publiques" = liste des salons publics uniquement (poll 5 s) ; l'entrée "privées" = carte "Créer une
+  partie privée" (hôte, code, bots) + carte "Rejoindre par code". Plus de mélange des deux flux.
+- **Affichage multijoueur des personnages** : sur la carte on ne voit QUE ses héros en sprites ;
+  ceux des autres joueurs sont des **points violets** (`OTHER_HERO_COLOR`, pastille + initiale,
+  jamais le chibi), **masqués par défaut** et affichables via le bouton **👥 Autres** (`store.showOthers`,
+  visible seulement en multijoueur). Non sélectionnables : `heroesAt` (taps carte) ne retourne que MES
+  héros, `selectHero` garde aussi côté store. Le sélecteur de héros de la carte, les **HeroChips** et le
+  cycle ◀▶ du **HeroOverlay** ne listent plus que MON équipe (`store.myHeroes()`), fallback legacy solo
+  = tous.
+
+### Fonctionnel (vérifié)
+- `tsc -b` + `npm run build` OK (re-vérifiés après fusion avec l'optimisation MapScene ci-dessous).
+
+### À faire (itération suivante = connexion utilisateur)
+- **Auth** : email + mot de passe (gratuit, bcrypt + session token serveur, table `users` SQLite) ;
+  structurer pour brancher Google OAuth ensuite (gratuit, nécessite un client ID GCP).
+  ⚠️ **Sign in with Apple n'est PAS gratuit** (Apple Developer Program ~99 $/an) — à confirmer avec
+  Guillaume avant de l'envisager.
+- Lier `Player` ↔ compte utilisateur (reconnexion multi-appareils sans localStorage).
+
+---
+
 ## 2026-07-07 (6) — Optimisation de l'affichage de la map (MapScene)
 
 ### Fait

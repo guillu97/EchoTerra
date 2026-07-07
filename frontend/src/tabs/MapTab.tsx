@@ -73,16 +73,21 @@ function ActionMenu() {
 }
 
 function MapControls() {
-  const { game, selectedHeroId, selectHero, move, advance, busy } = useStore();
+  const { game, selectedHeroId, selectHero, move, advance, busy, myHeroes, showOthers, toggleOthers } =
+    useStore();
   if (!game) return null;
   const hero = game.heroes.find((h) => h.id === selectedHeroId);
   if (!hero) return null;
   const stuck = hero.states.includes("Tétanisé");
+  // Multiplayer: the roster only lists MY team; others exist as map dots (👥).
+  const mine = myHeroes();
+  const multiplayer = (game.players?.length ?? 0) > 1;
+  const roster = mine.length ? game.heroes.filter((h) => mine.includes(h.id)) : game.heroes;
 
   return (
     <div className="map-controls">
       <div className="hero-select">
-        {game.heroes.map((h) => (
+        {roster.map((h) => (
           <button
             key={h.id}
             className={`hsel ${h.id === selectedHeroId ? "sel" : ""} ${h.hp <= 0 ? "dead" : ""}`}
@@ -126,6 +131,15 @@ function MapControls() {
         <button className="small" disabled={busy} onClick={() => advance()} title="Déclencher la prochaine vague maintenant">
           🌊 Forcer vague
         </button>
+        {multiplayer && (
+          <button
+            className={`small ${showOthers ? "red" : ""}`}
+            title="Afficher/masquer les héros des autres joueurs (points violets)"
+            onClick={() => toggleOthers()}
+          >
+            👥 Autres
+          </button>
+        )}
       </div>
       {stuck ? (
         <div className="map-hint warn">⚠️ {hero.name} est Tétanisé — tue le monstre (Fight) ou fuis (Escape).</div>
