@@ -7,9 +7,25 @@ import { bus, EV } from "../eventBus";
 // PhaserGame fills its parent container (the Map tab) and resizes with it. It holds
 // both scenes; CombatScene boots then sleeps so its listeners exist. ShowScene events
 // wake/sleep the right scene.
-export function PhaserGame() {
+// The component lives as long as the game session: when the Map tab is hidden
+// (`active` = false) the game is NOT destroyed — its scenes are put to sleep so the
+// hidden canvas stops rendering, and everything (textures, atlas, tile layer) stays
+// warm for an instant re-open.
+export function PhaserGame({ active = true }: { active?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
   const gameRef = useRef<Phaser.Game>();
+  const activeRef = useRef(active);
+  activeRef.current = active;
+
+  // Sleep both scenes while the tab is hidden. Waking is driven by the next
+  // ShowScene event (syncScene fires when the tab becomes active again).
+  useEffect(() => {
+    const game = gameRef.current;
+    if (active || !game || !game.isBooted) return;
+    for (const name of ["map", "combat"]) {
+      if (game.scene.isActive(name)) game.scene.sleep(name);
+    }
+  }, [active]);
 
   useEffect(() => {
     if (gameRef.current || !ref.current) return;
@@ -33,6 +49,9 @@ export function PhaserGame() {
     game.scene.start("combat");
 
     const show = (name: string) => {
+      // renderMap/renderCombat fire on every state refresh (incl. the 20s poll);
+      // while the tab is hidden they must not wake the slept scenes.
+      if (!activeRef.current) return;
       const sm = game.scene;
       const other = name === "map" ? "combat" : "map";
       if (sm.isSleeping(name)) sm.wake(name);

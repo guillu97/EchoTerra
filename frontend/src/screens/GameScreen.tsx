@@ -29,7 +29,13 @@ export function GameScreen() {
       <TopBar />
       <div className="tab-body">
         {tab === "home" && <HomeTab />}
-        {tab === "map" && <MapTab />}
+        {/* The Map tab stays mounted for the whole game session (hidden via CSS when
+            inactive): unmounting it destroyed the Phaser instance — WebGL context,
+            ~17 downloaded 1024² textures, normalized cubes, pillar atlas, tile layer —
+            and rebuilt everything on every visit, which made the tab take seconds to
+            open. Kept warm, opening the Map is instant (it even preloads in the
+            background while the player is on Home). */}
+        <MapTab active={tab === "map"} />
         {tab === "stock" && <StockTab />}
         {tab === "structure" && <StructureTab />}
         {tab === "craft" && <CraftTab />}

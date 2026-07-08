@@ -1093,6 +1093,14 @@ body {
   inset: 0;
   background: #0e1626;
 }
+/* The Map tab stays mounted (Phaser instance kept warm) and is hidden with CSS
+   when another tab is active — see GameScreen. visibility (NOT display:none) so
+   the container keeps its size: Phaser's RESIZE scale mode reads the parent
+   dimensions, and a 0×0 canvas breaks the WebGL framebuffer. */
+.map-host.map-host-hidden {
+  visibility: hidden;
+  pointer-events: none;
+}
 .map-host canvas {
   display: block;
   width: 100% !important;
