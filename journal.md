@@ -6,6 +6,22 @@
 
 ---
 
+## 2026-07-13 (11) — Home : échelle de la ville bornée sur grand écran
+
+### Fait
+- **La ville du Home ne se dimensionne plus sur la largeur brute** (`useIsoScale`) : en plein écran
+  1920 la plateforme était agrandie ×4,5 (bâtiments géants, plus de ciel — séquelle du passage
+  full-bleed). L'échelle est maintenant `min(largeur, hauteur×1.9, 1180) / 430` : bornée par la
+  hauteur (garder du ciel autour du plateau) et par la largeur de l'ancien cadre desktop (1180 px,
+  le look sur lequel la mise en page avait été réglée). Knobs `ISO_TOWN.maxWidth` / `heightRatio`
+  dans `data/buildings.ts`. Téléphone inchangé (sous toutes les bornes).
+
+### Fonctionnel (vérifié)
+- Captures 1920×1080 (plateau entier + ciel, proportions d'origine), 1366×768 (≈ look ancien cadre)
+  et 390×844 (identique à avant). `tsc -b` + `npm run build` OK.
+
+---
+
 ## 2026-07-13 (10) — Ville multi : seuls MES héros comptent (PA, worker, Home, Stock)
 
 ### Fait

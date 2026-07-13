@@ -51,6 +51,13 @@ export const BUILDING_SCALE = 0.34;
 // scales with the screen resolution. Edit these base values to retune proportions.
 export const ISO_TOWN = {
   refWidth: 430, // reference container width the base sizes below are tuned for
+  // Scale caps for the full-bleed shell: the raw width of a big desktop window
+  // would blow the town up until it fills everything (no sky, buildings cropped).
+  // The effective width is min(width, height×heightRatio, maxWidth) — maxWidth is
+  // the old desktop-frame width the layout was visually tuned for, heightRatio
+  // keeps the platform vertically contained on short/wide windows.
+  maxWidth: 1180,
+  heightRatio: 1.9,
   tileW: 46, // iso step width (px) between columns
   tileH: 23, // iso step height (px) between rows
   cube: 74, // display size (px) of a cube tile image (square)

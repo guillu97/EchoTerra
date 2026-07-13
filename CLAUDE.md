@@ -328,7 +328,10 @@ POST /api/games/{id}/combat/{c}/action            {unitId, action: move|attack|s
   + "deposit loot" (server deposits my team's bags only).
 - **Structure**: ONE compact list (no Blueprint tab) — sites → "Construire", built → "Améliorer", each showing
   PA + material cost vs Bank stock; build actions need a hero in town (consult-only otherwise).
-- **Home**: tapping the **Workshop** or any **construction site** jumps to Structure; other built buildings open a
+- **Home**: the iso town platform scales with the container via `useIsoScale`, mais l'échelle est **bornée**
+  (`ISO_TOWN.maxWidth` 1180 px + `heightRatio` 1.9 — largeur efficace `min(w, h×1.9, 1180)`) sinon le
+  full-bleed desktop gonflait la ville ×4,5 sans ciel autour. Tapping the **Workshop** or any
+  **construction site** jumps to Structure; other built buildings open a
   **centered modal** (`.bmenu-modal`, never cut off) with durability, defense contribution, building-specific
   actions (Well "Puiser de l'eau" free, Gate "Open/Close", etc.), "Améliorer (Structure)", and Restore.
 - **TownStatus** panel: town HP, **defense total + per-building breakdown** (who defends, how much, durability,

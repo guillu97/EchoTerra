@@ -19,14 +19,21 @@ function isoPos(gx: number, gy: number, scale: number) {
   };
 }
 
-// Track a container's width and derive the iso scale factor (responsive sizing).
+// Track the container's size and derive the iso scale factor (responsive sizing).
+// The effective width is capped by the height and by ISO_TOWN.maxWidth so a big
+// full-bleed desktop window keeps sky around the platform instead of a town blown
+// up to fill the whole screen (phones are below every cap — unchanged).
 function useIsoScale() {
   const ref = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const update = () => setScale((el.clientWidth || ISO_TOWN.refWidth) / ISO_TOWN.refWidth);
+    const update = () => {
+      const w = el.clientWidth || ISO_TOWN.refWidth;
+      const h = el.clientHeight || ISO_TOWN.refWidth * 1.6;
+      setScale(Math.min(w, h * ISO_TOWN.heightRatio, ISO_TOWN.maxWidth) / ISO_TOWN.refWidth);
+    };
     update();
     const ro = new ResizeObserver(update);
     ro.observe(el);
