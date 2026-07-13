@@ -3,6 +3,7 @@ import Phaser from "phaser";
 import { MapScene } from "./MapScene";
 import { CombatScene } from "./CombatScene";
 import { bus, EV } from "../eventBus";
+import { DPR } from "./dpr";
 
 // PhaserGame fills its parent container (the Map tab) and resizes with it. It holds
 // both scenes; CombatScene boots then sleeps so its listeners exist. ShowScene events
@@ -31,20 +32,39 @@ export function PhaserGame({ active = true }: { active?: boolean }) {
     if (gameRef.current || !ref.current) return;
     const parent = ref.current;
 
+    // High-DPI: the canvas backing store is DPR× the CSS size (zoom 1/DPR keeps the
+    // CSS size and the input transform consistent) — otherwise phones (DPR 2–3)
+    // upscale a CSS-pixel canvas and the map looks pixelated. Scale mode NONE +
+    // a ResizeObserver below: Phaser's RESIZE mode would size the canvas in CSS
+    // pixels, so we own the resize and multiply by DPR ourselves.
+    const sizeOf = () => ({
+      w: Math.max(1, Math.floor((parent.clientWidth || 390) * DPR)),
+      h: Math.max(1, Math.floor((parent.clientHeight || 560) * DPR)),
+    });
+    const initial = sizeOf();
     const game = new Phaser.Game({
       type: Phaser.AUTO,
       parent,
-      width: parent.clientWidth || 390,
-      height: parent.clientHeight || 560,
+      width: initial.w,
+      height: initial.h,
       backgroundColor: "#0e1626",
-      scale: { mode: Phaser.Scale.RESIZE, autoCenter: Phaser.Scale.NO_CENTER },
+      scale: { mode: Phaser.Scale.NONE, zoom: 1 / DPR },
       scene: [MapScene, CombatScene],
-      // Mipmaps: the 1024² unit/building PNGs render at ~40px — trilinear minification
+      // Mipmaps: the unit/building PNGs render small — trilinear minification
       // is both faster (texture-cache friendly) and less shimmery than raw LINEAR.
       render: { antialias: true, mipmapFilter: "LINEAR_MIPMAP_LINEAR", powerPreference: "high-performance" },
     });
     gameRef.current = game;
     if (import.meta.env.DEV) (window as any).__phaser = game;
+
+    const syncSize = () => {
+      if (!game.isBooted) return;
+      const { w, h } = sizeOf();
+      if (game.scale.width !== w || game.scale.height !== h) game.scale.resize(w, h);
+    };
+    game.events.once(Phaser.Core.Events.READY, syncSize);
+    const ro = new ResizeObserver(syncSize);
+    ro.observe(parent);
 
     game.scene.start("combat");
 
@@ -63,6 +83,7 @@ export function PhaserGame({ active = true }: { active?: boolean }) {
 
     return () => {
       unsub();
+      ro.disconnect();
       game.destroy(true);
       gameRef.current = undefined;
     };

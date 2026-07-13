@@ -2,9 +2,8 @@ import Phaser from "phaser";
 import type { Combat, CombatCurrent, CombatUnit } from "../api/types";
 import { bus, EV } from "../eventBus";
 import { ISO, isoProject, darken, speciesColor, HERO_COLOR, MONSTER_COLOR } from "./render";
-import { monsterTexKey, heroTexKey, HERO_TEX_KEYS } from "../assets";
-
-const COMBAT_MONSTER_FILES = ["mob-goblin", "mob-slime", "mob-windelemental"];
+import { monsterTexKey, heroTexKey } from "../assets";
+import { DPR } from "./dpr";
 
 // CombatScene renders the isometric battle (FFTA2-style) with elevation, and picks
 // tiles/units from pointer clicks by inverse projection (front-to-back hit testing).
@@ -22,11 +21,10 @@ export class CombatScene extends Phaser.Scene {
     super("combat");
   }
 
-  preload() {
-    // Unit sprites (optional — fall back to tokens if absent).
-    COMBAT_MONSTER_FILES.forEach((k) => this.load.image(k, `/assets/monsters/${k}.png`));
-    HERO_TEX_KEYS.forEach((k) => this.load.image(k, `/assets/characters/${k}.png`));
-  }
+  // No preload: the unit sprites (heroes + monsters) are loaded, normalized and
+  // downscaled ONCE by MapScene — loading them here too made both scene loaders
+  // fetch the same PNGs at boot. draw() checks textures.exists() per unit, so a
+  // combat opened before the shared textures land just shows token fallbacks.
 
   create() {
     this.g = this.add.graphics();
@@ -69,9 +67,16 @@ export class CombatScene extends Phaser.Scene {
 
   private layout() {
     if (!this.combat) return;
-    // Center the diamond grid in the viewport.
-    this.originX = this.scale.width / 2;
+    // The scene draws in CSS-pixel world units; the canvas is DPR× bigger, so the
+    // camera zooms by DPR and is scrolled so the world view is exactly
+    // [0, 0, cssW, cssH] (Phaser's camera midpoint = scroll + size/2, zoom-agnostic).
+    const cssW = this.scale.width / DPR;
+    const cssH = this.scale.height / DPR;
+    this.originX = cssW / 2;
     this.originY = 70;
+    const cam = this.cameras.main;
+    cam.setZoom(DPR);
+    cam.setScroll(cssW / 2 - this.scale.width / 2, cssH / 2 - this.scale.height / 2);
   }
 
   private heightAt(x: number, y: number): number {
@@ -127,8 +132,9 @@ export class CombatScene extends Phaser.Scene {
   }
 
   private label(x: number, y: number, s: string, color: string, size = 11) {
+    // resolution: DPR keeps labels crisp under the DPR-scaled camera zoom.
     const t = this.add
-      .text(x, y, s, { fontFamily: "monospace", fontSize: `${size}px`, color, fontStyle: "bold" })
+      .text(x, y, s, { fontFamily: "monospace", fontSize: `${size}px`, color, fontStyle: "bold", resolution: DPR })
       .setOrigin(0.5);
     this.texts.push(t);
   }

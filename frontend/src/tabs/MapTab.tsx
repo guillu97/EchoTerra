@@ -224,22 +224,18 @@ export function MapTab({ active = true }: { active?: boolean }) {
   const view = useStore((s) => s.view);
   const syncScene = useStore((s) => s.syncScene);
 
-  // Re-push the current scene state to Phaser whenever we (re)enter the Map tab, and
-  // nudge Phaser's RESIZE scale manager so the canvas matches the (now sized) container
-  // (while hidden the container has zero size — the resize must run after re-display).
   // Hidden pre-warm: as soon as MapScene has registered its handlers, push the state
   // so it bakes its pillar atlas and builds the tile layer in the background
   // (PhaserGame gates the scene wake-up), making the first real open of the tab instant.
   useEffect(() => bus.on(EV.MapSceneReady, () => syncScene()), [syncScene]);
 
+  // Re-push the scene state on (re)entering the tab. Canvas sizing is owned by the
+  // ResizeObserver in PhaserGame (and the hidden tab keeps its layout size thanks
+  // to visibility:hidden), so no resize nudge is needed here.
   useEffect(() => {
     if (!active) return;
-    const t1 = setTimeout(() => window.dispatchEvent(new Event("resize")), 40);
-    const t2 = setTimeout(() => syncScene(), 80);
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-    };
+    const t = setTimeout(() => syncScene(), 80);
+    return () => clearTimeout(t);
   }, [active, syncScene]);
 
   return (
