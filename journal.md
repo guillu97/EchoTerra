@@ -6,6 +6,30 @@
 
 ---
 
+## 2026-07-13 (7) — Shell full responsive : suppression du cadre téléphone/tablette sur desktop
+
+### Fait
+- **Plus de « mode tablette » sur PC** : le jeu vivait dans un cadre d'appareil centré (`.device`
+  390×844 avec notch ; ≥1024px : 1180×760 arrondi/ombré). Le shell est maintenant **full-bleed à
+  toutes les tailles** : `.app-bg` = 100dvh, `.device` = 100 % du viewport (classe conservée comme
+  conteneur), notch/ombres/rayons supprimés, variables `--dev-w/--dev-h` retirées.
+- Le breakpoint desktop ≥1024px ne garde que les ajustements de tailles et **plafonne les rangées
+  larges** : contenu de `.map-controls` (sélecteur de héros, dpad, actions) centré à max 1100px,
+  `.loading-bar`/`.branch` à max 900px — le reste (map Phaser, ville Home, nav) profite de toute la
+  fenêtre.
+- `App.tsx` : commentaire mis à jour (l'éditeur reste rendu hors shell, inchangé).
+
+### Fonctionnel (vérifié)
+- Captures Playwright 1920×1080, 1366×768 et 390×844 : plein écran partout, Home/Map/Title corrects,
+  contrôles Map centrés en large, téléphone inchangé. `tsc -b` + `npm run build` OK,
+  `npm run test:perf` **PASS 13/13** (viewport téléphone, budgets Map intacts).
+
+### À faire
+- Sur très grand écran le Home (ville) est très zoomé — un jour, borner le scale de la ville ou
+  montrer plus de terrain autour.
+
+---
+
 ## 2026-07-13 (6) — Pinch mobile : fix du drift (getWorldPoint périmé + mapping absolu)
 
 ### Fait

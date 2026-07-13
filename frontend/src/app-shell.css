@@ -1,12 +1,11 @@
 /* ===========================================================================
    Echo Terra — mobile-first app shell
-   Phone-frame centered on desktop, full-screen on phones.
+   Full-bleed at every viewport size (the old centered phone/tablet frame on
+   desktop is gone — the app fills the window; ≥1024px only re-tunes sizes).
    Art (bird, town, cat, ornaments) is placeholder; swap for sprites later.
    =========================================================================== */
 
 :root {
-  --dev-w: 390px;
-  --dev-h: 844px;
   --ink: #2a2118;
   --parch: #efe6d2;
   --parch-2: #e6d9bd;
@@ -34,53 +33,24 @@ body {
   overflow: hidden;
 }
 
-/* ----- device frame ------------------------------------------------------- */
+/* ----- app shell ----------------------------------------------------------
+   .device kept as the app container class, but it is now simply the full
+   viewport (100dvh tracks mobile browser chrome). */
 .app-bg {
-  height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  height: 100dvh;
 }
 
 .device {
   position: relative;
-  width: var(--dev-w);
-  height: min(var(--dev-h), 94vh);
-  border-radius: 38px;
+  width: 100%;
+  height: 100%;
   overflow: hidden;
   background: #000;
-  box-shadow: 0 0 0 12px #0e1422, 0 0 0 14px #2a3550, 0 30px 80px rgba(0, 0, 0, 0.6);
-}
-
-/* Notch */
-.device::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 140px;
-  height: 26px;
-  background: #0e1422;
-  border-radius: 0 0 16px 16px;
-  z-index: 50;
 }
 
 @media (max-width: 480px) {
   body {
     overflow: auto;
-  }
-  .app-bg {
-    height: 100dvh;
-  }
-  .device {
-    width: 100vw;
-    height: 100dvh;
-    border-radius: 0;
-    box-shadow: none;
-  }
-  .device::before {
-    display: none;
   }
 }
 
@@ -1515,17 +1485,9 @@ body {
   font-size: 12px;
 }
 
-/* =========================  DESKTOP (≥1024px)  ========================== */
+/* =========================  DESKTOP (≥1024px)  ==========================
+   No frame anymore — the app is full-bleed; this block only re-tunes sizes. */
 @media (min-width: 1024px) {
-  .device {
-    width: min(1180px, 94vw);
-    height: min(760px, 92vh);
-    border-radius: 22px;
-    box-shadow: 0 0 0 2px #2a3550, 0 30px 80px rgba(0, 0, 0, 0.6);
-  }
-  .device::before {
-    display: none;
-  }
   /* Bigger town on desktop */
   .town .island {
     font-size: 200px;
@@ -1559,6 +1521,19 @@ body {
   }
   .hero-chips .hc {
     font-size: 13px;
+  }
+  /* Full-bleed shell: keep wide rows readable instead of stretching edge to edge.
+     The map-controls BAR stays full width (glass background), its content centers. */
+  .map-controls > * {
+    max-width: 1100px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .loading-bar,
+  .branch {
+    max-width: 900px;
+    margin-left: auto;
+    margin-right: auto;
   }
 }
 

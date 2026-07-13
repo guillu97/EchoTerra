@@ -8,13 +8,14 @@ import { GameScreen } from "./screens/GameScreen";
 import { SettingsOverlay } from "./settings/SettingsOverlay";
 import { EditorScreen } from "./editor/EditorScreen";
 
-// The whole game lives inside a phone-shaped frame: centered with a decorative
-// background on desktop, full-screen on phones (see app-shell.css).
+// The app shell is full-bleed at every viewport size: `.device` is simply the
+// full-viewport container (see app-shell.css) — the old phone/tablet frame on
+// desktop is gone.
 export default function App() {
   const appScreen = useStore((s) => s.appScreen);
   const settingsScreen = useStore((s) => s.settingsScreen);
 
-  // The editor is a full-screen dev tool, rendered outside the phone frame.
+  // The editor is a full-screen dev tool, rendered outside the app shell.
   if (appScreen === "editor") return <EditorScreen />;
 
   return (

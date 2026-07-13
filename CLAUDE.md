@@ -310,8 +310,11 @@ POST /api/games/{id}/combat/{c}/action            {unitId, action: move|attack|s
 
 ## 7. Frontend UX (decisions that matter)
 
-- **App shell**: phone frame centered on desktop, full-screen on mobile; desktop breakpoint ≥1024px enlarges the
-  frame. Screen flow: loading → title → cinematic → game. In-game: TopBar + active tab + BottomNav.
+- **App shell**: **full-bleed à toutes les tailles** — `.device` est simplement le conteneur plein
+  viewport (100dvh) ; le cadre téléphone/tablette centré sur desktop a été SUPPRIMÉ (2026-07-13). Le
+  breakpoint ≥1024px ne fait plus que des ajustements de tailles + plafonne les rangées larges
+  (contenu de `.map-controls`, barres du loading) pour qu'elles ne s'étirent pas d'un bord à l'autre.
+  Screen flow: loading → title → cinematic → game. In-game: TopBar + active tab + BottomNav.
 - **Bottom nav** (5 tabs): only **Home** is gated to having a hero in town (`TOWN_TABS = ["home"]`).
   **Map/Stock/Structure/Craft are always accessible.**
 - **TopBar**: avatar (🙂) opens the **character screen**; 🏰% chip opens **TownStatus**; ⚙️ opens Settings.
