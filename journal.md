@@ -6,6 +6,31 @@
 
 ---
 
+## 2026-07-13 (5) — Map mobile : pinch amélioré (pan deux doigts) + seuil de tap DPR
+
+### Fait
+- **Pan deux doigts pendant le pinch** (`MapScene`) : le geste à deux doigts zoome toujours ancré sur
+  le milieu des doigts, et **suit maintenant le déplacement de ce milieu** (`pinchMidX/Y`) — bouger les
+  deux doigts ensemble déplace la carte comme dans une appli carto (avant, un drag à deux doigts ne
+  faisait rien tant que l'écartement ne changeait pas).
+- **Baseline du pinch au `pointerdown` du 2e doigt** : distance + milieu sont posés dès que le second
+  doigt touche l'écran (avant, le premier `pointermove` servait de baseline → petit à-coup au démarrage
+  du geste), et un pinch ne peut plus se terminer en clic de tuile (`dragged = true` immédiat).
+- **Seuil tap-vs-drag à l'échelle DPR** : `TAP_SLOP = 10 × DPR` remplace le seuil fixe de 8 px — les
+  coordonnées pointeur sont en pixels physiques depuis le passage au canvas DPR, donc 8 px ≈ 2,7 px CSS
+  sur un téléphone DPR 3 et des taps normaux (micro-tremblement du doigt) partaient en drag et
+  n'ouvraient jamais le menu radial.
+
+### Fonctionnel (vérifié)
+- `tsc -b` + `npm run build` OK. Gestes = logique pointeur pure (pas d'API nouvelle) ; la vérification
+  tactile réelle reste à faire sur téléphone.
+
+### À faire
+- Si le pinch paraît encore nerveux sur un vrai appareil : lisser le facteur (lerp) ou traiter le geste
+  une seule fois par frame (le handler tourne à chaque événement de chaque doigt).
+
+---
+
 ## 2026-07-13 (4) — Onglet Map : pips supprimés, unités 3× plus petites, fond ciel
 
 ### Fait

@@ -357,7 +357,10 @@ POST /api/games/{id}/combat/{c}/action            {unitId, action: move|attack|s
   ⚠ il poll par `page.evaluate` (PAS `waitForFunction` : en GL logiciel headless le canvas DPR affame le
   poller injecté de Playwright). Starts **zoomed in &
   centered on the town** (no more fit-all); **wheel + pinch
-  zoom** clamp 0.35–2.5. **Fog of war — appliqué dans le payload HTTP** : `Tile.Discovered` est
+  zoom** clamp 0.35–2.5 ; le pinch mobile zoome **ancré sur le milieu des doigts** ET **panne par le
+  déplacement de ce milieu** (pan deux doigts façon appli carto), baseline posée dès le pointerdown du
+  2e doigt (pas d'à-coup au 1er move) ; le seuil tap-vs-drag est **`TAP_SLOP = 10×DPR`** (les
+  coordonnées pointeur sont en px physiques — un seuil fixe de 8 px mangeait les taps sur téléphone). **Fog of war — appliqué dans le payload HTTP** : `Tile.Discovered` est
   **server-authoritative & partagé par tous les joueurs** (`fog.go`: `RevealVision` dans `Recompute`, anneau
   Chebyshev autour de la ville + de chaque héros vivant ; la ville toujours visible). `GameState.ClientView()`
   (`fog.go`) est appliqué à TOUTE réponse par l'interception centrale `clientView` dans `api.writeJSON` :

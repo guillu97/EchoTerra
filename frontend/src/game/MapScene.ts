@@ -32,6 +32,11 @@ const MIN_ZOOM = 0.35 * DPR;
 const MAX_ZOOM = 2.5 * DPR;
 const DEFAULT_ZOOM = 1.0 * DPR;
 
+// Tap-vs-drag tolerance. Pointer coords are in canvas (physical) pixels, so the
+// slop must scale with DPR — a fixed 8px was ~2.7 CSS px on a DPR-3 phone and
+// ordinary finger taps were being swallowed as drags.
+const TAP_SLOP = 10 * DPR;
+
 // Units (heroes/monsters) and the town building render small relative to the tiles
 // so the terrain reads first (they used to span nearly a full tile).
 const UNIT_SCALE = 1 / 3;
@@ -83,6 +88,8 @@ export class MapScene extends Phaser.Scene {
   private downY = 0;
   private dragged = false;
   private pinchDist = 0; // last two-finger distance (px) for pinch zoom
+  private pinchMidX = 0; // last two-finger midpoint, for two-finger pan
+  private pinchMidY = 0;
 
   constructor() {
     super("map");
@@ -168,32 +175,51 @@ export class MapScene extends Phaser.Scene {
     // Allow a second pointer so pinch-to-zoom works on touch.
     this.input.addPointer(1);
 
-    // Drag to pan; a click only fires if the pointer barely moved. Two fingers = pinch zoom.
+    // Drag to pan; a click only fires if the pointer barely moved.
+    // Two fingers = pinch zoom (anchored on the finger midpoint) + two-finger pan.
     this.input.on("pointerdown", (p: Phaser.Input.Pointer) => {
       this.downX = p.x;
       this.downY = p.y;
       this.dragged = false;
-    });
-    this.input.on("pointermove", (p: Phaser.Input.Pointer) => {
       const p1 = this.input.pointer1;
       const p2 = this.input.pointer2;
-      // Pinch: both pointers down -> zoom by the change in finger distance.
+      if (p1.isDown && p2.isDown) {
+        // Second finger just landed: baseline the pinch NOW so the very first move
+        // already zooms/pans (waiting for the first move event added a visible hitch),
+        // and a pinch can never end as a tile click.
+        this.pinchDist = Phaser.Math.Distance.Between(p1.x, p1.y, p2.x, p2.y);
+        this.pinchMidX = (p1.x + p2.x) / 2;
+        this.pinchMidY = (p1.y + p2.y) / 2;
+        this.dragged = true;
+      }
+    });
+    this.input.on("pointermove", (p: Phaser.Input.Pointer) => {
+      const cam = this.cameras.main;
+      const p1 = this.input.pointer1;
+      const p2 = this.input.pointer2;
+      // Pinch: zoom by the change in finger distance, anchored on the midpoint, AND
+      // pan by the midpoint's motion — moving both fingers together drags the map
+      // (map-app behavior; before, a two-finger drag did nothing).
       if (p1.isDown && p2.isDown) {
         const dist = Phaser.Math.Distance.Between(p1.x, p1.y, p2.x, p2.y);
+        const midX = (p1.x + p2.x) / 2;
+        const midY = (p1.y + p2.y) / 2;
         if (this.pinchDist > 0 && dist > 0) {
-          const mid = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
-          this.zoomBy(dist / this.pinchDist, mid.x, mid.y);
+          this.zoomBy(dist / this.pinchDist, midX, midY);
+          cam.scrollX -= (midX - this.pinchMidX) / cam.zoom;
+          cam.scrollY -= (midY - this.pinchMidY) / cam.zoom;
         }
         this.pinchDist = dist;
+        this.pinchMidX = midX;
+        this.pinchMidY = midY;
         this.dragged = true;
         return;
       }
       this.pinchDist = 0;
       if (!p.isDown) return;
-      const cam = this.cameras.main;
       cam.scrollX -= (p.x - p.prevPosition.x) / cam.zoom;
       cam.scrollY -= (p.y - p.prevPosition.y) / cam.zoom;
-      if (Math.abs(p.x - this.downX) + Math.abs(p.y - this.downY) > 8) this.dragged = true;
+      if (Math.abs(p.x - this.downX) + Math.abs(p.y - this.downY) > TAP_SLOP) this.dragged = true;
     });
     this.input.on("pointerup", (p: Phaser.Input.Pointer) => {
       if (!this.input.pointer1.isDown && !this.input.pointer2.isDown) this.pinchDist = 0;
