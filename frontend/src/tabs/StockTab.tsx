@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useStore } from "../store";
-import { heroesInTown } from "../townUtils";
+import { heroesInTown, myTeamHeroes } from "../townUtils";
 import { ItemGrid } from "../components/ItemGrid";
 import type { Item } from "../api/types";
 
@@ -14,10 +14,12 @@ const CATS = [
   { id: "arme", label: "Arme", types: ["arme"] },
 ];
 
-// Stock = always accessible overview. Each hero's personal bag (click to open the hero
-// screen's Inventory), plus the shared Maison storage when a hero is in town.
+// Stock = always accessible overview. MY heroes' personal bags only (another
+// player's inventory is their business), plus the shared Bank storage when one of
+// MY heroes is in town.
 export function StockTab() {
   const game = useStore((s) => s.game);
+  const playerId = useStore((s) => s.playerId);
   const deposit = useStore((s) => s.townDeposit);
   const busy = useStore((s) => s.busy);
   const [cat, setCat] = useState("all");
@@ -25,7 +27,8 @@ export function StockTab() {
 
   const active = CATS.find((c) => c.id === cat)!;
   const filt = (items: Item[]) => (active.types.length ? items.filter((i) => active.types.includes(i.type)) : items);
-  const inTown = heroesInTown(game);
+  const myHeroes = myTeamHeroes(game, playerId);
+  const inTown = heroesInTown(game, playerId);
   const carried = inTown.reduce((s, h) => s + h.inventory.reduce((n, i) => n + i.qty, 0), 0);
   const townTotal = (game.town.storage ?? []).reduce((s, i) => s + i.qty, 0);
 
@@ -42,7 +45,7 @@ export function StockTab() {
       </div>
 
       <div className="ps-list">
-        {game.heroes.map((h) => {
+        {myHeroes.map((h) => {
           const here = h.x === game.town.x && h.y === game.town.y;
           const carriedH = h.inventory.reduce((s, i) => s + i.qty, 0);
           return (
@@ -64,7 +67,7 @@ export function StockTab() {
               <span className="right muted">{townTotal}/2000</span>
             </div>
             <button className="small green dep" disabled={busy || carried === 0} onClick={() => deposit()}>
-              📦 Déposer le butin des héros en ville {carried > 0 ? `(${carried})` : ""}
+              📦 Déposer le butin de mes héros en ville {carried > 0 ? `(${carried})` : ""}
             </button>
             <ItemGrid items={filt(game.town.storage ?? [])} />
           </div>

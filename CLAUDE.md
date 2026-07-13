@@ -191,7 +191,10 @@ toutes les 3 s et bascule tout le monde en jeu quand l'hôte lance. `POST /api/g
 flux solo instantané à 3 héros pour "Test rapide". **Ownership serveur** : dans une partie AVEC joueurs,
 toute action héros (move/search/hide/escape/fireball/evolve/combat, worker de ville, unité de combat)
 exige le `playerId` propriétaire (`CheckHeroOwnership`; legacy 0-players = libre) ; `town/deposit` ne
-dépose que le sac de SON héros. `POST /{id}/leave` (lobby only, salon vidé = supprimé, hôte transféré),
+dépose que le sac de SON héros ; **`town/action` exige `heroId` en multi** (le pool PA partagé
+`spendTownPA` drainerait les héros des AUTRES joueurs — interdit, test `town_test.go`) et le front
+(`townUtils` : `heroesInTown/townPA/effectiveTownHeroId/myTeamHeroes` prennent `playerId`) ne compte
+que MES héros pour la présence en ville, le worker, les PA et le Stock. `POST /{id}/leave` (lobby only, salon vidé = supprimé, hôte transféré),
 `POST /{id}/kick` (hôte). Goroutine `lobbyJanitor` purge les lobbies non lancés de +24 h (`store.Delete`).
 Tests: `lobby_test.go`, `store_test.go`, worldgen `TestNewLobby*`.
 
@@ -315,12 +318,14 @@ POST /api/games/{id}/combat/{c}/action            {unitId, action: move|attack|s
   breakpoint ≥1024px ne fait plus que des ajustements de tailles + plafonne les rangées larges
   (contenu de `.map-controls`, barres du loading) pour qu'elles ne s'étirent pas d'un bord à l'autre.
   Screen flow: loading → title → cinematic → game. In-game: TopBar + active tab + BottomNav.
-- **Bottom nav** (5 tabs): only **Home** is gated to having a hero in town (`TOWN_TABS = ["home"]`).
+- **Bottom nav** (5 tabs): only **Home** is gated to having one of MY heroes in town (`TOWN_TABS = ["home"]`;
+  another player's hero in town doesn't open MY city screen).
   **Map/Stock/Structure/Craft are always accessible.**
 - **TopBar**: avatar (🙂) opens the **character screen**; 🏰% chip opens **TownStatus**; ⚙️ opens Settings.
 - **Character screen** (`HeroOverlay`, from the avatar): Skill view only (class, attributes + bonuses, unique
   skills, Evolve, ◀▶ roster cycle). **No inventory tab / no Stock link** (user decision).
-- **Stock**: each hero's personal bag (always) + the **Bank** section (only when ≥1 hero in town) + "deposit loot".
+- **Stock**: MY team's personal bags only (always) + the **Bank** section (only when ≥1 of MY heroes in town)
+  + "deposit loot" (server deposits my team's bags only).
 - **Structure**: ONE compact list (no Blueprint tab) — sites → "Construire", built → "Améliorer", each showing
   PA + material cost vs Bank stock; build actions need a hero in town (consult-only otherwise).
 - **Home**: tapping the **Workshop** or any **construction site** jumps to Structure; other built buildings open a

@@ -14,8 +14,9 @@ export function StructureTab() {
   const townAction = useStore((s) => s.townAction);
   const busy = useStore((s) => s.busy);
   const [sort, setSort] = useState<Sort>("status");
+  const playerId = useStore((s) => s.playerId);
   const pa = useWorkerPA();
-  const inTown = heroesInTown(game).length > 0;
+  const inTown = heroesInTown(game, playerId).length > 0;
 
   const storage = game?.town.storage ?? [];
   const have = (name: string) => storage.find((i) => i.name === name)?.qty ?? 0;

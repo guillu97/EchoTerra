@@ -238,20 +238,11 @@ export const useStore = create<StoreState>((set, get) => {
     return false;
   };
 
-  // The town worker paying PA: in multiplayer one of MY in-town heroes (the chosen
-  // one when it's mine), otherwise the legacy chosen/in-town hero.
+  // The town worker paying PA: one of MY in-town heroes (the chosen one when it's
+  // mine) — effectiveTownHeroId is ownership-aware, legacy solo included.
   const townWorkerId = () => {
-    const { game, townHeroId } = get();
-    if (!game) return undefined;
-    if (game.players?.length) {
-      const mine = myHeroIds();
-      const inTown = game.heroes.filter(
-        (h) => mine.includes(h.id) && h.hp > 0 && h.x === game.town.x && h.y === game.town.y,
-      );
-      if (townHeroId && inTown.some((h) => h.id === townHeroId)) return townHeroId;
-      return inTown[0]?.id;
-    }
-    return effectiveTownHeroId(game, townHeroId);
+    const { game, playerId, townHeroId } = get();
+    return effectiveTownHeroId(game, playerId, townHeroId);
   };
 
   return {

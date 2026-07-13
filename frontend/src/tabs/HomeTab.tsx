@@ -64,6 +64,7 @@ function BuildingMenu({ layout, b, onClose }: { layout: BuildingLayout; b: TownB
   const busy = useStore((s) => s.busy);
   const game = useStore((s) => s.game);
   const townHeroId = useStore((s) => s.townHeroId);
+  const playerId = useStore((s) => s.playerId);
   const pa = useWorkerPA();
   const noPa = pa < 1 || busy;
   const durFull = b.durability >= b.maxDurability;
@@ -71,7 +72,7 @@ function BuildingMenu({ layout, b, onClose }: { layout: BuildingLayout; b: TownB
 
   // Well: the daily ration is per-hero (the selected town worker). Figure out whether
   // that worker has already drunk today so we can label/disable the button.
-  const workerId = game ? effectiveTownHeroId(game, townHeroId) : undefined;
+  const workerId = game ? effectiveTownHeroId(game, playerId, townHeroId) : undefined;
   const worker = game?.heroes.find((h) => h.id === workerId);
   const workerDrankToday = !!worker && worker.drewWaterDay === game?.day;
   const wellEmpty = b.capacity <= 0;

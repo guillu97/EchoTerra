@@ -892,7 +892,13 @@ func (s *Server) townAction(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "corps invalide")
 		return
 	}
-	// The town worker paying the PA must be the calling player's own hero.
+	// The town worker paying the PA must be the calling player's own hero. In
+	// multiplayer the heroId is REQUIRED: the legacy shared pool (heroId="") would
+	// drain PA from every hero in town, including other players' teams.
+	if len(gs.Players) > 0 && body.HeroID == "" {
+		writeErr(w, http.StatusBadRequest, "sélectionne lequel de tes héros paie l'action (heroId)")
+		return
+	}
 	if body.HeroID != "" && !s.ownHero(w, gs, body.PlayerID, body.HeroID) {
 		return
 	}

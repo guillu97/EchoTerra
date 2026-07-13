@@ -20,11 +20,12 @@ export function CraftTab() {
   const busy = useStore((s) => s.busy);
   const selectedHeroId = useStore((s) => s.selectedHeroId);
   const townHeroId = useStore((s) => s.townHeroId);
+  const playerId = useStore((s) => s.playerId);
   const [cat, setCat] = useState("conso");
   if (!game) return null;
 
-  const inTown = heroesInTown(game).length > 0;
-  const actorId = inTown ? effectiveTownHeroId(game, townHeroId) : selectedHeroId;
+  const inTown = heroesInTown(game, playerId).length > 0;
+  const actorId = inTown ? effectiveTownHeroId(game, playerId, townHeroId) : selectedHeroId;
   const actor = game.heroes.find((h) => h.id === actorId);
   const pa = actor?.pa ?? 0;
   const source = inTown ? game.town.storage ?? [] : actor?.inventory ?? [];

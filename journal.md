@@ -6,6 +6,36 @@
 
 ---
 
+## 2026-07-13 (10) — Ville multi : seuls MES héros comptent (PA, worker, Home, Stock)
+
+### Fait
+- **Serveur** : `POST town/action` exige désormais `heroId` dans une partie avec joueurs — le chemin
+  legacy « pool partagé » (`heroId:""` → `spendTownPA`) drainait les PA de TOUS les héros en ville,
+  y compris ceux des autres joueurs (on pouvait financer un chantier avec les actions d'autrui).
+  L'ownership du `heroId` était déjà vérifiée ; la faille était le pool. Test HTTP
+  `api/town_test.go` (sans heroId → 400 ; héros d'un autre joueur → rejeté ; le sien → OK).
+- **Front** (`townUtils.ts`) : `heroesInTown/townPA/effectiveTownHeroId` prennent `playerId` et ne
+  comptent que MON équipe en multijoueur (`myTeamHeroes`, legacy solo = tout le monde). Répercuté
+  partout : BottomNav (Home se déverrouille avec MES héros en ville seulement), TownWorker/useWorkerPA
+  (le sélecteur « PA payés par » n'offre que mes héros), TownBar, StructureTab, CraftTab (mode ville =
+  mes héros), HomeTab (worker du puits), store (`townWorkerId` simplifié — la logique multi dupliquée
+  vit dans `effectiveTownHeroId`).
+- **Stock** : n'affiche plus que les sacs de MON équipe (l'inventaire des autres joueurs est privé) ;
+  la Banque reste partagée (c'est le coffre commun) mais sa section n'apparaît que si l'un de MES
+  héros est en ville ; libellé « Déposer le butin de mes héros ».
+
+### Fonctionnel (vérifié)
+- `go test ./...` OK (dont le nouveau `TestTownActionRequiresOwnHeroInMultiplayer`) ; `tsc -b` +
+  `npm run build` OK. E2E navigateur (partie 2 joueurs Alice+Bob, les 6 héros en ville) : le Stock
+  d'Alice liste ses 3 sacs + Banque (pas ceux de Bob), le worker picker n'offre que ses 3 héros,
+  l'API rejette pool partagé et héros adverse.
+
+### À faire
+- `TownAction` (couche jeu) garde le chemin pool pour le legacy solo — si un jour le solo passe
+  aussi au worker obligatoire, supprimer `spendTownPA`.
+
+---
+
 ## 2026-07-13 (9) — Fog of war : la mer de nuages devient une brume mystique animée
 
 ### Fait
