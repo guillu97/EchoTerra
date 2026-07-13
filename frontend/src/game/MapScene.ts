@@ -32,6 +32,10 @@ const MIN_ZOOM = 0.35 * DPR;
 const MAX_ZOOM = 2.5 * DPR;
 const DEFAULT_ZOOM = 1.0 * DPR;
 
+// Units (heroes/monsters) and the town building render small relative to the tiles
+// so the terrain reads first (they used to span nearly a full tile).
+const UNIT_SCALE = 1 / 3;
+
 // Fog of war: the server never sends undiscovered tiles (biome/height/resources are
 // blank in the payload), so they render as a flat neutral cube tinted near-black.
 const FOG_TINT = 0x141a26;
@@ -62,10 +66,6 @@ export class MapScene extends Phaser.Scene {
   private tilesKey = ""; // game id + dims the tile layer was built for
   private atlasPairs = new Set<string>(); // "biome:height" pillars baked into pillar-atlas
   private unitSprites: Phaser.GameObjects.Image[] = []; // hero/monster sprites (rebuilt each draw)
-  // Resource pips as Blitter bobs: Graphics re-tessellates every frame, a Blitter is
-  // a single cheap batched quad list — with ~400 pips that difference is the frame budget.
-  private pipOk?: Phaser.GameObjects.Blitter;
-  private pipEmpty?: Phaser.GameObjects.Blitter;
   private cubesReady = false; // normalized cube textures built?
   private townBuildingAspect = 0; // height/width of the normalized town building (0 = not ready)
   private gs?: GameState;
@@ -102,12 +102,10 @@ export class MapScene extends Phaser.Scene {
   create() {
     this.g = this.add.graphics();
     this.g.setDepth(10000); // overlay sits above every cube + unit
-    this.cameras.main.setBackgroundColor("#0e1626");
+    // No camera background: the canvas is transparent so the app's sky background
+    // (.sky, same as the Home tab) shows behind the map.
 
-    this.buildPipTextures();
     this.buildHighlightTextures();
-    this.pipOk = this.add.blitter(0, 0, "pip-ok").setDepth(10000);
-    this.pipEmpty = this.add.blitter(0, 0, "pip-empty").setDepth(10000);
 
     this.buildCubeTextures();
     this.buildTownBuilding();
@@ -163,8 +161,6 @@ export class MapScene extends Phaser.Scene {
       this.tilesKey = "";
       this.unitSprites.forEach((s) => s.destroy());
       this.unitSprites = [];
-      this.pipOk = undefined;
-      this.pipEmpty = undefined;
     };
     this.events.once("shutdown", cleanup);
     this.events.once("destroy", cleanup);
@@ -398,25 +394,6 @@ export class MapScene extends Phaser.Scene {
         this.textures.addCanvas("hl-ring", c);
       }
     }
-  }
-
-  // Two tiny circle textures for the resource pips (green = resources left, red = empty).
-  private buildPipTextures() {
-    const make = (key: string, color: string) => {
-      if (this.textures.exists(key)) return;
-      const c = document.createElement("canvas");
-      c.width = 6;
-      c.height = 6;
-      const ctx = c.getContext("2d");
-      if (!ctx) return;
-      ctx.fillStyle = color;
-      ctx.beginPath();
-      ctx.arc(3, 3, 2.4, 0, Math.PI * 2);
-      ctx.fill();
-      this.textures.addCanvas(key, c);
-    };
-    make("pip-ok", "#9ae66e");
-    make("pip-empty", "#c0392b");
   }
 
   // --- pillar atlas ------------------------------------------------------------
@@ -737,21 +714,6 @@ export class MapScene extends Phaser.Scene {
       }
     }
 
-    // --- overlay (resource pips, highlights, town) — always on top -----------
-    // Pips are Blitter bobs (repopulated on each state push, near-free per frame).
-    this.pipOk?.clear();
-    this.pipEmpty?.clear();
-    for (let y = 0; y < game.height; y++) {
-      for (let x = 0; x < game.width; x++) {
-        const t = game.tiles[y * game.width + x];
-        if (t.biome === Biome.Water) continue;
-        if (!this.isVisible(x, y)) continue; // resources stay hidden under fog
-        const f = this.topFace(x, y, this.renderHeight(t));
-        const pip = t.resources > 0 ? this.pipOk : this.pipEmpty;
-        pip?.create(f.sx - TILE_W / 4 - 3, f.sy - 3);
-      }
-    }
-
     // Reachable highlight around the selected hero (orthogonal, walkable land).
     // Per-tile Images with iso depths — sitting ON the tile top, UNDER any unit
     // standing there (drawing them on the top overlay covered the characters).
@@ -791,7 +753,7 @@ export class MapScene extends Phaser.Scene {
       .setDepth((game.town.x + game.town.y) * 100 + this.renderHeight(tt) + 1);
     this.unitSprites.push(plinth);
     if (this.townBuildingAspect > 0 && this.textures.exists("town-building")) {
-      const w = TILE_W * 2.1; // building spans a bit over two tiles wide
+      const w = TILE_W * 2.1 * UNIT_SCALE; // building footprint, scaled down with the units
       const img = this.add
         .image(townFace.sx, townFace.sy + TILE_H / 2, "town-building")
         .setOrigin(0.5, 1) // feet centred on the tile
@@ -810,11 +772,12 @@ export class MapScene extends Phaser.Scene {
       const f = this.topFace(m.x, m.y, this.renderHeight(t));
       const depth = (m.x + m.y) * 100 + 90;
       const tex = monsterTexKey(m.species);
+      const msz = TILE_W * 0.8 * UNIT_SCALE;
       if (tex && this.textures.exists(tex)) {
         const img = this.add
           .image(f.sx, f.sy + 4, tex)
           .setOrigin(0.5, 1)
-          .setDisplaySize(TILE_W * 0.8, TILE_W * 0.8)
+          .setDisplaySize(msz, msz)
           .setDepth(depth);
         this.unitSprites.push(img);
       } else {
@@ -823,7 +786,7 @@ export class MapScene extends Phaser.Scene {
         this.g.lineStyle(1, 0x000000, 0.5);
         this.g.strokeCircle(f.sx, f.sy - 6, 7);
       }
-      if (m.count > 1) this.text(f.sx + 12, f.sy - 18, `×${m.count}`, "#ffd0c4", 9);
+      if (m.count > 1) this.text(f.sx + msz / 2 + 4, f.sy - msz - 4, `×${m.count}`, "#ffd0c4", 9);
     }
 
     // Heroes (offset slightly when stacked so they don't fully overlap).
@@ -858,19 +821,23 @@ export class MapScene extends Phaser.Scene {
       // Selection ring at the hero's feet, in the iso stack just below the sprite —
       // the sprite (and units in front) draw over it instead of the ring covering them.
       if (selected) {
+        // Ring sized to the (scaled-down) hero, not the tile — a full-tile ring
+        // dwarfs the small sprite.
+        const rw = (TILE_W - 8) * UNIT_SCALE * 1.6;
         const ring = this.add
           .image(cx, cy, "hl-ring")
-          .setDisplaySize(TILE_W - 8, (TILE_W - 8) / 2)
+          .setDisplaySize(rw, rw / 2)
           .setTint(0xffe066)
           .setDepth(depth - 0.5);
         this.unitSprites.push(ring);
       }
       const tex = heroTexKey(h.class);
       if (this.textures.exists(tex)) {
+        const hsz = TILE_W * 0.85 * UNIT_SCALE;
         const img = this.add
           .image(cx, cy + 4, tex)
           .setOrigin(0.5, 1)
-          .setDisplaySize(TILE_W * 0.85, TILE_W * 0.85)
+          .setDisplaySize(hsz, hsz)
           .setDepth(depth);
         this.unitSprites.push(img);
       } else {

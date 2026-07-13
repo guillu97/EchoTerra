@@ -6,6 +6,32 @@
 
 ---
 
+## 2026-07-13 (4) — Onglet Map : pips supprimés, unités 3× plus petites, fond ciel
+
+### Fait
+- **Pips de ressources supprimés** (`MapScene`) : les points verts/rouges de disponibilité des cases
+  n'existent plus — `buildPipTextures`, les deux `Blitter` (`pipOk`/`pipEmpty`) et la boucle de
+  repopulation ont été retirés (demande UX : ils chargeaient visuellement la carte).
+- **Unités et bâtiment 3× plus petits** : nouvelle constante `UNIT_SCALE = 1/3` appliquée aux sprites
+  héros (`TILE_W*0.85*UNIT_SCALE`), monstres (`TILE_W*0.8*UNIT_SCALE`) et au bâtiment de ville
+  (`TILE_W*2.1*UNIT_SCALE`). L'anneau de sélection et le label `×count` des packs sont redimensionnés/
+  repositionnés en conséquence (un anneau pleine tuile écrasait le petit sprite).
+- **Fond ciel identique au Home** : canvas Phaser **transparent** (`transparent: true` dans
+  `PhaserGame`, plus de `backgroundColor`), `setBackgroundColor` retiré de `MapScene`, et le
+  `background: #0e1626` de `.map-host` supprimé → le `.sky` du `GameScreen` (app-bg.png, le même que
+  l'onglet Home) est visible derrière la carte. `CombatScene` garde son fond caméra opaque `#161022`.
+
+### Fonctionnel (vérifié)
+- `tsc -b` + `npm run build` OK. E2E navigateur (Playwright + swiftshader) : captures Map vs Home —
+  ciel visible autour de la carte, aucun pip, héros/monstres/église nettement plus petits que la tuile.
+
+### À faire
+- Rien de spécifique ; si les textures paraissent surdimensionnées en VRAM, `UNIT_TEX_SIZE` /
+  `TOWN_TEX_SIZE` (textureUtils) pourraient être réduits d'autant (÷3) — non fait car CombatScene
+  partage ces textures à plus grande taille.
+
+---
+
 ## 2026-07-13 (3) — Indicateurs sous les personnages + fog of war anti-triche (payload HTTP)
 
 ### Fait
