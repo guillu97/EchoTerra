@@ -72,7 +72,10 @@ func DefaultBuildings() []*TownBuilding {
 		{ID: "bank", Name: "Bank", Built: true, Level: 1, Durability: 80, MaxDurability: 100, MaxCapacity: 500},
 		{ID: "tower", Name: "Tower", Built: false, Level: 0, MaxDurability: 100},
 		{ID: "workshop", Name: "Workshop", Built: true, Level: 1, Durability: 85, MaxDurability: 100},
-		{ID: "gate", Name: "Gate", Built: true, Level: 2, Durability: 40, MaxDurability: 100},
+		// The gate starts OPEN: a built, closed gate seals the town (nobody in or out),
+		// and freshly spawned heroes must be able to leave. Closing it (1 PA toggle)
+		// restores its defense contribution — that's the Hordes-style trade-off.
+		{ID: "gate", Name: "Gate", Built: true, Level: 2, Durability: 40, MaxDurability: 100, Open: true},
 		{ID: "wall", Name: "Wall", Built: true, Level: 1, Durability: 20, MaxDurability: 100},
 		{ID: "kitchen", Name: "Kitchen", Built: false, Level: 0, MaxDurability: 80},
 		{ID: "panel", Name: "Panel", Built: true, Level: 1, Durability: 97, MaxDurability: 100},

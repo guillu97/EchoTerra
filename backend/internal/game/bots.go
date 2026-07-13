@@ -127,7 +127,14 @@ func (g *GameState) botHeroAct(h *Hero) bool {
 		if h.PA == 1 && distTown > 1 && !h.HasState(StateCache) {
 			return g.HideHero(h.ID) == nil // can't make it — vanish before the wave
 		}
-		return g.botStepToward(h, g.Town.X, g.Town.Y)
+		if g.botStepToward(h, g.Town.X, g.Town.Y) {
+			return true
+		}
+		// Locked out (closed gate) or path blocked — vanish before the wave instead.
+		if !h.HasState(StateCache) {
+			return g.HideHero(h.ID) == nil
+		}
+		return false
 	}
 
 	if inTown {
@@ -147,8 +154,14 @@ func (g *GameState) botHeroAct(h *Hero) bool {
 		if g.botBuild(h) {
 			return true
 		}
-		// Fresh legs: go gather.
+		// Fresh legs: go gather — but a closed gate seals the town, so open it first
+		// (1 PA at the gate, like a human would).
 		if h.PA >= 3 {
+			if _, _, ok := g.nearestResourceTile(h); ok && g.GateClosed() {
+				if err := g.TownAction("gate", "toggle", 1, h.ID); err == nil {
+					return true
+				}
+			}
 			if tx, ty, ok := g.nearestResourceTile(h); ok {
 				return g.botStepToward(h, tx, ty)
 			}

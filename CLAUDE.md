@@ -255,6 +255,11 @@ Construction sites (Built=false): **townhall (renamed from House — revive), to
   town worker (`heroID`), decrements Well `capacity`, clears that hero's `Soif`, and drops the ration into **that
   hero's bag** (not the Bank). Tracked via `Hero.DrewWaterDay`; derived `town.waterDrawnToday` lists who drank today.
 - `toggle` (Gate) → 1 PA, flips `open` (open = 0 defense; matches Neko's "qui a laissé la porte ouverte" chat).
+  **Une porte CONSTRUITE et FERMÉE scelle la ville** : personne n'entre NI ne sort (`GateClosed()` dans
+  `MoveHero` — deux sens — et le pas de retraite d'`EscapeHero` ne peut pas finir sur la ville ; les losanges
+  de déplacement du client reflètent la règle). La porte **démarre OUVERTE** (les héros doivent pouvoir sortir
+  au spawn) — la fermer restaure sa défense : c'est LE dilemme Hordes. Les bots ouvrent la porte avant de
+  sortir récolter et se cachent s'ils trouvent porte close en rentrant. Tests `gate_test.go`.
 - `use` → 1 PA flavored (others).
 
 **Bank** = `town.storage`: deposit hero loot (`/town/deposit`), craft I/O in town, construction materials.

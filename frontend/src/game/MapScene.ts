@@ -927,6 +927,10 @@ export class MapScene extends Phaser.Scene {
     // Per-tile Images with iso depths — sitting ON the tile top, UNDER any unit
     // standing there (drawing them on the top overlay covered the characters).
     if (hero) {
+      // A built, closed gate seals the town both ways (mirrors MoveHero).
+      const gate = game.town.buildings?.find((b) => b.id === "gate");
+      const gateClosed = !!gate && gate.built && !gate.open;
+      const heroOnTown = hero.x === game.town.x && hero.y === game.town.y;
       for (const [dx, dy] of [
         [1, 0],
         [-1, 0],
@@ -938,6 +942,7 @@ export class MapScene extends Phaser.Scene {
         if (nx < 0 || ny < 0 || nx >= game.width || ny >= game.height) continue;
         const t = game.tiles[ny * game.width + nx];
         if (t.discovered && t.biome === Biome.Water) continue; // known water is unwalkable
+        if (gateClosed && (heroOnTown || (nx === game.town.x && ny === game.town.y))) continue;
         const th = t.discovered ? this.renderHeight(t) : 0;
         const f = this.topFace(nx, ny, th);
         const img = this.add

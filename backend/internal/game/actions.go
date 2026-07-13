@@ -21,6 +21,19 @@ type ActionError struct{ Msg string }
 
 func (e ActionError) Error() string { return e.Msg }
 
+// GateClosed reports whether the town gate blocks passage: a BUILT, closed gate
+// seals the town — nobody walks in or out (Hordes-style: opening it is a town
+// action, and an open gate contributes zero defense). No gate / unbuilt gate =
+// a gap in the wall, free passage.
+func (g *GameState) GateClosed() bool {
+	for _, b := range g.Town.Buildings {
+		if b.ID == "gate" {
+			return b.Built && !b.Open
+		}
+	}
+	return false
+}
+
 // MoveHero moves a hero by one orthogonal step, spending 1 PA.
 func (g *GameState) MoveHero(heroID string, dx, dy int) error {
 	if g.ActiveCombat != "" {
@@ -43,6 +56,15 @@ func (g *GameState) MoveHero(heroID string, dx, dy int) error {
 	t := g.TileAt(nx, ny)
 	if t == nil || !t.Biome.Walkable() {
 		return ActionError{"case inaccessible"}
+	}
+	// A built, closed gate seals the town in BOTH directions.
+	if g.GateClosed() {
+		if nx == g.Town.X && ny == g.Town.Y {
+			return ActionError{"la porte de la ville est fermée — impossible d'entrer"}
+		}
+		if h.X == g.Town.X && h.Y == g.Town.Y {
+			return ActionError{"la porte de la ville est fermée — impossible de sortir"}
+		}
 	}
 	h.X, h.Y = nx, ny
 	h.PA--
@@ -122,6 +144,11 @@ func (g *GameState) EscapeHero(heroID string) error {
 			continue
 		}
 		nx, ny := h.X+d[0], h.Y+d[1]
+		// A closed gate also stops a retreating hero at the walls: the escape step
+		// may not END on the town tile (retreat along the other axis instead).
+		if g.GateClosed() && nx == g.Town.X && ny == g.Town.Y {
+			continue
+		}
 		if t := g.TileAt(nx, ny); t != nil && t.Biome.Walkable() {
 			h.X, h.Y = nx, ny
 			h.RemoveState("Caché")

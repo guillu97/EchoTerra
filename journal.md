@@ -6,6 +6,37 @@
 
 ---
 
+## 2026-07-13 (13) — La porte fermée scelle la ville (entrée ET sortie)
+
+### Fait
+- **Règle de la porte** (`actions.go`) : `GateClosed()` (porte construite + fermée) bloque `MoveHero`
+  dans les DEUX sens sur la case ville (« impossible d'entrer » / « impossible de sortir », refus
+  avant dépense de PA) ; le pas de retraite d'`EscapeHero` ne peut pas finir sur la ville porte close
+  (repli sur l'autre axe / sur place). Porte non construite = brèche, passage libre.
+- **La porte démarre OUVERTE** (`DefaultBuildings`, `Open: true`) : les héros fraîchement spawnés
+  doivent pouvoir sortir. La fermer (toggle 1 PA) restaure sa contribution défensive → vrai dilemme
+  Hordes (et cohérent avec la réplique de Neko). Défense de départ légèrement plus basse du coup.
+- **Bots** (`bots.go`) : avant de sortir récolter, un bot en ville OUVRE la porte si close (toggle
+  1 PA) ; un bot qui rentre et trouve porte close se CACHE avant la vague au lieu de buter en boucle
+  contre la muraille (`botStepToward` échoue → fallback Hide).
+- **Client** (`MapScene`) : les losanges de déplacement excluent toute traversée de porte fermée
+  (héros en ville → aucun losange ; héros adjacent → pas de losange sur la ville), miroir de la règle
+  serveur.
+
+### Fonctionnel (vérifié)
+- `go test ./...` OK (nouveaux `TestClosedGateSealsTown`, `TestEscapeCannotEnterClosedGate`).
+  E2E navigateur : porte ouverte au départ → 4 losanges ; toggle → 0 losange et le serveur refuse la
+  sortie (héros immobile). `tsc -b` + `npm run build` OK.
+
+### À faire
+- Les bots n'ont pas de « referme la porte avant la vague » (un bot en ville pourrait toggle close
+  quand la vague approche et que toute l'équipe est rentrée) — à évaluer, risque de guerre de toggle
+  avec les humains.
+- La retraite de combat perdu téléporte toujours les survivants en ville même porte close (choix :
+  ils sont « ramenés » blessés) — à trancher un jour.
+
+---
+
 ## 2026-07-13 (12) — Plus de Search/Hide sur la case ville
 
 ### Fait
