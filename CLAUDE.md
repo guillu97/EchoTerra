@@ -374,7 +374,12 @@ POST /api/games/{id}/combat/{c}/action            {unitId, action: move|attack|s
   (`fog.go`) est appliqué à TOUTE réponse par l'interception centrale `clientView` dans `api.writeJSON` :
   les tuiles non découvertes partent **vierges** (ni biome, ni hauteur, ni ressources, ni monsterId), les
   monstres sur tuiles cachées sont **omis**, et la **seed est masquée** (seed + générateur = toute la carte).
-  Le client rend les tuiles inconnues comme des piliers plats neutres (`FOG_BIOME` teinté `FOG_TINT`) ; le vrai
+  Le client rend les tuiles inconnues comme des **blocs-NUAGES procéduraux** (mer de nuages, plus de noir) :
+  `drawCloudInto` peint 6 variantes dans l'atlas partagé (paires `cloud{v}:1` — silhouette de cube en blancs
+  pastel, taches douces en dégradé radial [JAMAIS de cercles durs : ça fait des rayures], bosses sur les arêtes
+  hautes montant dans le niveau de marge h=1), variante par hachage mélangé de la position + flip miroir une
+  tuile sur deux (les combos linéaires type 7x+11y s'alignent en diagonales) ; tint blanc (elles portent leurs
+  couleurs), `FOG_FALLBACK` clair pour le fallback sans atlas ; le vrai
   terrain n'arrivant qu'à la découverte, la couche de tuiles est **diffée par draw** (frame + tint par tuile,
   seuls les changements sont touchés) et l'atlas grandit au fil de l'exploration (rebake → rebind de toutes les
   images, `ensurePillarAtlas` retourne `{ready, rebuilt}`). Le cheat « 👁️ Révéler la carte » a été SUPPRIMÉ

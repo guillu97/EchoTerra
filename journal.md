@@ -6,6 +6,33 @@
 
 ---
 
+## 2026-07-13 (8) — Fog of war : mer de nuages à la place du noir
+
+### Fait
+- **Les tuiles non découvertes se rendent en blocs-nuages** (`MapScene.drawCloudInto`) au lieu du
+  pilier grass teinté quasi-noir : silhouette de cube iso en blancs pastel (base ton moyen, sombre
+  vers le bas), taches douces en **dégradé radial** (ombre puis lumière — l'ondulation du tapis),
+  bosses claires à cheval sur les arêtes hautes qui montent dans un niveau de marge (paires `cloud{v}:1`,
+  h=1) → bord festonné/moutonneux là où les nuages rencontrent le terrain découvert. 6 variantes cuites
+  dans l'**atlas de piliers partagé** (même architecture perf : 1 Image/tuile, 1 texture, diff par draw),
+  choisies par **hachage mélangé** de la position + **flip miroir** une tuile sur deux. Tint blanc pour
+  les nuages (ils portent leurs couleurs) ; fallback sans atlas en `FOG_FALLBACK` clair.
+- Leçons de l'itération (5 essais, captures à l'appui) : les cercles à bord dur créent des artefacts
+  (« chevrons »/« virgules ») — n'utiliser QUE des dégradés radiaux pour la texture intérieure ; la base
+  de la face sup. doit être un ton MOYEN sinon les touffes claires disparaissent (plaine de neige) ; les
+  combos linéaires (7x+11y)%N s'alignent en diagonales — hacher avec XOR/multiplications.
+
+### Fonctionnel (vérifié)
+- Captures 1920 (vue large + zoom ×2) et 390×844 : mer de nuages continue, bords moelleux autour du
+  terrain, aucun motif répétitif visible. `tsc -b` + `npm run build` OK, `npm run test:perf` 13/13
+  (l'atlas absorbe les 6 cellules nuage sans dépasser les budgets).
+
+### À faire
+- Optionnel : générer un vrai tile `isotiles/cloud.png` via ComfyUI (DA storybook) et l'utiliser à la
+  place du procédural (même mécanique d'atlas — remplacer `drawCloudInto` par le cube normalisé).
+
+---
+
 ## 2026-07-13 (7) — Shell full responsive : suppression du cadre téléphone/tablette sur desktop
 
 ### Fait

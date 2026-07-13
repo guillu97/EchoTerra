@@ -42,9 +42,16 @@ const TAP_SLOP = 10 * DPR;
 const UNIT_SCALE = 1 / 3;
 
 // Fog of war: the server never sends undiscovered tiles (biome/height/resources are
-// blank in the payload), so they render as a flat neutral cube tinted near-black.
-const FOG_TINT = 0x141a26;
-const FOG_BIOME = Biome.Grass; // cube used for the flat "hidden" pillars
+// blank in the payload). They render as procedural CLOUD blocks — soft pastel cube
+// silhouettes with puffy bumps, baked into the shared pillar atlas (pairs
+// `cloud{v}:1`) so the unexplored world reads as a sea of clouds instead of black.
+const CLOUD_VARIANTS = 6; // per-tile variant picked by position hash (breaks tiling)
+const CLOUD_TOP = "#f8fbff";
+const CLOUD_MID = "#dde7f5";
+const CLOUD_SHADOW = "#bccbe3"; // creases between puffs
+const CLOUD_BOT = "#a9bad6";
+// Flat fallback color for undiscovered tiles while the atlas isn't baked yet.
+const FOG_FALLBACK = 0xd7e0ee;
 
 // Biome index (0..5) -> iso cube filename under /assets/isotiles/.
 const ISO_TILE_FILES = ["water", "sand", "grass", "forest", "stone", "snow"];
@@ -451,11 +458,13 @@ export class MapScene extends Phaser.Scene {
   // the atlas is rebaked (union of pairs) and `rebuilt` tells draw() to rebind every
   // tile image to the fresh texture.
   private ensurePillarAtlas(game: GameState): { ready: boolean; rebuilt: boolean } {
-    if (!this.cubeKeyFor(FOG_BIOME)) return { ready: false, rebuilt: false }; // cubes not ready yet
+    if (!this.cubeKeyFor(Biome.Grass)) return { ready: false, rebuilt: false }; // cubes not ready yet
     const need = new Set<string>();
-    need.add(`${FOG_BIOME}:0`); // the flat "hidden tile" pillar is always needed
+    // The cloud pillars (fog of war) are always needed. `h` is 1: the puffy bumps
+    // rise one elevation level above the top face, so the cell needs the headroom.
+    for (let v = 0; v < CLOUD_VARIANTS; v++) need.add(`cloud${v}:1`);
     for (const t of game.tiles) {
-      if (!t.discovered) continue; // blank in the payload — rendered as the fog pillar
+      if (!t.discovered) continue; // blank in the payload — rendered as a cloud pillar
       if (!this.cubeKeyFor(t.biome)) continue; // missing biome texture -> tile skipped
       need.add(`${t.biome}:${this.renderHeight(t)}`);
     }
@@ -465,8 +474,8 @@ export class MapScene extends Phaser.Scene {
 
     const all = new Set([...this.atlasPairs, ...need]);
     const pairs = [...all].map((p) => {
-      const [b, h] = p.split(":").map(Number);
-      return { p, b, h };
+      const [b, h] = p.split(":");
+      return { p, b, h: Number(h) };
     });
     const cellW = TILE_W * SS;
     const pillarH = (h: number) => (TILE_H + CUBE_DEPTH + h * ELEV) * SS;
@@ -481,9 +490,13 @@ export class MapScene extends Phaser.Scene {
     if (!ctx) return { ready: false, rebuilt: false };
     for (let i = 0; i < pairs.length; i++) {
       const { b, h } = pairs[i];
-      const cube = this.textures.get(`iso-cube-${b}`).getSourceImage() as HTMLCanvasElement;
       const cx = (i % cols) * cellW;
       const bottom = (Math.floor(i / cols) + 1) * cellH;
+      if (b.startsWith("cloud")) {
+        this.drawCloudInto(ctx, cx, bottom, cellW, pillarH(h), Number(b.slice(5)));
+        continue;
+      }
+      const cube = this.textures.get(`iso-cube-${b}`).getSourceImage() as HTMLCanvasElement;
       for (let lvl = 0; lvl <= h; lvl++) {
         ctx.drawImage(cube, cx, bottom - (TILE_H + CUBE_DEPTH + lvl * ELEV) * SS);
       }
@@ -499,14 +512,117 @@ export class MapScene extends Phaser.Scene {
     return { ready: true, rebuilt: true };
   }
 
+  // Paint one cloud-block variant into its atlas cell: the iso cube silhouette in
+  // soft pastel whites (so adjacent fog tiles tessellate into a continuous cloud
+  // sea, exactly like terrain cubes do) topped with puffy bumps rising into the
+  // one-level headroom above the top face. Deterministic per variant (seeded LCG)
+  // so rebakes are stable. Everything is clipped to the cell so nothing bleeds
+  // into neighbouring atlas cells.
+  private drawCloudInto(
+    ctx: CanvasRenderingContext2D,
+    cx: number,
+    bottom: number,
+    cellW: number,
+    pillarPx: number,
+    variant: number,
+  ) {
+    const W = cellW;
+    const th = TILE_H * SS; // top-face diamond height
+    const cd = CUBE_DEPTH * SS; // extruded side height
+    const topY = bottom - (th + cd); // diamond's top corner (headroom above is for bumps)
+    const midY = topY + th / 2;
+    const botY = topY + th;
+    const cmx = cx + W / 2;
+    let seed = (variant + 1) * 48271;
+    const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 2 ** 32);
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(cx, bottom - pillarPx, W, pillarPx);
+    ctx.clip();
+
+    // Cube silhouette (top diamond + sides). The top face's BASE tone is the mid
+    // color — the light puff balls drawn over it need contrast to read (a near-white
+    // base swallowed them and the fog looked like a flat snow plain).
+    const grad = ctx.createLinearGradient(0, topY, 0, botY + cd);
+    grad.addColorStop(0, CLOUD_MID);
+    grad.addColorStop(0.6, CLOUD_MID);
+    grad.addColorStop(1, CLOUD_BOT);
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.moveTo(cmx, topY);
+    ctx.lineTo(cx + W, midY);
+    ctx.lineTo(cx + W, midY + cd);
+    ctx.lineTo(cmx, botY + cd);
+    ctx.lineTo(cx, midY + cd);
+    ctx.lineTo(cx, midY);
+    ctx.closePath();
+    ctx.fill();
+
+    // Soft billowy top: only SOFT radial-gradient patches (no hard circle edges —
+    // hard shadow slivers peeking from under hard light blobs read as scratches).
+    // Shadow patches first, then highlight patches: the deck gently undulates.
+    const soft = (bx: number, by: number, r: number, rgb: string, a: number) => {
+      const g = ctx.createRadialGradient(bx, by, 0, bx, by, r);
+      g.addColorStop(0, `rgba(${rgb},${a})`);
+      g.addColorStop(1, `rgba(${rgb},0)`);
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(bx, by, r, 0, Math.PI * 2);
+      ctx.fill();
+    };
+    const inDiamond = (u: number, v: number) => ({
+      bx: cmx + ((u - v) * W) / 2,
+      by: topY + ((u + v) * th) / 2,
+    });
+    for (let i = 0; i < 3; i++) {
+      const { bx, by } = inDiamond(0.22 + rnd() * 0.56, 0.22 + rnd() * 0.56);
+      soft(bx, by + th * 0.04, (0.26 + rnd() * 0.14) * W, "150,172,208", 0.4 + rnd() * 0.15);
+    }
+    for (let i = 0; i < 5; i++) {
+      const { bx, by } = inDiamond(0.16 + rnd() * 0.68, 0.16 + rnd() * 0.68);
+      soft(bx, by - th * 0.04, (0.2 + rnd() * 0.12) * W, "255,255,255", 0.75 + rnd() * 0.2);
+    }
+    // Bumps straddling the two upper edges, rising into the headroom (kept off the
+    // corners so tile borders stay seamless). Hard edges are fine here — they ARE
+    // the silhouette.
+    ctx.fillStyle = CLOUD_TOP;
+    const bumps = 4 + Math.floor(rnd() * 3);
+    for (let i = 0; i < bumps; i++) {
+      const t = 0.18 + ((i + rnd() * 0.6) / bumps) * 0.64; // 0.18..0.82 across the tile
+      const bx = cx + t * W;
+      const by = topY + Math.abs(t - 0.5) * th; // y on the upper edges
+      ctx.beginPath();
+      ctx.arc(bx, by, (0.12 + rnd() * 0.09) * W, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Soft mid-tone patches low on the sides so the block base reads fluffy too.
+    for (let i = 0; i < 3; i++) {
+      const bx = cx + (0.15 + rnd() * 0.7) * W;
+      const by = midY + cd * (0.5 + rnd() * 0.4);
+      soft(bx, by, (0.12 + rnd() * 0.09) * W, "150,172,208", 0.35);
+    }
+    ctx.restore();
+  }
+
   // Frame + pillar height a tile renders with. Undiscovered tiles are blank in the
-  // server payload — they render as the flat neutral fog pillar whatever the cheat
-  // toggles say (the client simply doesn't have their terrain).
-  private tileFrameAndHeight(t: { biome: Biome; height: number; discovered?: boolean }): {
+  // server payload — they render as a cloud pillar whatever the cheat toggles say
+  // (the client simply doesn't have their terrain). The cloud variant is a stable
+  // position hash so the cloud sea doesn't visibly tile.
+  private tileFrameAndHeight(
+    t: { biome: Biome; height: number; discovered?: boolean },
+    x: number,
+    y: number,
+  ): {
     frame: string;
     h: number;
   } {
-    if (!t.discovered) return { frame: `p${FOG_BIOME}:0`, h: 0 };
+    if (!t.discovered) {
+      // Bit-mixed hash: a plain linear combo (7x+11y) lines the variants up along
+      // diagonals and the cloud sea visibly repeats.
+      const v = (((x * 92837111) ^ (y * 689287499)) >>> 0) % CLOUD_VARIANTS;
+      return { frame: `pcloud${v}:1`, h: 1 };
+    }
     const h = this.renderHeight(t);
     return { frame: `p${t.biome}:${h}`, h };
   }
@@ -705,7 +821,7 @@ export class MapScene extends Phaser.Scene {
         for (let x = 0; x < game.width; x++) {
           const i = y * game.width + x;
           const t = game.tiles[i];
-          const { frame, h } = this.tileFrameAndHeight(t);
+          const { frame, h } = this.tileFrameAndHeight(t, x, y);
           if (!this.atlasPairs.has(frame.slice(1))) continue; // missing biome texture
           if (this.tileFrameAt[i] === frame) continue;
           let img = this.tileImgAt[i];
@@ -718,6 +834,10 @@ export class MapScene extends Phaser.Scene {
             img.setTexture("pillar-atlas", frame);
           }
           img.setDisplaySize(TILE_W, TILE_H + CUBE_DEPTH + h * ELEV).setDepth((x + y) * 100 + h);
+          // Mirror half the cloud tiles (stable position hash) — doubles the
+          // apparent variant count of the cloud sea for free. Terrain cubes are
+          // lit from a fixed side and must never flip.
+          img.setFlipX(!t.discovered && ((x * 13 + y * 5) & 1) === 1);
           this.tileFrameAt[i] = frame;
           this.tileTintAt[i] = -1; // frame changed -> force retint below
         }
@@ -732,11 +852,12 @@ export class MapScene extends Phaser.Scene {
         if (!img) continue;
         const t = game.tiles[i];
         const h = this.renderHeight(t);
-        // Subtle elevation shade so relief reads even on flat lighting.
+        // Subtle elevation shade so relief reads even on flat lighting. Cloud
+        // (undiscovered) pillars stay untinted — they carry their own colors.
         const shade = Math.min(0.8 + Math.min(h, 6) * 0.033, 1);
         const tint = t.discovered && this.isVisible(i % game.width, (i / game.width) | 0)
           ? darken(0xffffff, shade)
-          : FOG_TINT;
+          : 0xffffff;
         if (this.tileTintAt[i] !== tint) {
           img.setTint(tint);
           this.tileTintAt[i] = tint;
@@ -755,7 +876,7 @@ export class MapScene extends Phaser.Scene {
         const h = this.renderHeight(t);
         const color = this.isVisible(x, y)
           ? darken(BIOME_COLORS[t.biome], 0.78 + Math.min(h, 6) * 0.035)
-          : FOG_TINT;
+          : FOG_FALLBACK;
         for (let lvl = 0; lvl <= h; lvl++) this.drawFallbackCube(x, y, lvl, color);
       }
     }
