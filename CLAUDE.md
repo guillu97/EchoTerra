@@ -332,8 +332,9 @@ POST /api/games/{id}/combat/{c}/action            {unitId, action: move|attack|s
   use a height-aware inverse projection (topmost visible tile). **Perf** : les piliers (biome × hauteur) sont
   pré-cuits dans UN atlas canvas partagé (`ensurePillarAtlas`) → **1 Image par tuile** (au lieu de h+1 cubes
   empilés) et un seul batch texture ; la couche de tuiles est construite **une fois par partie, jamais
-  reconstruite** — brouillard/ombrage appliqués par diff de `setTint` par tuile ; les pips de ressources sont des
-  bobs de **`Blitter`** (un Graphics re-tesselle ses ~400 cercles à CHAQUE frame — ne pas y revenir) ; les PNG
+  reconstruite** — brouillard/ombrage appliqués par diff de `setTint` par tuile ; les pips de ressources
+  (points verts/rouges de disponibilité) ont été **SUPPRIMÉS** (choix UX 2026-07-13 ; si on les remet un jour :
+  bobs de **`Blitter`**, JAMAIS un Graphics qui re-tesselle ~400 cercles à chaque frame) ; les PNG
   bruts 1024² sont libérés après normalisation ; mipmaps trilinéaires (`PhaserGame.tsx`). **L'onglet Map reste
   MONTÉ toute la partie** (`GameScreen` le rend en permanence avec une prop `active`, caché via
   `visibility:hidden` — PAS `display:none` : en mode `Scale.RESIZE` un parent 0×0 casse le framebuffer WebGL) —
@@ -371,7 +372,12 @@ POST /api/games/{id}/combat/{c}/action            {unitId, action: move|attack|s
   sélection et socle de la ville sont des **Images par tuile insérées dans la pile iso** (textures `hl-diamond`
   / `hl-ring`, depth `(x+y)*100+h+1`, anneau juste sous le sprite du héros) — les dessiner sur l'overlay du
   haut (depth 10000) les affichait PAR-DESSUS les personnages. Heroes/monsters reuse the same chibi/creature sprites,
-  depth-sorted into the cube stack. Tap a hero (or the **⚡ Actions** button) opens a **radial action menu**
+  depth-sorted into the cube stack — **rendus petits par rapport aux tuiles** (`UNIT_SCALE = 1/3` dans
+  `MapScene` : héros/monstres/bâtiment de ville ~1/3 de leur ancienne taille ; anneau de sélection et
+  label ×count suivent). **Fond ciel** : le canvas Phaser est **transparent** (`transparent: true`,
+  pas de couleur caméra en MapScene, `.map-host` sans background) → le `.sky` du GameScreen (le même
+  `app-bg.png` que l'onglet Home) est visible derrière la carte ; CombatScene garde son fond opaque.
+  Tap a hero (or the **⚡ Actions** button) opens a **radial action menu**
   (Fight if monster on tile / **🔥 Fire ball -2 PA when a pack is on/adjacent** / Search / Hide / **Escape only when
   Tétanisé**). Combat reached from the map.
 - Server timer: `nextWaveAt` drives "Next wave in"; GameScreen polls every 20s so scheduler waves show up.

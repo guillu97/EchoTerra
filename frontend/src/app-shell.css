@@ -1091,7 +1091,8 @@ body {
 .map-host {
   position: absolute;
   inset: 0;
-  background: #0e1626;
+  /* No background: the Phaser canvas is transparent so the .sky background
+     (same image as the Home tab) shows behind the map. */
 }
 /* The Map tab stays mounted (Phaser instance kept warm) and is hidden with CSS
    when another tab is active — see GameScreen. visibility (NOT display:none) so

@@ -47,7 +47,10 @@ export function PhaserGame({ active = true }: { active?: boolean }) {
       parent,
       width: initial.w,
       height: initial.h,
-      backgroundColor: "#0e1626",
+      // Transparent canvas: the Map tab shows the app's sky background (.sky, same
+      // image as the Home tab) behind the iso terrain. CombatScene keeps its own
+      // opaque camera background color.
+      transparent: true,
       scale: { mode: Phaser.Scale.NONE, zoom: 1 / DPR },
       scene: [MapScene, CombatScene],
       // Mipmaps: the unit/building PNGs render small — trilinear minification
