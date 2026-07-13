@@ -11,7 +11,6 @@ export function TitleScreen() {
     openAccount,
     startAdventure,
     startSoloBots,
-    pushLog,
     startTestGame,
     continueTestGame,
     busy,
@@ -40,6 +39,9 @@ export function TitleScreen() {
         <button className="pill" onClick={() => openLobby("private")}>
           🎪 Parties privées
         </button>
+        <button className="pill" onClick={() => setScreen("leaderboard")}>
+          🏆 Classement
+        </button>
         <button className="pill" onClick={() => openSettings("menu")}>
           ⚙️ Paramètres
         </button>
@@ -59,9 +61,6 @@ export function TitleScreen() {
           </button>
           <button className="pill dev-pill" onClick={() => setScreen("editor")}>
             🗺️ Éditeur
-          </button>
-          <button className="pill dev-pill" onClick={() => pushLog("Classement — bientôt")}>
-            🏆 Classement
           </button>
         </div>
       </div>

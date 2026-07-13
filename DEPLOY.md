@@ -22,7 +22,7 @@ Le repo utilise le preset **Services** de Vercel : deux services dans UN projet,
 4. **Redéployer** (Deployments → ⋯ → Redeploy) pour que le backend voie `DATABASE_URL`.
 
 Vérification : `https://<projet>.vercel.app/healthz` doit répondre `{"ok":true,...}` et
-l'écran titre doit lister l'« Expédition publique ».
+l'écran titre doit lister une expédition publique (« Expédition de <nom de ville> »).
 
 ### Variables d'environnement (optionnelles)
 

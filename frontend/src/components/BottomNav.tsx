@@ -3,7 +3,7 @@ import { NAV_TABS } from "../data/buildings";
 import { heroesInTown, TOWN_TABS } from "../townUtils";
 import type { Tab } from "../store";
 
-// Bottom navigation: Home · Map · Stock · Structure · Craft.
+// Bottom navigation: Ville · Carte · Sac · Bâtir · Craft.
 // Town tabs are only reachable when at least one hero stands on the town tile.
 export function BottomNav() {
   const tab = useStore((s) => s.tab);
@@ -24,8 +24,11 @@ export function BottomNav() {
             title={disabled ? "Aucun héros dans la ville" : t.label}
             onClick={() => setTab(t.id as Tab)}
           >
-            <span className="ni">{disabled ? "🔒" : t.icon}</span>
-            {t.label}
+            <span className="ni">
+              {t.icon}
+              {disabled && <span className="lock">🔒</span>}
+            </span>
+            <span className="nl">{t.label}</span>
           </button>
         );
       })}

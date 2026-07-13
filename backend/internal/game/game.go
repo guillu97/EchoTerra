@@ -157,7 +157,11 @@ type GameState struct {
 	LastBotAt  time.Time    `json:"lastBotAt,omitzero"` // last lazy bot round (serverless catch-up, see bots.go)
 	Status     string       `json:"status"`     // "lobby" | "active" | "gameover"
 	LastWave   *WaveReport  `json:"lastWave,omitempty"`
-	Town       struct {
+	// MonstersKilled counts every creature slain in this game (iso combat wins,
+	// Fire balls, bot auto-resolves) — the leaderboard's "monstres tués par ville".
+	MonstersKilled int `json:"monstersKilled"`
+	Town           struct {
+		Name      string          `json:"name"` // generated town name (see townnames.go)
 		X         int             `json:"x"`
 		Y         int             `json:"y"`
 		HP        int             `json:"hp"`

@@ -8,6 +8,7 @@ import type {
   MyGameSummary,
   Player,
   Recipe,
+  ScoreEntry,
   User,
 } from "./types";
 
@@ -159,6 +160,8 @@ export const api = {
   recipes: () => req<Recipe[]>("GET", "/api/recipes"),
 
   classes: () => req<ClassDef[]>("GET", "/api/classes"),
+
+  leaderboard: () => req<ScoreEntry[]>("GET", "/api/leaderboard"),
 
   evolve: (gameId: string, heroId: string, classId: string, playerId?: string) =>
     req<GameState>("POST", `/api/games/${gameId}/heroes/${heroId}/evolve`, { classId, playerId }),

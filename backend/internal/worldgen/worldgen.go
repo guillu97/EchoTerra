@@ -135,6 +135,7 @@ func newWorld(width, height int, seed int64) *game.GameState {
 		Wave:      0,
 		CreatedAt: time.Now(),
 	}
+	gs.Town.Name = game.NewTownName()
 	gs.Town.X, gs.Town.Y = tx, ty
 	gs.Town.HP, gs.Town.MaxHP = 100, 100
 	gs.Town.Buildings = game.DefaultBuildings()

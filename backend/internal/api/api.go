@@ -191,6 +191,16 @@ func (s *Server) Router() http.Handler {
 		writeJSON(w, http.StatusOK, game.Classes)
 	})
 
+	// Leaderboard: town achievements (survival, monsters slain) for the title screen.
+	r.Get("/api/leaderboard", func(w http.ResponseWriter, r *http.Request) {
+		entries, err := s.store.Leaderboard(50)
+		if err != nil {
+			writeErr(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, entries)
+	})
+
 	r.Route("/api/auth", s.authRoutes)
 
 	r.Route("/api/games", func(r chi.Router) {
@@ -368,9 +378,7 @@ func (s *Server) lazyHousekeeping() {
 		}
 	}
 	if !hasPublic {
-		gs := worldgen.NewLobby(22, 22, time.Now().UnixNano(), publicLobbyName, 2, 4)
-		gs.Visibility = game.VisibilityPublic
-		s.persist(gs)
+		s.persist(newPublicLobby())
 	}
 }
 
@@ -497,8 +505,14 @@ func (s *Server) soloGame(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, map[string]any{"game": gs, "player": p})
 }
 
-// publicLobbyName is the display name of server-created public games.
-const publicLobbyName = "Expédition publique"
+// newPublicLobby builds a server-created public game, named after its generated
+// town ("Expédition de Clairmont") so every public lobby is distinguishable.
+func newPublicLobby() *game.GameState {
+	gs := worldgen.NewLobby(22, 22, time.Now().UnixNano(), "", 2, 4)
+	gs.Visibility = game.VisibilityPublic
+	gs.Name = "Expédition de " + gs.Town.Name
+	return gs
+}
 
 // ensurePublicLobby guarantees at least one OPEN public lobby exists, so there is
 // always a game to join without a code. Called at startup, from the janitor, and
@@ -513,9 +527,7 @@ func (s *Server) ensurePublicLobby() {
 			return
 		}
 	}
-	gs := worldgen.NewLobby(22, 22, time.Now().UnixNano(), publicLobbyName, 2, 4)
-	gs.Visibility = game.VisibilityPublic
-	s.persist(gs)
+	s.persist(newPublicLobby())
 }
 
 // joinByCode resolves a join code against open lobbies (newest first) and joins it.

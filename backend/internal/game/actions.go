@@ -175,6 +175,7 @@ func (g *GameState) FireballHero(heroID string) (*FireballReport, error) {
 			t.MonsterID = ""
 		}
 	}
+	g.MonstersKilled += rep.Slain
 
 	h.PA -= FireballPACost
 	h.Bars["combat"]++
@@ -320,8 +321,16 @@ func (g *GameState) FinishCombat(c *Combat) {
 
 	switch c.Status {
 	case "won":
-		// Remove the defeated monster and reward the party.
+		// Remove the defeated monster and reward the party. The whole pack falls
+		// with the fight, so the kill tally grows by the pack size.
 		if t := g.TileAt(c.TileX, c.TileY); t != nil {
+			if m := g.Monsters[t.MonsterID]; m != nil {
+				slain := m.Count
+				if slain < 1 {
+					slain = 1
+				}
+				g.MonstersKilled += slain
+			}
 			delete(g.Monsters, t.MonsterID)
 			t.MonsterID = ""
 		}

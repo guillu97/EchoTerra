@@ -140,8 +140,13 @@ frontend/src/
   combats{}` + lobby: `joinCode, minPlayers, maxPlayers, players[], createdAt, startedAt`.
 - **Player** (lobby.go): `id, name, heroIds[3], host, joinedAt` — **1 joueur = 3 héros** (équipe : le 1er
   héros porte le nom du joueur, les 2 autres viennent du pool `companionNames`) ; le 1er joueur est l'hôte.
-- **Town** (inline in GameState): `x, y, hp(100), maxHp(100), defense(computed), buildings[], storage[]`.
-  **`storage` = the Bank** (shared town stash).
+- **Town** (inline in GameState): `name (généré par townnames.go), x, y, hp(100), maxHp(100),
+  defense(computed), buildings[], storage[]`. **`storage` = the Bank** (shared town stash).
+- **Achievements**: `GameState.monstersKilled` compte chaque créature tuée (combat iso gagné = tout le
+  pack, boule de feu = `Slain`, bots inclus). Chaque `store.Save` d'une partie lancée upserte un
+  **snapshot dans la table `leaderboard`** (ville, joueurs, jours/vagues, kills, gameOver) qui **survit
+  à la purge de la partie**. `GET /api/leaderboard` = top 50 (vagues desc, kills desc) → écran
+  🏆 Classement du menu principal (`LeaderboardScreen`).
 - **Hero**: `id, name, x, y, pa(6), maxPa, hp, maxHp, stats{force,dexterite,agilite,endurance,athletisme,
   precision}, class("Sans classe"), classId, classTier(0|1|2), classBonuses{Stats}, states[], inventory[Item],
   bars{}`.
@@ -166,7 +171,7 @@ per-building `defense`, per-building `cost`, `bank.capacity = sum(storage qty)`,
 
 **Lobby / multijoueur** (`lobby.go`, `LobbyScreen.tsx`) — deux visibilités (`GameState.Visibility`,
 "" = private legacy) : **privée** = créée par un joueur, join par CODE, lancée par l'HÔTE, kick = hôte ;
-**publique** = créée automatiquement par le serveur ("Expédition publique", `ensurePublicLobby` au boot
+**publique** = créée automatiquement par le serveur ("Expédition de <ville générée>", `ensurePublicLobby` au boot
 + janitor + après chaque auto-start → il y a toujours un salon public ouvert), listée sans joinCode,
 **démarre seule dès `minPlayers` atteint** (`MaybeAutoStart`), start manuel/bots/pouvoirs d'hôte
 refusés, expulsion par **vote majoritaire** (`VoteKick`, `KickVotes`, majorité stricte des autres
@@ -273,6 +278,7 @@ enter (`store.ts`) and the **HeroOverlay** uses it for the Evolve picker and Uni
 ```
 GET  /healthz
 GET  /api/recipes
+GET  /api/leaderboard                            top 50 ScoreEntry {townName,players,days,waves,monstersKilled,gameOver}
 GET  /api/auth/config                            {googleClientId} (""=Google désactivé; le front s'y adapte)
 POST /api/auth/register                          {email,name?,password} -> {user,token} (bcrypt, session 30j)
 POST /api/auth/login                             {email,password} -> {user,token} ; POST /api/auth/logout
@@ -312,9 +318,13 @@ POST /api/games/{id}/combat/{c}/action            {unitId, action: move|attack|s
 
 - **App shell**: phone frame centered on desktop, full-screen on mobile; desktop breakpoint ≥1024px enlarges the
   frame. Screen flow: loading → title → cinematic → game. In-game: TopBar + active tab + BottomNav.
-- **Bottom nav** (5 tabs): only **Home** is gated to having a hero in town (`TOWN_TABS = ["home"]`).
-  **Map/Stock/Structure/Craft are always accessible.**
-- **TopBar**: avatar (🙂) opens the **character screen**; 🏰% chip opens **TownStatus**; ⚙️ opens Settings.
+- **Bottom nav** (5 tabs, labels FR : Ville/Carte/Sac/Bâtir/Craft): only **Home** is gated to having a
+  hero in town (`TOWN_TABS = ["home"]`). **Map/Stock/Structure/Craft are always accessible.** Onglet
+  actif = pastille dorée + indicateur lumineux ; onglet verrouillé = icône grisée + badge 🔒.
+- **TopBar**: avatar (🙂) opens the **character screen**; bloc titre = **nom de ville généré** +
+  "Jour N · Vague M" (tap → TownStatus); jauge 🏰 PV de la ville (barre + %, ambre <60 %, rouge <30 %);
+  chip 🌊 **compte à rebours de la vague** (pulse rouge < 60 s; caché hors partie active); 🔧 (DEV
+  uniquement); ⚙️ Settings. L'ancienne bannière "Next wave in" du Home a été SUPPRIMÉE (doublon).
 - **Character screen** (`HeroOverlay`, from the avatar): Skill view only (class, attributes + bonuses, unique
   skills, Evolve, ◀▶ roster cycle). **No inventory tab / no Stock link** (user decision).
 - **Stock**: each hero's personal bag (always) + the **Bank** section (only when ≥1 hero in town) + "deposit loot".

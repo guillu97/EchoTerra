@@ -112,9 +112,9 @@ export function buildingIcon(id: string): string {
 }
 
 export const NAV_TABS = [
-  { id: "home", label: "Home", icon: "🏠" },
-  { id: "map", label: "Map", icon: "🗺️" },
-  { id: "stock", label: "Stock", icon: "🎒" },
-  { id: "structure", label: "Structure", icon: "🏗️" },
+  { id: "home", label: "Ville", icon: "🏠" },
+  { id: "map", label: "Carte", icon: "🗺️" },
+  { id: "stock", label: "Sac", icon: "🎒" },
+  { id: "structure", label: "Bâtir", icon: "🏗️" },
   { id: "craft", label: "Craft", icon: "⚒️" },
 ] as const;

@@ -6,6 +6,44 @@
 
 ---
 
+## 2026-07-13 (6) — Header/footer refaits, noms de ville générés, achievements + leaderboard
+
+### Fait
+- **Noms de ville générés** (`game/townnames.go`, `Town.Name`) : chaque monde reçoit un nom façon
+  "Clairmont" / "Valbourg-sur-Brume" (`newWorld`). Les **parties publiques** s'appellent désormais
+  "Expédition de <ville>" (`newPublicLobby` dans api.go, utilisé par `ensurePublicLobby` ET
+  `lazyHousekeeping` serverless).
+- **Achievements** : `GameState.MonstersKilled` compte chaque créature tuée — combat iso gagné
+  (= tout le pack, bots auto-résolus inclus, `FinishCombat`) et boule de feu (`rep.Slain`). Nouvelle
+  **table `leaderboard`** (store.go, SQLite + Postgres) : upsert à chaque `Save` d'une partie lancée
+  (ville, joueurs, jours/vagues, kills, gameOver) — la ligne **survit à la suppression de la partie**.
+  `GET /api/leaderboard` (top 50 : vagues desc puis kills desc).
+- **Écran 🏆 Classement** (`LeaderboardScreen.tsx`, style parchemin du lobby) branché sur le bouton
+  du menu principal (sorti de la section Debug ; le placeholder "bientôt" est mort). Médailles top 3,
+  badge 💀 tombée / ⚔️ en cours, joueurs, "Jour N · Vague M", 👹 kills.
+- **TopBar refait** : nom de ville réel + sous-titre "Jour N · Vague M" (tap → TownStatus), jauge PV
+  ville (barre colorée verte/ambre/rouge + %), chip 🌊 compte à rebours de vague (pulse rouge < 60 s,
+  masqué hors partie active), 🔧 triche gaté `import.meta.env.DEV`, voile dégradé pour la lisibilité.
+  Les placeholders "TownName 1" et "⭐ 6/18" sont morts. La **bannière "Next wave in" du Home a été
+  supprimée** (doublon du header ; CSS `.wave-banner` retiré).
+- **BottomNav refait** : labels français (Ville/Carte/Sac/Bâtir/Craft), onglet actif en pastille dorée
+  + indicateur lumineux + icône soulevée, icônes inactives grisées (filter), verrou = badge 🔒 sur
+  l'icône (au lieu de la remplacer), transitions + retour tactile (scale), fond dégradé + blur.
+
+### Fonctionnel (vérifié)
+- `go test ./...` OK (nouveaux : `achievements_test.go` — kills fireball/combat won/lost,
+  `TestLeaderboardSavesAndRanks` — upsert, tri, exclusion lobby, survie au Delete). `tsc -b` +
+  `npm run build` OK. E2E manuel : serveur lancé → lobby public "Expédition de Roncehavre-sous-Lune",
+  partie solo "Saulegarde-du-Lac", 2 vagues forcées → `/api/leaderboard` renvoie l'entrée (jour 2,
+  vague 2, joueurs). Captures Playwright : header (nom de ville + jauges), footer, écran Classement.
+
+### À faire
+- Enrichir le leaderboard (meilleur héros, ressources récoltées ?) et le rafraîchir en fin de partie
+  côté GameOver overlay (lien vers le classement).
+- hordePower ∝ joueurs (reste de la session lobby).
+
+---
+
 ## 2026-07-13 (5) — Map mobile : pinch amélioré (pan deux doigts) + seuil de tap DPR
 
 ### Fait

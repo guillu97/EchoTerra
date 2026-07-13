@@ -182,6 +182,20 @@ export interface GameSummary {
   createdAt: string;
 }
 
+// One town's achievements on the leaderboard (GET /api/leaderboard): survival and
+// monsters slain, kept server-side even after the game itself is purged.
+export interface ScoreEntry {
+  gameId: string;
+  townName: string;
+  gameName: string;
+  players: string[];
+  days: number;
+  waves: number;
+  monstersKilled: number;
+  gameOver: boolean;
+  updatedAt: string;
+}
+
 export interface GameState {
   id: string;
   name?: string;
@@ -205,7 +219,9 @@ export interface GameState {
   startedAt?: string;
   kickVotes?: Record<string, string[]>; // public lobbies: target player id -> voter ids
   lastWave?: WaveReport;
+  monstersKilled: number; // total creatures slain (leaderboard achievement)
   town: {
+    name: string; // generated town name (server-side, townnames.go)
     x: number;
     y: number;
     hp: number;

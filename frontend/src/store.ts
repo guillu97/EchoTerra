@@ -22,7 +22,15 @@ const lsPlayerKey = (gameId: string) => `echoterra:player:${gameId}`;
 type View = "map" | "combat";
 type CombatMode = "move" | "attack" | "skill";
 
-export type AppScreen = "loading" | "title" | "cinematic" | "game" | "editor" | "lobby" | "account";
+export type AppScreen =
+  | "loading"
+  | "title"
+  | "cinematic"
+  | "game"
+  | "editor"
+  | "lobby"
+  | "account"
+  | "leaderboard";
 export type Tab = "home" | "map" | "stock" | "structure" | "craft";
 export type SettingsScreen = "menu" | "setting" | "language" | "notifications";
 
