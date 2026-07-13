@@ -1983,6 +1983,11 @@ body {
   border-right: 8px solid transparent;
   border-top: 8px solid var(--glass-2);
 }
+.am-note {
+  font-size: 11px;
+  color: #9fb0c8;
+  max-width: 170px;
+}
 .am-title {
   font-size: 11px;
   color: #cbd6e6;

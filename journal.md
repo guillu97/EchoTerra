@@ -6,6 +6,28 @@
 
 ---
 
+## 2026-07-13 (12) — Plus de Search/Hide sur la case ville
+
+### Fait
+- **Serveur** (`actions.go`) : `SearchTile` et `HideHero` refusent la case ville (« rien à fouiller
+  en ville — le stock est à la Banque » / « inutile de se cacher en ville — la ville protège déjà
+  ses habitants » ; la vague épargne déjà les héros en ville, la cachette n'y sert à rien). Refus
+  AVANT toute dépense de PA. Test `town_tile_test.go` (refus en ville, OK une case à côté, 0 PA
+  consommé).
+- **Worldgen** : la tuile ville est générée avec `resources: 0` — sinon des ressources infouillables
+  faussaient `nearestResourceTile` des bots et l'affichage. (Bots inchangés : ils ne fouillent/se
+  cachent déjà que hors ville.)
+- **Menu radial** (`MapTab`) : Search et Hide masqués quand le héros sélectionné est sur la ville ;
+  à la place une note « 🏰 En ville — fouille et cachette inutiles ici » (style `.am-note`).
+- Test e2e serverless adapté (il fouillait depuis la case ville au spawn : déplace d'abord le héros).
+
+### Fonctionnel (vérifié)
+- `go test ./...` OK (5 paquets). E2E navigateur : menu en ville = note seule ; une case à côté =
+  Search/Hide (+ Fire ball) de retour ; API : les deux routes renvoient bien l'erreur en ville.
+  `tsc -b` + `npm run build` OK.
+
+---
+
 ## 2026-07-13 (11) — Home : échelle de la ville bornée sur grand écran
 
 ### Fait

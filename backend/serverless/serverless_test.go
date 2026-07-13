@@ -86,6 +86,20 @@ func TestHandlerServesAPI(t *testing.T) {
 		t.Fatalf("get game: %d %s", rr.Code, rr.Body.String())
 	}
 	hero := solo.Player.HeroIDs[0]
+	// Heroes spawn on the town tile, where searching is forbidden — step off first
+	// (any walkable direction will do; water blocks some).
+	moved := false
+	for _, d := range []string{`{"dx":1,"dy":0`, `{"dx":-1,"dy":0`, `{"dx":0,"dy":1`, `{"dx":0,"dy":-1`} {
+		rr = do("POST", "/api/games/"+solo.Game.ID+"/heroes/"+hero+"/move",
+			d+`,"playerId":"`+solo.Player.ID+`"}`)
+		if rr.Code == 200 {
+			moved = true
+			break
+		}
+	}
+	if !moved {
+		t.Fatalf("could not move the hero off the town tile: %d %s", rr.Code, rr.Body.String())
+	}
 	rr = do("POST", "/api/games/"+solo.Game.ID+"/heroes/"+hero+"/search",
 		`{"playerId":"`+solo.Player.ID+`"}`)
 	if rr.Code != 200 {

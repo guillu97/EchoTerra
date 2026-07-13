@@ -18,6 +18,7 @@ function ActionMenu() {
   const tileAt = (x: number, y: number) =>
     x < 0 || y < 0 || x >= game.width || y >= game.height ? undefined : game.tiles[y * game.width + x];
   const tile = tileAt(hero.x, hero.y);
+  const onTown = hero.x === game.town.x && hero.y === game.town.y;
   const onMonster = !!tile?.monsterId;
   // Fire ball reaches the hero's tile or any orthogonally adjacent pack.
   const monsterInRange =
@@ -54,13 +55,20 @@ function ActionMenu() {
             🔥 Fire ball <i>-{FIREBALL_PA}</i>
           </button>
         )}
-        {/* Fouille impossible quand le héros est bloqué par la horde. */}
-        <button disabled={noPa || stuck || (tile?.resources ?? 0) <= 0} onClick={() => run(search)}>
-          🔎 Search <i>-1</i>
-        </button>
-        <button disabled={noPa} onClick={() => run(hide)}>
-          🫥 Hide <i>-1</i>
-        </button>
+        {onTown && <div className="am-note">🏰 En ville — fouille et cachette inutiles ici</div>}
+        {/* Pas de fouille ni de cachette sur la case ville (la ville protège déjà et n'a
+            rien à fouiller) — le serveur les refuse aussi. */}
+        {!onTown && (
+          <>
+            {/* Fouille impossible quand le héros est bloqué par la horde. */}
+            <button disabled={noPa || stuck || (tile?.resources ?? 0) <= 0} onClick={() => run(search)}>
+              🔎 Search <i>-1</i>
+            </button>
+            <button disabled={noPa} onClick={() => run(hide)}>
+              🫥 Hide <i>-1</i>
+            </button>
+          </>
+        )}
         {/* Escape only matters when the hero is stuck (Tétanisé) by the surrounding pack. */}
         {stuck && (
           <button disabled={noPa} onClick={() => run(escape)}>

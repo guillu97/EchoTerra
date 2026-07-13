@@ -139,6 +139,10 @@ func newWorld(width, height int, seed int64) *game.GameState {
 	gs.Town.HP, gs.Town.MaxHP = 100, 100
 	gs.Town.Buildings = game.DefaultBuildings()
 	gs.Town.Storage = []game.Item{}
+	// The town tile can't be searched (SearchTile rejects it), so it must not carry
+	// resources: bots' nearest-resource targeting and the UI would chase a tile
+	// that can never be harvested.
+	gs.Tiles[ty*width+tx].Resources = 0
 	return gs
 }
 

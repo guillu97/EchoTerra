@@ -211,7 +211,9 @@ création du compte (provider "google", PassHash vide → login mot de passe ref
 email déjà inscrit = même compte. Setup GCP : voir `DEPLOY.md`. Apple écarté (payant, ~99 $/an).
 
 **Movement / PA** — 6 PA/hero/day. Move = 1 PA/orthogonal step (blocked if `Tétanisé`; clears `Caché`;
-PA→0 adds `Fatigue`). Search = 1 PA, loot by biome, decrements tile `resources`.
+PA→0 adds `Fatigue`). Search = 1 PA, loot by biome, decrements tile `resources`. **Search et Hide sont
+REFUSÉS sur la case ville** (serveur `actions.go` + menu radial masqué ; la tuile ville est générée avec
+`resources: 0` pour que les bots/UI ne la ciblent pas).
 
 **Fire ball (map skill)** — `FireballHero` (`actions.go`): 2 PA AoE blast on a monster pack on the hero's tile
 or an orthogonally adjacent tile. `damage = 5 + précision + dextérité/2 + rand(0..3)`; the blast burns through
@@ -407,7 +409,7 @@ POST /api/games/{id}/combat/{c}/action            {unitId, action: move|attack|s
   `app-bg.png` que l'onglet Home) est visible derrière la carte ; CombatScene garde son fond opaque.
   Tap a hero (or the **⚡ Actions** button) opens a **radial action menu**
   (Fight if monster on tile / **🔥 Fire ball -2 PA when a pack is on/adjacent** / Search / Hide / **Escape only when
-  Tétanisé**). Combat reached from the map.
+  Tétanisé** ; **Search/Hide cachés sur la case ville** — note "En ville" à la place). Combat reached from the map.
 - Server timer: `nextWaveAt` drives "Next wave in"; GameScreen polls every 20s so scheduler waves show up.
 
 ## 7b. Map editor (dev tool — `frontend/src/editor/`)

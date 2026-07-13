@@ -64,6 +64,11 @@ func (g *GameState) HideHero(heroID string) error {
 	if h == nil {
 		return ActionError{"héros introuvable"}
 	}
+	// Pointless AND confusing on the town tile: the wave already spares in-town
+	// heroes, hiding is for the wilds.
+	if h.X == g.Town.X && h.Y == g.Town.Y {
+		return ActionError{"inutile de se cacher en ville — la ville protège déjà ses habitants"}
+	}
 	if h.PA <= 0 {
 		return ActionError{h.Name + " n'a plus de point d'action"}
 	}
@@ -213,6 +218,11 @@ func (g *GameState) SearchTile(heroID string) (*Item, error) {
 	}
 	if h.PA <= 0 {
 		return nil, ActionError{h.Name + " n'a plus de point d'action"}
+	}
+	// The town tile is not searchable (its resources are zeroed at worldgen; town
+	// loot lives in the Bank, not under the plaza).
+	if h.X == g.Town.X && h.Y == g.Town.Y {
+		return nil, ActionError{"rien à fouiller en ville — le stock est à la Banque"}
 	}
 	t := g.TileAt(h.X, h.Y)
 	if t == nil {
