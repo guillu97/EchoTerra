@@ -6,6 +6,45 @@
 
 ---
 
+## 2026-07-13 (3) — Indicateurs sous les personnages + fog of war anti-triche (payload HTTP)
+
+### Fait
+- **Indicateurs de mouvement sous les personnages** : les losanges jaunes (cases atteignables),
+  l'anneau de sélection et le socle de la ville étaient dessinés sur l'overlay `Graphics`
+  (depth 10000) → PAR-DESSUS les sprites. Ce sont maintenant des **Images par tuile insérées dans
+  la pile iso** (`MapScene.buildHighlightTextures` : `hl-diamond`/`hl-ring` supersamplées DPR ;
+  losange depth `(x+y)*100+h+1` juste au-dessus de la tuile, anneau `depth(héros)-0.5` juste sous le
+  sprite) — les personnages passent devant naturellement. Helper `diamond()` de l'overlay supprimé.
+- **Fog of war complet, appliqué côté serveur** : `GameState.ClientView()` (`fog.go`) copie l'état en
+  vidant les tuiles non découvertes (biome/hauteur/ressources/monsterId), en omettant les **monstres
+  sur tuiles cachées** et en masquant la **seed** (seed + générateur Perlin = toute la carte).
+  Interception **centrale** dans `api.writeJSON` (`clientView` : GameState direct ou dans un
+  `map[string]any`) → aucun handler présent ou futur ne peut fuiter ; `/world` redigé aussi. La
+  persistance et la logique (bots, vagues) travaillent toujours sur l'état complet.
+- **Client adapté** : les tuiles inconnues n'existant plus dans le payload, elles se rendent comme
+  des piliers plats neutres (`FOG_BIOME` grass teinté `FOG_TINT`) — le relief n'est plus divulgué
+  par la silhouette. La couche de tuiles n'est plus « construite une fois » : **diff par draw**
+  (frame + tint par tuile, `tileFrameAt`), le vrai pilier apparaît à la découverte, l'atlas grandit
+  (`ensurePillarAtlas` → `{ready, rebuilt}`, rebake = rebind de toutes les images, colonnes bornées
+  à 4096 px). Le cheat « 👁️ Révéler la carte » est supprimé (plus rien à révéler côté client) —
+  `debugNoFog`/`revealAll` retirés du store/scène/CheatPanel.
+
+### Fonctionnel (vérifié)
+- `go test ./...` OK (dont `TestClientViewRedactsUndiscovered`) ; `tsc -b` + `npm run build` OK ;
+  `npm run test:perf` **PASS 13/13 × 3 runs** (budgets d'ouverture assouplis en garde-fous : le GL
+  logiciel headless peut geler ~20 s sur le premier frame composité, artefact CI sans GPU).
+- HTTP vérifié sur partie fraîche : seed=0, 435/484 tuiles non découvertes **toutes vierges**,
+  monstres envoyés uniquement sur tuiles découvertes.
+- E2E navigateur : héros marché 6 pas dans le brouillard → 49→70 tuiles découvertes, le vrai terrain
+  (sable, eau) se matérialise à l'arrivée des données, les tuiles cachées restent vierges côté
+  client ; capture : anneau + losanges bien SOUS le sprite du héros.
+
+### Reste à faire
+- La silhouette de la carte (le grand losange sombre) révèle les dimensions du monde — acceptable.
+- Variantes 256² des PNG pour le réseau mobile (report de la session précédente).
+
+---
+
 ## 2026-07-13 (2) — Tests de chargement + résolution native (carte pixelisée sur téléphone)
 
 ### Fait

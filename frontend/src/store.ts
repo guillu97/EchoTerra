@@ -63,7 +63,6 @@ interface StoreState {
   heroOverlay?: string; // hero id whose character screen is open
   townStatusOpen: boolean; // town status panel overlay
   cheatOpen: boolean;
-  debugNoFog: boolean; // debug: reveal the whole map (ignore fog of war) — client-side only
   townHeroId?: string; // preferred hero paying for town work
   recipes: Recipe[];
   classes: ClassDef[];
@@ -100,7 +99,6 @@ interface StoreState {
   closeHero: () => void;
   toggleTownStatus: (open?: boolean) => void;
   toggleCheat: () => void;
-  toggleFog: () => void;
   startTestGame: () => Promise<void>;
   continueTestGame: () => Promise<void>;
   // lobby actions
@@ -164,10 +162,10 @@ export const useStore = create<StoreState>((set, get) => {
   const pushLog = (msg: string) => set((s) => ({ log: [...s.log.slice(-40), msg] }));
 
   const renderMap = () => {
-    const { game, selectedHeroId, debugNoFog, showOthers, playerId } = get();
+    const { game, selectedHeroId, showOthers, playerId } = get();
     const myHeroIds = game?.players?.find((p) => p.id === playerId)?.heroIds ?? [];
     bus.emit(EV.ShowScene, "map");
-    bus.emit(EV.MapRender, { game, selectedHeroId, revealAll: debugNoFog, myHeroIds, showOthers });
+    bus.emit(EV.MapRender, { game, selectedHeroId, myHeroIds, showOthers });
   };
 
   const renderCombat = () => {
@@ -263,7 +261,6 @@ export const useStore = create<StoreState>((set, get) => {
     settings: loadSettings(),
     townStatusOpen: false,
     cheatOpen: false,
-    debugNoFog: false,
     recipes: [],
     classes: [],
     playerName: localStorage.getItem(LS_PLAYER_NAME) ?? "",
@@ -299,11 +296,6 @@ export const useStore = create<StoreState>((set, get) => {
     toggleTownStatus: (open) =>
       set((s) => ({ townStatusOpen: open === undefined ? !s.townStatusOpen : open })),
     toggleCheat: () => set((s) => ({ cheatOpen: !s.cheatOpen })),
-    toggleFog: () => {
-      set((s) => ({ debugNoFog: !s.debugNoFog }));
-      if (get().view === "map") renderMap(); // re-push so the scene re-renders with/without fog
-    },
-
     startTestGame: () =>
       withBusy(async () => {
         const game = await api.createGame({ width: 22, height: 22 });

@@ -231,7 +231,24 @@ func (s *Server) Router() http.Handler {
 func writeJSON(w http.ResponseWriter, code int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
-	_ = json.NewEncoder(w).Encode(v)
+	_ = json.NewEncoder(w).Encode(clientView(v))
+}
+
+// clientView redacts every GameState in an outgoing payload (fog of war: tiles no
+// hero has discovered must not reach the network, see GameState.ClientView).
+// Centralized here so no handler — current or future — can leak the full state.
+func clientView(v any) any {
+	switch t := v.(type) {
+	case *game.GameState:
+		return t.ClientView()
+	case map[string]any:
+		out := make(map[string]any, len(t))
+		for k, val := range t {
+			out[k] = clientView(val)
+		}
+		return out
+	}
+	return v
 }
 
 func writeErr(w http.ResponseWriter, code int, msg string) {
@@ -705,11 +722,12 @@ func (s *Server) getWorld(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusNotFound, "partie introuvable")
 		return
 	}
+	cv := gs.ClientView() // fog of war: never ship undiscovered tiles
 	writeJSON(w, http.StatusOK, map[string]any{
-		"width":  gs.Width,
-		"height": gs.Height,
-		"tiles":  gs.Tiles,
-		"town":   gs.Town,
+		"width":  cv.Width,
+		"height": cv.Height,
+		"tiles":  cv.Tiles,
+		"town":   cv.Town,
 	})
 }
 

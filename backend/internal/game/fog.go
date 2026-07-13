@@ -34,3 +34,28 @@ func (g *GameState) RevealVision() {
 		}
 	}
 }
+
+// ClientView returns a copy of the state that is safe to send to players: tiles no
+// hero has discovered are blanked (their biome/height/resources/monster would leak
+// through the HTTP payload even though the client hides them), monsters standing on
+// undiscovered tiles are omitted, and the worldgen seed is zeroed (seed + generator
+// would reconstruct the whole map). The receiver is NOT modified — persistence and
+// all game logic keep operating on the full state.
+func (g *GameState) ClientView() *GameState {
+	cp := *g
+	cp.Seed = 0
+	cp.Tiles = make([]Tile, len(g.Tiles))
+	for i, t := range g.Tiles {
+		if t.Discovered {
+			cp.Tiles[i] = t
+		}
+		// else: zero Tile — Discovered stays false, everything else is blank
+	}
+	cp.Monsters = make(map[string]*Monster, len(g.Monsters))
+	for id, m := range g.Monsters {
+		if t := g.TileAt(m.X, m.Y); t != nil && t.Discovered {
+			cp.Monsters[id] = m
+		}
+	}
+	return &cp
+}

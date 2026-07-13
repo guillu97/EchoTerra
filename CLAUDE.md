@@ -356,11 +356,21 @@ POST /api/games/{id}/combat/{c}/action            {unitId, action: move|attack|s
   ⚠ il poll par `page.evaluate` (PAS `waitForFunction` : en GL logiciel headless le canvas DPR affame le
   poller injecté de Playwright). Starts **zoomed in &
   centered on the town** (no more fit-all); **wheel + pinch
-  zoom** clamp 0.35–2.5. **Fog of war**: tiles are hidden (dark `FOG_TINT`, resources/monsters concealed) until a
-  hero has seen them — `Tile.Discovered` is **server-authoritative & shared by all players** (`fog.go`:
-  `RevealVision` runs in `Recompute`, revealing a Chebyshev ring around the town + every live hero; the town is
-  always visible). Debug: the CheatPanel **👁️ Révéler la carte** toggles `store.debugNoFog` (client-side reveal-all,
-  passed to the scene via `MapRender.revealAll`). Heroes/monsters reuse the same chibi/creature sprites,
+  zoom** clamp 0.35–2.5. **Fog of war — appliqué dans le payload HTTP** : `Tile.Discovered` est
+  **server-authoritative & partagé par tous les joueurs** (`fog.go`: `RevealVision` dans `Recompute`, anneau
+  Chebyshev autour de la ville + de chaque héros vivant ; la ville toujours visible). `GameState.ClientView()`
+  (`fog.go`) est appliqué à TOUTE réponse par l'interception centrale `clientView` dans `api.writeJSON` :
+  les tuiles non découvertes partent **vierges** (ni biome, ni hauteur, ni ressources, ni monsterId), les
+  monstres sur tuiles cachées sont **omis**, et la **seed est masquée** (seed + générateur = toute la carte).
+  Le client rend les tuiles inconnues comme des piliers plats neutres (`FOG_BIOME` teinté `FOG_TINT`) ; le vrai
+  terrain n'arrivant qu'à la découverte, la couche de tuiles est **diffée par draw** (frame + tint par tuile,
+  seuls les changements sont touchés) et l'atlas grandit au fil de l'exploration (rebake → rebind de toutes les
+  images, `ensurePillarAtlas` retourne `{ready, rebuilt}`). Le cheat « 👁️ Révéler la carte » a été SUPPRIMÉ
+  (le client n'a plus rien à révéler — anti-triche par construction). Tests : `fog_test.go`
+  (`TestClientViewRedactsUndiscovered`). **Indicateurs sous les unités** : losanges de déplacement, anneau de
+  sélection et socle de la ville sont des **Images par tuile insérées dans la pile iso** (textures `hl-diamond`
+  / `hl-ring`, depth `(x+y)*100+h+1`, anneau juste sous le sprite du héros) — les dessiner sur l'overlay du
+  haut (depth 10000) les affichait PAR-DESSUS les personnages. Heroes/monsters reuse the same chibi/creature sprites,
   depth-sorted into the cube stack. Tap a hero (or the **⚡ Actions** button) opens a **radial action menu**
   (Fight if monster on tile / **🔥 Fire ball -2 PA when a pack is on/adjacent** / Search / Hide / **Escape only when
   Tétanisé**). Combat reached from the map.
