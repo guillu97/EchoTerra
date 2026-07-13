@@ -6,6 +6,37 @@
 
 ---
 
+## 2026-07-13 (6) — Pinch mobile : fix du drift (getWorldPoint périmé + mapping absolu)
+
+### Fait
+- **Cause racine du drift au pinch** : `zoomBy` appelait `cam.getWorldPoint` juste APRÈS `setZoom`,
+  or `BaseCamera.getWorldPoint` lit `this.matrix`, rafraîchie seulement au `preRender` → le calcul
+  mélange l'ancien zoom (matrice inverse) et le nouveau (terme de scroll ×z'/z). Résultat : la
+  compensation d'ancrage devenait `scroll ×= (2 − ratio)` à chaque événement — la caméra dérivait
+  vers/depuis l'origine du monde, direction dépendante de la position sur la carte (« ça drift d'un
+  côté ou de l'autre »). Simulation chiffrée : **~150 px CSS de dérive par geste** de pinch.
+- **Pinch en mapping ABSOLU** (`MapScene`) : baseline au pointerdown du 2e doigt (distance, zoom,
+  point-monde sous le milieu des doigts) ; à chaque `pointermove`,
+  `zoom = zoomDépart × dist/distDépart` et le scroll est **posé** (pas incrémenté) pour recoller le
+  point-monde de départ exactement sous le milieu courant. Zoom + pan deux doigts en une seule
+  formule, aucune accumulation d'erreur possible (simulation : 0 px de décollage, pinch symétrique
+  comme asymétrique). Champs `pinchStartDist/pinchStartZoom/pinchWorldX/Y` remplacent l'incrémental.
+- **`zoomBy` (molette) refait à la main** : math écran↔monde explicite
+  (`screen = (world − scroll − c)·zoom + c`, c = centre caméra), plus aucun `getWorldPoint`
+  post-`setZoom`. L'ancrage molette sur desktop était touché par le même bug (1 événement/frame,
+  dérive plus discrète).
+
+### Fonctionnel (vérifié)
+- `tsc -b` + `npm run build` OK. Simulation numérique old vs new (événements tactiles alternés doigt
+  par doigt, pinch symétrique et pouce-planté) : ancien code ≈150 px CSS de dérive, nouveau 0 px.
+  Reste à confirmer au doigt sur téléphone.
+
+### À faire
+- Rien de spécifique sur le geste ; si un à-coup apparaît à la transition pinch→un doigt, vérifier
+  `prevPosition` du doigt restant.
+
+---
+
 ## 2026-07-13 (5) — Map mobile : pinch amélioré (pan deux doigts) + seuil de tap DPR
 
 ### Fait

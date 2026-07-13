@@ -87,9 +87,16 @@ export class MapScene extends Phaser.Scene {
   private downX = 0;
   private downY = 0;
   private dragged = false;
-  private pinchDist = 0; // last two-finger distance (px) for pinch zoom
-  private pinchMidX = 0; // last two-finger midpoint, for two-finger pan
-  private pinchMidY = 0;
+  // Pinch baseline, captured when the 2nd finger lands. The gesture is applied as an
+  // ABSOLUTE mapping from this baseline (zoom = startZoom × dist/startDist, and the
+  // world point grabbed at start is re-pinned under the fingers' midpoint on every
+  // event) — the previous incremental zoom-then-pan compounded per-event anchor
+  // errors (touch events arrive one finger at a time, so the midpoint oscillates
+  // while the zoom changes) into a visible sideways drift.
+  private pinchStartDist = 0; // 0 = no pinch in progress
+  private pinchStartZoom = 0;
+  private pinchWorldX = 0; // world point under the start midpoint — stays glued to it
+  private pinchWorldY = 0;
 
   constructor() {
     super("map");
@@ -176,7 +183,7 @@ export class MapScene extends Phaser.Scene {
     this.input.addPointer(1);
 
     // Drag to pan; a click only fires if the pointer barely moved.
-    // Two fingers = pinch zoom (anchored on the finger midpoint) + two-finger pan.
+    // Two fingers = pinch zoom (glued to the finger midpoint) + two-finger pan.
     this.input.on("pointerdown", (p: Phaser.Input.Pointer) => {
       this.downX = p.x;
       this.downY = p.y;
@@ -184,12 +191,15 @@ export class MapScene extends Phaser.Scene {
       const p1 = this.input.pointer1;
       const p2 = this.input.pointer2;
       if (p1.isDown && p2.isDown) {
-        // Second finger just landed: baseline the pinch NOW so the very first move
-        // already zooms/pans (waiting for the first move event added a visible hitch),
-        // and a pinch can never end as a tile click.
-        this.pinchDist = Phaser.Math.Distance.Between(p1.x, p1.y, p2.x, p2.y);
-        this.pinchMidX = (p1.x + p2.x) / 2;
-        this.pinchMidY = (p1.y + p2.y) / 2;
+        // Second finger just landed: capture the pinch baseline (finger distance,
+        // zoom, and the world point under the midpoint). A pinch is never a click.
+        const cam = this.cameras.main;
+        this.pinchStartDist = Phaser.Math.Distance.Between(p1.x, p1.y, p2.x, p2.y);
+        this.pinchStartZoom = cam.zoom;
+        const midX = (p1.x + p2.x) / 2;
+        const midY = (p1.y + p2.y) / 2;
+        this.pinchWorldX = cam.scrollX + cam.width / 2 + (midX - cam.width / 2) / cam.zoom;
+        this.pinchWorldY = cam.scrollY + cam.height / 2 + (midY - cam.height / 2) / cam.zoom;
         this.dragged = true;
       }
     });
@@ -197,32 +207,36 @@ export class MapScene extends Phaser.Scene {
       const cam = this.cameras.main;
       const p1 = this.input.pointer1;
       const p2 = this.input.pointer2;
-      // Pinch: zoom by the change in finger distance, anchored on the midpoint, AND
-      // pan by the midpoint's motion — moving both fingers together drags the map
-      // (map-app behavior; before, a two-finger drag did nothing).
+      // Pinch: zoom is the baseline zoom scaled by dist/startDist, and the scroll is
+      // SET (not nudged) so the baseline world point sits exactly under the current
+      // midpoint — zooming and two-finger panning in one drift-free formula.
       if (p1.isDown && p2.isDown) {
-        const dist = Phaser.Math.Distance.Between(p1.x, p1.y, p2.x, p2.y);
-        const midX = (p1.x + p2.x) / 2;
-        const midY = (p1.y + p2.y) / 2;
-        if (this.pinchDist > 0 && dist > 0) {
-          this.zoomBy(dist / this.pinchDist, midX, midY);
-          cam.scrollX -= (midX - this.pinchMidX) / cam.zoom;
-          cam.scrollY -= (midY - this.pinchMidY) / cam.zoom;
+        if (this.pinchStartDist > 0) {
+          const dist = Phaser.Math.Distance.Between(p1.x, p1.y, p2.x, p2.y);
+          const midX = (p1.x + p2.x) / 2;
+          const midY = (p1.y + p2.y) / 2;
+          const z = Phaser.Math.Clamp(
+            (this.pinchStartZoom * dist) / this.pinchStartDist,
+            MIN_ZOOM,
+            MAX_ZOOM,
+          );
+          cam.setZoom(z);
+          cam.scrollX = this.pinchWorldX - cam.width / 2 - (midX - cam.width / 2) / z;
+          cam.scrollY = this.pinchWorldY - cam.height / 2 - (midY - cam.height / 2) / z;
         }
-        this.pinchDist = dist;
-        this.pinchMidX = midX;
-        this.pinchMidY = midY;
         this.dragged = true;
         return;
       }
-      this.pinchDist = 0;
+      this.pinchStartDist = 0;
       if (!p.isDown) return;
       cam.scrollX -= (p.x - p.prevPosition.x) / cam.zoom;
       cam.scrollY -= (p.y - p.prevPosition.y) / cam.zoom;
       if (Math.abs(p.x - this.downX) + Math.abs(p.y - this.downY) > TAP_SLOP) this.dragged = true;
     });
     this.input.on("pointerup", (p: Phaser.Input.Pointer) => {
-      if (!this.input.pointer1.isDown && !this.input.pointer2.isDown) this.pinchDist = 0;
+      // One finger lifted = the pinch (its baseline) is over; the remaining finger
+      // resumes a plain one-finger pan via its own prevPosition (no jump).
+      if (!this.input.pointer1.isDown || !this.input.pointer2.isDown) this.pinchStartDist = 0;
       if (!this.dragged) this.onClick(p);
     });
 
@@ -246,15 +260,21 @@ export class MapScene extends Phaser.Scene {
   }
 
   // Multiply the camera zoom by `factor` (clamped), keeping the world point under the
-  // screen anchor (sx,sy) stationary so zoom feels anchored to the cursor/pinch centre.
+  // screen anchor (sx,sy) stationary so zoom feels anchored to the cursor.
+  // The screen<->world mapping is computed by hand (screen = (world - scroll - c)·zoom + c,
+  // c = camera centre): cam.getWorldPoint reads the camera matrix, which is only
+  // refreshed on preRender — calling it right after setZoom mixes old and new zoom
+  // and mis-anchors the zoom by one event's worth of error.
   private zoomBy(factor: number, sx: number, sy: number) {
     const cam = this.cameras.main;
-    const before = cam.getWorldPoint(sx, sy);
+    const cx = cam.width / 2;
+    const cy = cam.height / 2;
+    const wx = cam.scrollX + cx + (sx - cx) / cam.zoom;
+    const wy = cam.scrollY + cy + (sy - cy) / cam.zoom;
     const z = Phaser.Math.Clamp(cam.zoom * factor, MIN_ZOOM, MAX_ZOOM);
     cam.setZoom(z);
-    const after = cam.getWorldPoint(sx, sy);
-    cam.scrollX += before.x - after.x;
-    cam.scrollY += before.y - after.y;
+    cam.scrollX = wx - cx - (sx - cx) / z;
+    cam.scrollY = wy - cy - (sy - cy) / z;
   }
 
   // --- iso projection --------------------------------------------------------
