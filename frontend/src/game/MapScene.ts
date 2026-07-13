@@ -32,9 +32,10 @@ const MIN_ZOOM = 0.35 * DPR;
 const MAX_ZOOM = 2.5 * DPR;
 const DEFAULT_ZOOM = 1.0 * DPR;
 
-// Fog of war: undiscovered tiles are tinted to this near-black so terrain + relief read
-// as hidden until a hero has explored them.
+// Fog of war: the server never sends undiscovered tiles (biome/height/resources are
+// blank in the payload), so they render as a flat neutral cube tinted near-black.
 const FOG_TINT = 0x141a26;
+const FOG_BIOME = Biome.Grass; // cube used for the flat "hidden" pillars
 
 // Biome index (0..5) -> iso cube filename under /assets/isotiles/.
 const ISO_TILE_FILES = ["water", "sand", "grass", "forest", "stone", "snow"];
@@ -49,11 +50,14 @@ const TOWN_BUILDING_FILE = "bld-church";
 // React<->Phaser contract (MapRender / MapTileClick / MapHeroClick / MapHeroMenu)
 // is unchanged, so the rest of the app is agnostic to the iso switch.
 export class MapScene extends Phaser.Scene {
-  private g!: Phaser.GameObjects.Graphics; // overlay (highlights, town plinth) — always on top
+  private g!: Phaser.GameObjects.Graphics; // overlay (labels' companions, fallbacks) — always on top
   private labels: Phaser.GameObjects.Text[] = [];
   // Static terrain layer: ONE image per tile (a pre-baked pillar frame from the shared
-  // atlas), built once per game. Fog/shade is applied by diffing tints — never rebuilt.
+  // atlas). The server only sends discovered tiles (fog of war is enforced in the
+  // HTTP payload), so a tile's real biome/height arrive AFTER discovery — the layer
+  // is therefore diffed per draw: frame + tint per tile, only changes are touched.
   private tileImgAt: (Phaser.GameObjects.Image | null)[] = []; // indexed y*width+x
+  private tileFrameAt: string[] = []; // atlas frame currently bound per tile ("" = none)
   private tileTintAt: number[] = []; // last tint applied per tile (avoids redundant setTint)
   private tilesKey = ""; // game id + dims the tile layer was built for
   private atlasPairs = new Set<string>(); // "biome:height" pillars baked into pillar-atlas
@@ -66,7 +70,6 @@ export class MapScene extends Phaser.Scene {
   private townBuildingAspect = 0; // height/width of the normalized town building (0 = not ready)
   private gs?: GameState;
   private selectedHeroId?: string;
-  private revealAll = false; // debug: ignore fog of war (reveal whole map)
   // Multiplayer: my team's hero ids (empty = legacy solo, everyone is "mine").
   // Other players' heroes render as small distinct dots, hidden unless showOthers.
   private myHeroIds: string[] = [];
@@ -102,6 +105,7 @@ export class MapScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor("#0e1626");
 
     this.buildPipTextures();
+    this.buildHighlightTextures();
     this.pipOk = this.add.blitter(0, 0, "pip-ok").setDepth(10000);
     this.pipEmpty = this.add.blitter(0, 0, "pip-empty").setDepth(10000);
 
@@ -116,14 +120,12 @@ export class MapScene extends Phaser.Scene {
       (p: {
         game: GameState;
         selectedHeroId?: string;
-        revealAll?: boolean;
         myHeroIds?: string[];
         showOthers?: boolean;
       }) => {
         const changedGame = this.gs?.id !== p.game.id;
         this.gs = p.game;
         this.selectedHeroId = p.selectedHeroId;
-        this.revealAll = !!p.revealAll;
         this.myHeroIds = p.myHeroIds ?? [];
         this.showOthers = !!p.showOthers;
         if (changedGame) this.fitted = false;
@@ -252,10 +254,10 @@ export class MapScene extends Phaser.Scene {
     return { sx: this.projSx(cx, cy), sy: this.projSy(cx, cy, level) - CUBE_DEPTH };
   }
 
-  // Fog of war: a tile is visible if explored (shared discovered flag), if it's the
-  // town (always visible), or in debug reveal-all mode.
+  // Fog of war: a tile is visible once explored (shared discovered flag); the town is
+  // always visible. There is no client-side reveal-all — the server does not even
+  // send undiscovered tiles.
   private isVisible(x: number, y: number): boolean {
-    if (this.revealAll) return true;
     if (this.gs && x === this.gs.town.x && y === this.gs.town.y) return true;
     return !!this.gs?.tiles[y * this.gs.width + x]?.discovered;
   }
@@ -353,6 +355,51 @@ export class MapScene extends Phaser.Scene {
     return { left: L, top: T, sw: R - L, sh: B - T };
   }
 
+  // Highlight textures (move-target diamond, selection ring). They are placed as
+  // per-tile Images with iso depths — drawing them on the top overlay put them OVER
+  // the character sprites, which made the move indicators cover the heroes.
+  private buildHighlightTextures() {
+    if (!this.textures.exists("hl-diamond")) {
+      const lw = 2 * SS;
+      const c = document.createElement("canvas");
+      c.width = TILE_W * SS;
+      c.height = TILE_H * SS;
+      const ctx = c.getContext("2d");
+      if (ctx) {
+        const hw = c.width / 2;
+        const hh = c.height / 2;
+        ctx.strokeStyle = "#ffffff"; // white — tinted per use
+        ctx.lineWidth = lw;
+        ctx.lineJoin = "round";
+        ctx.beginPath();
+        ctx.moveTo(hw, lw / 2);
+        ctx.lineTo(c.width - lw / 2, hh);
+        ctx.lineTo(hw, c.height - lw / 2);
+        ctx.lineTo(lw / 2, hh);
+        ctx.closePath();
+        ctx.stroke();
+        this.textures.addCanvas("hl-diamond", c);
+      }
+    }
+    if (!this.textures.exists("hl-ring")) {
+      const lw = 2.5 * SS;
+      const w = (TILE_W - 8) * SS;
+      const h = ((TILE_W - 8) / 2) * SS;
+      const c = document.createElement("canvas");
+      c.width = w;
+      c.height = h;
+      const ctx = c.getContext("2d");
+      if (ctx) {
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = lw;
+        ctx.beginPath();
+        ctx.ellipse(w / 2, h / 2, (w - lw) / 2, (h - lw) / 2, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        this.textures.addCanvas("hl-ring", c);
+      }
+    }
+  }
+
   // Two tiny circle textures for the resource pips (green = resources left, red = empty).
   private buildPipTextures() {
     const make = (key: string, color: string) => {
@@ -377,17 +424,21 @@ export class MapScene extends Phaser.Scene {
   // h+1 times — into ONE shared canvas atlas. Each tile then becomes a single Image
   // using its atlas frame instead of h+1 stacked cube images: ~500 objects instead of
   // ~1500, and one shared texture so the whole terrain renders as a single batch.
-  private ensurePillarAtlas(game: GameState): boolean {
-    if (!this.cubeKeyFor(Biome.Grass)) return false; // cube textures not ready yet
+  // The server only sends discovered tiles, so new pairs appear as players explore:
+  // the atlas is rebaked (union of pairs) and `rebuilt` tells draw() to rebind every
+  // tile image to the fresh texture.
+  private ensurePillarAtlas(game: GameState): { ready: boolean; rebuilt: boolean } {
+    if (!this.cubeKeyFor(FOG_BIOME)) return { ready: false, rebuilt: false }; // cubes not ready yet
     const need = new Set<string>();
+    need.add(`${FOG_BIOME}:0`); // the flat "hidden tile" pillar is always needed
     for (const t of game.tiles) {
+      if (!t.discovered) continue; // blank in the payload — rendered as the fog pillar
       if (!this.cubeKeyFor(t.biome)) continue; // missing biome texture -> tile skipped
       need.add(`${t.biome}:${this.renderHeight(t)}`);
     }
-    if (need.size === 0) return false;
     let covered = this.textures.exists("pillar-atlas");
     for (const p of need) if (!this.atlasPairs.has(p)) covered = false;
-    if (covered) return true;
+    if (covered) return { ready: true, rebuilt: false };
 
     const all = new Set([...this.atlasPairs, ...need]);
     const pairs = [...all].map((p) => {
@@ -404,7 +455,7 @@ export class MapScene extends Phaser.Scene {
     canvas.width = cols * cellW;
     canvas.height = rows * cellH;
     const ctx = canvas.getContext("2d");
-    if (!ctx) return false;
+    if (!ctx) return { ready: false, rebuilt: false };
     for (let i = 0; i < pairs.length; i++) {
       const { b, h } = pairs[i];
       const cube = this.textures.get(`iso-cube-${b}`).getSourceImage() as HTMLCanvasElement;
@@ -416,13 +467,25 @@ export class MapScene extends Phaser.Scene {
     }
     if (this.textures.exists("pillar-atlas")) this.textures.remove("pillar-atlas");
     const tex = this.textures.addCanvas("pillar-atlas", canvas);
-    if (!tex) return false;
+    if (!tex) return { ready: false, rebuilt: false };
     for (let i = 0; i < pairs.length; i++) {
       const { p, h } = pairs[i];
       tex.add(`p${p}`, 0, (i % cols) * cellW, (Math.floor(i / cols) + 1) * cellH - pillarH(h), cellW, pillarH(h));
     }
     this.atlasPairs = all;
-    return true;
+    return { ready: true, rebuilt: true };
+  }
+
+  // Frame + pillar height a tile renders with. Undiscovered tiles are blank in the
+  // server payload — they render as the flat neutral fog pillar whatever the cheat
+  // toggles say (the client simply doesn't have their terrain).
+  private tileFrameAndHeight(t: { biome: Biome; height: number; discovered?: boolean }): {
+    frame: string;
+    h: number;
+  } {
+    if (!t.discovered) return { frame: `p${FOG_BIOME}:0`, h: 0 };
+    const h = this.renderHeight(t);
+    return { frame: `p${t.biome}:${h}`, h };
   }
 
   // Build a tight, content-cropped texture for the town building (preserving aspect),
@@ -546,18 +609,6 @@ export class MapScene extends Phaser.Scene {
     return t;
   }
 
-  // Draw a top-face diamond outline at the given screen centre (overlay graphics).
-  private diamond(sx: number, sy: number) {
-    const hw = TILE_W / 2;
-    const hh = TILE_H / 2;
-    this.g.beginPath();
-    this.g.moveTo(sx, sy - hh);
-    this.g.lineTo(sx + hw, sy);
-    this.g.lineTo(sx, sy + hh);
-    this.g.lineTo(sx - hw, sy);
-    this.g.closePath();
-  }
-
   // A flat fallback cube (colored diamond + extruded sides) when textures are absent.
   private drawFallbackCube(cx: number, cy: number, level: number, color: number) {
     const sx = this.projSx(cx, cy);
@@ -609,35 +660,47 @@ export class MapScene extends Phaser.Scene {
 
     const hero = this.selectedHero();
 
-    // Build the static tile layer ONCE per game (id + dimensions): one pillar image
-    // per tile from the shared atlas. Fog/exploration changes do NOT rebuild it —
-    // they only adjust tints below (destroying/recreating ~1500 images on every
-    // discovered tile was the main source of per-action jank).
+    // Tile layer: one pillar Image per tile, diffed per draw (frame + tint). The
+    // server only sends discovered tiles, so a tile's real pillar appears when it is
+    // discovered — undiscovered tiles render the flat fog pillar. Only changed tiles
+    // are touched (destroying/recreating ~1500 images per action was the original
+    // source of per-action jank; the diff keeps that fix).
     const key = `${game.id}:${game.width}x${game.height}`;
     if (this.tilesKey !== key) {
       // Drop the previous game's layer first, even if the atlas isn't ready yet.
       this.tileImgAt.forEach((im) => im?.destroy());
       this.tileImgAt = new Array(game.tiles.length).fill(null);
+      this.tileFrameAt = new Array(game.tiles.length).fill("");
       this.tileTintAt = new Array(game.tiles.length).fill(-1);
-      this.tilesKey = "";
-    }
-    if (this.tilesKey !== key && this.ensurePillarAtlas(game)) {
-      for (let y = 0; y < game.height; y++) {
-        for (let x = 0; x < game.width; x++) {
-          const t = game.tiles[y * game.width + x];
-          const h = this.renderHeight(t);
-          if (!this.atlasPairs.has(`${t.biome}:${h}`)) continue;
-          const img = this.add
-            .image(this.projSx(x, y), this.projSy(x, y, 0) + TILE_H / 2, "pillar-atlas", `p${t.biome}:${h}`)
-            .setOrigin(0.5, 1)
-            .setDisplaySize(TILE_W, TILE_H + CUBE_DEPTH + h * ELEV)
-            .setDepth((x + y) * 100 + h);
-          this.tileImgAt[y * game.width + x] = img;
-        }
-      }
       this.tilesKey = key;
     }
-    const haveTileLayer = this.tilesKey === key;
+    const atlas = this.ensurePillarAtlas(game);
+    // A rebake replaces the atlas texture: every existing image must rebind to it.
+    if (atlas.rebuilt) this.tileFrameAt.fill("");
+    if (atlas.ready) {
+      for (let y = 0; y < game.height; y++) {
+        for (let x = 0; x < game.width; x++) {
+          const i = y * game.width + x;
+          const t = game.tiles[i];
+          const { frame, h } = this.tileFrameAndHeight(t);
+          if (!this.atlasPairs.has(frame.slice(1))) continue; // missing biome texture
+          if (this.tileFrameAt[i] === frame) continue;
+          let img = this.tileImgAt[i];
+          if (!img) {
+            img = this.add
+              .image(this.projSx(x, y), this.projSy(x, y, 0) + TILE_H / 2, "pillar-atlas", frame)
+              .setOrigin(0.5, 1);
+            this.tileImgAt[i] = img;
+          } else {
+            img.setTexture("pillar-atlas", frame);
+          }
+          img.setDisplaySize(TILE_W, TILE_H + CUBE_DEPTH + h * ELEV).setDepth((x + y) * 100 + h);
+          this.tileFrameAt[i] = frame;
+          this.tileTintAt[i] = -1; // frame changed -> force retint below
+        }
+      }
+    }
+    const haveTileLayer = atlas.ready;
 
     // Fog + elevation shading: diff the tint per tile and only touch what changed.
     if (haveTileLayer) {
@@ -648,7 +711,7 @@ export class MapScene extends Phaser.Scene {
         const h = this.renderHeight(t);
         // Subtle elevation shade so relief reads even on flat lighting.
         const shade = Math.min(0.8 + Math.min(h, 6) * 0.033, 1);
-        const tint = this.isVisible(i % game.width, (i / game.width) | 0)
+        const tint = t.discovered && this.isVisible(i % game.width, (i / game.width) | 0)
           ? darken(0xffffff, shade)
           : FOG_TINT;
         if (this.tileTintAt[i] !== tint) {
@@ -690,6 +753,8 @@ export class MapScene extends Phaser.Scene {
     }
 
     // Reachable highlight around the selected hero (orthogonal, walkable land).
+    // Per-tile Images with iso depths — sitting ON the tile top, UNDER any unit
+    // standing there (drawing them on the top overlay covered the characters).
     if (hero) {
       for (const [dx, dy] of [
         [1, 0],
@@ -701,21 +766,30 @@ export class MapScene extends Phaser.Scene {
         const ny = hero.y + dy;
         if (nx < 0 || ny < 0 || nx >= game.width || ny >= game.height) continue;
         const t = game.tiles[ny * game.width + nx];
-        if (t.biome === Biome.Water) continue;
-        const f = this.topFace(nx, ny, this.renderHeight(t));
-        this.diamond(f.sx, f.sy);
-        this.g.lineStyle(2, 0xffe066, 0.9);
-        this.g.strokePath();
+        if (t.discovered && t.biome === Biome.Water) continue; // known water is unwalkable
+        const th = t.discovered ? this.renderHeight(t) : 0;
+        const f = this.topFace(nx, ny, th);
+        const img = this.add
+          .image(f.sx, f.sy, "hl-diamond")
+          .setDisplaySize(TILE_W, TILE_H)
+          .setTint(0xffe066)
+          .setAlpha(0.9)
+          .setDepth((nx + ny) * 100 + th + 1); // just above the tile, below units (+90)
+        this.unitSprites.push(img);
       }
     }
 
     // Town/home — a building sprite standing on the town tile (falls back to the ⌂
-    // marker if the texture isn't available). The base diamond stays as a subtle plinth.
+    // marker if the texture isn't available). The base diamond stays as a subtle
+    // plinth, in the iso stack (under the building/units, not over them).
     const tt = game.tiles[game.town.y * game.width + game.town.x];
     const townFace = this.topFace(game.town.x, game.town.y, this.renderHeight(tt));
-    this.diamond(townFace.sx, townFace.sy);
-    this.g.lineStyle(2, 0xffffff, 0.5);
-    this.g.strokePath();
+    const plinth = this.add
+      .image(townFace.sx, townFace.sy, "hl-diamond")
+      .setDisplaySize(TILE_W, TILE_H)
+      .setAlpha(0.5)
+      .setDepth((game.town.x + game.town.y) * 100 + this.renderHeight(tt) + 1);
+    this.unitSprites.push(plinth);
     if (this.townBuildingAspect > 0 && this.textures.exists("town-building")) {
       const w = TILE_W * 2.1; // building spans a bit over two tiles wide
       const img = this.add
@@ -780,13 +854,18 @@ export class MapScene extends Phaser.Scene {
         continue;
       }
       const selected = h.id === this.selectedHeroId;
-      // Selection ring under the sprite (overlay).
+      const depth = (h.x + h.y) * 100 + 91 + i;
+      // Selection ring at the hero's feet, in the iso stack just below the sprite —
+      // the sprite (and units in front) draw over it instead of the ring covering them.
       if (selected) {
-        this.g.lineStyle(2.5, 0xffe066, 1);
-        this.g.strokeEllipse(cx, cy, TILE_W - 8, (TILE_W - 8) / 2);
+        const ring = this.add
+          .image(cx, cy, "hl-ring")
+          .setDisplaySize(TILE_W - 8, (TILE_W - 8) / 2)
+          .setTint(0xffe066)
+          .setDepth(depth - 0.5);
+        this.unitSprites.push(ring);
       }
       const tex = heroTexKey(h.class);
-      const depth = (h.x + h.y) * 100 + 91 + i;
       if (this.textures.exists(tex)) {
         const img = this.add
           .image(cx, cy + 4, tex)
