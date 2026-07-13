@@ -6,6 +6,29 @@
 
 ---
 
+## 2026-07-13 (9) — Fog of war : la mer de nuages devient une brume mystique animée
+
+### Fait
+- **Restyle « mist mystique »** (demande UX) : palette froide lavande/indigo (`MIST_TOP/MID/SHADOW/
+  LIGHT/GLOW/BOT`), traînées vaporeuses ÉTIRÉES (blobs radiaux écrasés `scale(1, 0.3-0.5)` — flux de
+  brume, plus de chou-fleur), **particules lumineuses discrètes** (`MIST_GLOW`, 3/tuile, la touche
+  magique), volutes d'arêtes aplaties et **semi-transparentes** (opaques elles faisaient un motif
+  matelassé en vue large ; translucides elles fondent entre tuiles et ne ressortent qu'en silhouette
+  contre terrain/ciel), base du banc en indigo plus profond.
+- **Respiration animée** : `MapScene.update` fait rouler une lente vague d'alpha en diagonale sur les
+  tuiles de brume (`MIST_ALPHA_BASE 0.93 ± 0.05`, `sin(time/900 + (x+y)·0.45)`) — la nappe semble
+  vivante. Suivi par `tileIsMist[]` (maintenu dans le diff de frames ; `setAlpha(1)` quand une tuile
+  est découverte) ; ~400 setAlpha/frame, négligeable, et la scène dort onglet caché.
+
+### Fonctionnel (vérifié)
+- Captures 1920 (large + zoom ×2) : tapis de brume lavande calme, voiles superposés au zoom, bord
+  festonné contre le terrain. `tsc -b` + `npm run build` OK, `npm run test:perf` 13/13.
+
+### À faire
+- Si la respiration gêne (batterie/épilepsie ?), la couper est trivial : early-return dans `update`.
+
+---
+
 ## 2026-07-13 (8) — Fog of war : mer de nuages à la place du noir
 
 ### Fait

@@ -42,16 +42,25 @@ const TAP_SLOP = 10 * DPR;
 const UNIT_SCALE = 1 / 3;
 
 // Fog of war: the server never sends undiscovered tiles (biome/height/resources are
-// blank in the payload). They render as procedural CLOUD blocks — soft pastel cube
-// silhouettes with puffy bumps, baked into the shared pillar atlas (pairs
-// `cloud{v}:1`) so the unexplored world reads as a sea of clouds instead of black.
+// blank in the payload). They render as procedural MYSTIC MIST blocks — cool
+// lavender/indigo veils with wispy streaks and faint glowing motes, baked into the
+// shared pillar atlas (pairs `cloud{v}:1`), plus a slow breathing wave animated in
+// update() so the unexplored world reads as living magical mist instead of black.
 const CLOUD_VARIANTS = 6; // per-tile variant picked by position hash (breaks tiling)
-const CLOUD_TOP = "#f8fbff";
-const CLOUD_MID = "#dde7f5";
-const CLOUD_SHADOW = "#bccbe3"; // creases between puffs
-const CLOUD_BOT = "#a9bad6";
+const MIST_TOP = "#eef0fb"; // pale lavender-white crests
+const MIST_MID = "#c9cfe9"; // veil body
+const MIST_SHADOW = "154,156,208"; // rgb — violet folds (soft gradients only)
+const MIST_LIGHT = "244,246,255"; // rgb — wisp highlights
+const MIST_GLOW = "196,186,255"; // rgb — faint magical motes
+const MIST_BOT = "#8d94c4"; // indigo base of the bank
+// Breathing: per-tile alpha = BASE + AMP·sin(time/DIV + (x+y)·PHASE) — a slow
+// brightness wave rolling diagonally across the mist (full cycle ≈ 2π·DIV ms).
+const MIST_ALPHA_BASE = 0.93;
+const MIST_ALPHA_AMP = 0.05;
+const MIST_TIME_DIV = 900;
+const MIST_PHASE = 0.45;
 // Flat fallback color for undiscovered tiles while the atlas isn't baked yet.
-const FOG_FALLBACK = 0xd7e0ee;
+const FOG_FALLBACK = 0xbfc3e4;
 
 // Biome index (0..5) -> iso cube filename under /assets/isotiles/.
 const ISO_TILE_FILES = ["water", "sand", "grass", "forest", "stone", "snow"];
@@ -75,6 +84,7 @@ export class MapScene extends Phaser.Scene {
   private tileImgAt: (Phaser.GameObjects.Image | null)[] = []; // indexed y*width+x
   private tileFrameAt: string[] = []; // atlas frame currently bound per tile ("" = none)
   private tileTintAt: number[] = []; // last tint applied per tile (avoids redundant setTint)
+  private tileIsMist: boolean[] = []; // undiscovered (mist) tiles — breathing-animated in update()
   private tilesKey = ""; // game id + dims the tile layer was built for
   private atlasPairs = new Set<string>(); // "biome:height" pillars baked into pillar-atlas
   private unitSprites: Phaser.GameObjects.Image[] = []; // hero/monster sprites (rebuilt each draw)
@@ -179,6 +189,7 @@ export class MapScene extends Phaser.Scene {
       this.tileImgAt.forEach((im) => im?.destroy());
       this.tileImgAt = [];
       this.tileTintAt = [];
+      this.tileIsMist = [];
       this.tilesKey = "";
       this.unitSprites.forEach((s) => s.destroy());
       this.unitSprites = [];
@@ -282,6 +293,21 @@ export class MapScene extends Phaser.Scene {
     cam.setZoom(z);
     cam.scrollX = wx - cx - (sx - cx) / z;
     cam.scrollY = wy - cy - (sy - cy) / z;
+  }
+
+  // Living mist: a slow alpha wave rolls diagonally across the undiscovered tiles.
+  // Property sets on a few hundred images per frame are negligible, and the scene
+  // sleeps while the tab is hidden so this costs nothing off-screen.
+  update(time: number) {
+    if (!this.gs) return;
+    const w = this.gs.width;
+    for (let i = 0; i < this.tileImgAt.length; i++) {
+      if (!this.tileIsMist[i]) continue;
+      const img = this.tileImgAt[i];
+      if (!img) continue;
+      const diag = (i % w) + ((i / w) | 0);
+      img.setAlpha(MIST_ALPHA_BASE + MIST_ALPHA_AMP * Math.sin(time / MIST_TIME_DIV + diag * MIST_PHASE));
+    }
   }
 
   // --- iso projection --------------------------------------------------------
@@ -541,13 +567,12 @@ export class MapScene extends Phaser.Scene {
     ctx.rect(cx, bottom - pillarPx, W, pillarPx);
     ctx.clip();
 
-    // Cube silhouette (top diamond + sides). The top face's BASE tone is the mid
-    // color — the light puff balls drawn over it need contrast to read (a near-white
-    // base swallowed them and the fog looked like a flat snow plain).
+    // Cube silhouette (top diamond + sides). Cool veil body, sinking to indigo at
+    // the base — the mist reads as a deep magical bank, not a snow plain.
     const grad = ctx.createLinearGradient(0, topY, 0, botY + cd);
-    grad.addColorStop(0, CLOUD_MID);
-    grad.addColorStop(0.6, CLOUD_MID);
-    grad.addColorStop(1, CLOUD_BOT);
+    grad.addColorStop(0, MIST_MID);
+    grad.addColorStop(0.55, MIST_MID);
+    grad.addColorStop(1, MIST_BOT);
     ctx.fillStyle = grad;
     ctx.beginPath();
     ctx.moveTo(cmx, topY);
@@ -559,17 +584,22 @@ export class MapScene extends Phaser.Scene {
     ctx.closePath();
     ctx.fill();
 
-    // Soft billowy top: only SOFT radial-gradient patches (no hard circle edges —
-    // hard shadow slivers peeking from under hard light blobs read as scratches).
-    // Shadow patches first, then highlight patches: the deck gently undulates.
-    const soft = (bx: number, by: number, r: number, rgb: string, a: number) => {
-      const g = ctx.createRadialGradient(bx, by, 0, bx, by, r);
+    // Wispy top: only SOFT gradients (hard circle edges read as scratches), and
+    // STRETCHED horizontally (squashed radial blobs) so the surface reads as
+    // flowing mist strands rather than cauliflower puffs. Violet folds first,
+    // then pale wisps over them.
+    const wisp = (bx: number, by: number, rx: number, squash: number, rgb: string, a: number) => {
+      ctx.save();
+      ctx.translate(bx, by);
+      ctx.scale(1, squash);
+      const g = ctx.createRadialGradient(0, 0, 0, 0, 0, rx);
       g.addColorStop(0, `rgba(${rgb},${a})`);
       g.addColorStop(1, `rgba(${rgb},0)`);
       ctx.fillStyle = g;
       ctx.beginPath();
-      ctx.arc(bx, by, r, 0, Math.PI * 2);
+      ctx.arc(0, 0, rx, 0, Math.PI * 2);
       ctx.fill();
+      ctx.restore();
     };
     const inDiamond = (u: number, v: number) => ({
       bx: cmx + ((u - v) * W) / 2,
@@ -577,30 +607,39 @@ export class MapScene extends Phaser.Scene {
     });
     for (let i = 0; i < 3; i++) {
       const { bx, by } = inDiamond(0.22 + rnd() * 0.56, 0.22 + rnd() * 0.56);
-      soft(bx, by + th * 0.04, (0.26 + rnd() * 0.14) * W, "150,172,208", 0.4 + rnd() * 0.15);
+      wisp(bx, by + th * 0.03, (0.3 + rnd() * 0.16) * W, 0.4, MIST_SHADOW, 0.45 + rnd() * 0.15);
     }
     for (let i = 0; i < 5; i++) {
-      const { bx, by } = inDiamond(0.16 + rnd() * 0.68, 0.16 + rnd() * 0.68);
-      soft(bx, by - th * 0.04, (0.2 + rnd() * 0.12) * W, "255,255,255", 0.75 + rnd() * 0.2);
+      const { bx, by } = inDiamond(0.14 + rnd() * 0.72, 0.14 + rnd() * 0.72);
+      wisp(bx, by - th * 0.03, (0.26 + rnd() * 0.14) * W, 0.32, MIST_LIGHT, 0.7 + rnd() * 0.25);
     }
-    // Bumps straddling the two upper edges, rising into the headroom (kept off the
-    // corners so tile borders stay seamless). Hard edges are fine here — they ARE
-    // the silhouette.
-    ctx.fillStyle = CLOUD_TOP;
-    const bumps = 4 + Math.floor(rnd() * 3);
-    for (let i = 0; i < bumps; i++) {
-      const t = 0.18 + ((i + rnd() * 0.6) / bumps) * 0.64; // 0.18..0.82 across the tile
+    // Faint glowing motes — the "mystic" accent. Tiny, sparse, low alpha: dust of
+    // magic hanging in the mist, not fireflies.
+    for (let i = 0; i < 3; i++) {
+      const { bx, by } = inDiamond(0.2 + rnd() * 0.6, 0.2 + rnd() * 0.6);
+      wisp(bx, by, (0.035 + rnd() * 0.03) * W, 1, MIST_GLOW, 0.5 + rnd() * 0.3);
+    }
+    // Curls straddling the two upper edges, rising into the headroom (kept off the
+    // corners so tile borders stay seamless). Semi-transparent: opaque near-white
+    // ellipses repeated on EVERY tile read as a quilted pattern in wide view —
+    // translucent ones melt into neighbouring tiles and only stand out where the
+    // mist meets terrain or sky (the scalloped silhouette, which is the point).
+    ctx.fillStyle = `rgba(${MIST_LIGHT},0.55)`;
+    const curls = 4 + Math.floor(rnd() * 3);
+    for (let i = 0; i < curls; i++) {
+      const t = 0.18 + ((i + rnd() * 0.6) / curls) * 0.64; // 0.18..0.82 across the tile
       const bx = cx + t * W;
       const by = topY + Math.abs(t - 0.5) * th; // y on the upper edges
+      const r = (0.11 + rnd() * 0.09) * W;
       ctx.beginPath();
-      ctx.arc(bx, by, (0.12 + rnd() * 0.09) * W, 0, Math.PI * 2);
+      ctx.ellipse(bx, by, r, r * 0.45, 0, 0, Math.PI * 2);
       ctx.fill();
     }
-    // Soft mid-tone patches low on the sides so the block base reads fluffy too.
+    // Soft violet swirls low on the sides so the bank's base looks like it drifts.
     for (let i = 0; i < 3; i++) {
       const bx = cx + (0.15 + rnd() * 0.7) * W;
       const by = midY + cd * (0.5 + rnd() * 0.4);
-      soft(bx, by, (0.12 + rnd() * 0.09) * W, "150,172,208", 0.35);
+      wisp(bx, by, (0.14 + rnd() * 0.1) * W, 0.5, MIST_SHADOW, 0.4);
     }
     ctx.restore();
   }
@@ -811,6 +850,7 @@ export class MapScene extends Phaser.Scene {
       this.tileImgAt = new Array(game.tiles.length).fill(null);
       this.tileFrameAt = new Array(game.tiles.length).fill("");
       this.tileTintAt = new Array(game.tiles.length).fill(-1);
+      this.tileIsMist = new Array(game.tiles.length).fill(false);
       this.tilesKey = key;
     }
     const atlas = this.ensurePillarAtlas(game);
@@ -834,10 +874,12 @@ export class MapScene extends Phaser.Scene {
             img.setTexture("pillar-atlas", frame);
           }
           img.setDisplaySize(TILE_W, TILE_H + CUBE_DEPTH + h * ELEV).setDepth((x + y) * 100 + h);
-          // Mirror half the cloud tiles (stable position hash) — doubles the
-          // apparent variant count of the cloud sea for free. Terrain cubes are
+          // Mirror half the mist tiles (stable position hash) — doubles the
+          // apparent variant count of the mist bank for free. Terrain cubes are
           // lit from a fixed side and must never flip.
           img.setFlipX(!t.discovered && ((x * 13 + y * 5) & 1) === 1);
+          this.tileIsMist[i] = !t.discovered;
+          if (t.discovered) img.setAlpha(1); // leaving the mist: cancel the breathing alpha
           this.tileFrameAt[i] = frame;
           this.tileTintAt[i] = -1; // frame changed -> force retint below
         }
