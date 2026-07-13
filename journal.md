@@ -6,6 +6,21 @@
 
 ---
 
+## 2026-07-13 (5) — Onglet Map : dangerosité des packs en surbrillance (jaune → rouge)
+
+### Fait
+- **Le label `×count` des packs de monstres est remplacé par une surbrillance de la tuile** :
+  losange plein blanc (`hl-fill`, dans `buildHighlightTextures`) posé sur la face supérieure de la
+  tuile du pack, sous le sprite (depth `(x+y)*100+h+2`), teinté par `dangerTint(count)` — dégradé
+  linéaire du **jaune** (#ffd60a, créature seule) au **rouge** (#d90429, pack de `DANGER_MAX = 8`+),
+  alpha 0.55.
+
+### Fonctionnel (vérifié)
+- `tsc -b` + `npm run build` OK. E2E navigateur : 4 vagues forcées → les tuiles des packs visibles
+  sont surlignées (jaune/orangé pour count 1–2), plus aucun label ×count.
+
+---
+
 ## 2026-07-13 (4) — Onglet Map : pips supprimés, unités 3× plus petites, fond ciel
 
 ### Fait

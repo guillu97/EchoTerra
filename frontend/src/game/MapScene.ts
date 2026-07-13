@@ -36,6 +36,17 @@ const DEFAULT_ZOOM = 1.0 * DPR;
 // so the terrain reads first (they used to span nearly a full tile).
 const UNIT_SCALE = 1 / 3;
 
+// Danger highlight: a monster pack's tile is tinted from yellow (lone creature) to
+// red (pack of DANGER_MAX+) instead of showing a ×count label.
+const DANGER_MAX = 8;
+const DANGER_LOW = { r: 0xff, g: 0xd6, b: 0x0a }; // yellow
+const DANGER_HIGH = { r: 0xd9, g: 0x04, b: 0x29 }; // red
+function dangerTint(count: number): number {
+  const t = Math.min(1, Math.max(0, (count - 1) / (DANGER_MAX - 1)));
+  const ch = (a: number, b: number) => Math.round(a + (b - a) * t);
+  return (ch(DANGER_LOW.r, DANGER_HIGH.r) << 16) | (ch(DANGER_LOW.g, DANGER_HIGH.g) << 8) | ch(DANGER_LOW.b, DANGER_HIGH.b);
+}
+
 // Fog of war: the server never sends undiscovered tiles (biome/height/resources are
 // blank in the payload), so they render as a flat neutral cube tinted near-black.
 const FOG_TINT = 0x141a26;
@@ -375,6 +386,24 @@ export class MapScene extends Phaser.Scene {
         ctx.closePath();
         ctx.stroke();
         this.textures.addCanvas("hl-diamond", c);
+      }
+    }
+    // Filled diamond (white — tinted per use) for the danger highlight on monster tiles.
+    if (!this.textures.exists("hl-fill")) {
+      const c = document.createElement("canvas");
+      c.width = TILE_W * SS;
+      c.height = TILE_H * SS;
+      const ctx = c.getContext("2d");
+      if (ctx) {
+        ctx.fillStyle = "#ffffff";
+        ctx.beginPath();
+        ctx.moveTo(c.width / 2, 0);
+        ctx.lineTo(c.width, c.height / 2);
+        ctx.lineTo(c.width / 2, c.height);
+        ctx.lineTo(0, c.height / 2);
+        ctx.closePath();
+        ctx.fill();
+        this.textures.addCanvas("hl-fill", c);
       }
     }
     if (!this.textures.exists("hl-ring")) {
@@ -769,8 +798,18 @@ export class MapScene extends Phaser.Scene {
       const m = game.monsters[id];
       if (!this.isVisible(m.x, m.y)) continue; // enemies hidden in unexplored fog
       const t = game.tiles[m.y * game.width + m.x];
-      const f = this.topFace(m.x, m.y, this.renderHeight(t));
+      const th = this.renderHeight(t);
+      const f = this.topFace(m.x, m.y, th);
       const depth = (m.x + m.y) * 100 + 90;
+      // Danger highlight: the pack's tile glows yellow → red with the pack size
+      // (replaces the old ×count label), under the creature sprite.
+      const danger = this.add
+        .image(f.sx, f.sy, "hl-fill")
+        .setDisplaySize(TILE_W, TILE_H)
+        .setTint(dangerTint(m.count))
+        .setAlpha(0.55)
+        .setDepth((m.x + m.y) * 100 + th + 2); // above the tile top, below units
+      this.unitSprites.push(danger);
       const tex = monsterTexKey(m.species);
       const msz = TILE_W * 0.8 * UNIT_SCALE;
       if (tex && this.textures.exists(tex)) {
@@ -786,7 +825,6 @@ export class MapScene extends Phaser.Scene {
         this.g.lineStyle(1, 0x000000, 0.5);
         this.g.strokeCircle(f.sx, f.sy - 6, 7);
       }
-      if (m.count > 1) this.text(f.sx + msz / 2 + 4, f.sy - msz - 4, `×${m.count}`, "#ffd0c4", 9);
     }
 
     // Heroes (offset slightly when stacked so they don't fully overlap).
