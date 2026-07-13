@@ -6,7 +6,46 @@
 
 ---
 
-## 2026-07-07 (10) — Perf : l'onglet Map ne recharge plus tout à chaque ouverture
+## 2026-07-13 (2) — Tests de chargement + résolution native (carte pixelisée sur téléphone)
+
+### Fait
+- **Résolution d'affichage (le « pixelisé » sur téléphone)** : le canvas Phaser était dimensionné en
+  pixels CSS (mode `Scale.RESIZE`), le navigateur l'upscalait ×2–3 sur mobile. Désormais le canvas est
+  en **pixels physiques** : `game/dpr.ts` (`DPR = devicePixelRatio` plafonné à 3), `PhaserGame` passe en
+  `Scale.NONE` + `zoom: 1/DPR` + **ResizeObserver** (possible car l'onglet caché garde sa taille via
+  `visibility:hidden`). Compensation caméra : MapScene (MIN/MAX/DEFAULT_ZOOM × DPR + formule de centrage
+  correcte à tout zoom `scroll = cible − taille/2`), CombatScene (`setZoom(DPR)` + scroll dans
+  `layout()`, dessin en unités CSS). Textes : `resolution: DPR`. Supersample des cubes lié au DPR
+  (`SS = 2×DPR`, plafonné 6 ; colonnes de l'atlas bornées à 4096 px).
+- **Optimisation mémoire GPU** : les sprites d'unités (héros/monstres) restaient des textures 1024²
+  (~4 Mio VRAM chacun, ~45 Mio au total) pour un affichage ≤ ~40 px monde. `game/textureUtils.ts` :
+  `shrinkTexture` les réduit à leur taille d'affichage max (puissance de 2 : 128/256/512 selon DPR)
+  après chargement, même clé, source libérée. L'église (town-building) est aussi plafonnée.
+- **Doublons réseau supprimés** : CombatScene préchargeait les MÊMES PNG que MapScene (10 fichiers,
+  ~5 Mo re-téléchargés au boot en dev). CombatScene ne précharge plus rien — MapScene est l'unique
+  chargeur des sprites partagés, le fallback jeton couvre un combat ultra-précoce.
+- **Test de chargement** (`frontend/tests/perf/map-loading.mjs`, `npm run test:perf`, playwright-core
+  en devDep) : 13 assertions budgétées — payload PNG ≤16 Mo, zéro téléchargement en double (allow-list
+  grass/stone utilisés aussi par le DOM de Home), sources brutes libérées, unités ≤512 px, ≤4096 px,
+  VRAM estimée ≤40 Mio, pré-cuisson ≤20 s, ouverture ≤1,5 s / réouverture ≤750 ms, 0 re-téléchargement
+  à la réouverture, instance Phaser conservée, scène endormie cachée, **canvas à la résolution native**
+  (simulé à DPR 3, 390×844). Démarre backend+vite s'ils ne tournent pas. ⚠ poll par `page.evaluate`
+  (pas `waitForFunction` : en GL logiciel headless, le canvas DPR affame le poller injecté).
+
+### Fonctionnel (vérifié)
+- `npm run test:perf` : **PASS 13/13** (ouverture 9 ms, réouverture 12 ms, 15,6 Mio de textures).
+- Captures DPR 3 : carte et combat nets (1170×2127 physiques pour 390×709 CSS), ville centrée, taille
+  apparente inchangée ; DPR 1 bureau : comportement strictement identique (zoom 1, canvas = CSS).
+- Combat traversé de bout en bout (déplacement → startCombat → scène combat active, map endormie).
+- `npx tsc -b` + `npm run build` OK.
+
+### Reste à faire
+- Variantes 256² des PNG pour le réseau mobile (le payload réseau reste ~13 Mo, la VRAM est réglée).
+- Pips de ressources : texture 6px un peu douce en DPR 3 (Blitter sans scale) — cosmétique.
+
+---
+
+## 2026-07-13 (1) — Perf : l'onglet Map ne recharge plus tout à chaque ouverture
 
 ### Fait
 - **Cause du « Map met longtemps à charger »** : `GameScreen` montait `<MapTab />` conditionnellement →

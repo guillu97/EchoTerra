@@ -69,7 +69,9 @@ npm --prefix frontend install   # first time
 npm --prefix frontend run dev
 ```
 
-Verify: `go -C backend test ./...` · `npx tsc -b` (in frontend) · `npm run build` (in frontend).
+Verify: `go -C backend test ./...` · `npx tsc -b` (in frontend) · `npm run build` (in frontend) ·
+`npm run test:perf` (in frontend — budgets de chargement de l'onglet Map, voir §7; réutilise les dev
+servers s'ils tournent, sinon les démarre; Chromium requis: `PERF_BROWSER` ou Chrome installé).
 
 **Déploiement Vercel (gratuit)** — voir `DEPLOY.md`. Preset **Services** (`vercel.json`) : service
 `frontend` (root `frontend/`, Vite, statique CDN) + service `backend` (root `backend/`, le preset Go
@@ -339,7 +341,20 @@ POST /api/games/{id}/combat/{c}/action            {unitId, action: move|attack|s
   normalisation + atlas + couche de tuiles à CHAQUE visite (c'était le « Map met longtemps à charger »). Caché,
   les scènes sont endormies et `PhaserGame` gate `ShowScene` par `activeRef` (le poll 20 s ne les réveille pas) ;
   au `create()` la scène émet `EV.MapSceneReady` → MapTab re-pousse l'état → tout se pré-cuit en arrière-plan
-  pendant qu'on est sur Home → ouverture de l'onglet quasi instantanée. Starts **zoomed in &
+  pendant qu'on est sur Home → ouverture de l'onglet quasi instantanée. **Résolution (DPR)** : le canvas est
+  dimensionné en PIXELS PHYSIQUES (`game/dpr.ts`, `devicePixelRatio` plafonné à 3 ; `Scale.NONE` + `zoom: 1/DPR`
+  + ResizeObserver dans `PhaserGame` — le mode RESIZE dimensionnait en px CSS d'où la carte pixelisée sur
+  téléphone) ; les caméras compensent (MapScene : MIN/MAX/DEFAULT_ZOOM × DPR ; CombatScene : `setZoom(DPR)` +
+  scroll dans `layout()`), les textes passent `resolution: DPR`, et le supersample des cubes suit
+  (`SS = 2×DPR`, plafonné 6). **Textures d'unités** : les PNG 1024² (héros/monstres, ~4 Mio de VRAM chacun)
+  sont réduits à leur taille d'affichage max après chargement (`game/textureUtils.ts`, `shrinkTexture` — même
+  clé, source canvas) et **CombatScene ne précharge plus rien** (MapScene est l'unique chargeur des sprites
+  partagés — les deux loaders téléchargeaient chaque PNG en double). **Test de chargement** :
+  `npm run test:perf` (`tests/perf/map-loading.mjs`, Playwright) vérifie les budgets — payload PNG, zéro
+  téléchargement en double, sources brutes libérées, unités ≤512px, VRAM estimée, pré-cuisson, ouverture/
+  réouverture de l'onglet, instance conservée, scènes endormies, canvas à la résolution native (DPR 3).
+  ⚠ il poll par `page.evaluate` (PAS `waitForFunction` : en GL logiciel headless le canvas DPR affame le
+  poller injecté de Playwright). Starts **zoomed in &
   centered on the town** (no more fit-all); **wheel + pinch
   zoom** clamp 0.35–2.5. **Fog of war**: tiles are hidden (dark `FOG_TINT`, resources/monsters concealed) until a
   hero has seen them — `Tile.Discovered` is **server-authoritative & shared by all players** (`fog.go`:

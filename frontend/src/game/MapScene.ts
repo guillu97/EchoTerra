@@ -4,6 +4,8 @@ import { Biome } from "../api/types";
 import { bus, EV } from "../eventBus";
 import { BIOME_COLORS, HERO_COLOR, HERO_COLOR_SELECTED, MONSTER_COLOR, OTHER_HERO_COLOR, darken } from "./render";
 import { monsterTexKey, heroTexKey, HERO_TEX_KEYS } from "../assets";
+import { DPR } from "./dpr";
+import { shrinkTexture, shrinkUnitTextures, TOWN_TEX_SIZE } from "./textureUtils";
 
 // --- Isometric tunables -----------------------------------------------------
 // The whole map is drawn as 2:1 isometric cubes (FFTA2-style). Each tile is a
@@ -13,16 +15,22 @@ const TILE_W = 48; // iso diamond width (world px)
 const TILE_H = 24; // iso diamond height (= TILE_W / 2)
 const CUBE_DEPTH = 24; // visible side height of one cube
 const ELEV = CUBE_DEPTH; // vertical px per height level (== CUBE_DEPTH so stacks connect)
-const SS = 2; // supersample factor for the normalized cube textures (crispness)
+// Supersample factor for the normalized cube textures. Scales with the device
+// pixel ratio so cubes stay crisp on the DPR-sized canvas (a 96px cube upscaled
+// ~1.5× on a DPR-3 phone reads soft); capped so the pillar atlas stays bounded.
+const SS = Math.min(6, 2 * Math.round(DPR));
 
 // The plains are the level-0 reference ground: water/sand/grass stay flat at 0, and
 // only forest/mountain/snow rise, by their Perlin height above this baseline.
 const GROUND_LEVEL = 3; // Perlin height level treated as flat ground
 
-// Camera zoom: start zoomed in on the town; wheel / pinch zoom between these bounds.
-const MIN_ZOOM = 0.35;
-const MAX_ZOOM = 2.5;
-const DEFAULT_ZOOM = 1.0;
+// Camera zoom, in CSS-pixel terms: start zoomed in on the town; wheel / pinch zoom
+// between these bounds. The canvas is DPR× the CSS size, so the effective Phaser
+// camera zoom is always (value × DPR) — that's what keeps the map the same
+// apparent size while rendering at native device resolution.
+const MIN_ZOOM = 0.35 * DPR;
+const MAX_ZOOM = 2.5 * DPR;
+const DEFAULT_ZOOM = 1.0 * DPR;
 
 // Fog of war: undiscovered tiles are tinted to this near-black so terrain + relief read
 // as hidden until a hero has explored them.
@@ -99,6 +107,9 @@ export class MapScene extends Phaser.Scene {
 
     this.buildCubeTextures();
     this.buildTownBuilding();
+    // Unit sprites arrive as 1024² PNGs but are displayed at ≤ ~40 world px —
+    // downscale them to their max on-screen size (frees ~45 MiB of GPU memory).
+    shrinkUnitTextures(this, [...MONSTER_FILES, ...HERO_TEX_KEYS]);
 
     const offRender = bus.on(
       EV.MapRender,
@@ -129,6 +140,9 @@ export class MapScene extends Phaser.Scene {
     const onLoaded = () => {
       this.buildCubeTextures();
       this.buildTownBuilding();
+      // Same-task shrink + draw: unit images referencing the old textures are
+      // recreated by the draw() below before any frame can render.
+      shrinkUnitTextures(this, [...MONSTER_FILES, ...HERO_TEX_KEYS]);
       if (this.gs) {
         this.tilesKey = ""; // force the cube layer to rebuild now that textures exist
         this.draw();
@@ -383,7 +397,8 @@ export class MapScene extends Phaser.Scene {
     const cellW = TILE_W * SS;
     const pillarH = (h: number) => (TILE_H + CUBE_DEPTH + h * ELEV) * SS;
     const cellH = Math.max(...pairs.map((q) => pillarH(q.h)));
-    const cols = Math.min(8, pairs.length);
+    // Column count bounded by the safe GPU texture width (SS scales with DPR).
+    const cols = Math.min(Math.max(1, Math.floor(4096 / cellW)), pairs.length);
     const rows = Math.ceil(pairs.length / cols);
     const canvas = document.createElement("canvas");
     canvas.width = cols * cellW;
@@ -423,12 +438,17 @@ export class MapScene extends Phaser.Scene {
     const src = this.textures.get("town-raw").getSourceImage() as HTMLImageElement | HTMLCanvasElement;
     const bb = this.opaqueBBox(src);
     if (!bb) return;
+    // Crop to content AND cap to the building's max on-screen size (≈101 world px
+    // × max zoom) — no point keeping a near-1024² texture for a two-tile sprite.
+    const scale = Math.min(1, TOWN_TEX_SIZE / Math.max(bb.sw, bb.sh));
     const out = document.createElement("canvas");
-    out.width = bb.sw;
-    out.height = bb.sh;
+    out.width = Math.max(1, Math.round(bb.sw * scale));
+    out.height = Math.max(1, Math.round(bb.sh * scale));
     const octx = out.getContext("2d");
     if (!octx) return;
-    octx.drawImage(src, bb.left, bb.top, bb.sw, bb.sh, 0, 0, bb.sw, bb.sh);
+    octx.imageSmoothingEnabled = true;
+    octx.imageSmoothingQuality = "high";
+    octx.drawImage(src, bb.left, bb.top, bb.sw, bb.sh, 0, 0, out.width, out.height);
     this.textures.addCanvas("town-building", out);
     this.textures.remove("town-raw"); // cropped copy replaces the raw source
     this.townBuildingAspect = bb.sh / bb.sw;
@@ -444,7 +464,9 @@ export class MapScene extends Phaser.Scene {
     const f = this.topFace(game.town.x, game.town.y, this.renderHeight(tt));
     const cam = this.cameras.main;
     cam.setZoom(DEFAULT_ZOOM);
-    cam.setScroll(f.sx - cam.width / (2 * DEFAULT_ZOOM), f.sy - cam.height / (2 * DEFAULT_ZOOM));
+    // Phaser's camera midpoint is scroll + size/2 regardless of zoom — this centers
+    // the town at any zoom (incl. the DPR-scaled default).
+    cam.setScroll(f.sx - cam.width / 2, f.sy - cam.height / 2);
     this.fitted = true;
   }
 
@@ -514,8 +536,10 @@ export class MapScene extends Phaser.Scene {
   }
 
   private text(x: number, y: number, s: string, color: string, size = 11) {
+    // resolution: DPR — the text canvas is rasterized dense enough for the DPR-scaled
+    // camera zoom, otherwise labels look blurry on phones.
     const t = this.add
-      .text(x, y, s, { fontFamily: "monospace", fontSize: `${size}px`, color })
+      .text(x, y, s, { fontFamily: "monospace", fontSize: `${size}px`, color, resolution: DPR })
       .setOrigin(0.5)
       .setDepth(10001);
     this.labels.push(t);
