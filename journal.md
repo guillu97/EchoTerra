@@ -6,6 +6,29 @@
 
 ---
 
+## 2026-07-14 (3) — Les héros en ville quittent la carte et apparaissent dans le Home
+
+### Fait
+- **Map** (`MapScene`) : les héros debout sur la case ville (les miens ET ceux des autres) ne sont
+  plus rendus — ils sont « à l'intérieur des murs ». La sélection reste possible via les chips et
+  le tap sur la case ville (menu « En ville ») ; sortie via dpad/case adjacente (porte ouverte).
+- **Home** (`TownMap`) : les héros présents en ville apparaissent SUR L'HERBE de la carte d'éditeur —
+  au bake, collecte des cellules dont le bloc du dessus est une herbe (`GRASS_FILES` : jungle,
+  darkgrass, fallgrass, grass, mossy) hors anneau de 1 cellule autour des bâtiments ; à chaque rendu,
+  affectation déterministe héros→cellule (hachage de l'id + sonde à grand pas 29 pour ne pas se
+  coller), sprite chibi `<img>` (84 px, marges transparentes comprises) + étiquette nom (violette
+  pour les héros des autres joueurs). Pieds ancrés à la formule de l'éditeur
+  (`project(...).sy − cubeDepth + objBottomDrop`).
+- Perf : les `char-*.png` ont désormais deux consommateurs légitimes (loader Phaser + `<img>` du
+  Home) → ajoutés à l'allowlist des doublons du test.
+
+### Fonctionnel (vérifié)
+- E2E : partie fraîche → Home montre Aldric/Brisa/Cael sur l'herbe, Map n'affiche 0 sprite héros ;
+  un héros sort → 1 sprite sur la Map et il disparaît du Home. `tsc -b` + `npm run build` OK,
+  `test:perf` 13/13.
+
+---
+
 ## 2026-07-14 (2) — Journal de la ville (bâtiment Panel)
 
 ### Fait

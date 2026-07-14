@@ -1009,6 +1009,10 @@ export class MapScene extends Phaser.Scene {
     const stackIndex: Record<string, number> = {};
     for (const h of game.heroes) {
       if (h.hp <= 0) continue;
+      // Heroes standing on the town tile are INSIDE the walls: they don't appear
+      // on the world map (any player's) — they show up in the Home town instead.
+      // Selection still works through the hero chips / tapping the town tile.
+      if (h.x === game.town.x && h.y === game.town.y) continue;
       const mine = this.isMine(h.id);
       if (!mine && !this.showOthers) continue;
       const skey = `${h.x},${h.y}`;

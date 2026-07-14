@@ -6,6 +6,8 @@ import { loadAll } from "../editor/imageCache";
 import { assetUrlFor } from "../editor/assetIndex";
 import { ISO, drawMap, project } from "../editor/isoRender";
 import { TOWN_BUILDINGS } from "../data/buildings";
+import { heroAssetUrl } from "../assets";
+import { myTeamHeroes } from "../townUtils";
 import { useStore } from "../store";
 import { durColor } from "../tabs/HomeTab";
 
@@ -31,6 +33,9 @@ const ASSET_TO_BUILDING: Record<string, string> = {
 const CANVAS_RES = 2; // backing-store supersample (CSS size stays world-sized)
 const TAP_SLOP = 8; // px of pointer travel before a press counts as a drag
 
+// Block asset files that read as "grass" — in-town heroes stand on these cells.
+const GRASS_FILES = new Set(["grass", "jungle", "darkgrass", "fallgrass", "mossy"]);
+
 interface Spot {
   buildingId: string;
   x: number; // world px, relative to the rendered canvas origin
@@ -42,6 +47,7 @@ interface Baked {
   w: number; // world size of the render
   h: number;
   spots: Spot[];
+  grass: { x: number; y: number }[]; // hero stand-points on grass cells (feet anchors)
 }
 
 // --- doc preparation (module-level: parsed and rendered once per session) ----
@@ -115,9 +121,12 @@ function bakeTown(): Promise<Baked> {
     drawMap(ctx, doc, undefined, { grid: false });
 
     const spots: Spot[] = [];
+    const occupied = new Set<string>(); // cells taken by placements (+1 ring): no hero there
     for (const l of doc.layers) {
       if (!l.visible) continue;
       for (const p of l.placements as Placement[]) {
+        for (let dy = -1; dy <= 1; dy++)
+          for (let dx = -1; dx <= 1; dx++) occupied.add(`${p.cx + dx},${p.cy + dy}`);
         const id = ASSET_TO_BUILDING[p.asset.file];
         if (!id) continue;
         const h = doc.cells[p.cy * doc.gridW + p.cx]?.height ?? 0;
@@ -129,7 +138,25 @@ function bakeTown(): Promise<Baked> {
         });
       }
     }
-    return { canvas, w: b.w, h: b.h, spots };
+
+    // Hero stand-points: cells whose TOP block is grass, away from the buildings.
+    // Stable order (row-major) so hero->spot assignment is deterministic.
+    const grass: { x: number; y: number }[] = [];
+    for (let cy = 0; cy < doc.gridH; cy++)
+      for (let cx = 0; cx < doc.gridW; cx++) {
+        const cell = doc.cells[cy * doc.gridW + cx];
+        const blocks = cell?.blocks ?? [];
+        let top: string | undefined;
+        for (let i = blocks.length - 1; i >= 0; i--)
+          if (blocks[i]) {
+            top = blocks[i]!.file;
+            break;
+          }
+        if (!top || !GRASS_FILES.has(top) || occupied.has(`${cx},${cy}`)) continue;
+        const pt = project(cx, cy, cell.height ?? 0);
+        grass.push({ x: pt.sx - b.x, y: pt.sy - ISO.cubeDepth + ISO.objBottomDrop - b.y });
+      }
+    return { canvas, w: b.w, h: b.h, spots, grass };
   })();
   return bakedPromise;
 }
@@ -146,6 +173,7 @@ export function TownMap({
   onClear: () => void;
 }) {
   const game = useStore((s) => s.game);
+  const playerId = useStore((s) => s.playerId);
   const viewportRef = useRef<HTMLDivElement>(null);
   const canvasHostRef = useRef<HTMLDivElement>(null);
   const [baked, setBaked] = useState<Baked | null>(null);
@@ -334,6 +362,41 @@ export function TownMap({
             el.dataset.baked = "1";
           }}
         />
+        {/* In-town heroes (everyone's): the map hides them once they're inside the
+            walls — HERE is where they live, standing on the grass. Deterministic
+            grass-cell assignment (hash of the hero id + linear probing). */}
+        {game &&
+          baked.grass.length > 0 &&
+          (() => {
+            const inTown = game.heroes.filter(
+              (h) => h.hp > 0 && h.x === game.town.x && h.y === game.town.y,
+            );
+            const mine = new Set(myTeamHeroes(game, playerId).map((h) => h.id));
+            const used = new Set<number>();
+            const hash = (s: string) => {
+              let n = 0;
+              for (let i = 0; i < s.length; i++) n = (n * 31 + s.charCodeAt(i)) >>> 0;
+              return n;
+            };
+            return inTown.map((h) => {
+              let idx = hash(h.id) % baked.grass.length;
+              // Big coprime stride: colliding heroes land CELLS apart, not shoulder
+              // to shoulder (grass spots are row-major, +1 = the adjacent cell).
+              while (used.has(idx)) idx = (idx + 29) % baked.grass.length;
+              used.add(idx);
+              const g = baked.grass[idx];
+              return (
+                <div
+                  key={h.id}
+                  className={`town-hero ${mine.has(h.id) ? "" : "other"}`}
+                  style={{ left: g.x, top: g.y }}
+                >
+                  <img src={heroAssetUrl(h.class)} alt={h.name} />
+                  <span className="th-name">{h.name}</span>
+                </div>
+              );
+            });
+          })()}
         {baked.spots.map((s) => {
           const layout = TOWN_BUILDINGS.find((b) => b.id === s.buildingId);
           const bs = buildingState(s.buildingId);

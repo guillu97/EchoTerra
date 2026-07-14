@@ -58,6 +58,15 @@ const DUPLICATE_ALLOWLIST = [
   "/assets/isotiles/grass.png",
   "/assets/isotiles/stone.png",
   "/assets/isotiles/sand.png",
+  // Hero chibis: Phaser preloads them for the world map while the Home town shows
+  // the in-town heroes as plain <img> — two consumers, one file.
+  "/assets/characters/char-scout.png",
+  "/assets/characters/char-builder.png",
+  "/assets/characters/char-archer.png",
+  "/assets/characters/char-knight.png",
+  "/assets/characters/char-merchant.png",
+  "/assets/characters/char-healer.png",
+  "/assets/characters/char-wizard.png",
 ];
 
 // ---------------------------------------------------------------------------

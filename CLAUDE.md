@@ -348,7 +348,11 @@ POST /api/games/{id}/combat/{c}/action            {unitId, action: move|attack|s
   **hotspots cliquables** (mapping fichier asset → id de bâtiment dans `ASSET_TO_BUILDING` ; pastille
   nom + barre de durabilité, contre-échelonnée `--inv = 1/zoom` pour rester lisible à tout zoom).
   **Zoom/pan dans la ville** : molette ancrée au curseur, drag, pinch en mapping absolu (même math que
-  MapScene), fit initial auto (refit au resize tant que l'utilisateur n'a pas bougé). ⚠ le viewport
+  MapScene), fit initial auto (refit au resize tant que l'utilisateur n'a pas bougé). **Les héros en
+  ville apparaissent sur l'herbe du Home** (cellules `GRASS_FILES` hors anneau des bâtiments,
+  affectation par hachage d'id ; étiquette violette = héros d'un autre joueur) et sont **masqués sur
+  la carte du monde** (`MapScene` saute tout héros sur la case ville — ils sont « dans les murs » ;
+  sélection via chips/tap de la case ville, sortie soumise à la porte). ⚠ le viewport
   fait `setPointerCapture` → les `click` des boutons ne partent JAMAIS : les taps sont résolus au
   `pointerup` par `elementFromPoint().closest(".town-spot")`. ⚠ les crops d'assets de l'éditeur vivent
   dans le localStorage du navigateur : le rendu peut différer légèrement sur un autre appareil. Pour

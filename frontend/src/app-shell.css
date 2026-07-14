@@ -521,6 +521,37 @@ body {
   height: 100%;
   border-radius: 3px;
 }
+/* In-town hero standing on a grass cell (feet anchored at left/top; the chibi
+   sprites carry transparent margins, hence the -86% instead of -100%). */
+.town-hero {
+  position: absolute;
+  transform: translate(-50%, -86%);
+  pointer-events: none;
+  z-index: 4;
+}
+.town-hero img {
+  display: block;
+  /* Chibi PNGs carry wide transparent margins — 84px of frame ≈ 50px of content,
+     about a building's width (ISO.objW 60) minus a head. */
+  width: 84px;
+  filter: drop-shadow(0 4px 5px rgba(0, 0, 0, 0.35));
+}
+.town-hero .th-name {
+  position: absolute;
+  left: 50%;
+  top: 84%;
+  transform: translateX(-50%);
+  background: var(--glass);
+  color: #fff;
+  border-radius: 999px;
+  padding: 1px 7px;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.town-hero.other .th-name {
+  background: rgba(88, 62, 128, 0.72); /* another player's hero: violet tag */
+}
 /* Isometric tile platform. A centred zero-size origin point; tiles & buildings are
    positioned by px offsets (iso projection) relative to it, and depth-sorted by z-index. */
 .iso-stage {
