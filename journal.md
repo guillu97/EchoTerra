@@ -6,6 +6,50 @@
 
 ---
 
+## 2026-07-14 (13) — Le design JSON du Studio implémenté dans le jeu (sauf PA des bâtiments)
+
+### Fait
+- **`design.go`** : tout le game-design du Studio en données Go — terrains (fouille pondérée + richesse),
+  **11 espèces** (harpies prairie/givre, dryade, araignée cristalline, loup-garou, chauve-souris + BOSS
+  Roi Gobelin & Arbre Vivant Ancien) avec **grilles d'attaque GDD** (`AttackDef.Targets/Damage` + effets
+  structurés : Stun %, Root, Absorbe, Bouclier -50%, buff d'alliés), niveaux de bâtiments (matériaux par
+  niveau avec Planche/Corde/Brique/Acier/Cœur de chêne, prérequis d'arbre techno, défense/capacités par
+  niveau), et le maintien volontaire des PA de chantier actuels (`buildPA`, exception demandée).
+- **Fouille** : tirage pondéré de la table du biome ; passifs Récupérateur (+1), Herboriste (+1
+  plante/minerai) ; Éclaireur vision +1 ; **Tir précis** du Chasseur (map, 1 PA, route `/snipe`, 🏹).
+- **Monstres** : spawn par biome d'apparition, packs [min,max] du design, **boss à partir de la vague 4**,
+  loot de victoire pondéré par espèce (chaque héros tire ; Récupérateur +1 trophée), `appearance` servi
+  au client (sprites mob-* sur carte ET en combat).
+- **Combat iso data-driven** : IA monstre par grilles (spéciales ~35%), zones de dégâts appliquées autour
+  de la case touchée, Root consommé au tour de la victime (pas de déplacement), Bouclier jusqu'au tour
+  suivant ; skills de classe des héros (Frappe +5, **Tir de zone** portée 3 en croix, **Posture
+  défensive** auto-ciblée depuis l'UI) ; `combatResponse` sert les cibles calculées sur les grilles.
+- **Bâtiments** : prérequis vérifiés à la pose du plan (🔒 affiché), Workshop niv.2 = chantiers −1 PA,
+  capacités par niveau (puits 50/75/112, banque 500/750/1125), **puits initial = 2 rations × héros**,
+  niveau max 3, **revive du Townhall réel** (quota = niveau, niv.3 gratuit/illimité, bouton Home).
+- **26 recettes** gatées par bâtiment+niveau (Kitchen 2 = plats raffinés, 3 = Ambroisie ; Workshop 2 =
+  Acier/équipements, 3 = Talisman/Amulette), sorties multiples (Planche/Brique ×2), effets affichés.
+- **Classes** : requires d'évolution (gardien←pionnier, récupérateur←chasseur|éclaireur,
+  herboriste←éclaireur) côté serveur ET picker ; apparence par classe (sprite du héros change).
+- **Mapgen** : 60×60 par défaut, lissage maxStep 1 (test : aucun voisin à +2), biomes par niveau lissé,
+  richesse par terrain. Bots : évolution selon la branche de classe.
+- ⚠ Un redémarrage du conteneur a fait perdre l'arbre local (retour à un vieux commit) — récupéré via
+  `git reset --hard origin/main` + réapplication ; rien de poussé n'a été perdu.
+
+### Fonctionnel (vérifié)
+- `go test ./...` (6 paquets) + **design_test.go** (12 tests : tables de fouille, passifs, prérequis,
+  défense par niveau, workshop −1, revive, gating recettes, requires d'évolution, pools de spawn, loot
+  d'espèce, grilles/Root/Bouclier en combat, rations du puits, Tir précis) + test de lissage worldgen.
+- E2E UI : 26 recettes servies, Gardien requires+appearance, Ragoût verrouillé « Kitchen niv.2 », Bank
+  niv.2 demande des Planches, carte 60×60, monstres avec appearance ; **combat e2e complet** : marche
+  jusqu'à un Loup-garou, grilles jouées, victoire, loot « Fourrure maudite ».
+- `npx tsc -b`, `npm run build`, `npm run test:perf` **13/13** (payload 22,6/24 MB avec les 6 nouveaux
+  sprites, VRAM 24,3/40 MiB, carte 60×60).
+
+### À faire
+- Consommation d'objets (nourriture/potions/équipements — effets encore descriptifs), Poussée du
+  Survivant, moral de la ville, faim ; sprites dédiés harpie/dryade/sanglier via ComfyUI.
+
 ## 2026-07-14 (12) — Structure groupée par état + vérification du chantier d'amélioration
 
 ### Fait

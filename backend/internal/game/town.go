@@ -30,28 +30,18 @@ type TownBuilding struct {
 	MaxDurability     int      `json:"maxDurability"`
 	Capacity          int      `json:"capacity"`    // e.g. water stored in the Well
 	MaxCapacity       int      `json:"maxCapacity"` // 0 when the building has no stock
-	Open              bool     `json:"open"`        // Gate only: an open gate gives no defense
-	Defense           int      `json:"defense"`     // computed defense contribution
-	Cost              BuildReq `json:"cost"`        // computed cost of the next build/upgrade
-}
-
-// buildMaterials is the base material recipe to build each building (scaled by level
-// on upgrades). Materials must sit in the Bank (town storage).
-var buildMaterials = map[string][]Item{
-	"townhall": {{Type: "objet", Name: "Bois", Qty: 4}, {Type: "minerai", Name: "Pierre", Qty: 2}},
-	"tower":    {{Type: "objet", Name: "Bois", Qty: 2}, {Type: "minerai", Name: "Pierre", Qty: 3}},
-	"kitchen":  {{Type: "objet", Name: "Bois", Qty: 3}},
-	"wall":     {{Type: "minerai", Name: "Pierre", Qty: 3}},
-	"gate":     {{Type: "objet", Name: "Bois", Qty: 2}, {Type: "minerai", Name: "Minerai de fer", Qty: 1}},
-	"well":     {{Type: "minerai", Name: "Pierre", Qty: 2}},
-	"bank":     {{Type: "objet", Name: "Bois", Qty: 2}},
-	"workshop": {{Type: "objet", Name: "Bois", Qty: 3}},
-	"panel":    {{Type: "objet", Name: "Bois", Qty: 1}},
+	Open              bool     `json:"open"`    // Gate only: an open gate gives no defense
+	Defense           int      `json:"defense"` // computed defense contribution
+	Cost              BuildReq `json:"cost"`    // computed cost of the next build/upgrade
+	// Requires mirrors the design tech tree (derived; refreshed by Recompute) so the
+	// client can show why a site's plan is locked.
+	Requires []BuildingRequire `json:"requires,omitempty"`
 }
 
 // buildPA is the total labour a chantier requires to complete a building at level 1;
-// an upgrade to level L+1 costs base × (L+1). Construction is a collective effort:
-// players pour their heroes' PA into the site over several days (Hordes-style).
+// an upgrade to level L costs base × L. Construction is a collective effort: players
+// pour their heroes' PA into the site over several days (Hordes-style). These values
+// deliberately IGNORE the design file's pa fields (user decision).
 var buildPA = map[string]int{
 	"townhall": 20,
 	"tower":    15,
@@ -68,26 +58,53 @@ var buildPA = map[string]int{
 const planPACost = 1
 
 // buildingCost returns the FULL requirement of the current (or next) chantier:
-//   - site / under construction -> total labour + materials to reach level 1
-//   - built                     -> upgrade requirement, scaled by the next level
+//   - site / under construction -> total labour + level-1 materials
+//   - built                     -> the NEXT level's requirement (per-level materials
+//     from the design tech tree — higher levels ask for crafted goods like Planche,
+//     Corde, Brique, Acier or the Cœur de chêne ancien)
 //
 // Materials are a PRESENCE gate while investing PA and are only consumed when the
-// chantier completes; b.PaInvested tracks progress toward Cost.PA.
-func buildingCost(b *TownBuilding) BuildReq {
-	mult := 1
+// chantier completes; b.PaInvested tracks progress toward Cost.PA. A built Workshop
+// level 2+ shaves 1 PA off every chantier ("coût PA chantiers -1"). At max level the
+// requirement is empty (callers reject further builds).
+func (g *GameState) buildingCost(b *TownBuilding) BuildReq {
+	target := 1
 	if b.Built {
-		mult = b.Level + 1
+		target = b.Level + 1
 	}
-	base := buildMaterials[b.ID]
-	mats := make([]Item, 0, len(base))
-	for _, it := range base {
-		mats = append(mats, Item{Type: it.Type, Name: it.Name, Qty: it.Qty * mult})
+	if target > MaxBuildingLevel {
+		return BuildReq{Materials: []Item{}}
+	}
+	var mats []Item
+	if lv := buildingLevelDef(b.ID, target); lv != nil {
+		mats = make([]Item, len(lv.Materials))
+		copy(mats, lv.Materials)
 	}
 	pa := buildPA[b.ID]
 	if pa == 0 {
 		pa = 10
 	}
-	return BuildReq{PA: pa * mult, Materials: mats}
+	pa *= target
+	if w := g.buildingByID("workshop"); w != nil && w != b && w.Built && w.Level >= 2 && pa > 1 {
+		pa-- // Workshop niv.2 : coût PA des chantiers -1
+	}
+	return BuildReq{PA: pa, Materials: mats}
+}
+
+// checkBuildRequires validates a site's tech-tree prerequisites (from the design)
+// before its construction plan can be laid.
+func (g *GameState) checkBuildRequires(b *TownBuilding) error {
+	for _, req := range BuildingDesigns[b.ID].Requires {
+		o := g.buildingByID(req.Building)
+		if o == nil || !o.Built || o.Level < req.Level {
+			name := req.Building
+			if o != nil {
+				name = o.Name
+			}
+			return ActionError{fmt.Sprintf("%s requiert %s niveau %d", b.Name, name, req.Level)}
+		}
+	}
+	return nil
 }
 
 // DefaultBuildings seeds the city. Built at start: gate, wall, bank, well, workshop,
@@ -127,6 +144,20 @@ func (g *GameState) logTown(text string) {
 	g.Town.Log = append([]TownLogEntry{e}, g.Town.Log...)
 	if len(g.Town.Log) > townLogCap {
 		g.Town.Log = g.Town.Log[:townLogCap]
+	}
+}
+
+// InitWellRations sets the Well's starting stock per the design: 2 in-game days of
+// water for the whole expedition (2 rations × total heroes). Called at game launch,
+// when the final roster is known.
+func (g *GameState) InitWellRations() {
+	w := g.buildingByID("well")
+	if w == nil {
+		return
+	}
+	w.Capacity = 2 * len(g.Heroes)
+	if w.MaxCapacity > 0 && w.Capacity > w.MaxCapacity {
+		w.Capacity = w.MaxCapacity
 	}
 }
 
@@ -323,10 +354,19 @@ func (g *GameState) TownAction(buildingID, action string, points int, heroID str
 
 	switch action {
 	case "build":
-		cost := buildingCost(b)
+		if b.Built && b.Level >= MaxBuildingLevel {
+			return ActionError{b.Name + " est déjà au niveau maximum"}
+		}
+		cost := g.buildingCost(b)
 		if !b.UnderConstruction {
 			// Phase 1 — the PLAN: opening the chantier costs 1 PA and no materials.
 			// The full requirement (cost.PA labour + materials) is now on display.
+			// A fresh site must first satisfy its tech-tree prerequisites.
+			if !b.Built {
+				if err := g.checkBuildRequires(b); err != nil {
+					return err
+				}
+			}
 			if !g.spendFor(heroID, planPACost) {
 				return ActionError{"PA insuffisants"}
 			}
@@ -376,15 +416,16 @@ func (g *GameState) TownAction(buildingID, action string, points int, heroID str
 			b.Level++
 			b.MaxDurability += 20
 			b.Durability = b.MaxDurability
-			if b.MaxCapacity > 0 {
-				b.MaxCapacity += b.MaxCapacity / 2
-			}
 			g.logTown(fmt.Sprintf("🏗️ %s a achevé l'amélioration de %s (niveau %d, matériaux prélevés à la Banque)", worker, b.Name, b.Level))
 		} else {
 			b.Built = true
 			b.Level = 1
 			b.Durability = b.MaxDurability
 			g.logTown(fmt.Sprintf("🏗️ %s a achevé la construction de %s (matériaux prélevés à la Banque)", worker, b.Name))
+		}
+		// Per-level stock capacity from the design (Well 50/75/112, Bank 500/750/1125).
+		if lv := buildingLevelDef(b.ID, b.Level); lv != nil && lv.Capacity > 0 {
+			b.MaxCapacity = lv.Capacity
 		}
 		return nil
 
@@ -429,6 +470,49 @@ func (g *GameState) TownAction(buildingID, action string, points int, heroID str
 		h.RemoveState(StateSoif) // drinking quenches thirst
 		h.AddLoot(Item{Type: "eau", Name: "Ration d'eau", Qty: 1})
 		g.logTown(fmt.Sprintf("💧 %s a puisé une ration d'eau au puits", h.Name))
+		return nil
+
+	case "revive": // Townhall: resurrect a fallen hero (design: lit du Townhall).
+		if b.ID != "townhall" {
+			return ActionError{"action réservée au Townhall"}
+		}
+		if !b.Built {
+			return ActionError{b.Name + " n'est pas encore construit"}
+		}
+		var dead *Hero
+		for _, hh := range g.Heroes {
+			if hh.HP <= 0 {
+				dead = hh
+				break
+			}
+		}
+		if dead == nil {
+			return ActionError{"aucun héros à ressusciter"}
+		}
+		// Daily allowance = Townhall level (1/jour au niv.1, 2/jour au niv.2);
+		// level 3 is unlimited AND free ("revive gratuit").
+		if g.Town.ReviveDay != g.Day {
+			g.Town.ReviveDay = g.Day
+			g.Town.RevivesToday = 0
+		}
+		if b.Level < 3 && g.Town.RevivesToday >= b.Level {
+			return ActionError{"le lit du Townhall a déjà servi aujourd'hui"}
+		}
+		cost := 2
+		if b.Level >= 3 {
+			cost = 0
+		}
+		if !g.spendFor(heroID, cost) {
+			return ActionError{"PA insuffisants"}
+		}
+		dead.HP = dead.MaxHP / 2
+		if dead.HP < 1 {
+			dead.HP = 1
+		}
+		dead.X, dead.Y = g.Town.X, g.Town.Y
+		dead.States = []string{}
+		g.Town.RevivesToday++
+		g.logTown(fmt.Sprintf("🛏️ %s a ressuscité %s au Townhall", worker, dead.Name))
 		return nil
 
 	case "toggle": // Gate: open/close it. An open gate provides no defense. Costs 1 PA.

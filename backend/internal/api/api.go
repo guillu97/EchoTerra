@@ -217,6 +217,7 @@ func (s *Server) Router() http.Handler {
 			r.Post("/heroes/{heroID}/hide", s.hideHero)
 			r.Post("/heroes/{heroID}/escape", s.escapeHero)
 			r.Post("/heroes/{heroID}/fireball", s.fireballHero)
+			r.Post("/heroes/{heroID}/snipe", s.snipeHero)
 			r.Post("/heroes/{heroID}/evolve", s.evolveHero)
 			r.Post("/heroes/{heroID}/combat/start", s.startCombat)
 			r.Get("/combat/{combatID}", s.getCombat)
@@ -296,10 +297,10 @@ func (s *Server) createGame(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = json.NewDecoder(r.Body).Decode(&body)
 	if body.Width == 0 {
-		body.Width = 24
+		body.Width = worldgen.DefaultSize
 	}
 	if body.Height == 0 {
-		body.Height = 24
+		body.Height = worldgen.DefaultSize
 	}
 	if body.Seed == 0 {
 		body.Seed = time.Now().UnixNano()
@@ -408,10 +409,10 @@ func (s *Server) createLobby(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = json.NewDecoder(r.Body).Decode(&body)
 	if body.Width == 0 {
-		body.Width = 22
+		body.Width = worldgen.DefaultSize
 	}
 	if body.Height == 0 {
-		body.Height = 22
+		body.Height = worldgen.DefaultSize
 	}
 	if body.Seed == 0 {
 		body.Seed = time.Now().UnixNano()
@@ -456,10 +457,10 @@ func (s *Server) soloGame(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = json.NewDecoder(r.Body).Decode(&body)
 	if body.Width == 0 {
-		body.Width = 22
+		body.Width = worldgen.DefaultSize
 	}
 	if body.Height == 0 {
-		body.Height = 22
+		body.Height = worldgen.DefaultSize
 	}
 	if body.Seed == 0 {
 		body.Seed = time.Now().UnixNano()
@@ -842,6 +843,25 @@ func (s *Server) fireballHero(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"report": rep, "game": gs})
 }
 
+// snipeHero fires the Chasseur's "Tir précis" map skill (kills one creature of a
+// weakened pack on the hero's tile).
+func (s *Server) snipeHero(w http.ResponseWriter, r *http.Request) {
+	gs := s.mustGame(w, r)
+	if gs == nil {
+		return
+	}
+	if !s.ownHero(w, gs, decodePlayer(r), chi.URLParam(r, "heroID")) {
+		return
+	}
+	rep, err := gs.PreciseShotHero(chi.URLParam(r, "heroID"))
+	if err != nil {
+		writeActionErr(w, err)
+		return
+	}
+	s.persist(gs)
+	writeJSON(w, http.StatusOK, map[string]any{"report": rep, "game": gs})
+}
+
 func (s *Server) evolveHero(w http.ResponseWriter, r *http.Request) {
 	gs := s.mustGame(w, r)
 	if gs == nil {
@@ -1070,7 +1090,8 @@ func combatResponse(gs *game.GameState, c *game.Combat) map[string]any {
 	}
 	if c.Status == "active" {
 		if cur := c.CurrentUnit(); cur != nil && cur.Side == "hero" {
-			sk := c.SkillFor(cur)
+			base := c.BaseAttack(cur)
+			sk := c.HeroSkill(cur)
 			var reach [][2]int
 			if !cur.Moved {
 				reach = c.Reachable(cur)
@@ -1081,8 +1102,8 @@ func combatResponse(gs *game.GameState, c *game.Combat) map[string]any {
 			resp["current"] = map[string]any{
 				"unitId":        cur.ID,
 				"reachable":     reach,
-				"attackTargets": idsOf(c.Targets(cur, baseRange(cur))),
-				"skillTargets":  idsOf(c.Targets(cur, sk.Range)),
+				"attackTargets": idsOf(c.TargetsFor(cur, &base)),
+				"skillTargets":  idsOf(c.TargetsFor(cur, &sk)),
 				"skill":         sk,
 			}
 		}
@@ -1098,10 +1119,3 @@ func idsOf(units []*game.CombatUnit) []string {
 	return out
 }
 
-// baseRange mirrors the combat package's base attack range for view hints.
-func baseRange(u *game.CombatUnit) int {
-	if u.Kind == "Elementaire de Vent" {
-		return 2
-	}
-	return 1
-}

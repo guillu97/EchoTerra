@@ -248,7 +248,7 @@ export class CombatScene extends Phaser.Scene {
       }
 
       // Token — a unit sprite when available, else the coloured circle.
-      const tex = u.side === "hero" ? heroTexKey(u.kind) : monsterTexKey(u.kind);
+      const tex = u.side === "hero" ? (u.appearance || heroTexKey(u.kind)) : monsterTexKey(u.kind, u.appearance);
       if (tex && this.textures.exists(tex)) {
         const img = this.add
           .image(sx, cy - 6, tex)

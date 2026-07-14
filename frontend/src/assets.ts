@@ -132,18 +132,30 @@ export function itemAssetUrl(item: { type: string; name: string }): string | und
   return m ? libUrl(m[0], m[1]) : undefined;
 }
 
-// Monster species -> creature sprite. (Keyed without accents too, to be safe.)
+// Monster species -> creature sprite (fallback when the server didn't send an
+// `appearance`; the design catalog serves it on every Monster/CombatUnit now).
 const MONSTER_BY_SPECIES: Record<string, string> = {
   "Goblin Pillard": "mob-goblin",
   "Slime Vorace": "mob-slime",
   "Elementaire de Vent": "mob-windelemental",
   "Élémentaire de Vent": "mob-windelemental",
+  "Chauve souris": "mob-bat",
+  "Harpie de Prairie": "mob-ghost",
+  "Harpie de Givre": "mob-ghost",
+  "Dryade Corrompue": "mob-mushroomling",
+  "Arbre Vivant Ancien": "mob-mushroomling",
+  "Araignée Cristalline": "mob-spider",
+  "Loup-garou": "mob-wolf",
+  "Roi Gobelin sur Sanglier Géant": "mob-orc",
 };
-export function monsterAssetUrl(species: string): string | undefined {
-  const f = MONSTER_BY_SPECIES[species];
+// Every creature sprite a game can reference (preloaded/shrunk by MapScene).
+export const MONSTER_TEX_KEYS = ["mob-goblin", "mob-slime", "mob-windelemental", "mob-bat", "mob-ghost", "mob-mushroomling", "mob-spider", "mob-wolf", "mob-orc"];
+export function monsterAssetUrl(species: string, appearance?: string): string | undefined {
+  const f = appearance || MONSTER_BY_SPECIES[species];
   return f ? libUrl("monsters", f) : undefined;
 }
-export const monsterTexKey = (species: string): string | undefined => MONSTER_BY_SPECIES[species];
+export const monsterTexKey = (species: string, appearance?: string): string | undefined =>
+  appearance || MONSTER_BY_SPECIES[species];
 
 // Hero class -> chibi character sprite (for map/combat tokens). Defaults to the scout.
 const HERO_BY_CLASS: Record<string, string> = {
@@ -154,6 +166,7 @@ const HERO_BY_CLASS: Record<string, string> = {
   "Gardien": "char-knight",
   "Récupérateur": "char-merchant",
   "Herboriste": "char-healer",
+  "Herboriste & Minéral": "char-healer",
 };
 export const HERO_TEX_KEYS = ["char-scout", "char-builder", "char-archer", "char-knight", "char-merchant", "char-healer", "char-wizard"];
 export const heroTexKey = (cls?: string): string => (cls && HERO_BY_CLASS[cls]) || "char-scout";

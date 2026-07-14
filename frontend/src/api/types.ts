@@ -63,22 +63,28 @@ export interface Hero {
 export interface ClassSkill {
   name: string;
   scope: "map" | "iso";
+  pa: number; // activation cost (0 = passif)
   desc: string;
+  effects?: string;
 }
 
 export interface ClassDef {
   id: string;
   name: string;
   tier: number; // 1 = intermediate, 2 = advanced
+  day: number; // game.day gate
+  requires: string[] | null; // parent class ids (any-of; empty = from Sans classe)
   role: string;
   bonuses: Stats;
   paBonus: number;
   skills: ClassSkill[];
+  appearance: { map: string; icon: string }; // character asset files (char-*)
 }
 
 export interface Monster {
   id: string;
   species: string;
+  appearance?: string; // monsters/ asset file (mob-*)
   x: number;
   y: number;
   hp: number;
@@ -106,6 +112,7 @@ export interface TownBuilding {
   open: boolean;
   defense: number;
   cost: BuildReq;
+  requires?: { building: string; level: number }[]; // tech-tree prerequisites
 }
 
 export interface Recipe {
@@ -113,10 +120,14 @@ export interface Recipe {
   name: string;
   category: string;
   building: string;
+  buildingLevel: number; // minimum level of that building (town crafts)
   outputType: string;
+  outputName?: string;
+  outputQty?: number;
   field: boolean; // craftable outside town
   paCost: number;
   ingredients: Item[];
+  effects?: string;
 }
 
 export interface FireballReport {
@@ -224,6 +235,8 @@ export interface GameState {
     waterDrawnToday: string[];
     // Town journal (Panel building): in-town actions, newest first, capped server-side.
     log?: TownLogEntry[];
+    reviveDay?: number; // Townhall resurrections performed today (allowance = level)
+    revivesToday?: number;
   };
   activeCombat?: string;
   combats?: Record<string, Combat>;
@@ -235,6 +248,8 @@ export interface CombatUnit {
   side: "hero" | "monster";
   refId: string;
   kind: string;
+  classId?: string; // hero class id
+  appearance?: string; // asset file for the sprite
   x: number;
   y: number;
   hp: number;
@@ -245,11 +260,20 @@ export interface CombatUnit {
   initiative: number;
 }
 
+// A combat ability with its GDD grids (mirrors backend AttackDef).
 export interface Skill {
   name: string;
-  range: number;
-  kind: "melee" | "ranged";
-  effect: string;
+  kind: string; // "base" | "special"
+  desc?: string;
+  targets: { dx: number; dy: number }[] | null;
+  damage: { dx: number; dy: number }[] | null;
+  dmgStat?: string;
+  bonus?: number;
+  stunPct?: number;
+  root?: boolean;
+  absorb?: boolean;
+  selfShield?: boolean;
+  buffAllies?: boolean;
 }
 
 export interface Combat {

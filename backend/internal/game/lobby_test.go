@@ -221,8 +221,8 @@ func TestStartingMonstersScaleWithPlayers(t *testing.T) {
 	if err := solo.StartGame(p.ID, now); err != nil {
 		t.Fatal(err)
 	}
-	if len(solo.Monsters) != 4 {
-		t.Fatalf("solo launch should seed 4 packs, got %d", len(solo.Monsters))
+	if len(solo.Monsters) != 6 { // design mapgen: 6 packs solo
+		t.Fatalf("solo launch should seed 6 packs, got %d", len(solo.Monsters))
 	}
 
 	quad := grassLobby(1, 4)
@@ -235,8 +235,8 @@ func TestStartingMonstersScaleWithPlayers(t *testing.T) {
 	if err := quad.StartGame(host.ID, now); err != nil {
 		t.Fatal(err)
 	}
-	if len(quad.Monsters) != 10 { // 4 + 2*(4-1)
-		t.Fatalf("4-player launch should seed 10 packs, got %d", len(quad.Monsters))
+	if len(quad.Monsters) != 12 { // 6 + 2*(4-1)
+		t.Fatalf("4-player launch should seed 12 packs, got %d", len(quad.Monsters))
 	}
 	if len(quad.Heroes) != 4*HeroesPerPlayer {
 		t.Fatalf("4 players must field %d heroes, got %d", 4*HeroesPerPlayer, len(quad.Heroes))

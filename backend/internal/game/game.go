@@ -117,14 +117,15 @@ func (h *Hero) AddLoot(it Item) {
 
 // Monster is an enemy on the global map; it expands into combat units on engagement.
 type Monster struct {
-	ID      string `json:"id"`
-	Species string `json:"species"`
-	X       int    `json:"x"`
-	Y       int    `json:"y"`
-	HP      int    `json:"hp"`
-	MaxHP   int    `json:"maxHp"`
-	Stats   Stats  `json:"stats"`
-	Count   int    `json:"count"` // how many creatures stand on the tile
+	ID         string `json:"id"`
+	Species    string `json:"species"`
+	Appearance string `json:"appearance,omitempty"` // monsters/ asset file (mob-*) for the client
+	X          int    `json:"x"`
+	Y          int    `json:"y"`
+	HP         int    `json:"hp"`
+	MaxHP      int    `json:"maxHp"`
+	Stats      Stats  `json:"stats"`
+	Count      int    `json:"count"` // how many creatures stand on the tile
 }
 
 // GameState is the full persisted state of one game (one cooperative session).
@@ -173,6 +174,10 @@ type GameState struct {
 		// gate toggles, well draws, bank deposits, builds/repairs, town crafts —
 		// newest first, capped (see logTown). Shared by all players.
 		Log []TownLogEntry `json:"log,omitempty"`
+		// Townhall resurrections: how many were performed today (daily allowance is
+		// the Townhall's level; level 3 is unlimited AND free).
+		ReviveDay    int `json:"reviveDay,omitempty"`
+		RevivesToday int `json:"revivesToday,omitempty"`
 	} `json:"town"`
 	// ActiveCombat is the id of the combat in progress, if any.
 	ActiveCombat string             `json:"activeCombat,omitempty"`

@@ -14,9 +14,23 @@ import (
 	"echoterra/internal/game"
 )
 
-// biomeFromHeight maps a normalized height value in [0,1] to a biome, using the
-// thresholds from the GDD (water .30 / sand .35 / grass .60 / forest .75 / mountain .90 / snow).
-func biomeFromHeight(v float64) game.Biome {
+// Mapgen parameters from the 🌍 Génération tab of the Studio (echoterra-design):
+// Perlin (scale 0.08, 3 octaves, persistence 0.5), maxHeight 6, SMOOTHING maxStep 1
+// (a level-6 mountain can never touch a level-0 plain), thresholds .30/.35/.60/.75/.90.
+const (
+	genScale     = 0.08
+	genMaxHeight = 6
+	genMaxStep   = 1 // max height difference between two orthogonal neighbours
+)
+
+// DefaultSize is the default map edge from the design's mapgen parameters (60×60).
+const DefaultSize = 60
+
+// biomeFromLevel maps a SMOOTHED height level (0..genMaxHeight) to a biome using the
+// design thresholds applied to level/maxHeight — so biomes follow the smoothed relief
+// and transitions always ride the gentle slopes.
+func biomeFromLevel(level int) game.Biome {
+	v := float64(level) / float64(genMaxHeight)
 	switch {
 	case v < 0.30:
 		return game.BiomeWater
@@ -33,13 +47,37 @@ func biomeFromHeight(v float64) game.Biome {
 	}
 }
 
-// heightLevel turns a normalized value into a small integer elevation for display.
-func heightLevel(v float64) int {
-	return int(math.Round(v * 6))
+// smoothLevels iteratively lowers peaks until no tile is more than genMaxStep above
+// any orthogonal neighbour (the Studio's "lissage" — same algorithm as the preview).
+func smoothLevels(levels []int, width, height int) {
+	for changed := true; changed; {
+		changed = false
+		for y := 0; y < height; y++ {
+			for x := 0; x < width; x++ {
+				i := y*width + x
+				minN := 1 << 30
+				for _, d := range [][2]int{{1, 0}, {-1, 0}, {0, 1}, {0, -1}} {
+					nx, ny := x+d[0], y+d[1]
+					if nx < 0 || ny < 0 || nx >= width || ny >= height {
+						continue
+					}
+					if n := levels[ny*width+nx]; n < minN {
+						minN = n
+					}
+				}
+				if minN < 1<<30 && levels[i] > minN+genMaxStep {
+					levels[i] = minN + genMaxStep
+					changed = true
+				}
+			}
+		}
+	}
 }
 
 // GenerateTiles produces a row-major slice of tiles of size width*height using
-// layered Perlin noise. Returns the tiles and the normalized heightmap (for tests).
+// layered Perlin noise, smoothed so neighbouring tiles never differ by more than
+// genMaxStep levels. Returns the tiles and the smoothed levels normalized to [0,1]
+// (for tests).
 func GenerateTiles(width, height int, seed int64) ([]game.Tile, []float64) {
 	const (
 		alpha = 2.0
@@ -49,38 +87,37 @@ func GenerateTiles(width, height int, seed int64) ([]game.Tile, []float64) {
 	p := perlin.NewPerlin(alpha, beta, n, seed)
 	tiles := make([]game.Tile, width*height)
 	hm := make([]float64, width*height)
+	levels := make([]int, width*height)
 
-	// Sample a few octaves and normalize the result into [0,1].
-	scale := 0.08
+	// Sample a few octaves, normalize into [0,1], quantize to height levels.
 	for y := 0; y < height; y++ {
 		for x := 0; x < width; x++ {
-			fx, fy := float64(x)*scale, float64(y)*scale
-			v := p.Noise2D(fx, fy)         // octave 1
-			v += 0.5 * p.Noise2D(fx*2, fy*2) // octave 2
+			fx, fy := float64(x)*genScale, float64(y)*genScale
+			v := p.Noise2D(fx, fy)            // octave 1
+			v += 0.5 * p.Noise2D(fx*2, fy*2)  // octave 2
 			v += 0.25 * p.Noise2D(fx*4, fy*4) // octave 3
 			v /= 1.75
-			// Perlin output is roughly [-1,1]; squash to [0,1].
-			nv := (v + 1) / 2
+			nv := (v + 1) / 2 // Perlin output is roughly [-1,1]; squash to [0,1]
 			if nv < 0 {
 				nv = 0
 			} else if nv > 1 {
 				nv = 1
 			}
-			idx := y*width + x
-			hm[idx] = nv
-			b := biomeFromHeight(nv)
-			res := 0
-			if b != game.BiomeWater {
-				// Forest/grass are richer; mountains/snow are sparse.
-				switch b {
-				case game.BiomeForest, game.BiomeGrass:
-					res = 3 + rand.Intn(4)
-				default:
-					res = 1 + rand.Intn(3)
-				}
-			}
-			tiles[idx] = game.Tile{Biome: b, Height: heightLevel(nv), Resources: res}
+			levels[y*width+x] = int(math.Round(nv * genMaxHeight))
 		}
+	}
+	smoothLevels(levels, width, height)
+
+	for i, lvl := range levels {
+		hm[i] = float64(lvl) / float64(genMaxHeight)
+		b := biomeFromLevel(lvl)
+		// Tile richness (number of successful searches) comes from the ⛰️ Terrains
+		// tab: plains/forest 3–6, mountain/snow 1–3, water none.
+		res := 0
+		if td, ok := game.Terrains[b]; ok && td.Searchable {
+			res = td.ResourcesMin + rand.Intn(td.ResourcesMax-td.ResourcesMin+1)
+		}
+		tiles[i] = game.Tile{Biome: b, Height: lvl, Resources: res}
 	}
 	return tiles, hm
 }
@@ -187,6 +224,7 @@ func NewGame(width, height int, seed int64) *game.GameState {
 		gs.Heroes = append(gs.Heroes, game.NewStarterHero(len(gs.Heroes), name, gs.Town.X, gs.Town.Y))
 	}
 	gs.SeedStartingMonsters(1)
+	gs.InitWellRations() // 2 jours d'eau × héros au départ
 	gs.Recompute()
 	return gs
 }

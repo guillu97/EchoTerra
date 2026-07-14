@@ -214,6 +214,7 @@ func (g *GameState) launch(now time.Time) {
 	g.NextWaveAt = now.Add(WaveInterval)
 	g.KickVotes = nil // lobby-only state
 	g.SeedStartingMonsters(len(g.Players))
+	g.InitWellRations() // 2 jours d'eau × héros au départ
 	g.Recompute()
 }
 

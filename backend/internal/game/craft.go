@@ -1,32 +1,89 @@
 package game
 
-// Recipe is a craftable item. In town it consumes ingredients from the shared Maison
-// storage and outputs back there; in the field (no town building) a "Field" recipe
-// consumes the crafting hero's own bag and outputs to it. Paid with the hero's PA.
+import "fmt"
+
+// Recipe is a craftable item. In town it consumes ingredients from the Bank and
+// outputs back there (the required building must be BUILT at BuildingLevel or more);
+// in the field (no town building) a "Field" recipe consumes the crafting hero's own
+// bag and outputs to it. Paid with the hero's PA.
 type Recipe struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	Category    string `json:"category"`   // conso | potion | forge | deco
-	Building    string `json:"building"`   // kitchen | workshop
-	OutputType  string `json:"outputType"` // aliment | consommable | arme | deco
-	Field       bool   `json:"field"`      // craftable outside town (campfire-style)
-	PACost      int    `json:"paCost"`
-	Ingredients []Item `json:"ingredients"`
+	ID            string `json:"id"`
+	Name          string `json:"name"`
+	Category      string `json:"category"`      // conso | potion | forge | deco
+	Building      string `json:"building"`      // kitchen | workshop ("" = aucun)
+	BuildingLevel int    `json:"buildingLevel"` // minimum level of that building (town crafts)
+	OutputType    string `json:"outputType"`    // aliment | consommable | arme | deco | objet | minerai
+	OutputName    string `json:"outputName,omitempty"` // defaults to Name
+	OutputQty     int    `json:"outputQty,omitempty"`  // defaults to 1
+	Field         bool   `json:"field"` // craftable outside town (campfire-style)
+	PACost        int    `json:"paCost"`
+	Ingredients   []Item `json:"ingredients"`
+	Effects       string `json:"effects,omitempty"` // design text (what the item does)
 }
 
-// Recipes is the prototype crafting catalog. Kitchen recipes are field-craftable
-// (a campfire is enough); forge/workshop recipes need the town buildings.
+// Recipes is the crafting catalog from the ⚒️ Craft tab of the design (26 recipes):
+// transformations (Planche/Corde/Brique/Cuir/Acier), mythic weapons & equipment,
+// cuisine and alchemy. Kitchen level 2 unlocks the refined dishes/potions, level 3
+// the banquets (Ambroisie); Workshop level 2 the forge alloys/equipment, level 3 the
+// advanced pieces (Talisman, Amulette).
 var Recipes = []Recipe{
-	{ID: "mapo_curry", Name: "Mapo Curry", Category: "conso", Building: "kitchen", OutputType: "aliment", Field: true, PACost: 1,
-		Ingredients: []Item{{Type: "animal", Name: "Viande", Qty: 2}, {Type: "plante", Name: "Fleur", Qty: 1}}},
-	{ID: "orange_juice", Name: "Jus de fruit", Category: "conso", Building: "kitchen", OutputType: "aliment", Field: true, PACost: 1,
-		Ingredients: []Item{{Type: "plante", Name: "Fleur", Qty: 2}}},
-	{ID: "healing_potion", Name: "Potion de soin", Category: "potion", Building: "kitchen", OutputType: "consommable", Field: true, PACost: 1,
-		Ingredients: []Item{{Type: "plante", Name: "Herbe médicinale", Qty: 2}}},
-	{ID: "iron_blade", Name: "Lame de fer", Category: "forge", Building: "workshop", OutputType: "arme", Field: false, PACost: 2,
-		Ingredients: []Item{{Type: "minerai", Name: "Minerai de fer", Qty: 2}, {Type: "objet", Name: "Bois", Qty: 1}}},
-	{ID: "wooden_totem", Name: "Totem de bois", Category: "deco", Building: "workshop", OutputType: "deco", Field: false, PACost: 1,
-		Ingredients: []Item{{Type: "objet", Name: "Bois", Qty: 3}}},
+	// --- cuisine (kitchen) ---
+	{ID: "mapo_curry", Name: "Mapo Curry", Category: "conso", Building: "kitchen", BuildingLevel: 1, OutputType: "aliment", Field: true, PACost: 1,
+		Ingredients: []Item{{"animal", "Viande", 2}, {"plante", "Fleur", 1}}, Effects: "Restaure la faim (+40)"},
+	{ID: "orange_juice", Name: "Jus de fruit", Category: "conso", Building: "kitchen", BuildingLevel: 1, OutputType: "aliment", Field: true, PACost: 1,
+		Ingredients: []Item{{"plante", "Fleur", 2}}, Effects: "Désaltère (retire Soif)"},
+	{ID: "grilled_fish", Name: "Poisson grillé", Category: "conso", Building: "kitchen", BuildingLevel: 1, OutputType: "aliment", Field: true, PACost: 1,
+		Ingredients: []Item{{"aliment", "Poisson", 1}}, Effects: "Restaure la faim (+25)"},
+	{ID: "berry_jam", Name: "Confiture de baies", Category: "conso", Building: "kitchen", BuildingLevel: 1, OutputType: "aliment", PACost: 1,
+		Ingredients: []Item{{"plante", "Baie sauvage", 2}}, Effects: "Restaure la faim (+20), se conserve"},
+	{ID: "forest_stew", Name: "Ragoût forestier", Category: "conso", Building: "kitchen", BuildingLevel: 2, OutputType: "aliment", PACost: 1,
+		Ingredients: []Item{{"plante", "Champignon", 1}, {"animal", "Viande", 1}}, Effects: "Restaure la faim (+50)"},
+	{ID: "ambrosia", Name: "Ambroisie", Category: "conso", Building: "kitchen", BuildingLevel: 3, OutputType: "aliment", PACost: 2,
+		Ingredients: []Item{{"plante", "Baie sauvage", 2}, {"plante", "Fleur", 1}, {"plante", "Sève de dryade", 1}}, Effects: "Nectar des dieux : retire TOUS les états"},
+	// --- alchimie (potions) ---
+	{ID: "healing_potion", Name: "Potion de soin", Category: "potion", Building: "kitchen", BuildingLevel: 1, OutputType: "consommable", Field: true, PACost: 1,
+		Ingredients: []Item{{"plante", "Herbe médicinale", 2}}, Effects: "+8 PV, retire Blessé"},
+	{ID: "slime_balm", Name: "Baume de gelée", Category: "potion", Building: "kitchen", BuildingLevel: 1, OutputType: "consommable", Field: true, PACost: 1,
+		Ingredients: []Item{{"animal", "Gelée de slime", 1}, {"plante", "Herbe médicinale", 1}}, Effects: "+5 PV (ne retire pas Blessé)"},
+	{ID: "sap_elixir", Name: "Élixir de sève", Category: "potion", Building: "kitchen", BuildingLevel: 2, OutputType: "consommable", PACost: 1,
+		Ingredients: []Item{{"plante", "Sève de dryade", 1}, {"plante", "Herbe médicinale", 1}}, Effects: "+10 PV, retire Blessé"},
+	{ID: "agility_potion", Name: "Potion d'agilité", Category: "potion", Building: "kitchen", BuildingLevel: 2, OutputType: "consommable", PACost: 1,
+		Ingredients: []Item{{"objet", "Essence de vent", 1}, {"plante", "Herbe médicinale", 1}}, Effects: "+2 agilité pendant 1 combat"},
+	{ID: "frost_talisman", Name: "Talisman de givre", Category: "potion", Building: "workshop", BuildingLevel: 3, OutputType: "consommable", PACost: 2,
+		Ingredients: []Item{{"minerai", "Givre éternel", 1}, {"objet", "Soie cristalline", 1}}, Effects: "Immunise au froid et à la Soif pendant 1 jour"},
+	// --- transformations (forge/atelier) ---
+	{ID: "plank", Name: "Planche", Category: "forge", Building: "workshop", BuildingLevel: 1, OutputType: "objet", OutputQty: 2, PACost: 1,
+		Ingredients: []Item{{"objet", "Bois", 2}}, Effects: "Matériau : améliorations Townhall/Bank"},
+	{ID: "rope", Name: "Corde", Category: "forge", Building: "workshop", BuildingLevel: 1, OutputType: "objet", PACost: 1,
+		Ingredients: []Item{{"plante", "Fibre végétale", 2}}, Effects: "Matériau : améliorations Tower, équipements"},
+	{ID: "brick", Name: "Brique", Category: "forge", Building: "workshop", BuildingLevel: 1, OutputType: "minerai", OutputQty: 2, PACost: 1,
+		Ingredients: []Item{{"minerai", "Pierre", 2}}, Effects: "Matériau : améliorations Wall/Well"},
+	{ID: "leather", Name: "Cuir", Category: "forge", Building: "workshop", BuildingLevel: 1, OutputType: "objet", PACost: 1,
+		Ingredients: []Item{{"animal", "Peau", 2}}, Effects: "Matériau : équipements"},
+	{ID: "steel", Name: "Acier", Category: "forge", Building: "workshop", BuildingLevel: 2, OutputType: "minerai", PACost: 2,
+		Ingredients: []Item{{"minerai", "Minerai de fer", 1}, {"minerai", "Charbon", 1}}, Effects: "Alliage : Gate niv.3, Workshop niv.3"},
+	// --- armes & équipements ---
+	{ID: "iron_blade", Name: "Lame de fer", Category: "forge", Building: "workshop", BuildingLevel: 1, OutputType: "arme", PACost: 2,
+		Ingredients: []Item{{"minerai", "Minerai de fer", 2}, {"objet", "Bois", 1}}, Effects: "Arme : +3 force en combat"},
+	{ID: "fang_dagger", Name: "Dague en croc", Category: "forge", Building: "workshop", BuildingLevel: 1, OutputType: "arme", PACost: 2,
+		Ingredients: []Item{{"animal", "Croc", 2}, {"objet", "Corde", 1}}, Effects: "Arme : +2 force en combat"},
+	{ID: "silver_blade", Name: "Lame d'argent", Category: "forge", Building: "workshop", BuildingLevel: 2, OutputType: "arme", PACost: 2,
+		Ingredients: []Item{{"minerai", "Minerai d'argent", 2}, {"objet", "Bois", 1}}, Effects: "+2 force, +4 contre créatures maudites (loups-garous)"},
+	{ID: "sylvan_bow", Name: "Arc sylvestre", Category: "forge", Building: "workshop", BuildingLevel: 2, OutputType: "arme", PACost: 2,
+		Ingredients: []Item{{"objet", "Bois", 2}, {"objet", "Soie cristalline", 1}}, Effects: "Arme à distance : attaque portée 3 en combat"},
+	{ID: "boar_lance", Name: "Lance de sanglier", Category: "forge", Building: "workshop", BuildingLevel: 2, OutputType: "arme", PACost: 2,
+		Ingredients: []Item{{"animal", "Défense de sanglier", 1}, {"objet", "Bois", 2}}, Effects: "+3 force, portée 2 (relique du Roi Gobelin)"},
+	{ID: "feather_cloak", Name: "Cape de plumes", Category: "forge", Building: "workshop", BuildingLevel: 2, OutputType: "arme", PACost: 2,
+		Ingredients: []Item{{"animal", "Plume de harpie", 3}, {"objet", "Cuir", 1}}, Effects: "Équipement : +2 agilité (esquive)"},
+	{ID: "werewolf_cloak", Name: "Cape de garou", Category: "forge", Building: "workshop", BuildingLevel: 2, OutputType: "arme", PACost: 2,
+		Ingredients: []Item{{"animal", "Fourrure maudite", 1}, {"objet", "Cuir", 1}}, Effects: "Équipement : +2 endurance"},
+	{ID: "leather_armor", Name: "Armure de cuir", Category: "forge", Building: "workshop", BuildingLevel: 2, OutputType: "arme", PACost: 2,
+		Ingredients: []Item{{"objet", "Cuir", 2}, {"objet", "Corde", 1}}, Effects: "Équipement : -2 dégâts subis en combat"},
+	// --- déco ---
+	{ID: "wooden_totem", Name: "Totem de bois", Category: "deco", Building: "workshop", BuildingLevel: 1, OutputType: "deco", PACost: 1,
+		Ingredients: []Item{{"objet", "Bois", 3}}, Effects: "Décoration (moral de la ville)"},
+	{ID: "golden_amulet", Name: "Amulette dorée", Category: "deco", Building: "workshop", BuildingLevel: 3, OutputType: "deco", PACost: 2,
+		Ingredients: []Item{{"minerai", "Minerai d'or", 1}, {"objet", "Corde", 1}}, Effects: "Décoration précieuse (moral de la ville)"},
 }
 
 // RecipeByID returns the recipe with the given id, or nil.
@@ -63,8 +120,10 @@ func removeHeroItem(h *Hero, name string, qty int) {
 }
 
 // Craft makes a recipe. The acting hero (heroID) determines the context:
-//   - in town  -> ingredients from the Maison, output to the Maison;
-//   - in field -> ingredients from the hero's bag, output to the bag (Field recipes only).
+//   - in town  -> the required building must be BUILT at BuildingLevel or more;
+//     ingredients from the Bank, output to the Bank;
+//   - in field -> ingredients from the hero's bag, output to the bag (Field recipes
+//     only — a campfire needs no building).
 //
 // Either way the hero pays the PA cost.
 func (g *GameState) Craft(recipeID, heroID string) (*Item, error) {
@@ -80,6 +139,22 @@ func (g *GameState) Craft(recipeID, heroID string) (*Item, error) {
 	if !inTown && !r.Field {
 		return nil, ActionError{r.Name + " nécessite un bâtiment de la ville (atelier/forge)"}
 	}
+	// Town crafting goes through the recipe's building — it must exist at the level
+	// the design asks for (Kitchen niv.2 = plats raffinés, Workshop niv.3 = pièces
+	// avancées…). Field crafting (campfire) skips the requirement.
+	if inTown && r.Building != "" {
+		b := g.buildingByID(r.Building)
+		if b == nil || !b.Built {
+			return nil, ActionError{r.Name + " nécessite le bâtiment " + r.Building}
+		}
+		lvl := r.BuildingLevel
+		if lvl < 1 {
+			lvl = 1
+		}
+		if b.Level < lvl {
+			return nil, ActionError{fmt.Sprintf("%s nécessite %s niveau %d", r.Name, b.Name, lvl)}
+		}
+	}
 
 	// Check ingredients against the right source.
 	for _, ing := range r.Ingredients {
@@ -92,7 +167,7 @@ func (g *GameState) Craft(recipeID, heroID string) (*Item, error) {
 		if have < ing.Qty {
 			where := "le sac"
 			if inTown {
-				where = "la Maison"
+				where = "la Banque"
 			}
 			return nil, ActionError{"ingrédient manquant dans " + where + " : " + ing.Name}
 		}
@@ -105,7 +180,15 @@ func (g *GameState) Craft(recipeID, heroID string) (*Item, error) {
 	if h.PA == 0 {
 		h.AddState(StateFatigue)
 	}
-	out := Item{Type: r.OutputType, Name: r.Name, Qty: 1}
+	name := r.OutputName
+	if name == "" {
+		name = r.Name
+	}
+	qty := r.OutputQty
+	if qty < 1 {
+		qty = 1
+	}
+	out := Item{Type: r.OutputType, Name: name, Qty: qty}
 	if inTown {
 		for _, ing := range r.Ingredients {
 			g.removeStorage(ing.Name, ing.Qty)

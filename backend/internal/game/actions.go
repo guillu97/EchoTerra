@@ -255,6 +255,10 @@ func (g *GameState) SearchTile(heroID string) (*Item, error) {
 	if t == nil {
 		return nil, ActionError{"case invalide"}
 	}
+	td, ok := Terrains[t.Biome]
+	if !ok || !td.Searchable {
+		return nil, ActionError{"ce terrain n'a rien à fouiller"}
+	}
 	if t.Resources <= 0 {
 		return nil, ActionError{"cette case est épuisée"}
 	}
@@ -264,25 +268,76 @@ func (g *GameState) SearchTile(heroID string) (*Item, error) {
 	if h.PA == 0 {
 		h.AddState(StateFatigue)
 	}
-	it := lootForBiome(t.Biome)
+	d := weightedDrop(td.Drops)
+	if d == nil {
+		return nil, ActionError{"rien trouvé"}
+	}
+	it := Item{Type: d.Type, Name: d.Name, Qty: d.Qty}
+	// Class harvest passives: Récupérateur carries +1 of anything it digs up;
+	// Herboriste & Minéral guarantees +1 on plants and ores.
+	if h.ClassID == "recuperateur" {
+		it.Qty++
+	}
+	if h.ClassID == "herboriste" && (it.Type == "plante" || it.Type == "minerai") {
+		it.Qty++
+	}
 	h.AddLoot(it)
 	return &it, nil
 }
 
-func lootForBiome(b Biome) Item {
-	switch b {
-	case BiomeForest:
-		opts := []Item{{"plante", "Herbe médicinale", 1}, {"animal", "Peau", 1}, {"objet", "Bois", 1}}
-		return opts[rand.Intn(len(opts))]
-	case BiomeGrass, BiomeSand:
-		opts := []Item{{"plante", "Fleur", 1}, {"animal", "Viande", 1}, {"objet", "Débris", 1}}
-		return opts[rand.Intn(len(opts))]
-	case BiomeMountain, BiomeSnow:
-		opts := []Item{{"minerai", "Pierre", 1}, {"minerai", "Minerai de fer", 1}}
-		return opts[rand.Intn(len(opts))]
-	default:
-		return Item{"objet", "Débris", 1}
+// PreciseShotPACost / PreciseShotMaxHP tune the Chasseur's map skill "Tir précis":
+// for 1 PA, a Chasseur finishes off a weakened pack on their tile — it only works
+// when the pack's current creature is down to 5 HP or less.
+const (
+	PreciseShotPACost = 1
+	PreciseShotMaxHP  = 5
+)
+
+// PreciseShotHero fires the Chasseur's Tir précis at the pack on the hero's tile:
+// kills ONE creature of the pack when its current HP is ≤ PreciseShotMaxHP.
+func (g *GameState) PreciseShotHero(heroID string) (*FireballReport, error) {
+	if g.ActiveCombat != "" {
+		return nil, ActionError{"un combat est en cours"}
 	}
+	h := g.HeroByID(heroID)
+	if h == nil {
+		return nil, ActionError{"héros introuvable"}
+	}
+	if h.ClassID != "chasseur" {
+		return nil, ActionError{"seul un Chasseur maîtrise le Tir précis"}
+	}
+	if h.PA < PreciseShotPACost {
+		return nil, ActionError{h.Name + " n'a plus de point d'action"}
+	}
+	t := g.TileAt(h.X, h.Y)
+	if t == nil || t.MonsterID == "" {
+		return nil, ActionError{"aucun monstre sur cette case"}
+	}
+	m := g.Monsters[t.MonsterID]
+	if m == nil {
+		return nil, ActionError{"ennemi introuvable"}
+	}
+	if m.HP > PreciseShotMaxHP {
+		return nil, ActionError{"la cible est trop vigoureuse (PV > 5) pour un Tir précis"}
+	}
+	rep := &FireballReport{MonsterID: m.ID, Species: m.Species, Damage: m.HP, Slain: 1, X: m.X, Y: m.Y}
+	if m.Count > 1 {
+		m.Count--
+		m.HP = m.MaxHP // the next creature of the pack steps up
+	} else {
+		rep.Killed = true
+		delete(g.Monsters, m.ID)
+		if t.MonsterID == m.ID {
+			t.MonsterID = ""
+		}
+	}
+	h.PA -= PreciseShotPACost
+	h.Bars["combat"]++
+	h.RemoveState(StateCache)
+	if h.PA == 0 {
+		h.AddState(StateFatigue)
+	}
+	return rep, nil
 }
 
 // Advance moves the game forward half a day: regenerate PA and clear fatigue.
@@ -357,15 +412,30 @@ func (g *GameState) FinishCombat(c *Combat) {
 
 	switch c.Status {
 	case "won":
-		// Remove the defeated monster and reward the party.
+		// Remove the defeated monster and reward the party: each hero draws one entry
+		// from the species' weighted loot table (👹 Monstres). A Récupérateur's
+		// "Récupération" passive nets an extra trophy on top.
+		var sp *SpeciesDef
 		if t := g.TileAt(c.TileX, c.TileY); t != nil {
+			if m := g.Monsters[t.MonsterID]; m != nil {
+				sp = SpeciesByName(m.Species)
+			}
 			delete(g.Monsters, t.MonsterID)
 			t.MonsterID = ""
 		}
 		for _, u := range c.Units {
 			if u.Side == "hero" {
 				if h := g.HeroByID(u.RefID); h != nil {
-					h.AddLoot(Item{"animal", "Trophée de monstre", 1})
+					loot := Item{Type: "animal", Name: "Trophée de monstre", Qty: 1}
+					if sp != nil {
+						if d := weightedDrop(sp.Drops); d != nil {
+							loot = Item{Type: d.Type, Name: d.Name, Qty: d.Qty}
+						}
+					}
+					h.AddLoot(loot)
+					if h.ClassID == "recuperateur" {
+						h.AddLoot(Item{Type: "animal", Name: "Trophée de monstre", Qty: 1})
+					}
 				}
 			}
 		}

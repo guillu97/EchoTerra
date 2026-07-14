@@ -8,12 +8,11 @@ import (
 // WaveInterval is the real-time delay between two horde waves (set from main via env).
 var WaveInterval = 10 * time.Minute
 
-// Defensive buildings and their base defense per level. The town's total defense is
-// the sum over these, scaled by each building's durability.
-var defensiveBase = map[string]int{
-	"wall":  8,
-	"gate":  5,
-	"tower": 6,
+// isDefensive reports whether a building contributes defense (per the design's
+// building levels: wall/gate/tower carry a Defense value).
+func isDefensive(id string) bool {
+	lv := buildingLevelDef(id, 1)
+	return lv != nil && lv.Defense > 0
 }
 
 // WaveHit records a durability/HP change applied to a building or hero during a wave.
@@ -43,8 +42,15 @@ type WaveReport struct {
 // buildingDefense is one building's contribution to the town defense (0 if it isn't a
 // defensive building, isn't built, or — for the Gate — is left open).
 func buildingDefense(b *TownBuilding) int {
-	base, ok := defensiveBase[b.ID]
-	if !ok || !b.Built {
+	if !b.Built {
+		return 0
+	}
+	level := b.Level
+	if level > MaxBuildingLevel {
+		level = MaxBuildingLevel
+	}
+	lv := buildingLevelDef(b.ID, level)
+	if lv == nil || lv.Defense == 0 {
 		return 0
 	}
 	if b.ID == "gate" && b.Open {
@@ -54,7 +60,7 @@ func buildingDefense(b *TownBuilding) int {
 	if b.MaxDurability > 0 {
 		ratio = float64(b.Durability) / float64(b.MaxDurability)
 	}
-	return int(float64(base*b.Level) * ratio)
+	return int(float64(lv.Defense) * ratio)
 }
 
 func (g *GameState) TownDefense() int {
@@ -84,7 +90,8 @@ func (g *GameState) Recompute() {
 		total += it.Qty
 	}
 	for _, b := range g.Town.Buildings {
-		b.Cost = buildingCost(b)
+		b.Cost = g.buildingCost(b)
+		b.Requires = BuildingDesigns[b.ID].Requires
 		b.Defense = buildingDefense(b)
 		if b.ID == "bank" {
 			b.Capacity = total // the Bank's "contents" = the town storage
@@ -246,7 +253,7 @@ func (g *GameState) wearDefensiveBuildings(absorbed int, r *WaveReport) {
 	}
 	var def []*TownBuilding
 	for _, b := range g.Town.Buildings {
-		if _, ok := defensiveBase[b.ID]; ok && b.Built && b.Durability > 0 {
+		if isDefensive(b.ID) && b.Built && b.Durability > 0 {
 			def = append(def, b)
 		}
 	}
@@ -272,7 +279,7 @@ func (g *GameState) wearDefensiveBuildings(absorbed int, r *WaveReport) {
 func (g *GameState) damageRandomBuildings(overflow int, r *WaveReport) {
 	var others []*TownBuilding
 	for _, b := range g.Town.Buildings {
-		if _, ok := defensiveBase[b.ID]; !ok && b.Built && b.Durability > 0 {
+		if !isDefensive(b.ID) && b.Built && b.Durability > 0 {
 			others = append(others, b)
 		}
 	}
@@ -316,11 +323,16 @@ func (g *GameState) attackHeroesOutside(waveNumber int, r *WaveReport) {
 	}
 }
 
+// bossWaveThreshold: bosses (Roi Gobelin, Arbre Vivant Ancien) only join the spawn
+// pool once the horde has grown for a few waves.
+const bossWaveThreshold = 4
+
 func (g *GameState) spawnWaveMonsters(waveNumber int) int {
 	count := 2 + waveNumber/2
 	if count > 8 {
 		count = 8
 	}
+	includeBosses := waveNumber >= bossWaveThreshold
 	spawned := 0
 	for tries := 0; tries < count*30 && spawned < count; tries++ {
 		x, y := rand.Intn(g.Width), rand.Intn(g.Height)
@@ -331,11 +343,18 @@ func (g *GameState) spawnWaveMonsters(waveNumber int) int {
 		if t == nil || !t.Biome.Walkable() || t.MonsterID != "" {
 			continue
 		}
-		m := NewMonster(MonsterSpecies[rand.Intn(len(MonsterSpecies))], x, y)
-		// The horde packs grow with the waves, so lone heroes can get Tétanisé.
-		m.Count = 2 + rand.Intn(3+waveNumber)
-		if m.Count > 9 {
-			m.Count = 9
+		// Species allowed on this tile's biome (per the 👹 Monstres spawn terrains).
+		sp := g.spawnableSpeciesAt(x, y, includeBosses)
+		if sp == nil {
+			continue
+		}
+		m := NewMonster(sp.Name, x, y)
+		// The horde packs lean bigger as waves pass, within the species' pack range.
+		if grow := waveNumber / 2; grow > 0 && !sp.Boss {
+			m.Count += grow
+			if m.Count > sp.PackMax {
+				m.Count = sp.PackMax
+			}
 		}
 		g.Monsters[m.ID] = m
 		t.MonsterID = m.ID

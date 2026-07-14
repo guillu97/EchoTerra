@@ -51,8 +51,8 @@ func TestBiomeThresholds(t *testing.T) {
 		{0.95, game.BiomeSnow},
 	}
 	for _, c := range cases {
-		if got := biomeFromHeight(c.v); got != c.want {
-			t.Errorf("biomeFromHeight(%v)=%v want %v", c.v, got, c.want)
+		if got := biomeFromLevel(int(c.v*float64(genMaxHeight)+0.5)); got != c.want {
+			t.Errorf("biomeFromLevel(%v)=%v want %v", c.v, got, c.want)
 		}
 	}
 }
@@ -80,5 +80,31 @@ func TestNewLobbyClampsPlayerBounds(t *testing.T) {
 	gs := NewLobby(10, 10, 1, "x", 9, 0) // min > default max, max unset
 	if gs.MaxPlayers != 4 || gs.MinPlayers != 4 {
 		t.Fatalf("bounds not clamped: min=%d max=%d", gs.MinPlayers, gs.MaxPlayers)
+	}
+}
+
+// The design's "lissage": no tile may stand more than genMaxStep above an
+// orthogonal neighbour (a level-6 mountain can never touch a level-0 plain).
+func TestSmoothingLimitsNeighbourSteps(t *testing.T) {
+	const w, h = 60, 60
+	tiles, _ := GenerateTiles(w, h, 42)
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			cur := tiles[y*w+x].Height
+			for _, d := range [][2]int{{1, 0}, {0, 1}} {
+				nx, ny := x+d[0], y+d[1]
+				if nx >= w || ny >= h {
+					continue
+				}
+				n := tiles[ny*w+nx].Height
+				diff := cur - n
+				if diff < 0 {
+					diff = -diff
+				}
+				if diff > genMaxStep {
+					t.Fatalf("tiles (%d,%d)=%d et (%d,%d)=%d diffèrent de %d (> %d)", x, y, cur, nx, ny, n, diff, genMaxStep)
+				}
+			}
+		}
 	}
 }

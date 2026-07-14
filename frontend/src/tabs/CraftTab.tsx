@@ -60,14 +60,27 @@ export function CraftTab() {
         {list.length === 0 && <div className="empty">Aucune recette ici.</div>}
         {list.map((r) => {
           const blocked = !inTown && !r.field; // needs a town building
+          // In town, the recipe's building must be BUILT at its design level
+          // (Kitchen niv.2 = plats raffinés, Workshop niv.3 = pièces avancées).
+          const bld = r.building ? game.town.buildings.find((b) => b.id === r.building) : undefined;
+          const needLvl = Math.max(1, r.buildingLevel || 1);
+          const missingBld = inTown && !!r.building && (!bld || !bld.built || bld.level < needLvl);
           const enough = r.ingredients.every((ing) => have(ing.name) >= ing.qty);
           const canPay = pa >= r.paCost;
+          const outQty = r.outputQty && r.outputQty > 1 ? ` ×${r.outputQty}` : "";
           return (
             <div className="ps-row" key={r.id}>
               <div className="ps-ic">{r.building === "kitchen" ? "🍳" : "⚒️"}</div>
               <div className="ps-main">
                 <div className="ps-title">
-                  {r.name} <span className="tag-type">{r.outputType}</span>
+                  {r.name}
+                  {outQty} <span className="tag-type">{r.outputType}</span>
+                  {r.building && (
+                    <span className={`tag-type ${missingBld ? "miss" : ""}`}>
+                      {bld?.name ?? r.building}
+                      {needLvl > 1 ? ` niv.${needLvl}` : ""}
+                    </span>
+                  )}
                   {!r.field && <span className="tag-type ttown">ville</span>}
                 </div>
                 <div className="ps-sub">
@@ -77,15 +90,26 @@ export function CraftTab() {
                       {i < r.ingredients.length - 1 ? " · " : ""}
                     </span>
                   ))}
+                  {r.effects && <span className="ing fx"> — {r.effects}</span>}
                 </div>
               </div>
               <button
                 className="ps-act"
-                disabled={busy || blocked || !enough || !canPay}
-                title={blocked ? "Nécessite un bâtiment de la ville (atelier/forge)" : !enough ? "Ingrédients manquants" : !canPay ? "PA insuffisants" : ""}
+                disabled={busy || blocked || missingBld || !enough || !canPay}
+                title={
+                  blocked
+                    ? "Nécessite un bâtiment de la ville (atelier/forge)"
+                    : missingBld
+                    ? `Nécessite ${bld?.name ?? r.building} niveau ${needLvl}`
+                    : !enough
+                    ? "Ingrédients manquants"
+                    : !canPay
+                    ? "PA insuffisants"
+                    : ""
+                }
                 onClick={() => craft(r.id)}
               >
-                {blocked ? "🏙️ Ville" : r.building === "kitchen" ? "Cook" : "Craft"}
+                {blocked || missingBld ? "🔒" : r.building === "kitchen" ? "Cook" : "Craft"}
                 <span className="c">-{r.paCost}</span>
               </button>
             </div>

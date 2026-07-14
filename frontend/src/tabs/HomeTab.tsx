@@ -45,8 +45,13 @@ function BuildingMenu({ layout, b, onClose }: { layout: BuildingLayout; b: TownB
   const workerDrankToday = !!worker && worker.drewWaterDay === game?.day;
   const wellEmpty = b.capacity <= 0;
 
+  // Townhall revive: needs a fallen hero; free and unlimited at level 3, otherwise
+  // 2 PA with a daily allowance equal to the building's level (server-enforced).
+  const deadHero = game?.heroes.find((h) => h.hp <= 0);
+  const reviveCost = b.level >= 3 ? 0 : 2;
+
   // Building-specific primary action (label, handler, PA cost).
-  const flavor: { label: string; fn: () => void; cost: number } | null =
+  const flavor: { label: string; fn: () => void; cost: number; disabled?: boolean } | null =
     layout.id === "bank"
       ? { label: "🏦 Ouvrir (Stock)", fn: () => { onClose(); setTab("stock"); }, cost: 0 }
       : layout.id === "kitchen"
@@ -54,7 +59,12 @@ function BuildingMenu({ layout, b, onClose }: { layout: BuildingLayout; b: TownB
       : layout.id === "tower"
       ? { label: "🗼 Évaluer l'attaque", fn: () => { onClose(); toggleTownStatus(true); }, cost: 0 }
       : layout.id === "townhall"
-      ? { label: "🛏️ Ressusciter un héros", fn: () => townAction("townhall", "use"), cost: 1 }
+      ? {
+          label: deadHero ? `🛏️ Ressusciter ${deadHero.name}` : "🛏️ Ressusciter (aucun héros à terre)",
+          fn: () => townAction("townhall", "revive"),
+          cost: reviveCost,
+          disabled: !deadHero,
+        }
       : layout.id === "panel"
       ? { label: "📋 Journal", fn: () => { onClose(); toggleTownJournal(true); }, cost: 0 }
       : null;
@@ -112,7 +122,11 @@ function BuildingMenu({ layout, b, onClose }: { layout: BuildingLayout; b: TownB
             </button>
           )}
           {flavor && (
-            <button className={flavor.cost ? "" : "primary"} disabled={flavor.cost > 0 && noPa} onClick={flavor.fn}>
+            <button
+              className={flavor.cost ? "" : "primary"}
+              disabled={flavor.disabled || (flavor.cost > 0 && noPa) || (flavor.disabled === false && busy)}
+              onClick={flavor.fn}
+            >
               <span>{flavor.label}</span>
               {flavor.cost > 0 && <span className="c">-{flavor.cost}</span>}
             </button>

@@ -78,7 +78,11 @@ export function HeroOverlay() {
   const requiredDay = nextTier === 1 ? EVOLVE_DAY_INTERMEDIATE : EVOLVE_DAY_ADVANCED;
   const maxed = h.classTier >= 2;
   const eligible = !maxed && game.day >= requiredDay;
-  const nextChoices = classes.filter((c) => c.tier === nextTier);
+  // Tech-tree gating: an advanced class requires one of its parent classes
+  // (Gardien ← Pionnier ; Récupérateur ← Chasseur/Éclaireur ; Herboriste ← Éclaireur).
+  const nextChoices = classes.filter(
+    (c) => c.tier === nextTier && (!c.requires?.length || c.requires.includes(h.classId)),
+  );
 
   return (
     <div className="settings" onClick={() => close()}>

@@ -30,7 +30,12 @@ func (g *GameState) RevealVision() {
 	g.revealAround(g.Town.X, g.Town.Y, townSightRadius)
 	for _, h := range g.Heroes {
 		if h.HP > 0 {
-			g.revealAround(h.X, h.Y, heroSightRadius)
+			r := heroSightRadius
+			// Éclaireur "Observation Large": extended vision (+1 tile, passive).
+			if h.ClassID == "eclaireur" {
+				r++
+			}
+			g.revealAround(h.X, h.Y, r)
 		}
 	}
 }

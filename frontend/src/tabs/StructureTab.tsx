@@ -67,11 +67,22 @@ export function StructureTab() {
           // Chantier ouvert : on investit les PA du worker (le serveur borne au restant).
           // Pas de plan : le poser coûte 1 PA (les matériaux ne servent qu'ensuite).
           const invest = Math.min(pa, remaining);
-          const canAct = open ? enoughMats && invest > 0 : pa >= 1;
-          const can = inTown && canAct && !busy;
-          const label = open ? `+${invest} PA` : b.built ? "📐 Améliorer" : "📐 Poser le plan";
+          const maxed = b.built && b.cost.pa === 0; // level 3 reached (design max)
+          // Tech-tree prerequisites (sites only): the plan is locked until every
+          // required building is BUILT at its level.
+          const unmet = (!b.built && !open ? b.requires ?? [] : []).filter((req) => {
+            const o = game?.town.buildings.find((x) => x.id === req.building);
+            return !o || !o.built || o.level < req.level;
+          });
+          const canAct = open ? enoughMats && invest > 0 : pa >= 1 && unmet.length === 0;
+          const can = inTown && canAct && !busy && !maxed;
+          const label = maxed ? "Niv. max" : open ? `+${invest} PA` : b.built ? "📐 Améliorer" : "📐 Poser le plan";
           const hint = !inTown
             ? "Être en ville"
+            : maxed
+            ? "Niveau maximum atteint"
+            : unmet.length > 0
+            ? `Requiert ${unmet.map((r) => `${game?.town.buildings.find((x) => x.id === r.building)?.name ?? r.building} niv.${r.level}`).join(", ")}`
             : open && !enoughMats
             ? "Matériaux manquants en Banque — les PA investis restent acquis"
             : open
@@ -96,16 +107,23 @@ export function StructureTab() {
                     <span className="tag-type ttown">{open ? "en chantier" : "plan à poser"}</span>
                   )}
                   {open && b.built && <span className="tag-type ttown">amélioration Lv {b.level + 1}</span>}
-                </div>
-                <div className="ps-sub cost">
-                  <span className="ing ok">⚡{b.cost.pa} PA</span>
-                  {mats.map((m, i) => (
-                    <span key={i} className={have(m.name) >= m.qty ? "ing ok" : "ing miss"}>
-                      {" · "}
-                      {m.name} {have(m.name)}/{m.qty}
+                  {unmet.length > 0 && (
+                    <span className="tag-type miss">
+                      🔒 requiert {unmet.map((r) => `${game?.town.buildings.find((x) => x.id === r.building)?.name ?? r.building} niv.${r.level}`).join(", ")}
                     </span>
-                  ))}
+                  )}
                 </div>
+                {!maxed && (
+                  <div className="ps-sub cost">
+                    <span className="ing ok">⚡{b.cost.pa} PA</span>
+                    {mats.map((m, i) => (
+                      <span key={i} className={have(m.name) >= m.qty ? "ing ok" : "ing miss"}>
+                        {" · "}
+                        {m.name} {have(m.name)}/{m.qty}
+                      </span>
+                    ))}
+                  </div>
+                )}
                 {open && (
                   <div className="ps-progress" title={`${b.paInvested}/${b.cost.pa} PA investis`}>
                     <i style={{ width: `${Math.min(100, (b.paInvested / Math.max(1, b.cost.pa)) * 100)}%` }} />

@@ -127,7 +127,7 @@ interface StoreState {
   startSoloBots: () => Promise<void>; // menu: private game with me + 4 bots, launched
   townAction: (
     buildingId: string,
-    action: "build" | "restore" | "use" | "water" | "toggle",
+    action: "build" | "restore" | "use" | "water" | "toggle" | "revive",
     points?: number,
   ) => Promise<void>;
   setTownHero: (id: string) => void;
@@ -149,6 +149,7 @@ interface StoreState {
   hide: () => Promise<void>;
   escape: () => Promise<void>;
   fireball: () => Promise<void>;
+  snipe: () => Promise<void>; // Chasseur : Tir précis (tue 1 créature d'un pack ≤5 PV)
   advance: () => Promise<void>;
   skipDay: () => Promise<void>;
   startCombat: () => Promise<void>;
@@ -732,6 +733,21 @@ export const useStore = create<StoreState>((set, get) => {
         renderMap();
       }),
 
+    snipe: () =>
+      withBusy(async () => {
+        const { game, selectedHeroId, playerId } = get();
+        if (!game || !selectedHeroId) return;
+        if (!ownsHero(selectedHeroId)) return;
+        const name = game.heroes.find((h) => h.id === selectedHeroId)?.name ?? "Le héros";
+        const res = await api.snipe(game.id, selectedHeroId, playerId);
+        set({ game: res.game });
+        const r = res.report;
+        pushLog(r.killed
+          ? `🎯 ${name} achève le pack de ${r.species} d'un Tir précis !`
+          : `🎯 ${name} abat une créature du pack de ${r.species} (Tir précis).`);
+        renderMap();
+      }),
+
     advance: () =>
       withBusy(async () => {
         const { game } = get();
@@ -792,6 +808,22 @@ export const useStore = create<StoreState>((set, get) => {
       }),
 
     setCombatMode: (m) => {
+      const { game, combat, current, playerId } = get();
+      // Self skills (Posture défensive) need no target: pressing the skill button
+      // fires the ability immediately instead of arming a target mode.
+      if (m === "skill" && current?.skill?.selfShield && game && combat) {
+        void withBusy(async () => {
+          const resp = await api.combatAction(game.id, combat.id, {
+            unitId: current.unitId,
+            action: "skill",
+            targetId: current.unitId,
+            playerId,
+          });
+          set({ combatMode: "move" });
+          applyCombat(resp);
+        });
+        return;
+      }
       set({ combatMode: m });
       renderCombat();
     },

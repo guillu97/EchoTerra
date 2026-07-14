@@ -23,7 +23,7 @@ func TestChantierPlanThenInvestGatedByMaterials(t *testing.T) {
 	if tower.Built {
 		t.Fatal("tower should start as a construction site")
 	}
-	total := buildingCost(tower).PA // tower: 15 PA
+	total := g.buildingCost(tower).PA // tower: 15 PA
 	if total != 15 {
 		t.Fatalf("expected tower chantier to require 15 PA, got %d", total)
 	}
@@ -128,7 +128,7 @@ func TestUpgradeUsesChantierFlow(t *testing.T) {
 	if !panel.UnderConstruction || !panel.Built {
 		t.Fatal("an upgrade chantier keeps the building built (it still works and defends)")
 	}
-	if cost := buildingCost(panel); cost.PA != 12 {
+	if cost := g.buildingCost(panel); cost.PA != 12 {
 		t.Fatalf("upgrade to lvl2 should require 12 PA, got %d", cost.PA)
 	}
 	if err := g.TownAction("panel", "build", 12, "h1"); err != nil {

@@ -3,7 +3,7 @@ import type { GameState, Hero } from "../api/types";
 import { Biome } from "../api/types";
 import { bus, EV } from "../eventBus";
 import { BIOME_COLORS, HERO_COLOR, HERO_COLOR_SELECTED, MONSTER_COLOR, OTHER_HERO_COLOR, darken } from "./render";
-import { monsterTexKey, heroTexKey, HERO_TEX_KEYS } from "../assets";
+import { monsterTexKey, heroTexKey, HERO_TEX_KEYS, MONSTER_TEX_KEYS } from "../assets";
 import { DPR } from "./dpr";
 import { shrinkTexture, shrinkUnitTextures, TOWN_TEX_SIZE } from "./textureUtils";
 
@@ -71,8 +71,9 @@ const FOG_FALLBACK = 0xbfc3e4;
 
 // Biome index (0..5) -> iso cube filename under /assets/isotiles/.
 const ISO_TILE_FILES = ["water", "sand", "grass", "forest", "stone", "snow"];
-// Monster creature sprites (loaded for use instead of the plain token).
-const MONSTER_FILES = ["mob-goblin", "mob-slime", "mob-windelemental"];
+// Monster creature sprites (loaded for use instead of the plain token) — every
+// species of the design catalog (harpies/dryades/araignées/garous/boss inclus).
+const MONSTER_FILES = MONSTER_TEX_KEYS;
 // Building sprite that represents the town/home on the map (swap the filename to
 // change it — e.g. townhall / bld-abbey / bld-monastery, all under /assets/buildings/).
 const TOWN_BUILDING_FILE = "bld-church";
@@ -1024,7 +1025,7 @@ export class MapScene extends Phaser.Scene {
         .setAlpha(0.38 + danger * 0.2)
         .setDepth((m.x + m.y) * 100 + h + 1); // on the tile top, below units
       this.unitSprites.push(fill);
-      const tex = monsterTexKey(m.species);
+      const tex = monsterTexKey(m.species, m.appearance);
       const msz = TILE_W * 0.8 * UNIT_SCALE;
       if (tex && this.textures.exists(tex)) {
         const img = this.add

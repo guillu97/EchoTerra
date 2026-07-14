@@ -35,7 +35,8 @@ func TestCombatHeroCanWin(t *testing.T) {
 		if cur == nil || cur.Side != "hero" {
 			t.Fatalf("expected a hero turn, got %+v", cur)
 		}
-		targets := c.Targets(cur, baseRange(cur))
+		base := c.BaseAttack(cur)
+		targets := c.TargetsFor(cur, &base)
 		if len(targets) > 0 {
 			if err := c.PlayerAction(cur.ID, "attack", 0, 0, targets[0].ID); err != nil {
 				t.Fatalf("attack: %v", err)
@@ -78,12 +79,6 @@ func TestCombatHeroCanWin(t *testing.T) {
 	}
 }
 
-func baseRange(u *CombatUnit) int {
-	if u.Kind == "Elementaire de Vent" {
-		return 2
-	}
-	return 1
-}
 
 func TestFinishCombatRemovesMonster(t *testing.T) {
 	gs := &GameState{ID: "g1", Width: 8, Height: 8, Monsters: map[string]*Monster{}, Combats: map[string]*Combat{}}

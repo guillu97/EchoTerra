@@ -6,45 +6,59 @@ import (
 	"github.com/google/uuid"
 )
 
-// MonsterSpecies is the catalog used for seeding and wave spawns.
-var MonsterSpecies = []string{"Slime Vorace", "Goblin Pillard", "Elementaire de Vent"}
-
-// NewMonster builds a monster of the given species at (x,y), mirroring the GDD stats.
+// NewMonster instantiates a pack of the given species at (x,y): stats/HP from the
+// design catalog (design.go), pack size drawn in the species' [PackMin, PackMax].
 func NewMonster(species string, x, y int) *Monster {
-	var st Stats
-	var hp int
-	switch species {
-	case "Goblin Pillard":
-		st = Stats{Force: 4, Agilite: 4, Endurance: 1, Precision: 2}
-		hp = 6
-	case "Elementaire de Vent":
-		st = Stats{Dexterite: 2, Agilite: 3, Endurance: 5, Precision: 2}
-		hp = 10
-	default: // Slime Vorace
-		st = Stats{Force: 2, Agilite: 1, Endurance: 4, Precision: 2}
-		hp = 9
+	sp := SpeciesByName(species)
+	if sp == nil {
+		sp = &Species[0]
 	}
 	return &Monster{
-		ID:      uuid.NewString(),
-		Species: species,
-		X:       x,
-		Y:       y,
-		HP:      hp,
-		MaxHP:   hp,
-		Stats:   st,
-		Count:   1 + rand.Intn(2),
+		ID:         uuid.NewString(),
+		Species:    sp.Name,
+		Appearance: sp.Appearance,
+		X:          x,
+		Y:          y,
+		HP:         sp.HP,
+		MaxHP:      sp.HP,
+		Stats:      sp.Stats,
+		Count:      packSize(sp),
 	}
 }
 
+// packSize draws a pack size within the species' design range.
+func packSize(sp *SpeciesDef) int {
+	span := sp.PackMax - sp.PackMin
+	if span <= 0 {
+		return sp.PackMin
+	}
+	return sp.PackMin + rand.Intn(span+1)
+}
+
+// spawnableSpeciesAt returns a species allowed on the tile's biome (bosses only
+// when includeBosses), or nil when the biome hosts nothing.
+func (g *GameState) spawnableSpeciesAt(x, y int, includeBosses bool) *SpeciesDef {
+	t := g.TileAt(x, y)
+	if t == nil {
+		return nil
+	}
+	pool := speciesForBiome(t.Biome, includeBosses)
+	if len(pool) == 0 {
+		return nil
+	}
+	return pool[rand.Intn(len(pool))]
+}
+
 // SeedStartingMonsters places the initial monster packs on walkable tiles around the
-// town, scaled by the number of players: more players means more packs (4 for solo,
-// +2 per extra player) and slightly bigger packs. Called at game launch, when the
-// final player count is known. Returns how many packs were placed.
+// town, scaled by the number of players: the design's 6 baseline packs, +2 per extra
+// player, each of a species allowed on its spawn biome (no bosses at game start —
+// they come with the later waves). Bigger crowds attract bigger packs, capped at the
+// species' PackMax. Returns how many packs were placed.
 func (g *GameState) SeedStartingMonsters(players int) int {
 	if players < 1 {
 		players = 1
 	}
-	target := 4 + 2*(players-1)
+	target := 6 + 2*(players-1)
 	placed := 0
 	for radius := 2; radius <= g.Width && placed < target; radius++ {
 		for dy := -radius; dy <= radius && placed < target; dy++ {
@@ -57,9 +71,16 @@ func (g *GameState) SeedStartingMonsters(players int) int {
 				if t == nil || !t.Biome.Walkable() || t.MonsterID != "" {
 					continue
 				}
-				m := NewMonster(MonsterSpecies[placed%len(MonsterSpecies)], x, y)
+				sp := g.spawnableSpeciesAt(x, y, false)
+				if sp == nil {
+					continue
+				}
+				m := NewMonster(sp.Name, x, y)
 				if players > 1 {
-					m.Count += rand.Intn(players) // bigger crowds attract bigger packs
+					m.Count += rand.Intn(players)
+					if m.Count > sp.PackMax {
+						m.Count = sp.PackMax
+					}
 				}
 				g.Monsters[m.ID] = m
 				t.MonsterID = m.ID

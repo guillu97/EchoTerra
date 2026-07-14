@@ -57,7 +57,7 @@ fixed seed (`--seed N`, e.g. 42) is used for cohesion across the library.
 |---|---|
 | Backend | **Go** (`chi` router), REST, state serialized as JSON in **SQLite** (`modernc.org/sqlite`, pure-Go, no CGo) |
 | Frontend | **React + Vite + TypeScript**, **Phaser 3** (isometric MapScene + isometric CombatScene), **Zustand** store |
-| Map gen | Perlin (`aquilax/go-perlin`) → heightmap → biomes |
+| Map gen | Perlin (`aquilax/go-perlin`) → heightmap **lissée (maxStep 1)** → biomes par niveau ; **60×60 par défaut** (`worldgen.DefaultSize`) |
 
 ```bash
 # Backend (:8080). Env: ECHOTERRA_ADDR (:8080), ECHOTERRA_DB (echoterra.db),
@@ -145,19 +145,39 @@ frontend/src/
 - **Hero**: `id, name, x, y, pa(6), maxPa, hp, maxHp, stats{force,dexterite,agilite,endurance,athletisme,
   precision}, class("Sans classe"), classId, classTier(0|1|2), classBonuses{Stats}, states[], inventory[Item],
   bars{}`.
+- **design.go — le catalogue de game-design** (import du JSON du Studio 2026-07-14) : `Terrains{biome ->
+  searchable, resourcesMin/Max, drops[DropDef pondérés]}`, `Species[]SpeciesDef` (11 espèces : slime,
+  gobelin, élémentaire, chauve-souris, harpies prairie/givre, dryade, araignée cristalline, loup-garou +
+  BOSS Roi Gobelin & Arbre Vivant Ancien — stats/PV/pack min-max/biomes d'apparition/`Attacks[AttackDef]`
+  avec grilles GDD `Targets/Damage[]GridCell` + effets structurés (DmgStat, StunPct, Root, Absorb,
+  SelfShield, BuffAllies)/loots pondérés), `BuildingDesigns{id -> Requires[], Levels[3]{Materials,
+  Effects, Defense, Capacity}}` (niveau max 3 ; matériaux craftés aux niveaux hauts : Planche, Corde,
+  Brique, Acier, Cœur de chêne ancien). Les PA de chantier restent dans `buildPA` (décision : le design
+  n'écrase pas les PA).
 - **Tile**: `biome(0..5), height, resources, monsterId?`. Biomes: 0 Water,1 Sand,2 Grass,3 Forest,4 Mountain,5 Snow.
-- **Monster**: `id, species, x, y, hp, maxHp, stats, count` (pack size; used for combat unit count AND Tétanisé).
-- **TownBuilding**: `id, name, built(bool), level, durability, maxDurability, capacity, maxCapacity,
-  open(bool, Gate), defense(computed contribution), cost{pa, materials[Item]}`.
+- **Monster**: `id, species, appearance(mob-*), x, y, hp, maxHp, stats, count` (pack size; used for combat unit count AND Tétanisé).
+- **TownBuilding**: `id, name, built(bool), underConstruction, paInvested, level(max 3), durability,
+  maxDurability, capacity, maxCapacity, open(bool, Gate), defense(computed), cost{pa, materials[Item]},
+  requires[{building, level}]` (arbre techno dérivé, affiché verrouillé 🔒 côté Structure).
 - **Combat**: `id, gameId, tileX, tileY, gridW(7), gridH(7), heights[], units[CombatUnit], order[], turnIdx,
   round, status("active"|"won"|"lost"), log[]`. **CombatUnit**: `id,name,side("hero"|"monster"),refId,kind,
   x,y,hp,maxHp,stats,states[],move,moved,initiative`.
-- **Recipe**: `id, name, category(conso|potion|forge|deco), building(kitchen|workshop), outputType,
-  field(bool=craftable outside town), paCost, ingredients[Item]`.
+- **Recipe**: `id, name, category(conso|potion|forge|deco), building(kitchen|workshop), buildingLevel,
+  outputType, outputName?, outputQty?(Planche/Brique ×2), field(bool=craftable outside town), paCost,
+  ingredients[Item], effects` — **26 recettes** (transformations, armes/équipements mythiques, cuisine,
+  alchimie). En ville le bâtiment doit être CONSTRUIT au niveau requis (Kitchen niv.2 = plats raffinés,
+  niv.3 = Ambroisie ; Workshop niv.2 = Acier/équipements, niv.3 = Talisman/Amulette) ; en expédition les
+  recettes `field` s'affranchissent du bâtiment (feu de camp).
 - **WaveReport** (`lastWave`): `wave, day, hordePower, defense, townDamage, townHpAfter, buildingsHit[],
   heroesHit[], monstersSpawned, at, gameOver`.
-- **ClassDef** (`/api/classes` catalog): `id, name, tier(1=intermediate|2=advanced), role, bonuses{Stats},
-  paBonus, skills[{name, scope("map"|"iso"), desc}]`.
+- **ClassDef** (`/api/classes` catalog): `id, name, tier(1|2), day(2|4), requires[] (arbre : gardien ←
+  pionnier ; récupérateur ← chasseur|éclaireur ; herboriste ← éclaireur — vérifié par EvolveHero ET filtré
+  dans le picker), role, bonuses{Stats}, paBonus, skills[{name, scope, pa, desc, effects}], appearance{map,
+  icon} (asset char-* : sprite du héros sur carte + combat)`. **Passifs implémentés** : Éclaireur vision +1
+  (fog), Récupérateur +1 ressource/fouille +1 trophée/victoire, Herboriste +1 plante/minerai, Gardien poids 3
+  (Tétanisé). **Actives** : Chasseur « Tir précis » (map, 1 PA, tue 1 créature d'un pack ≤5 PV, route
+  `/snipe`, bouton 🏹 du menu héros) ; en iso : Frappe de la mort qui tue (+5), Tir de zone (portée 3, dégâts
+  en croix), Posture défensive (Bouclier -50% 1 tour, se déclenche sans cible).
 
 `Recompute()` (called in `persist()` and on load `tick()`) refreshes derived fields: `town.defense`,
 per-building `defense`, per-building `cost`, `bank.capacity = sum(storage qty)`, and hero `Tétanisé`.
@@ -211,7 +231,9 @@ création du compte (provider "google", PassHash vide → login mot de passe ref
 email déjà inscrit = même compte. Setup GCP : voir `DEPLOY.md`. Apple écarté (payant, ~99 $/an).
 
 **Movement / PA** — 6 PA/hero/day. Move = 1 PA/orthogonal step (blocked if `Tétanisé`; clears `Caché`;
-PA→0 adds `Fatigue`). Search = 1 PA, loot by biome, decrements tile `resources`. **Search et Hide sont
+PA→0 adds `Fatigue`). Search = 1 PA, **tirage pondéré de la table du terrain** (`Terrains[biome].Drops` —
+plaine : fleur/viande/débris + baies/fibres ; forêt : herbe/peau/bois + champignons/baies ; montagne/neige :
+paliers de rareté pierre > fer/charbon > argent/or/givre), decrements tile `resources`. **Search et Hide sont
 REFUSÉS sur la case ville** (serveur `actions.go` + menu radial masqué ; la tuile ville est générée avec
 `resources: 0` pour que les bots/UI ne la ciblent pas).
 
@@ -228,9 +250,16 @@ Casting clears `Caché`. Returns `{report:{species,damage,slain,killed,...}, gam
 - **Caché**: from **Hide** (1 PA) — the hero is skipped by the next wave's attack, then concealment is consumed.
 
 **Isometric combat** (`combat.go` / `CombatScene.ts`) — initiative by agility; each turn a unit moves once
-(`moved` flag) then attacks/skills; hero skill "Frappe puissante"; per-species monster specials (stun/absorb);
-heights give a small bonus. Win → monster removed from map + party loots a trophy. Lose → survivors retreat to
-town at 1 HP + `Tétanisé`. Combat unit count is capped at 4 even if pack `count` is larger.
+(`moved` flag) then acts. **Les attaques sont des `AttackDef` du design** : grille de ciblage VERTE relative à
+l'attaquant + zone de dégâts ROUGE autour de la case touchée (toujours incluse), effets structurés — dégâts
+par stat (force/dext/précision, diviseur), % Stun, **Root** (consommé au début du tour de la victime : pas de
+déplacement ce tour), Absorbe (soigne la moitié), **Bouclier** (-50% subis jusqu'au prochain tour), buff
+d'alliés (+2 force adjacents, Hurlement de Meute). L'IA monstre choisit base/spéciale (~35%), s'approche
+jusqu'à ce que la cible soit sur une case de ciblage, frappe avec la zone. Héros : attaque de mêlée + skill de
+classe (`heroSkillFor`) ; `combatResponse` sert `attackTargets`/`skillTargets` calculés sur les grilles + la
+def complète du skill. Heights give a small bonus. Win → pack retiré + **chaque héros tire un loot pondéré de
+la table de l'espèce** (Récupérateur +1 trophée). Lose → survivors retreat to town at 1 HP + `Tétanisé`.
+Combat unit count is capped at 4 ; `CombatUnit` porte `classId` + `appearance` (sprites côté client).
 
 **Waves / horde (Hordes-like)** — `nextWaveAt` is **server-driven**; the client only shows the countdown
 (`useWaveRemaining`). Resolved lazily on access (`tick`) AND by a 15s scheduler goroutine.
@@ -238,7 +267,11 @@ town at 1 HP + `Tétanisé`. Combat unit count is capped at 4 even if pack `coun
 durability (**an open Gate = 0**, a construction site = 0); `overflow = horde - defense` → town HP loss +
 random building durability damage; defensive buildings also wear. Heroes **outside** town are hit individually
 (`Blessé`); **hidden** heroes skipped; **in-town** heroes safe. PA regen each wave; the **Well refills +10**;
-new monsters spawn (pack `count` grows with `waveNumber`). **Game over** when town HP hits 0 (`status:"gameover"`).
+new monsters spawn **selon les biomes d'apparition des espèces** (packs dans [PackMin, PackMax] du design,
+gonflés par les vagues mais bornés au PackMax ; **les BOSS — Roi Gobelin, Arbre Vivant Ancien — n'entrent
+dans le pool qu'à partir de la vague 4**, `bossWaveThreshold`). Défense des bâtiments = valeur PAR NIVEAU du
+design (wall 10/15/20, gate 8/12/16 fermée, tower 6/9/12) × ratio de durabilité. **Game over** when town HP
+hits 0 (`status:"gameover"`).
 `POST /advance` = force a wave now (dev/testing).
 
 **Town buildings & construction** — built at start: **gate, wall, bank, well, workshop, panel**.
@@ -252,13 +285,20 @@ Construction sites (Built=false): **townhall (renamed from House — revive), to
   (le chantier est juste en pause) ; (3) quand `PaInvested` atteint `cost.PA`, les matériaux sont
   consommés et le bâtiment est construit (level 1) ou amélioré (level++). Coûts PA **élevés et
   collectifs** : `buildPA` (townhall 20, tower/wall/workshop 15, kitchen/gate/bank 12, well 10,
-  panel 6) × niveau visé ; matériaux de base × niveau. `building.cost` expose le TOTAL du chantier
-  courant/suivant, `building.paInvested` la progression. **Home shows a building only when
+  panel 6) × niveau visé, **−1 si Workshop niv.2+** (« coût PA chantiers −1 ») ; matériaux = la liste PAR
+  NIVEAU du design (`BuildingDesigns` — niveaux hauts en Planche/Corde/Brique/Acier, Townhall niv.3 exige le
+  **Cœur de chêne ancien** du boss forêt) ; **niveau max 3**. **Prérequis d'arbre techno vérifiés à la pose
+  du plan** (townhall/kitchen ← workshop 1, tower ← wall 1 ; affichés 🔒 côté Structure). À l'achèvement les
+  capacités par niveau s'appliquent (Well 50/75/112, Bank 500/750/1125). `building.cost` expose le TOTAL du
+  chantier courant/suivant, `building.paInvested` la progression. **Home shows a building only when
   `built || underConstruction`**. Structure : « 📐 Poser le plan » / « 📐 Améliorer » (1 PA) →
   barre de progression + bouton « +N PA » (PA du worker, ⏸ si matériaux manquants). Les bots posent
   les plans des sites, investissent 1 PA et rejoignent les chantiers d'amélioration ouverts par les
   humains (jamais n'en ouvrent). Tests in `build_test.go`.
 - `restore` → +5 durability per PA (built only).
+- `revive` (Townhall) → **ressuscite le premier héros mort** : PV = max/2, replacé en ville, états purgés.
+  Quota quotidien = niveau du Townhall (1/jour niv.1, 2/jour niv.2) ; **niv.3 = illimité ET gratuit** (sinon
+  2 PA). Suivi `Town.ReviveDay/RevivesToday`. Bouton « 🛏️ Ressusciter <héros> » dans le modal Home.
 - `water` (Well) → **FREE**, draws **one Ration d'eau per in-town hero per `game.day`**: charged to the selected
   town worker (`heroID`), decrements Well `capacity`, clears that hero's `Soif`, and drops the ration into **that
   hero's bag** (not the Bank). Tracked via `Hero.DrewWaterDay`; derived `town.waterDrawnToday` lists who drank today.
@@ -317,7 +357,7 @@ POST /api/games/{id}/bots                        {playerId} -> {game,player} (h�
 GET  /api/games/{id}                              (runs wave catch-up)
 GET  /api/games/{id}/world
 POST /api/games/{id}/advance                      force a wave (dev)
-POST /api/games/{id}/town/action                  {buildingId, action: build|restore|use|water|toggle, points?, heroId?}
+POST /api/games/{id}/town/action                  {buildingId, action: build|restore|use|water|toggle|revive, points?, heroId?}
 POST /api/games/{id}/town/deposit                 deposit in-town heroes' loot into the Bank
 POST /api/games/{id}/town/craft                   {recipeId, heroId}
 POST /api/games/{id}/heroes/{h}/move              {DX,DY}
@@ -325,6 +365,7 @@ POST /api/games/{id}/heroes/{h}/search
 POST /api/games/{id}/heroes/{h}/hide
 POST /api/games/{id}/heroes/{h}/escape
 POST /api/games/{id}/heroes/{h}/fireball          Fire ball map skill -> {report, game}
+POST /api/games/{id}/heroes/{h}/snipe             Tir précis du Chasseur (pack ≤5 PV) -> {report, game}
 POST /api/games/{id}/heroes/{h}/evolve            {classId} -> GameState (applies class bonuses)
 GET  /api/classes                                 [] ClassDef catalog (tier 1+2 classes)
 POST /api/games/{id}/heroes/{h}/combat/start
@@ -607,19 +648,28 @@ partiel. ♻️ Reset = re-seed depuis les valeurs du jeu.
    tile; damage scales with précision/dextérité and thins `Monster.Count` (helps break Tétanisé) or destroys the
    pack. Radial-menu button 🔥; route `POST /heroes/{h}/fireball`; tests in `fireball_test.go`. (TODO: gate it to a
    Mage [MAP] class once the class-evolution system exists — currently every hero can cast it.)
-3. Combat **Defend/Guard** action (3rd button on mockup page 3).
+3. Combat **Defend/Guard** action (3rd button on mockup page 3). (Posture défensive du Gardien = déjà un
+   bouclier -50% ; un Defend générique pour tous reste à faire.)
 3b. ✅ **Lobby multijoueur** (créer / rejoindre par code / attente `minPlayers` / lancement hôte,
    persisté SQLite) — DONE (2026-07-06, voir `journal.md`). ✅ Ownership serveur des héros par joueur,
    quitter/expulser un joueur, purge des salons abandonnés (même jour). ✅ 2026-07-07 : 1 joueur =
    3 héros (équipes), spawns initiaux ∝ nombre de joueurs (au lancement), verrous par partie.
    Restent : reconnexion sans localStorage, présence en ligne, hordePower ∝ joueurs.
 4. **Building skills** — multiple upgradable skills per building (mockup page 6), beyond a single level.
+4b. ✅ **Design JSON du Studio implémenté** (2026-07-14, `design.go`) : terrains data-driven (fouille pondérée,
+   richesse), 11 espèces avec grilles d'attaque GDD en combat iso + spawn par biome + loots pondérés + boss
+   vague 4+, bâtiments (matériaux par niveau, prérequis, défense/capacités par niveau, revive Townhall,
+   Workshop −1 PA chantiers, puits 2j×héros), 26 recettes gatées par niveau de bâtiment, classes (requires,
+   apparences, passifs récolte/vision, Tir précis, skills iso), mapgen 60×60 lissé. Restent du design :
+   consommation d'objets (nourriture/potions/équipement — les effets sont du texte), Poussée du Survivant
+   (pionnier), Éclairer (éclaireur iso), moral de la ville (déco), faim.
 5. ✅ **Gardien** class counting as 3 in the Tétanisé calc — DONE. `gardienWeight()` in `wave.go`;
    tests `TestGardienCountsAsThreeForTetanise` / `TestNonGardienGetsStuckOnLargePack` in `evolve_test.go`.
 6. ✅ Real **class-evolution** system — DONE. `classes.go`: `EvolveHero`, 6 classes (3 intermediate, 3 advanced),
    day gates (2/4). `GET /api/classes`, `POST /heroes/{h}/evolve`. Frontend: `store.classes`, `store.evolve`,
    `HeroOverlay` Evolve picker. `data/classes.ts` removed (replaced by server catalog). Tests in `evolve_test.go`.
-7. Building-specific effects: Townhall revive, Bank→Stock, Kitchen→Craft, Tower evaluate (some already navigate).
+7. ✅ Building-specific effects — Townhall revive RÉEL (action `revive`), Bank→Stock, Kitchen→Craft (gating
+   par niveau), Tower evaluate.
 8. **Visual theme**: move tab panels to overlays on the isometric town; real sprites (needs the AI image connector).
 
 ## 10. Memory

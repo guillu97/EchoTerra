@@ -153,6 +153,12 @@ export const api = {
       `/api/games/${gameId}/heroes/${heroId}/fireball`,
       { playerId },
     ),
+  snipe: (gameId: string, heroId: string, playerId?: string) =>
+    req<{ report: FireballReport; game: GameState }>(
+      "POST",
+      `/api/games/${gameId}/heroes/${heroId}/snipe`,
+      { playerId },
+    ),
 
   advance: (gameId: string) => req<GameState>("POST", `/api/games/${gameId}/advance`, {}),
 
@@ -167,7 +173,7 @@ export const api = {
     gameId: string,
     payload: {
       buildingId: string;
-      action: "build" | "restore" | "use" | "water" | "toggle";
+      action: "build" | "restore" | "use" | "water" | "toggle" | "revive";
       points?: number;
       heroId?: string;
       playerId?: string;

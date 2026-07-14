@@ -230,13 +230,20 @@ func (g *GameState) botEvolve(h *Hero) bool {
 			pick = "pionnier"
 		}
 	case 1:
-		switch {
-		case h.Stats.Force+h.Stats.Endurance >= h.Stats.Dexterite+h.Stats.Agilite:
+		// Advanced classes have tech-tree prerequisites — follow the hero's branch.
+		switch h.ClassID {
+		case "pionnier":
 			pick = "gardien"
-		case h.Stats.Dexterite >= h.Stats.Agilite:
+		case "chasseur":
 			pick = "recuperateur"
+		case "eclaireur":
+			if h.Stats.Athletisme >= h.Stats.Agilite {
+				pick = "herboriste"
+			} else {
+				pick = "recuperateur"
+			}
 		default:
-			pick = "herboriste"
+			return false
 		}
 	default:
 		return false

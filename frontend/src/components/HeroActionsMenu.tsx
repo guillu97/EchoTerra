@@ -20,6 +20,7 @@ export function HeroActionsMenu({ onClose }: { onClose: () => void }) {
   const hide = useStore((s) => s.hide);
   const escape = useStore((s) => s.escape);
   const fireball = useStore((s) => s.fireball);
+  const snipe = useStore((s) => s.snipe);
   const startCombat = useStore((s) => s.startCombat);
   if (!game) return null;
 
@@ -88,6 +89,16 @@ export function HeroActionsMenu({ onClose }: { onClose: () => void }) {
                       onClick={() => run(h, fireball)}
                     >
                       🔥
+                    </button>
+                  )}
+                  {onMonster && h.classId === "chasseur" && (
+                    <button
+                      className="hm-act"
+                      title="Tir précis (-1 PA) : achève une créature du pack si PV ≤ 5"
+                      disabled={noPa}
+                      onClick={() => run(h, snipe)}
+                    >
+                      🏹
                     </button>
                   )}
                   {onTown ? (
