@@ -4,11 +4,13 @@ import { buildingIcon } from "../data/buildings";
 import { TownWorker, useWorkerPA } from "../components/TownWorker";
 import { heroesInTown } from "../townUtils";
 import { durColor } from "./HomeTab";
+import type { TownBuilding } from "../api/types";
 
 type Sort = "status" | "name" | "level";
 
-// Structure = one compact list of every building. Construction sites show "Construire",
-// built ones show "Améliorer". Each needs PA + the right materials in the Bank.
+// Structure = the chantier hub. Default view GROUPS buildings by state so players see
+// at a glance where to pour their PA: open chantiers first (construction AND upgrade
+// use the same plan→invest flow), then plans to lay, then the built town.
 export function StructureTab() {
   const game = useStore((s) => s.game);
   const townAction = useStore((s) => s.townAction);
@@ -21,19 +23,18 @@ export function StructureTab() {
   const storage = game?.town.storage ?? [];
   const have = (name: string) => storage.find((i) => i.name === name)?.qty ?? 0;
 
-  const buildings = useMemo(() => {
+  const groups = useMemo(() => {
     const list = [...(game?.town.buildings ?? [])];
-    list.sort((a, b) => {
-      switch (sort) {
-        case "level":
-          return b.level - a.level;
-        case "name":
-          return a.name.localeCompare(b.name);
-        default:
-          return Number(a.built) - Number(b.built) || a.name.localeCompare(b.name);
-      }
-    });
-    return list;
+    if (sort !== "status") {
+      list.sort((a, b) => (sort === "level" ? b.level - a.level : a.name.localeCompare(b.name)));
+      return [{ key: "all", title: "", items: list }];
+    }
+    const byName = (a: TownBuilding, b: TownBuilding) => a.name.localeCompare(b.name);
+    return [
+      { key: "chantier", title: "🏗️ Chantiers en cours", items: list.filter((b) => b.underConstruction).sort(byName) },
+      { key: "plan", title: "📐 Plans à poser", items: list.filter((b) => !b.built && !b.underConstruction).sort(byName) },
+      { key: "built", title: "🏠 Construits", items: list.filter((b) => b.built && !b.underConstruction).sort(byName) },
+    ].filter((g) => g.items.length > 0);
   }, [game, sort]);
 
   return (
@@ -55,7 +56,10 @@ export function StructureTab() {
       {inTown && <TownWorker />}
 
       <div className="ps-list compact">
-        {buildings.map((b) => {
+        {groups.map((g) => (
+          <div className="ps-group" key={g.key}>
+            {g.title && <div className="ps-group-h">{g.title}</div>}
+            {g.items.map((b) => {
           const mats = b.cost.materials;
           const enoughMats = mats.every((m) => have(m.name) >= m.qty);
           const open = b.underConstruction; // chantier ouvert (plan posé)
@@ -117,7 +121,9 @@ export function StructureTab() {
               </button>
             </div>
           );
-        })}
+            })}
+          </div>
+        ))}
       </div>
     </div>
   );

@@ -6,6 +6,22 @@
 
 ---
 
+## 2026-07-14 (12) — Structure groupée par état + vérification du chantier d'amélioration
+
+### Fait
+- **Onglet Structure : regroupement par état par défaut** (tri « Statut ») : **🏗️ Chantiers en
+  cours** (constructions ET améliorations, triés par nom), **📐 Plans à poser**, **🏠 Construits**
+  — en-têtes de section `.ps-group-h`. Les tris A-Z / Lv restent des listes plates.
+- L'**amélioration suivait déjà la logique chantier** (plan 1 PA → PA à investir tant que les
+  matériaux sont en Banque) — vérifiée de bout en bout dans l'UI cette fois : cliquer
+  « 📐 Améliorer » sur le Wall le fait passer dans « Chantiers en cours » avec le tag
+  « amélioration Lv 2 », la barre 0/30 PA et la pause matériaux.
+
+### Fonctionnel (vérifié)
+- E2E (9/9) : 3 groupes par défaut, Tower en chantier, Kitchen/Townhall en plans, 6 construits,
+  Wall → chantier d'amélioration après clic (0/30 PA ⏸, bouton +N PA), chaque plan = 1 PA.
+- `npx tsc -b`, `npm run build`.
+
 ## 2026-07-14 (11) — Chantiers collectifs : plan + investissement de PA gaté par les matériaux
 
 ### Fait

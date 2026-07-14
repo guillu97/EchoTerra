@@ -354,8 +354,12 @@ POST /api/games/{id}/combat/{c}/action            {unitId, action: move|attack|s
   skills, Evolve, ◀▶ roster cycle). **No inventory tab / no Stock link** (user decision).
 - **Stock**: MY team's personal bags only (always) + the **Bank** section (only when ≥1 of MY heroes in town)
   + "deposit loot" (server deposits my team's bags only).
-- **Structure**: ONE compact list (no Blueprint tab) — sites → "Construire", built → "Améliorer", each showing
-  PA + material cost vs Bank stock; build actions need a hero in town (consult-only otherwise).
+- **Structure**: vue par défaut **groupée par état** (tri « Statut ») : **🏗️ Chantiers en cours**
+  (constructions ET améliorations — barre `paInvested/cost.pa`, bouton « +N PA », « ⏸ matériaux
+  manquants » si la Banque ne couvre pas la liste), **📐 Plans à poser** (sites, bouton « Poser le
+  plan » 1 PA), **🏠 Construits** (bouton « 📐 Améliorer » = pose le plan d'amélioration). Tris A-Z/Lv
+  = liste plate. Coût affiché = TOTAL du chantier (PA + matériaux vs Banque) ; actions exigent un
+  héros en ville (consultation sinon).
 - **Home**: la ville est une **carte créée dans l'éditeur** (`src/data/town-map.json`, export JSON de
   l'éditeur §7b) rendue par **`components/TownMap.tsx`** avec le renderer de l'éditeur (`drawMap` →
   canvas offscreen 2×, cuit UNE fois par session, bornes serrées sur les cellules occupées — PAS

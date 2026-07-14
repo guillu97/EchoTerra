@@ -923,6 +923,24 @@ body {
   gap: 2px;
   margin-top: 3px;
 }
+/* Structure grouping by state (default "Statut" sort): chantiers / plans / built */
+.ps-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ps-group + .ps-group {
+  margin-top: 10px;
+}
+.ps-group-h {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #9fb2c9;
+  padding: 0 2px;
+}
+
 /* Chantier progress: PA invested toward the plan's total (Structure rows) */
 .ps-progress {
   position: relative;
