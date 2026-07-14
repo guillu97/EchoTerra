@@ -18,6 +18,13 @@ export interface Stats {
   precision: number;
 }
 
+// One line of the town journal (Panel building) — mirrors game.TownLogEntry.
+export interface TownLogEntry {
+  at: string; // RFC3339 timestamp
+  day: number;
+  text: string;
+}
+
 export interface Item {
   type: string;
   name: string;
@@ -214,6 +221,8 @@ export interface GameState {
     buildings: TownBuilding[];
     storage: Item[];
     waterDrawnToday: string[];
+    // Town journal (Panel building): in-town actions, newest first, capped server-side.
+    log?: TownLogEntry[];
   };
   activeCombat?: string;
   combats?: Record<string, Combat>;

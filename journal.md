@@ -6,6 +6,29 @@
 
 ---
 
+## 2026-07-14 (2) — Journal de la ville (bâtiment Panel)
+
+### Fait
+- **Journal serveur** : `town.log` (`TownLogEntry {at, day, text}`, plus récent en premier, plafonné
+  à 100 par `logTown`, persisté avec l'état, partagé par tous les joueurs). Instrumenté sur TOUTES
+  les actions faites en ville : porte OUVERTE/FERMÉE, ration puisée au puits, dépôt à la Banque
+  (une ligne par héros avec le nombre d'objets), chantier lancé/terminé/amélioré, réparation,
+  craft en ville (ingrédients de la Banque), action `use`. Attribution au héros payeur (« l'équipe »
+  en legacy pool). Tests `townlog_test.go` (contenu + ordre + cap).
+- **Page Journal** : `components/TownJournal.tsx` (overlay type TownStatus, `store.townJournalOpen`),
+  liste scrollable `J{day} · HH:MM — texte`, état vide expliqué. Le bouton « 📋 Journal » du Panel
+  (qui ne faisait qu'un pushLog « bientôt ») ouvre maintenant la page.
+
+### Fonctionnel (vérifié)
+- `go test ./...` OK ; e2e navigateur : toggle porte ×2 + puits + dépôt → Panel → Journal affiche les
+  4 entrées dans l'ordre attendu. `tsc -b` + `npm run build` OK, `test:perf` 13/13.
+
+### À faire
+- Y verser aussi les événements de vague (dégâts ville/bâtiments) ? Pour l'instant le rapport de
+  vague vit dans TownStatus (lastWave) — à fusionner un jour si le journal devient LA timeline.
+
+---
+
 ## 2026-07-14 — Home : la ville devient une carte d'éditeur (JSON) + zoom/pan
 
 ### Fait

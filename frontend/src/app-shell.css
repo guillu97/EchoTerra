@@ -1633,6 +1633,36 @@ body {
   background: #b5851f;
 }
 
+/* Town journal (Panel building) */
+.tj-list {
+  max-height: min(52vh, 460px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-right: 4px;
+}
+.tj-row {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-size: 13px;
+}
+.tj-when {
+  flex: none;
+  font-size: 11px;
+  color: #9fb0c8;
+  font-variant-numeric: tabular-nums;
+}
+.tj-empty {
+  color: #cbd6e6;
+  font-size: 13px;
+  padding: 10px 2px;
+}
+
 .ts-hp {
   font-weight: 700;
   margin-bottom: 10px;

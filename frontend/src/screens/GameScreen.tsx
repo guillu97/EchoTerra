@@ -9,6 +9,7 @@ import { StructureTab } from "../tabs/StructureTab";
 import { CraftTab } from "../tabs/CraftTab";
 import { HeroOverlay } from "../components/HeroOverlay";
 import { TownStatus } from "../components/TownStatus";
+import { TownJournal } from "../components/TownJournal";
 import { GameOver } from "../components/GameOver";
 import { CheatPanel } from "../components/CheatPanel";
 
@@ -43,6 +44,7 @@ export function GameScreen() {
       <BottomNav />
       <HeroOverlay />
       <TownStatus />
+      <TownJournal />
       <GameOver />
       <CheatPanel />
       {error && <div className="toast">⚠️ {error}</div>}

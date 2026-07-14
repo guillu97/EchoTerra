@@ -264,6 +264,12 @@ Construction sites (Built=false): **townhall (renamed from House — revive), to
 
 **Bank** = `town.storage`: deposit hero loot (`/town/deposit`), craft I/O in town, construction materials.
 
+**Journal de la ville** (`town.log`, bâtiment Panel) — `TownLogEntry {at, day, text}`, **serveur-side,
+partagé, plus récent en premier, plafonné à 100** (`logTown`). Recense UNIQUEMENT les actions faites en
+ville : porte OUVERTE/FERMÉE, ration puisée au puits, dépôts à la Banque (par héros), chantiers
+lancés/terminés/améliorations, réparations, crafts en ville, `use`. Front : `TownJournal.tsx` (overlay,
+`store.townJournalOpen`), ouvert par le bouton « 📋 Journal » du Panel. Tests `townlog_test.go`.
+
 **Crafting** (`craft.go`, `CraftTab.tsx`) — **town mode** (≥1 hero in town): full recipes, ingredients from the
 Bank, paid by the chosen *town worker*, output to the Bank. **Field mode** (no hero in town): only `field`
 recipes (kitchen/campfire), ingredients from the **selected hero's bag**, paid by that hero, output to the bag.

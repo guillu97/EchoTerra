@@ -1,5 +1,10 @@
 package game
 
+import (
+	"fmt"
+	"time"
+)
+
 // Town buildings and the action-point economy of the city tile.
 //
 // Like in Hordes/Die2Nite, work in town is paid with the action points (PA) of the
@@ -79,6 +84,27 @@ func DefaultBuildings() []*TownBuilding {
 		{ID: "wall", Name: "Wall", Built: true, Level: 1, Durability: 20, MaxDurability: 100},
 		{ID: "kitchen", Name: "Kitchen", Built: false, Level: 0, MaxDurability: 80},
 		{ID: "panel", Name: "Panel", Built: true, Level: 1, Durability: 97, MaxDurability: 100},
+	}
+}
+
+// TownLogEntry is one line of the town journal (the Panel building): who did what
+// in town, when. Only IN-TOWN actions are recorded (gate, well, bank, builds,
+// repairs, town crafts) — field actions (search, hide, combat…) don't belong here.
+type TownLogEntry struct {
+	At   time.Time `json:"at"`
+	Day  int       `json:"day"`
+	Text string    `json:"text"`
+}
+
+// townLogCap bounds the journal (newest first) so the state blob stays small.
+const townLogCap = 100
+
+// logTown prepends an entry to the town journal.
+func (g *GameState) logTown(text string) {
+	e := TownLogEntry{At: time.Now(), Day: g.Day, Text: text}
+	g.Town.Log = append([]TownLogEntry{e}, g.Town.Log...)
+	if len(g.Town.Log) > townLogCap {
+		g.Town.Log = g.Town.Log[:townLogCap]
 	}
 }
 
@@ -223,11 +249,16 @@ func (g *GameState) DepositHeroLoot(only []string) (int, error) {
 	}
 	moved := 0
 	for _, h := range heroes {
+		n := 0
 		for _, it := range h.Inventory {
 			g.addStorage(it)
-			moved += it.Qty
+			n += it.Qty
 		}
 		h.Inventory = []Item{}
+		if n > 0 {
+			g.logTown(fmt.Sprintf("📦 %s a déposé %d objet(s) à la Banque", h.Name, n))
+		}
+		moved += n
 	}
 	return moved, nil
 }
@@ -259,6 +290,11 @@ func (g *GameState) TownAction(buildingID, action string, points int, heroID str
 	if points <= 0 {
 		points = 1
 	}
+	// Journal attribution: the paying hero, or the shared pool in legacy solo.
+	worker := "l'équipe"
+	if h := g.HeroByID(heroID); h != nil {
+		worker = h.Name
+	}
 
 	switch action {
 	case "build":
@@ -286,16 +322,19 @@ func (g *GameState) TownAction(buildingID, action string, points int, heroID str
 			if b.MaxCapacity > 0 {
 				b.MaxCapacity += b.MaxCapacity / 2
 			}
+			g.logTown(fmt.Sprintf("🏗️ %s a amélioré %s (niveau %d)", worker, b.Name, b.Level))
 		case b.UnderConstruction:
 			// Finish an in-progress construction.
 			b.UnderConstruction = false
 			b.Built = true
 			b.Level = 1
 			b.Durability = b.MaxDurability
+			g.logTown(fmt.Sprintf("🏗️ %s a terminé la construction de %s", worker, b.Name))
 		default:
 			// Start construction on a fresh site (materials paid now; it now shows on Home
 			// as "en construction" and a follow-up build finishes it).
 			b.UnderConstruction = true
+			g.logTown(fmt.Sprintf("🏗️ %s a lancé le chantier de %s (matériaux prélevés à la Banque)", worker, b.Name))
 		}
 		return nil
 
@@ -313,6 +352,7 @@ func (g *GameState) TownAction(buildingID, action string, points int, heroID str
 		if b.Durability > b.MaxDurability {
 			b.Durability = b.MaxDurability
 		}
+		g.logTown(fmt.Sprintf("🔧 %s a réparé %s (+%d durabilité)", worker, b.Name, 5*points))
 		return nil
 
 	case "water": // Well: a hero draws a daily water ration (free, 1 per hero per day).
@@ -338,6 +378,7 @@ func (g *GameState) TownAction(buildingID, action string, points int, heroID str
 		h.DrewWaterDay = g.Day
 		h.RemoveState(StateSoif) // drinking quenches thirst
 		h.AddLoot(Item{Type: "eau", Name: "Ration d'eau", Qty: 1})
+		g.logTown(fmt.Sprintf("💧 %s a puisé une ration d'eau au puits", h.Name))
 		return nil
 
 	case "toggle": // Gate: open/close it. An open gate provides no defense. Costs 1 PA.
@@ -351,6 +392,11 @@ func (g *GameState) TownAction(buildingID, action string, points int, heroID str
 			return ActionError{"PA insuffisants"}
 		}
 		b.Open = !b.Open
+		if b.Open {
+			g.logTown(fmt.Sprintf("🚪 %s a OUVERT la porte de la ville", worker))
+		} else {
+			g.logTown(fmt.Sprintf("🚪 %s a FERMÉ la porte de la ville", worker))
+		}
 		return nil
 
 	case "use":
@@ -360,6 +406,7 @@ func (g *GameState) TownAction(buildingID, action string, points int, heroID str
 		if !g.spendFor(heroID, 1) {
 			return ActionError{"PA insuffisants"}
 		}
+		g.logTown(fmt.Sprintf("✨ %s a utilisé %s", worker, b.Name))
 		return nil
 	}
 	return ActionError{"action de ville inconnue"}

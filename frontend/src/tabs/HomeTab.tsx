@@ -28,7 +28,7 @@ function BuildingMenu({ layout, b, onClose }: { layout: BuildingLayout; b: TownB
   const townAction = useStore((s) => s.townAction);
   const setTab = useStore((s) => s.setTab);
   const toggleTownStatus = useStore((s) => s.toggleTownStatus);
-  const pushLog = useStore((s) => s.pushLog);
+  const toggleTownJournal = useStore((s) => s.toggleTownJournal);
   const busy = useStore((s) => s.busy);
   const game = useStore((s) => s.game);
   const townHeroId = useStore((s) => s.townHeroId);
@@ -56,7 +56,7 @@ function BuildingMenu({ layout, b, onClose }: { layout: BuildingLayout; b: TownB
       : layout.id === "townhall"
       ? { label: "🛏️ Ressusciter un héros", fn: () => townAction("townhall", "use"), cost: 1 }
       : layout.id === "panel"
-      ? { label: "📋 Journal", fn: () => pushLog("📋 Journal de la ville — bientôt"), cost: 0 }
+      ? { label: "📋 Journal", fn: () => { onClose(); toggleTownJournal(true); }, cost: 0 }
       : null;
 
   return (

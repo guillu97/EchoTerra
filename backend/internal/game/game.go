@@ -169,6 +169,10 @@ type GameState struct {
 		// Well ration this game.day (derived; refreshed by Recompute). The Well "water"
 		// action is limited to one ration per hero per day.
 		WaterDrawnToday []string `json:"waterDrawnToday"`
+		// Log is the town journal (Panel building): every action performed IN town —
+		// gate toggles, well draws, bank deposits, builds/repairs, town crafts —
+		// newest first, capped (see logTown). Shared by all players.
+		Log []TownLogEntry `json:"log,omitempty"`
 	} `json:"town"`
 	// ActiveCombat is the id of the combat in progress, if any.
 	ActiveCombat string             `json:"activeCombat,omitempty"`

@@ -111,6 +111,7 @@ func (g *GameState) Craft(recipeID, heroID string) (*Item, error) {
 			g.removeStorage(ing.Name, ing.Qty)
 		}
 		g.addStorage(out)
+		g.logTown("⚒️ " + h.Name + " a fabriqué " + r.Name + " (ingrédients de la Banque)")
 	} else {
 		for _, ing := range r.Ingredients {
 			removeHeroItem(h, ing.Name, ing.Qty)
