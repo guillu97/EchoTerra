@@ -23,7 +23,8 @@ type TownBuilding struct {
 	ID                string   `json:"id"`
 	Name              string   `json:"name"`
 	Built             bool     `json:"built"`             // false => construction site
-	UnderConstruction bool     `json:"underConstruction"` // site whose build has been started (visible on Home)
+	UnderConstruction bool     `json:"underConstruction"` // an open chantier (plan laid; visible on Home)
+	PaInvested        int      `json:"paInvested"`        // labour poured into the open chantier so far
 	Level             int      `json:"level"`
 	Durability        int      `json:"durability"`
 	MaxDurability     int      `json:"maxDurability"`
@@ -48,14 +49,31 @@ var buildMaterials = map[string][]Item{
 	"panel":    {{Type: "objet", Name: "Bois", Qty: 1}},
 }
 
-// buildingCost returns the cost of the next build action:
-//   - site not started  -> start cost: base materials + labour
-//   - under construction -> finish cost: labour only (materials were paid to start)
-//   - built              -> upgrade cost: scaled materials + labour
+// buildPA is the total labour a chantier requires to complete a building at level 1;
+// an upgrade to level L+1 costs base × (L+1). Construction is a collective effort:
+// players pour their heroes' PA into the site over several days (Hordes-style).
+var buildPA = map[string]int{
+	"townhall": 20,
+	"tower":    15,
+	"kitchen":  12,
+	"wall":     15,
+	"gate":     12,
+	"well":     10,
+	"bank":     12,
+	"workshop": 15,
+	"panel":    6,
+}
+
+// planPACost is the price of laying down the plan that opens a chantier.
+const planPACost = 1
+
+// buildingCost returns the FULL requirement of the current (or next) chantier:
+//   - site / under construction -> total labour + materials to reach level 1
+//   - built                     -> upgrade requirement, scaled by the next level
+//
+// Materials are a PRESENCE gate while investing PA and are only consumed when the
+// chantier completes; b.PaInvested tracks progress toward Cost.PA.
 func buildingCost(b *TownBuilding) BuildReq {
-	if b.UnderConstruction {
-		return BuildReq{PA: 2, Materials: nil} // finish: labour only
-	}
 	mult := 1
 	if b.Built {
 		mult = b.Level + 1
@@ -65,7 +83,11 @@ func buildingCost(b *TownBuilding) BuildReq {
 	for _, it := range base {
 		mats = append(mats, Item{Type: it.Type, Name: it.Name, Qty: it.Qty * mult})
 	}
-	return BuildReq{PA: 2 + b.Level, Materials: mats}
+	pa := buildPA[b.ID]
+	if pa == 0 {
+		pa = 10
+	}
+	return BuildReq{PA: pa * mult, Materials: mats}
 }
 
 // DefaultBuildings seeds the city. Built at start: gate, wall, bank, well, workshop,
@@ -273,8 +295,11 @@ func (g *GameState) buildingByID(id string) *TownBuilding {
 }
 
 // TownAction applies a town action to a building. Supported actions:
-//   - "build":   build (if it's a construction site) or upgrade — spends PA AND the
-//                required materials from the Bank.
+//   - "build":   chantier flow. No open chantier -> lay the PLAN (1 PA, no materials);
+//                open chantier -> invest `points` PA, allowed only while ALL required
+//                materials sit in the Bank (they are NOT consumed yet — invested PA
+//                remain if materials vanish, investing just pauses). Reaching the PA
+//                requirement consumes the materials and completes the build/upgrade.
 //   - "restore": spend `points` PA to repair (+5 durability per PA). Built only.
 //   - "use":     a flavored 1-PA action (draw water, …). Built only.
 //
@@ -299,42 +324,67 @@ func (g *GameState) TownAction(buildingID, action string, points int, heroID str
 	switch action {
 	case "build":
 		cost := buildingCost(b)
-		// All materials must be in the Bank, and the labour must be payable, before
-		// anything is consumed.
+		if !b.UnderConstruction {
+			// Phase 1 — the PLAN: opening the chantier costs 1 PA and no materials.
+			// The full requirement (cost.PA labour + materials) is now on display.
+			if !g.spendFor(heroID, planPACost) {
+				return ActionError{"PA insuffisants"}
+			}
+			b.UnderConstruction = true
+			b.PaInvested = 0
+			if b.Built {
+				g.logTown(fmt.Sprintf("📐 %s a posé le plan d'amélioration de %s (niveau %d — %d PA à investir)", worker, b.Name, b.Level+1, cost.PA))
+			} else {
+				g.logTown(fmt.Sprintf("📐 %s a posé le plan de chantier de %s (%d PA à investir)", worker, b.Name, cost.PA))
+			}
+			return nil
+		}
+		// Phase 2 — the LABOUR: PA can be invested only while every required material
+		// sits in the Bank. Nothing is consumed here — if materials vanish mid-build the
+		// invested PA remain, the chantier just pauses.
 		for _, m := range cost.Materials {
 			if g.storageQty(m.Name) < m.Qty {
-				return ActionError{"matériau manquant dans la banque : " + m.Name}
+				return ActionError{"matériau manquant dans la banque : " + m.Name + " (les PA déjà investis restent acquis)"}
 			}
 		}
-		if !g.canPay(heroID, cost.PA) {
+		if remaining := cost.PA - b.PaInvested; points > remaining {
+			points = remaining
+		}
+		// Invest what the payer can actually afford rather than rejecting outright.
+		if heroID != "" {
+			if h := g.HeroByID(heroID); h != nil && points > h.PA {
+				points = h.PA
+			}
+		} else if pool := g.TownPA(); points > pool {
+			points = pool
+		}
+		if points <= 0 || !g.spendFor(heroID, points) {
 			return ActionError{"PA insuffisants"}
 		}
+		b.PaInvested += points
+		if b.PaInvested < cost.PA {
+			g.logTown(fmt.Sprintf("🏗️ %s a travaillé sur %s (+%d PA — %d/%d)", worker, b.Name, points, b.PaInvested, cost.PA))
+			return nil
+		}
+		// Chantier complete: NOW the materials are consumed.
 		for _, m := range cost.Materials {
 			g.removeStorage(m.Name, m.Qty)
 		}
-		g.spendFor(heroID, cost.PA)
-		switch {
-		case b.Built:
-			// Upgrade an existing building.
+		b.UnderConstruction = false
+		b.PaInvested = 0
+		if b.Built {
 			b.Level++
 			b.MaxDurability += 20
 			b.Durability = b.MaxDurability
 			if b.MaxCapacity > 0 {
 				b.MaxCapacity += b.MaxCapacity / 2
 			}
-			g.logTown(fmt.Sprintf("🏗️ %s a amélioré %s (niveau %d)", worker, b.Name, b.Level))
-		case b.UnderConstruction:
-			// Finish an in-progress construction.
-			b.UnderConstruction = false
+			g.logTown(fmt.Sprintf("🏗️ %s a achevé l'amélioration de %s (niveau %d, matériaux prélevés à la Banque)", worker, b.Name, b.Level))
+		} else {
 			b.Built = true
 			b.Level = 1
 			b.Durability = b.MaxDurability
-			g.logTown(fmt.Sprintf("🏗️ %s a terminé la construction de %s", worker, b.Name))
-		default:
-			// Start construction on a fresh site (materials paid now; it now shows on Home
-			// as "en construction" and a follow-up build finishes it).
-			b.UnderConstruction = true
-			g.logTown(fmt.Sprintf("🏗️ %s a lancé le chantier de %s (matériaux prélevés à la Banque)", worker, b.Name))
+			g.logTown(fmt.Sprintf("🏗️ %s a achevé la construction de %s (matériaux prélevés à la Banque)", worker, b.Name))
 		}
 		return nil
 

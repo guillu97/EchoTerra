@@ -244,12 +244,13 @@ func (g *GameState) botEvolve(h *Hero) bool {
 	return g.EvolveHero(h.ID, pick) == nil
 }
 
-// botBuild spends 1 PA on the most useful town work: finish/start a construction
-// site (materials permitting), else repair a badly damaged building. Upgrades are
-// left to humans (they'd silently drain the Bank).
+// botBuild spends 1 PA on the most useful town work: lay the plan / invest in a
+// construction site (materials permitting), join an upgrade chantier a human opened,
+// else repair a badly damaged building. Bots never OPEN upgrade plans themselves
+// (they'd silently drain the Bank).
 func (g *GameState) botBuild(h *Hero) bool {
 	for _, b := range g.Town.Buildings {
-		if !b.Built {
+		if !b.Built || b.UnderConstruction {
 			if err := g.TownAction(b.ID, "build", 1, h.ID); err == nil {
 				return true
 			}

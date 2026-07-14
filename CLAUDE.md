@@ -244,12 +244,20 @@ new monsters spawn (pack `count` grows with `waveNumber`). **Game over** when to
 **Town buildings & construction** — built at start: **gate, wall, bank, well, workshop, panel**.
 Construction sites (Built=false): **townhall (renamed from House — revive), tower, kitchen**.
 `TownAction(buildingId, action, points, heroId)`:
-- `build` → **2-phase construction** for sites + upgrade for built. A `TownBuilding` has `Built` AND
-  `UnderConstruction`. Site not started → first `build` consumes **materials + PA** and sets `UnderConstruction`
-  (no defense yet); under-construction → next `build` costs **PA only** and finishes it (`Built`, level 1);
-  built → upgrade (materials×level + PA, level++). Cost exposed as `building.cost` (start/finish/upgrade aware).
-  **Home shows a building only when `built || underConstruction`** (not-yet-started sites are hidden — built from
-  the Structure tab; Structure labels: Construire→Terminer→Améliorer). Tests in `build_test.go`.
+- `build` → **flux CHANTIER collectif (2026-07-14)** : (1) **poser le PLAN** (1 PA, `planPACost`, AUCUN
+  matériau) ouvre le chantier (`UnderConstruction=true`, `PaInvested=0`) — vaut pour les sites ET les
+  améliorations de bâtiments construits ; (2) **investir des PA** (`points`, borné au restant et aux PA
+  du payeur) — autorisé UNIQUEMENT si TOUS les matériaux requis sont en Banque (simple présence, PAS
+  consommés) ; s'il en manque, l'investissement est refusé mais **les PA déjà investis restent acquis**
+  (le chantier est juste en pause) ; (3) quand `PaInvested` atteint `cost.PA`, les matériaux sont
+  consommés et le bâtiment est construit (level 1) ou amélioré (level++). Coûts PA **élevés et
+  collectifs** : `buildPA` (townhall 20, tower/wall/workshop 15, kitchen/gate/bank 12, well 10,
+  panel 6) × niveau visé ; matériaux de base × niveau. `building.cost` expose le TOTAL du chantier
+  courant/suivant, `building.paInvested` la progression. **Home shows a building only when
+  `built || underConstruction`**. Structure : « 📐 Poser le plan » / « 📐 Améliorer » (1 PA) →
+  barre de progression + bouton « +N PA » (PA du worker, ⏸ si matériaux manquants). Les bots posent
+  les plans des sites, investissent 1 PA et rejoignent les chantiers d'amélioration ouverts par les
+  humains (jamais n'en ouvrent). Tests in `build_test.go`.
 - `restore` → +5 durability per PA (built only).
 - `water` (Well) → **FREE**, draws **one Ration d'eau per in-town hero per `game.day`**: charged to the selected
   town worker (`heroID`), decrements Well `capacity`, clears that hero's `Soif`, and drops the ration into **that

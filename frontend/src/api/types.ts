@@ -96,7 +96,8 @@ export interface TownBuilding {
   id: string;
   name: string;
   built: boolean;
-  underConstruction: boolean; // site whose build has been started (visible on Home as a chantier)
+  underConstruction: boolean; // an open chantier (plan laid; visible on Home)
+  paInvested: number; // labour poured into the open chantier so far (cost.pa = total)
   level: number;
   durability: number;
   maxDurability: number;

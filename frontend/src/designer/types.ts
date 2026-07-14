@@ -216,24 +216,25 @@ const lvl = (pa: number, materials: MaterialCost[], effects: string): BuildingLe
   materials,
   effects,
 });
-// Backend cost formula today: build = 2 PA + base materials; upgrade level L->L+1 =
-// (2+L) PA + base materials × (L+1). Seeded for levels 1..3.
-const seedLevels = (base: MaterialCost[], fx: [string, string, string]): BuildingLevelDef[] => [
-  lvl(2, base.map((m) => ({ ...m })), fx[0]),
-  lvl(3, base.map((m) => ({ ...m, qty: m.qty * 2 })), fx[1]),
-  lvl(4, base.map((m) => ({ ...m, qty: m.qty * 3 })), fx[2]),
+// Backend cost formula today (chantier flow): plan (1 PA) puis investissement — le
+// niveau L exige basePA × L points d'action au total + matériaux de base × L.
+// Seeded for levels 1..3 with each building's basePA (town.go buildPA).
+const seedLevels = (basePA: number, base: MaterialCost[], fx: [string, string, string]): BuildingLevelDef[] => [
+  lvl(basePA, base.map((m) => ({ ...m })), fx[0]),
+  lvl(basePA * 2, base.map((m) => ({ ...m, qty: m.qty * 2 })), fx[1]),
+  lvl(basePA * 3, base.map((m) => ({ ...m, qty: m.qty * 3 })), fx[2]),
 ];
 
 const seedBuildings = (): BuildingDef[] => [
-  { id: "townhall", name: "Townhall", icon: "🏛️", blurb: "Cœur de la ville. Lit : ressuscite un héros épuisé.", startsBuilt: false, requires: [{ building: "workshop", level: 1 }], levels: seedLevels([{ name: "Bois", qty: 4 }, { name: "Pierre", qty: 2 }], ["débloque Ressusciter", "revive +1/jour", "revive gratuit"]) },
-  { id: "well", name: "Well", icon: "💧", blurb: "Source d'eau de la ville (1 ration/héros/jour).", startsBuilt: true, requires: [], levels: seedLevels([{ name: "Pierre", qty: 2 }], ["capacité 50", "capacité 75", "capacité 112"]) },
-  { id: "bank", name: "Bank", icon: "🏦", blurb: "Stocke les ressources & matériaux communs.", startsBuilt: true, requires: [], levels: seedLevels([{ name: "Bois", qty: 2 }], ["capacité 500", "capacité 750", "capacité 1125"]) },
-  { id: "tower", name: "Tower", icon: "🗼", blurb: "Tour de guet : défense et évaluation de la horde.", startsBuilt: false, requires: [{ building: "wall", level: 1 }], levels: seedLevels([{ name: "Bois", qty: 2 }, { name: "Pierre", qty: 3 }], ["défense +6", "défense +9", "défense +12"]) },
-  { id: "workshop", name: "Workshop", icon: "🔨", blurb: "Menuiserie & forge — gère les constructions et les crafts forge.", startsBuilt: true, requires: [], levels: seedLevels([{ name: "Bois", qty: 3 }], ["crafts forge", "coût PA chantiers -1", "recettes avancées"]) },
-  { id: "gate", name: "Gate", icon: "🚪", blurb: "Porte de la ville : fermée = ville scellée (défense max), ouverte = passage libre.", startsBuilt: true, requires: [{ building: "wall", level: 1 }], levels: seedLevels([{ name: "Bois", qty: 2 }, { name: "Minerai de fer", qty: 1 }], ["défense +8 (fermée)", "défense +12", "défense +16"]) },
-  { id: "wall", name: "Wall", icon: "🧱", blurb: "Muraille défensive.", startsBuilt: true, requires: [], levels: seedLevels([{ name: "Pierre", qty: 3 }], ["défense +10", "défense +15", "défense +20"]) },
-  { id: "kitchen", name: "Kitchen", icon: "🍳", blurb: "Cuisine : débloque les crafts conso en ville.", startsBuilt: false, requires: [{ building: "well", level: 1 }], levels: seedLevels([{ name: "Bois", qty: 3 }], ["crafts cuisine", "rations +1", "banquets"]) },
-  { id: "panel", name: "Panel", icon: "📋", blurb: "Panneau : journal de la ville, sondages, membres.", startsBuilt: true, requires: [], levels: seedLevels([{ name: "Bois", qty: 1 }], ["journal", "sondages", "statistiques"]) },
+  { id: "townhall", name: "Townhall", icon: "🏛️", blurb: "Cœur de la ville. Lit : ressuscite un héros épuisé.", startsBuilt: false, requires: [{ building: "workshop", level: 1 }], levels: seedLevels(20, [{ name: "Bois", qty: 4 }, { name: "Pierre", qty: 2 }], ["débloque Ressusciter", "revive +1/jour", "revive gratuit"]) },
+  { id: "well", name: "Well", icon: "💧", blurb: "Source d'eau de la ville (1 ration/héros/jour).", startsBuilt: true, requires: [], levels: seedLevels(10, [{ name: "Pierre", qty: 2 }], ["capacité 50", "capacité 75", "capacité 112"]) },
+  { id: "bank", name: "Bank", icon: "🏦", blurb: "Stocke les ressources & matériaux communs.", startsBuilt: true, requires: [], levels: seedLevels(12, [{ name: "Bois", qty: 2 }], ["capacité 500", "capacité 750", "capacité 1125"]) },
+  { id: "tower", name: "Tower", icon: "🗼", blurb: "Tour de guet : défense et évaluation de la horde.", startsBuilt: false, requires: [{ building: "wall", level: 1 }], levels: seedLevels(15, [{ name: "Bois", qty: 2 }, { name: "Pierre", qty: 3 }], ["défense +6", "défense +9", "défense +12"]) },
+  { id: "workshop", name: "Workshop", icon: "🔨", blurb: "Menuiserie & forge — gère les constructions et les crafts forge.", startsBuilt: true, requires: [], levels: seedLevels(15, [{ name: "Bois", qty: 3 }], ["crafts forge", "coût PA chantiers -1", "recettes avancées"]) },
+  { id: "gate", name: "Gate", icon: "🚪", blurb: "Porte de la ville : fermée = ville scellée (défense max), ouverte = passage libre.", startsBuilt: true, requires: [{ building: "wall", level: 1 }], levels: seedLevels(12, [{ name: "Bois", qty: 2 }, { name: "Minerai de fer", qty: 1 }], ["défense +8 (fermée)", "défense +12", "défense +16"]) },
+  { id: "wall", name: "Wall", icon: "🧱", blurb: "Muraille défensive.", startsBuilt: true, requires: [], levels: seedLevels(15, [{ name: "Pierre", qty: 3 }], ["défense +10", "défense +15", "défense +20"]) },
+  { id: "kitchen", name: "Kitchen", icon: "🍳", blurb: "Cuisine : débloque les crafts conso en ville.", startsBuilt: false, requires: [{ building: "well", level: 1 }], levels: seedLevels(12, [{ name: "Bois", qty: 3 }], ["crafts cuisine", "rations +1", "banquets"]) },
+  { id: "panel", name: "Panel", icon: "📋", blurb: "Panneau : journal de la ville, sondages, membres.", startsBuilt: true, requires: [], levels: seedLevels(6, [{ name: "Bois", qty: 1 }], ["journal", "sondages", "statistiques"]) },
 ];
 
 const seedRecipes = (): RecipeDef[] => [

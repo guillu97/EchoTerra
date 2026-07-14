@@ -6,6 +6,36 @@
 
 ---
 
+## 2026-07-14 (11) — Chantiers collectifs : plan + investissement de PA gaté par les matériaux
+
+### Fait
+- **Nouveau flux de construction** (`town.go`, demande Guillaume) : ① **poser le PLAN** (1 PA,
+  `planPACost`, aucun matériau) ouvre le chantier — sites ET améliorations ; ② **investir des PA**
+  (`points`, borné au restant + aux PA du payeur) tant que TOUS les matériaux requis sont **présents
+  en Banque** (simple gate, rien n'est consommé) — s'il en manque, refus mais **les PA investis
+  restent acquis** (`TownBuilding.PaInvested`, chantier en pause) ; ③ à `PaInvested == cost.PA`,
+  matériaux consommés + bâtiment construit (lvl 1) / amélioré (lvl++).
+- **Coûts PA beaucoup plus élevés** (`buildPA`, effort collectif façon Hordes) : townhall 20,
+  tower/wall/workshop 15, kitchen/gate/bank 12, well 10, panel 6 — × niveau visé pour les
+  améliorations (matériaux × niveau aussi). `building.cost` = TOTAL du chantier, `paInvested` exposé.
+- **Bots** : posent les plans des sites, investissent 1 PA/tick, rejoignent les chantiers
+  d'amélioration ouverts par un humain (n'en ouvrent jamais eux-mêmes).
+- **Structure (front)** : « 📐 Poser le plan » / « 📐 Améliorer » (1 PA) → **barre de progression**
+  `paInvested/cost.pa` + bouton « +N PA » (PA du worker, borné serveur) ; « ⏸ matériaux manquants »
+  quand la Banque ne couvre pas la liste (bouton désactivé, hint « les PA investis restent acquis »).
+- **Studio** : seeds des bâtiments alignés (`seedLevels(basePA, …)` — niveau L = basePA×L PA).
+
+### Fonctionnel (vérifié)
+- `go test ./...` (6 paquets) — build_test réécrit : plan sans matériaux, invest refusé banque vide,
+  PA conservés après pénurie, clamp au restant, conso des matériaux à l'achèvement, cumul multi-héros
+  (7+5=12), amélioration via chantier (panel 6→12 PA lvl2).
+- E2E API+UI : plan 1 PA, cost.pa=15 (tour), refus « les PA déjà investis restent acquis », rows
+  Structure (en chantier 0/15 ⏸, plan à poser, 📐 Améliorer), clic « Poser le plan » ouvre le chantier.
+- `npx tsc -b`, `npm run build`, `npm run test:perf` 13/13.
+
+### À faire
+- Effet Workshop lvl2 « coût PA chantiers -1 » (design) non implémenté ; hordePower ∝ joueurs.
+
 ## 2026-07-14 (10) — Studio : onglet ⛰️ Terrains + vrai onglet 📦 Ressources (catalogue) + dropdowns partout
 
 ### Fait

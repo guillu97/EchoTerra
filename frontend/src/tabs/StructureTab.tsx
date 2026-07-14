@@ -58,8 +58,23 @@ export function StructureTab() {
         {buildings.map((b) => {
           const mats = b.cost.materials;
           const enoughMats = mats.every((m) => have(m.name) >= m.qty);
-          const canPay = pa >= b.cost.pa;
-          const can = inTown && enoughMats && canPay && !busy;
+          const open = b.underConstruction; // chantier ouvert (plan posé)
+          const remaining = Math.max(0, b.cost.pa - b.paInvested);
+          // Chantier ouvert : on investit les PA du worker (le serveur borne au restant).
+          // Pas de plan : le poser coûte 1 PA (les matériaux ne servent qu'ensuite).
+          const invest = Math.min(pa, remaining);
+          const canAct = open ? enoughMats && invest > 0 : pa >= 1;
+          const can = inTown && canAct && !busy;
+          const label = open ? `+${invest} PA` : b.built ? "📐 Améliorer" : "📐 Poser le plan";
+          const hint = !inTown
+            ? "Être en ville"
+            : open && !enoughMats
+            ? "Matériaux manquants en Banque — les PA investis restent acquis"
+            : open
+            ? `Investir les PA du travailleur (${b.paInvested}/${b.cost.pa})`
+            : pa < 1
+            ? "PA insuffisants"
+            : "Poser le plan de chantier (1 PA)";
           return (
             <div className={`ps-row compact ${b.built ? "" : "site"}`} key={b.id}>
               <div className="ps-ic">{b.built ? buildingIcon(b.id) : "🏗️"}</div>
@@ -74,11 +89,12 @@ export function StructureTab() {
                       </span>
                     </>
                   ) : (
-                    <span className="tag-type ttown">{b.underConstruction ? "en construction" : "chantier"}</span>
+                    <span className="tag-type ttown">{open ? "en chantier" : "plan à poser"}</span>
                   )}
+                  {open && b.built && <span className="tag-type ttown">amélioration Lv {b.level + 1}</span>}
                 </div>
                 <div className="ps-sub cost">
-                  <span className="ing ok">⚡{b.cost.pa}</span>
+                  <span className="ing ok">⚡{b.cost.pa} PA</span>
                   {mats.map((m, i) => (
                     <span key={i} className={have(m.name) >= m.qty ? "ing ok" : "ing miss"}>
                       {" · "}
@@ -86,14 +102,18 @@ export function StructureTab() {
                     </span>
                   ))}
                 </div>
+                {open && (
+                  <div className="ps-progress" title={`${b.paInvested}/${b.cost.pa} PA investis`}>
+                    <i style={{ width: `${Math.min(100, (b.paInvested / Math.max(1, b.cost.pa)) * 100)}%` }} />
+                    <span>
+                      {b.paInvested}/{b.cost.pa} PA
+                      {!enoughMats && " · ⏸ matériaux manquants"}
+                    </span>
+                  </div>
+                )}
               </div>
-              <button
-                className="ps-act"
-                disabled={!can}
-                title={!inTown ? "Être en ville" : !enoughMats ? "Matériaux manquants (Banque)" : !canPay ? "PA insuffisants" : ""}
-                onClick={() => townAction(b.id, "build")}
-              >
-                {b.built ? "Améliorer" : b.underConstruction ? "Terminer" : "Construire"}
+              <button className="ps-act" disabled={!can} title={hint} onClick={() => townAction(b.id, "build", open ? invest : 1)}>
+                {label}
               </button>
             </div>
           );
