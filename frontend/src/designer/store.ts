@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import type { BiomeResourceDef, BuildingDef, DesignDoc, HeroClassDef, MapGenDef, MonsterDef, RecipeDef } from "./types";
-import { DESIGN_DOC_VERSION, seedDoc } from "./types";
+import { DESIGN_DOC_VERSION, normalizeDoc, seedDoc } from "./types";
 
 // Designer store — separate from the game store, like the map editor's. The doc is
 // autosaved to localStorage (debounced) and restored on load, so a refresh never
@@ -16,7 +16,7 @@ function loadSavedDoc(): DesignDoc {
     if (!raw) return seedDoc();
     const parsed = JSON.parse(raw);
     if (!parsed || !Array.isArray(parsed.buildings)) return seedDoc();
-    return { ...seedDoc(), ...parsed, version: parsed.version ?? DESIGN_DOC_VERSION };
+    return normalizeDoc({ ...seedDoc(), ...parsed, version: parsed.version ?? DESIGN_DOC_VERSION });
   } catch {
     return seedDoc();
   }
@@ -124,7 +124,7 @@ export const useDesigner = create<DesignerState>((set, get) => {
         setDoc({ ...doc, resources: [...doc.resources, r] });
       } else {
         const id = freshId("nouveau-monstre", doc.monsters.map((m) => m.id));
-        const m: MonsterDef = { id, name: "Nouveau monstre", icon: "👾", appearance: "mob-slime", hp: 8, stats: { force: 2, dexterite: 0, agilite: 2, endurance: 2, athletisme: 0, precision: 2 }, packMin: 1, packMax: 2, biomes: [], special: "", drops: [], notes: "" };
+        const m: MonsterDef = { id, name: "Nouveau monstre", icon: "👾", appearance: "mob-slime", hp: 8, stats: { force: 2, dexterite: 0, agilite: 2, endurance: 2, athletisme: 0, precision: 2 }, packMin: 1, packMax: 2, biomes: [], attacks: [], drops: [], notes: "" };
         setDoc({ ...doc, monsters: [...doc.monsters, m] });
       }
       const s = get();
@@ -160,7 +160,7 @@ export const useDesigner = create<DesignerState>((set, get) => {
       get().select(null);
     },
 
-    importDoc: (doc) => setDoc({ ...seedDoc(), ...doc, version: doc.version ?? DESIGN_DOC_VERSION }),
+    importDoc: (doc) => setDoc(normalizeDoc({ ...seedDoc(), ...doc, version: doc.version ?? DESIGN_DOC_VERSION })),
     resetSeed: () => setDoc(seedDoc()),
   };
 });

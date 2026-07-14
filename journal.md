@@ -6,6 +6,33 @@
 
 ---
 
+## 2026-07-14 (9) — Studio : onglet 🌍 Génération + grilles d'attaque GDD (monstres & héros)
+
+### Fait
+- **Onglet 🌍 Génération de maps** : paramètres Perlin (seed + 🎲, dimensions, échelle, octaves,
+  persistance, hauteur max) + **LISSAGE** demandé — « écart max entre voisins » : abaissement itératif
+  des pics jusqu'à ce qu'aucune case ne dépasse sa voisine de plus de N niveaux (N=1 → une montagne
+  niv. 6 ne peut jamais toucher une plaine niv. 0 ; les biomes sont recalculés sur la hauteur lissée
+  donc les transitions suivent les pentes). Seuils de biomes ajustables (ordre auto-préservé), nombre
+  de packs. **Aperçu canvas 4 vues** : Terrain (relief ombré), Hauteurs, Ressources (richesse des
+  tables de l'onglet 🌿), Monstres (spawns en anneaux selon les terrains d'apparition de l'onglet 👹).
+  Défauts = worldgen.go (0.08/3 octaves/seuils GDD/hauteur 6). Contrainte vérifiée numériquement en
+  e2e. ⚠ Perlin JS ≠ bit-à-bit go-perlin : l'aperçu montre le style, l'export pilote l'implémentation.
+- **Grilles d'attaque façon GDD** (planches Harpies/Dryades) : `AttackDef {name, kind base|special,
+  pa, desc, effects, targets[], damage[]}` sur les monstres (liste d'attaques remplaçant le champ
+  `special`, migré par `normalizeDoc`) et `targets/damage` optionnels sur les pouvoirs `iso` des
+  classes. `GridShapeEditor` 7×7 cliquable : **ciblage vert** relatif à l'attaquant ⚔️, **zone de
+  dégâts rouge** relative à la case touchée 🎯 (toujours incluse), presets mêlée/portée 3/vider.
+  Seeds = combat.go (mêlée pour tous ; Colonne de Vent portée 3 + Stun ; Tir de zone du chasseur avec
+  dégâts en croix).
+
+### Fonctionnel (vérifié)
+- E2E : lissage maxStep 1→écart max 1, 3→2 ; 4 éditeurs de grilles sur l'élémentaire (2 attaques),
+  clic d'une case de dégâts → `{dx:1,dy:0}` dans le doc ; classes : grilles uniquement sur le pouvoir
+  iso. `tsc -b` + `npm run build` OK, `test:perf` 13/13.
+
+---
+
 ## 2026-07-14 (8) — Studio de données : onglets Ressources (fouille par biome) et Monstres
 
 ### Fait

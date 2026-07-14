@@ -48,12 +48,46 @@ export interface StatsDef {
   precision: number;
 }
 
+// One cell offset of a targeting/damage shape, relative to its anchor (the
+// attacker for `targets`, the struck cell for `damage`) — GDD-style grids.
+export interface GridCell {
+  dx: number;
+  dy: number;
+}
+
+// Iso-combat targeting helpers (Manhattan distance, like the combat engine).
+export const manhattanCells = (min: number, max: number): GridCell[] => {
+  const out: GridCell[] = [];
+  for (let dy = -max; dy <= max; dy++)
+    for (let dx = -max; dx <= max; dx++) {
+      const d = Math.abs(dx) + Math.abs(dy);
+      if (d >= min && d <= max) out.push({ dx, dy });
+    }
+  return out;
+};
+
+// An attack / combat ability with its GDD-style grids: `targets` = the cells the
+// attacker can aim at (green grid), `damage` = the impact zone around the struck
+// cell (red grid; empty = only the struck cell).
+export interface AttackDef {
+  name: string;
+  kind: "base" | "special";
+  pa: number;
+  desc: string;
+  effects: string; // dégâts, états infligés (Stun, Root…)
+  targets: GridCell[];
+  damage: GridCell[];
+}
+
 export interface SkillDef {
   name: string;
   scope: "map" | "iso"; // pouvoir sur la carte du monde vs en combat isométrique
   pa: number; // cost when activated (0 = passif)
   desc: string;
   effects: string; // numbers/mechanics for the implementation
+  // Iso-combat grids (scope "iso" only): ciblage + zone de dégâts.
+  targets?: GridCell[];
+  damage?: GridCell[];
 }
 
 export interface HeroClassDef {
@@ -106,7 +140,7 @@ export interface MonsterDef {
   packMin: number; // pack size range at spawn (grows with waves/players)
   packMax: number;
   biomes: string[]; // biome ids where it can spawn
-  special: string; // combat special (name + effect)
+  attacks: AttackDef[]; // base attack + specials, with iso targeting/damage grids
   drops: ResourceDrop[]; // loot when the pack is defeated
   notes: string;
 }
@@ -188,11 +222,11 @@ const seedRecipes = (): RecipeDef[] => [
 const seedClasses = (): HeroClassDef[] => [
   { id: "pionnier", name: "Pionnier", tier: 1, day: 2, requires: [], role: "Robuste et débrouillard, il ouvre la voie et affronte les obstacles de front.", bonuses: { ...emptyStats(), force: 5, endurance: 3 }, paBonus: 1, skills: [
     { name: "Poussée du Survivant", scope: "map", pa: 1, desc: "Force un passage là où les autres doivent contourner.", effects: "ignore 1 case bloquée" },
-    { name: "Frappe de la mort qui tue", scope: "iso", pa: 2, desc: "Attaque puissante.", effects: "+5 dégâts" },
+    { name: "Frappe de la mort qui tue", scope: "iso", pa: 2, desc: "Attaque puissante.", effects: "+5 dégâts", targets: manhattanCells(1, 1), damage: [] },
   ], appearance: { map: "char-builder", icon: "char-builder" } },
   { id: "chasseur", name: "Chasseur", tier: 1, day: 2, requires: [], role: "Traqueur précis qui trouve et élimine sa cible.", bonuses: { ...emptyStats(), dexterite: 5, agilite: 3, endurance: 2 }, paBonus: 1, skills: [
     { name: "Tir précis", scope: "map", pa: 1, desc: "Élimine un monstre affaibli sur sa case.", effects: "tue si PV pack ≤ 5" },
-    { name: "Tir de zone", scope: "iso", pa: 2, desc: "Dégâts de zone.", effects: "+3 dégâts par case touchée" },
+    { name: "Tir de zone", scope: "iso", pa: 2, desc: "Dégâts de zone.", effects: "+3 dégâts par case touchée", targets: manhattanCells(2, 3), damage: [{ dx: 0, dy: 0 }, ...manhattanCells(1, 1)] },
   ], appearance: { map: "char-archer", icon: "char-archer" } },
   { id: "eclaireur", name: "Éclaireur", tier: 1, day: 2, requires: [], role: "Discret et rapide, il voit loin et repère les dangers avant les autres.", bonuses: { ...emptyStats(), athletisme: 5, agilite: 3, endurance: 2 }, paBonus: 0, skills: [
     { name: "Observation Large", scope: "map", pa: 0, desc: "Vision étendue autour de lui.", effects: "+1 case de vision (passif)" },
@@ -200,7 +234,7 @@ const seedClasses = (): HeroClassDef[] => [
   ], appearance: { map: "char-scout", icon: "char-scout" } },
   { id: "gardien", name: "Gardien", tier: 2, day: 4, requires: ["pionnier"], role: "Protecteur du groupe et du territoire : encaisse et sécurise les zones dangereuses.", bonuses: { ...emptyStats(), force: 5, endurance: 3 }, paBonus: 1, skills: [
     { name: "Rassure", scope: "map", pa: 0, desc: "Compte pour 3 héros face à une horde.", effects: "poids 3 dans le calcul Tétanisé (passif)" },
-    { name: "Posture défensive", scope: "iso", pa: 1, desc: "Réduit les dégâts subis.", effects: "-50% dégâts jusqu'au prochain tour" },
+    { name: "Posture défensive", scope: "iso", pa: 1, desc: "Réduit les dégâts subis.", effects: "-50% dégâts jusqu'au prochain tour", targets: [{ dx: 0, dy: 0 }], damage: [] },
   ], appearance: { map: "char-knight", icon: "char-knight" } },
   { id: "recuperateur", name: "Récupérateur", tier: 2, day: 4, requires: ["chasseur", "eclaireur"], role: "Récupère tout ce qui traîne : fragments, restes, débris, matériaux et objets tombés.", bonuses: { ...emptyStats(), athletisme: 5, agilite: 3, endurance: 2 }, paBonus: 1, skills: [
     { name: "Sac élargi", scope: "map", pa: 0, desc: "Transporte plus lors d'une fouille.", effects: "+1 ressource par fouille (passif)" },
@@ -226,11 +260,24 @@ const seedResources = (): BiomeResourceDef[] => [
 ];
 
 // Species mirror monsters.go (stats/PV/pack) and combat.go SkillFor (specials);
-// defeat loot is today a single generic trophy (actions.go).
+// defeat loot is today a single generic trophy (actions.go). Attack grids: base
+// attacks are melee (4 orthogonal cells); the wind elemental's special reaches 3.
+const melee = manhattanCells(1, 1);
+const atk = (name: string, kind: "base" | "special", pa: number, desc: string, effects: string, targets: GridCell[], damage: GridCell[] = []): AttackDef => ({ name, kind, pa, desc, effects, targets, damage });
+
 const seedMonsters = (): MonsterDef[] => [
-  { id: "slime", name: "Slime Vorace", icon: "🟣", appearance: "mob-slime", hp: 9, stats: { ...emptyStats(), force: 2, agilite: 1, endurance: 4, precision: 2 }, packMin: 1, packMax: 2, biomes: ["sand", "grass", "forest", "mountain", "snow"], special: "Absorbe (mêlée) : régénère en absorbant sa cible", drops: [drop("animal", "Trophée de monstre")], notes: "" },
-  { id: "goblin", name: "Goblin Pillard", icon: "👺", appearance: "mob-goblin", hp: 6, stats: { ...emptyStats(), force: 4, agilite: 4, endurance: 1, precision: 2 }, packMin: 1, packMax: 2, biomes: ["sand", "grass", "forest", "mountain", "snow"], special: "Tranche vicieuse (mêlée)", drops: [drop("animal", "Trophée de monstre")], notes: "" },
-  { id: "windelemental", name: "Elementaire de Vent", icon: "🌀", appearance: "mob-windelemental", hp: 10, stats: { ...emptyStats(), dexterite: 2, agilite: 3, endurance: 5, precision: 2 }, packMin: 1, packMax: 2, biomes: ["sand", "grass", "forest", "mountain", "snow"], special: "Colonne de Vent (portée 3) : étourdit (Stun)", drops: [drop("animal", "Trophée de monstre")], notes: "" },
+  { id: "slime", name: "Slime Vorace", icon: "🟣", appearance: "mob-slime", hp: 9, stats: { ...emptyStats(), force: 2, agilite: 1, endurance: 4, precision: 2 }, packMin: 1, packMax: 2, biomes: ["sand", "grass", "forest", "mountain", "snow"], attacks: [
+    atk("Coup gluant", "base", 1, "Attaque de mêlée.", "dégâts = force", melee),
+    atk("Absorbe", "special", 1, "Régénère en absorbant sa cible.", "dégâts + soin égal aux dégâts infligés", melee),
+  ], drops: [drop("animal", "Trophée de monstre")], notes: "" },
+  { id: "goblin", name: "Goblin Pillard", icon: "👺", appearance: "mob-goblin", hp: 6, stats: { ...emptyStats(), force: 4, agilite: 4, endurance: 1, precision: 2 }, packMin: 1, packMax: 2, biomes: ["sand", "grass", "forest", "mountain", "snow"], attacks: [
+    atk("Coup de dague", "base", 1, "Attaque de mêlée.", "dégâts = force", melee),
+    atk("Tranche vicieuse", "special", 1, "Frappe sournoise en mêlée.", "dégâts +2", melee),
+  ], drops: [drop("animal", "Trophée de monstre")], notes: "" },
+  { id: "windelemental", name: "Elementaire de Vent", icon: "🌀", appearance: "mob-windelemental", hp: 10, stats: { ...emptyStats(), dexterite: 2, agilite: 3, endurance: 5, precision: 2 }, packMin: 1, packMax: 2, biomes: ["sand", "grass", "forest", "mountain", "snow"], attacks: [
+    atk("Souffle", "base", 1, "Attaque de mêlée.", "dégâts = force", melee),
+    atk("Colonne de Vent", "special", 1, "Colonne d'air à distance.", "dégâts + Stun", manhattanCells(1, 3)),
+  ], drops: [drop("animal", "Trophée de monstre")], notes: "" },
 ];
 
 // Defaults mirror the current worldgen.go (scale 0.08, 3 octaves, GDD thresholds,
@@ -251,6 +298,29 @@ const seedMapGen = (): MapGenDef => ({
 });
 
 export const DESIGN_DOC_VERSION = 1;
+
+// Migrate older saved/imported docs in place: monsters used to carry a free-text
+// `special` instead of the attacks list with targeting grids.
+export function normalizeDoc(d: DesignDoc): DesignDoc {
+  d.monsters = (d.monsters ?? []).map((m) => {
+    const legacy = m as MonsterDef & { special?: string };
+    if (!Array.isArray(m.attacks)) {
+      m.attacks = [
+        atk("Attaque de base", "base", 1, "Attaque de mêlée.", "dégâts = force", manhattanCells(1, 1)),
+        ...(legacy.special
+          ? [atk("Spécial", "special", 1, legacy.special, "", manhattanCells(1, 1))]
+          : []),
+      ];
+    }
+    delete legacy.special;
+    return m;
+  });
+  d.classes = (d.classes ?? []).map((c) => ({
+    ...c,
+    skills: (c.skills ?? []).map((s) => ({ targets: s.targets, damage: s.damage, ...s })),
+  }));
+  return d;
+}
 
 export function seedDoc(): DesignDoc {
   return {

@@ -546,9 +546,16 @@ par bâtiment), **🧙 Classes** (palier/jour/prérequis entre classes, rôle, b
 pouvoirs `{name, scope map|iso, pa, desc, effects}`, apparence `{map, icon}` = assets `characters/`
 avec préviews), **🌿 Ressources** (par biome : praticable/fouillable, richesse min–max à la génération,
 **table de fouille** `ResourceDrop {type,name,qty,weight}` — weight = pondération du tirage),
-**👹 Monstres** (PV/stats/pack min–max, **terrains d'apparition** = checkboxes des biomes, pouvoir
-spécial combat, **loot de pack vaincu** en drops pondérés, apparence = asset `monsters/` avec préview).
-Supprimer un biome le retire des terrains d'apparition des monstres. Fichiers : `types.ts` (schémas + **seeds = données actuelles du jeu**, miroir de
+**👹 Monstres** (PV/stats/pack min–max, **terrains d'apparition** = checkboxes des biomes, **attaques**
+avec grilles GDD, **loot de pack vaincu** en drops pondérés, apparence = asset `monsters/` avec préview),
+**🌍 Génération** (Perlin paramétré : seed/échelle/octaves/persistance/hauteur max + **lissage** = écart
+de hauteur max entre voisins [abaissement itératif], seuils de biomes, packs — aperçu canvas 4 vues :
+Terrain/Hauteurs/Ressources/Monstres alimentées par les autres onglets ; défauts = worldgen.go).
+**Grilles d'attaque GDD** (`AttackDef`/`SkillDef.targets+damage`, `GridShapeEditor` 7×7) : ciblage VERT
+relatif à l'attaquant ⚔️ + zone de dégâts ROUGE relative à la case touchée 🎯 (toujours incluse) — sur
+les attaques des monstres ET les pouvoirs `iso` des classes ; presets mêlée/portée 3 ; migration douce
+des docs sauvegardés (`normalizeDoc` : ancien champ `special` → attaque). Supprimer un biome le retire
+des terrains d'apparition des monstres. Fichiers : `types.ts` (schémas + **seeds = données actuelles du jeu**, miroir de
 town.go/craft.go/classes.go), `store.ts` (zustand, autosave localStorage `echoterra:designer:doc`,
 hook DEV `window.__dd`), `DesignerScreen.tsx` (liste + **arbre SVG** par profondeur de prérequis +
 inspecteur), `designer.css`. **Export JSON** (tout ou par onglet, `echoterra-design-*.json`) →

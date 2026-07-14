@@ -2,9 +2,11 @@ import { useMemo, useRef } from "react";
 import { useStore } from "../store";
 import { useDesigner, type DesignTab } from "./store";
 import type {
+  AttackDef,
   BiomeResourceDef,
   BuildingDef,
   DesignDoc,
+  GridCell,
   HeroClassDef,
   MaterialCost,
   MonsterDef,
@@ -12,6 +14,7 @@ import type {
   ResourceDrop,
   SkillDef,
 } from "./types";
+import { manhattanCells } from "./types";
 import { ALL_ASSETS } from "../editor/assetIndex";
 import { MapGenPane } from "./MapGenPane";
 import "./designer.css";
@@ -109,6 +112,62 @@ function DropsList({
       <button className="dz-add" onClick={() => onChange([...items, { type: "objet", name: "Bois", qty: 1, weight: 1 }])}>
         ＋ {addLabel}
       </button>
+    </div>
+  );
+}
+
+// GDD-style shape editor: a 7×7 clickable grid of offsets around an anchor.
+// mode "target" (green, anchor = the attacker ⚔️) or "damage" (red, anchor = the
+// struck cell 🎯 — always hit, shown solid).
+const GRID_R = 3;
+function GridShapeEditor({
+  label,
+  cells,
+  onChange,
+  mode,
+}: {
+  label: string;
+  cells: GridCell[];
+  onChange: (next: GridCell[]) => void;
+  mode: "target" | "damage";
+}) {
+  const has = (dx: number, dy: number) => cells.some((c) => c.dx === dx && c.dy === dy);
+  const toggle = (dx: number, dy: number) => {
+    if (dx === 0 && dy === 0 && mode === "damage") return; // the struck cell is always hit
+    onChange(has(dx, dy) ? cells.filter((c) => !(c.dx === dx && c.dy === dy)) : [...cells, { dx, dy }]);
+  };
+  const rows = [];
+  for (let dy = -GRID_R; dy <= GRID_R; dy++) {
+    const cols = [];
+    for (let dx = -GRID_R; dx <= GRID_R; dx++) {
+      const centre = dx === 0 && dy === 0;
+      const on = has(dx, dy) || (centre && mode === "damage");
+      cols.push(
+        <button
+          key={dx}
+          className={`dz-gcell ${on ? `on ${mode}` : ""} ${centre ? "centre" : ""}`}
+          title={centre ? (mode === "target" ? "Attaquant" : "Case touchée") : `${dx},${dy}`}
+          onClick={() => toggle(dx, dy)}
+        >
+          {centre ? (mode === "target" ? "⚔️" : "🎯") : ""}
+        </button>,
+      );
+    }
+    rows.push(
+      <div className="dz-grow" key={dy}>
+        {cols}
+      </div>,
+    );
+  }
+  return (
+    <div className={`dz-grid ${mode}`}>
+      <span className="dz-grid-label">{label}</span>
+      <div className="dz-gwrap">{rows}</div>
+      <div className="dz-grid-tools">
+        <button className="dz-add" onClick={() => onChange(manhattanCells(1, 1))}>mêlée</button>
+        <button className="dz-add" onClick={() => onChange(manhattanCells(1, 3))}>portée 3</button>
+        <button className="dz-add" onClick={() => onChange([])}>vider</button>
+      </div>
     </div>
   );
 }
@@ -444,11 +503,29 @@ function ClassForm({ c }: { c: HeroClassDef }) {
           </div>
           <Field label="Description"><input value={s.desc} onChange={(e) => upSkill(i, { desc: e.target.value })} /></Field>
           <Field label="Effets (mécanique)"><input value={s.effects} onChange={(e) => upSkill(i, { effects: e.target.value })} /></Field>
+          {s.scope === "iso" && (
+            <div className="dz-grids">
+              <GridShapeEditor
+                label="Ciblage (depuis le héros)"
+                mode="target"
+                cells={s.targets ?? []}
+                onChange={(targets) => upSkill(i, { targets })}
+              />
+              <GridShapeEditor
+                label="Zone de dégâts (autour de la case touchée)"
+                mode="damage"
+                cells={s.damage ?? []}
+                onChange={(damage) => upSkill(i, { damage })}
+              />
+            </div>
+          )}
         </div>
       ))}
       <button
         className="dz-add"
-        onClick={() => up({ skills: [...c.skills, { name: "Nouveau pouvoir", scope: "map", pa: 1, desc: "", effects: "" }] })}
+        onClick={() =>
+          up({ skills: [...c.skills, { name: "Nouveau pouvoir", scope: "iso", pa: 1, desc: "", effects: "", targets: manhattanCells(1, 1), damage: [] }] })
+        }
       >
         ＋ Ajouter un pouvoir
       </button>
@@ -552,7 +629,47 @@ function MonsterForm({ m }: { m: MonsterDef }) {
           </label>
         ))}
       </div>
-      <Field label="Pouvoir spécial (combat)"><input value={m.special} onChange={(e) => up({ special: e.target.value })} /></Field>
+      <h4>Attaques (combat iso)</h4>
+      {m.attacks.map((a, i) => {
+        const upAtk = (patch: Partial<AttackDef>) =>
+          up({ attacks: m.attacks.map((x, j) => (j === i ? { ...x, ...patch } : x)) });
+        return (
+          <div className="dz-level" key={i}>
+            <div className="dz-level-head">
+              <input className="dz-skill-name" value={a.name} onChange={(e) => upAtk({ name: e.target.value })} />
+              <button className="dz-x" onClick={() => up({ attacks: m.attacks.filter((_, j) => j !== i) })}>✕</button>
+            </div>
+            <div className="dz-form-head">
+              <Field label="Type">
+                <select value={a.kind} onChange={(e) => upAtk({ kind: e.target.value as "base" | "special" })}>
+                  <option value="base">attaque de base</option>
+                  <option value="special">compétence spéciale</option>
+                </select>
+              </Field>
+              <Field label="PA"><input type="number" min={0} value={a.pa} onChange={(e) => upAtk({ pa: Number(e.target.value) || 0 })} /></Field>
+            </div>
+            <Field label="Description"><input value={a.desc} onChange={(e) => upAtk({ desc: e.target.value })} /></Field>
+            <Field label="Effets (dégâts, états…)"><input value={a.effects} onChange={(e) => upAtk({ effects: e.target.value })} /></Field>
+            <div className="dz-grids">
+              <GridShapeEditor label="Ciblage (depuis l'attaquant)" mode="target" cells={a.targets} onChange={(targets) => upAtk({ targets })} />
+              <GridShapeEditor label="Zone de dégâts (autour de la case touchée)" mode="damage" cells={a.damage} onChange={(damage) => upAtk({ damage })} />
+            </div>
+          </div>
+        );
+      })}
+      <button
+        className="dz-add"
+        onClick={() =>
+          up({
+            attacks: [
+              ...m.attacks,
+              { name: "Nouvelle attaque", kind: m.attacks.length === 0 ? "base" : "special", pa: 1, desc: "", effects: "", targets: manhattanCells(1, 1), damage: [] },
+            ],
+          })
+        }
+      >
+        ＋ Ajouter une attaque
+      </button>
       <h4>Loot (pack vaincu)</h4>
       <DropsList items={m.drops} addLabel="Loot" onChange={(drops) => up({ drops })} />
       <h4>Apparence</h4>
@@ -741,7 +858,9 @@ export function DesignerScreen() {
                 <span className="dz-node-sub">
                   {m.hp} PV · pack {m.packMin}–{m.packMax} · {m.biomes.length ? m.biomes.join(", ") : "aucun terrain"}
                 </span>
-                <span className="dz-node-sub">🎁 {dropsSummary(m.drops)}</span>
+                <span className="dz-node-sub">
+                  🗡 {m.attacks.map((a) => a.name).join(", ") || "aucune attaque"} · 🎁 {dropsSummary(m.drops)}
+                </span>
               </button>
             ))}
           </div>
