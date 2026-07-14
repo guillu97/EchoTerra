@@ -536,6 +536,21 @@ canvas2d** so the SAME `drawMap()` feeds both the live canvas and the PNG export
   `preview_screenshot` of the editor times out (a pending rAF never goes idle). Verify the renderer instead via
   `window.__edExport.renderDocToCanvas(doc)` → inspect pixels, or inject the data-URL into a non-canvas page.
 
+## 7c. Studio de données (dev tool — `frontend/src/designer/`)
+
+**But** : éditer le game design en JSON — bouton 🧬 **Données** sur l'écran titre ou hash `#designer`
+(`appScreen === "designer"`, hors shell). Trois onglets : **🏗️ Bâtiments** (arbre techno : prérequis
+`{building, level}`, niveaux avec PA + matériaux + effets, `startsBuilt`), **⚒️ Craft** (recettes :
+bâtiment requis + niveau, `field`, PA, ingrédients, produit `{type,name,qty}`, effets — vue groupée
+par bâtiment), **🧙 Classes** (palier/jour/prérequis entre classes, rôle, bonus de stats + PA,
+pouvoirs `{name, scope map|iso, pa, desc, effects}`, apparence `{map, icon}` = assets `characters/`
+avec préviews). Fichiers : `types.ts` (schémas + **seeds = données actuelles du jeu**, miroir de
+town.go/craft.go/classes.go), `store.ts` (zustand, autosave localStorage `echoterra:designer:doc`,
+hook DEV `window.__dd`), `DesignerScreen.tsx` (liste + **arbre SVG** par profondeur de prérequis +
+inspecteur), `designer.css`. **Export JSON** (tout ou par onglet, `echoterra-design-*.json`) →
+l'utilisateur me redonne le fichier pour implémentation serveur ; import accepte doc complet ou
+partiel (une seule des trois clés). ♻️ Reset = re-seed depuis les valeurs du jeu.
+
 ## 8. Conventions & gotchas
 
 - **CSS class collision**: do NOT use `town` as a tag/utility modifier — it collides with `.town

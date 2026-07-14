@@ -1,0 +1,401 @@
+/* Game-design data studio — dark full-screen dev tool (like the map editor). */
+
+.dz-screen {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: #10151f;
+  color: #e8edf6;
+  font-family: "Segoe UI", system-ui, sans-serif;
+  z-index: 100;
+}
+
+/* toolbar */
+.dz-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #171e2b;
+  border-bottom: 1px solid #2a3550;
+  flex-wrap: wrap;
+}
+.dz-title {
+  font-weight: 800;
+  margin-right: 8px;
+}
+.dz-tabs {
+  display: flex;
+  gap: 4px;
+}
+.dz-spacer {
+  flex: 1;
+}
+.dz-btn {
+  background: #232c40;
+  color: #e8edf6;
+  border: 1px solid #33405e;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.dz-btn:hover {
+  border-color: #4c5f8c;
+}
+.dz-btn.tab.on {
+  background: #31548f;
+  border-color: #4a79c8;
+}
+.dz-btn.primary {
+  background: #2e6b3f;
+  border-color: #3f9c58;
+}
+.dz-btn.danger {
+  background: #5c2726;
+  border-color: #8c3b39;
+}
+
+/* body: list | tree | inspector */
+.dz-body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+.dz-list {
+  width: 230px;
+  flex: none;
+  overflow-y: auto;
+  border-right: 1px solid #2a3550;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.dz-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #1a2233;
+  border: 1px solid #2a3550;
+  border-radius: 8px;
+  padding: 7px 8px;
+  color: #e8edf6;
+  cursor: pointer;
+  text-align: left;
+}
+.dz-item.sel {
+  border-color: #f0c420;
+  background: #2a2c22;
+}
+.dz-item-ic {
+  font-size: 18px;
+}
+.dz-item-tx {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+  min-width: 0;
+}
+.dz-item-tx b {
+  font-size: 13px;
+}
+.dz-item-tx i {
+  font-size: 11px;
+  color: #8fa1c0;
+  font-style: normal;
+}
+
+/* tree */
+.dz-tree {
+  flex: 1;
+  overflow: auto;
+  position: relative;
+  background:
+    radial-gradient(circle at 1px 1px, #1c2536 1px, transparent 1px) 0 0 / 22px 22px,
+    #131a28;
+}
+.dz-tree-canvas {
+  position: relative;
+}
+.dz-edges {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+}
+.dz-edge {
+  fill: none;
+  stroke: #4c5f8c;
+  stroke-width: 2;
+}
+.dz-edge-label {
+  fill: #8fa1c0;
+  font-size: 10px;
+  text-anchor: middle;
+}
+.dz-node {
+  position: absolute;
+  width: 178px;
+  height: 56px;
+  background: #1e2a41;
+  border: 1px solid #33507e;
+  border-radius: 10px;
+  color: #e8edf6;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 3px;
+  padding: 4px 10px;
+  text-align: left;
+}
+.dz-node.sel {
+  border-color: #f0c420;
+  box-shadow: 0 0 0 2px rgba(240, 196, 32, 0.35);
+}
+.dz-node.root {
+  background: #1a2233;
+  border-style: dashed;
+  justify-content: center;
+  cursor: default;
+}
+.dz-node-name {
+  font-weight: 700;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.dz-node-sub {
+  font-size: 10.5px;
+  color: #8fa1c0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+/* recipes grouped view */
+.dz-recipe-groups {
+  padding: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 14px;
+}
+.dz-group {
+  background: #16203280;
+  border: 1px solid #2a3550;
+  border-radius: 12px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 220px;
+}
+.dz-group-title {
+  font-weight: 800;
+  font-size: 13px;
+}
+.dz-node.recipe {
+  position: static;
+  width: 240px;
+  height: auto;
+  padding: 8px 10px;
+}
+
+/* inspector */
+.dz-inspector {
+  width: 380px;
+  flex: none;
+  overflow-y: auto;
+  border-left: 1px solid #2a3550;
+  padding: 12px;
+}
+.dz-empty {
+  color: #8fa1c0;
+  font-size: 13px;
+  padding: 20px 8px;
+  line-height: 1.6;
+}
+.dz-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.dz-form h4 {
+  margin: 10px 0 2px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #8fa1c0;
+}
+.dz-form-head {
+  display: flex;
+  gap: 8px;
+}
+.dz-form-head .dz-field {
+  flex: 1;
+  min-width: 0;
+}
+.dz-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 11px;
+  color: #8fa1c0;
+}
+.dz-field input,
+.dz-field select,
+.dz-field textarea,
+.dz-cost-row input,
+.dz-cost-row select,
+.dz-skill-name {
+  background: #101724;
+  border: 1px solid #33405e;
+  border-radius: 6px;
+  color: #e8edf6;
+  padding: 6px 8px;
+  font-size: 13px;
+  width: 100%;
+  box-sizing: border-box;
+}
+.dz-field textarea {
+  min-height: 54px;
+  resize: vertical;
+}
+.dz-icon {
+  width: 100%;
+  text-align: center;
+}
+.dz-check {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.dz-costs {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.dz-cost-row {
+  display: flex;
+  gap: 5px;
+}
+.dz-cost-row input[type="number"] {
+  width: 64px;
+  flex: none;
+}
+.dz-x {
+  background: #33202a;
+  color: #ff9b8f;
+  border: 1px solid #5c3038;
+  border-radius: 6px;
+  cursor: pointer;
+  padding: 0 8px;
+  flex: none;
+}
+.dz-add {
+  background: #1c2c3d;
+  color: #9fd8ef;
+  border: 1px dashed #33607e;
+  border-radius: 6px;
+  padding: 5px 8px;
+  cursor: pointer;
+  font-size: 12px;
+  align-self: flex-start;
+}
+.dz-del {
+  margin-top: 14px;
+  background: #3a1d1d;
+  color: #ff9b8f;
+  border: 1px solid #6b2f2c;
+  border-radius: 8px;
+  padding: 8px;
+  cursor: pointer;
+}
+.dz-level {
+  background: #16203280;
+  border: 1px solid #2a3550;
+  border-radius: 10px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.dz-level-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+}
+.dz-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+.dz-req-classes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+.dz-appearance {
+  display: flex;
+  gap: 10px;
+}
+.dz-app-slot {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  background: #16203280;
+  border: 1px solid #2a3550;
+  border-radius: 10px;
+  padding: 8px;
+}
+.dz-app-label {
+  font-size: 11px;
+  color: #8fa1c0;
+}
+.dz-app-slot img {
+  width: 84px;
+  height: 84px;
+  object-fit: contain;
+  image-rendering: auto;
+  background: #101724;
+  border-radius: 8px;
+}
+.dz-app-slot select {
+  width: 100%;
+  background: #101724;
+  border: 1px solid #33405e;
+  border-radius: 6px;
+  color: #e8edf6;
+  padding: 5px;
+  font-size: 12px;
+}
+
+/* narrow screens: stack panes */
+@media (max-width: 900px) {
+  .dz-body {
+    flex-direction: column;
+    overflow-y: auto;
+  }
+  .dz-list,
+  .dz-inspector {
+    width: auto;
+    border: none;
+    border-bottom: 1px solid #2a3550;
+  }
+  .dz-tree {
+    min-height: 260px;
+  }
+}

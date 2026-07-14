@@ -7,9 +7,11 @@ import { useStore } from "./store";
 // Probe which generated assets exist so components can swap emoji → real images.
 detectAvailableAssets();
 
-// Dev shortcut: open the map editor directly via the #editor URL hash.
+// Dev shortcuts: open the map editor / data studio directly via the URL hash.
 const applyHash = () => {
-  if (location.hash.replace("#", "") === "editor") useStore.getState().setScreen("editor");
+  const h = location.hash.replace("#", "");
+  if (h === "editor") useStore.getState().setScreen("editor");
+  if (h === "designer") useStore.getState().setScreen("designer");
 };
 window.addEventListener("hashchange", applyHash);
 // Defer one tick so the store is initialized before we flip the screen.

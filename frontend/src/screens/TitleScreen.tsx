@@ -60,6 +60,9 @@ export function TitleScreen() {
           <button className="pill dev-pill" onClick={() => setScreen("editor")}>
             🗺️ Éditeur
           </button>
+          <button className="pill dev-pill" onClick={() => setScreen("designer")}>
+            🧬 Données
+          </button>
           <button className="pill dev-pill" onClick={() => pushLog("Classement — bientôt")}>
             🏆 Classement
           </button>

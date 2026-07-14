@@ -6,6 +6,37 @@
 
 ---
 
+## 2026-07-14 (7) — Studio de données : arbres techno bâtiments/craft/classes éditables + export JSON
+
+### Fait
+- **Nouvel outil dev `frontend/src/designer/`** (« 🧬 Données » sur l'écran titre, hash `#designer`),
+  dans l'esprit de l'éditeur de carte : trois catalogues de game design édités visuellement et
+  **exportables en JSON** (tout ou par onglet) pour me les redonner à implémenter.
+  1. **Bâtiments** : arbre technologique (prérequis bâtiment+niveau, rendus en arbre SVG par colonnes
+     de profondeur avec flèches étiquetées), niveaux de construction/amélioration avec PA + matériaux
+     + effets, drapeau « construit dès le départ ».
+  2. **Craft** : recettes avec bâtiment requis (+ niveau min), craft d'expédition (`field`), PA,
+     ingrédients, produit (type/nom/qté) et **effets** ; vue centrale groupée par bâtiment.
+  3. **Classes** : palier (1/2) + jour requis + **prérequis entre classes** (arbre SVG depuis « Sans
+     classe »), rôle, bonus de stats (6) + bonus PA, **pouvoirs** (portée map|iso, PA 0 = passif,
+     description + effets mécaniques), **apparence** (sprite carte + icône fiche perso, choisis parmi
+     les assets characters/heroes/npc avec préviews).
+- Seeds = les valeurs ACTUELLES du jeu (town.go/craft.go/classes.go) pour partir du réel ; autosave
+  localStorage (`echoterra:designer:doc`), import JSON (complet ou partiel), ♻️ Reset re-seed.
+
+### Fonctionnel (vérifié)
+- E2E : arbre bâtiments 9 nœuds/4 arêtes, édition d'un PA reflétée dans le doc ET après reload
+  (autosave), arbre classes 6 nœuds + préviews d'apparence, recettes groupées (Workshop/Kitchen),
+  « Exporter tout » télécharge `echoterra-design-*.json`. `tsc -b` + `npm run build` OK,
+  `test:perf` 13/13.
+
+### À faire
+- Quand tu me donnes tes JSON exportés : implémentation serveur (arbre techno dans town.go — les
+  prérequis n'existent pas encore en jeu —, recettes/effets dans craft.go, classes/pouvoirs/apparence
+  dans classes.go + assets.ts).
+
+---
+
 ## 2026-07-14 (6) — Dangerosité des packs : surbrillance jaune→rouge au lieu des ×N
 
 ### Fait

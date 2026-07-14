@@ -7,6 +7,7 @@ import { AccountScreen } from "./screens/AccountScreen";
 import { GameScreen } from "./screens/GameScreen";
 import { SettingsOverlay } from "./settings/SettingsOverlay";
 import { EditorScreen } from "./editor/EditorScreen";
+import { DesignerScreen } from "./designer/DesignerScreen";
 
 // The app shell is full-bleed at every viewport size: `.device` is simply the
 // full-viewport container (see app-shell.css) — the old phone/tablet frame on
@@ -15,8 +16,9 @@ export default function App() {
   const appScreen = useStore((s) => s.appScreen);
   const settingsScreen = useStore((s) => s.settingsScreen);
 
-  // The editor is a full-screen dev tool, rendered outside the app shell.
+  // The editor and the data studio are full-screen dev tools, outside the app shell.
   if (appScreen === "editor") return <EditorScreen />;
+  if (appScreen === "designer") return <DesignerScreen />;
 
   return (
     <div className="app-bg">
