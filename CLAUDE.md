@@ -539,28 +539,35 @@ canvas2d** so the SAME `drawMap()` feeds both the live canvas and the PNG export
 ## 7c. Studio de données (dev tool — `frontend/src/designer/`)
 
 **But** : éditer le game design en JSON — bouton 🧬 **Données** sur l'écran titre ou hash `#designer`
-(`appScreen === "designer"`, hors shell). Cinq onglets : **🏗️ Bâtiments** (arbre techno : prérequis
+(`appScreen === "designer"`, hors shell). Sept onglets : **🏗️ Bâtiments** (arbre techno : prérequis
 `{building, level}`, niveaux avec PA + matériaux + effets, `startsBuilt`), **⚒️ Craft** (recettes :
 bâtiment requis + niveau, `field`, PA, ingrédients, produit `{type,name,qty}`, effets — vue groupée
 par bâtiment), **🧙 Classes** (palier/jour/prérequis entre classes, rôle, bonus de stats + PA,
 pouvoirs `{name, scope map|iso, pa, desc, effects}`, apparence `{map, icon}` = assets `characters/`
-avec préviews), **🌿 Ressources** (par biome : praticable/fouillable, richesse min–max à la génération,
-**table de fouille** `ResourceDrop {type,name,qty,weight}` — weight = pondération du tirage),
-**👹 Monstres** (PV/stats/pack min–max, **terrains d'apparition** = checkboxes des biomes, **attaques**
-avec grilles GDD, **loot de pack vaincu** en drops pondérés, apparence = asset `monsters/` avec préview),
+avec préviews), **⛰️ Terrains** (`TerrainDef`, par biome : praticable/fouillable, richesse min–max à la
+génération, **table de fouille** `ResourceDrop {type,name,qty,weight}` — weight = pondération du tirage),
+**📦 Ressources** (`ResourceItemDef` — **le catalogue d'objets** `{id,name,icon,type,desc}` groupé par
+catégorie `RESOURCE_CATEGORIES` [objet/minerai/plante/animal/eau/aliment/consommable/arme/deco] ;
+**toutes les saisies d'objet ailleurs sont des dropdowns `ResourceSelect`** groupés par catégorie —
+drops des terrains, loots de monstres, matériaux de bâtiments, ingrédients + produit des recettes ;
+une valeur hors catalogue s'affiche « ⚠ … (hors catalogue) » ; renommer un item ne renomme PAS ses
+usages), **👹 Monstres** (PV/stats/pack min–max, **terrains d'apparition** = checkboxes de `doc.terrains`,
+**attaques** avec grilles GDD, **loot de pack vaincu** en drops pondérés, apparence = asset `monsters/`),
 **🌍 Génération** (Perlin paramétré : seed/échelle/octaves/persistance/hauteur max + **lissage** = écart
 de hauteur max entre voisins [abaissement itératif], seuils de biomes, packs — aperçu canvas 4 vues :
-Terrain/Hauteurs/Ressources/Monstres alimentées par les autres onglets ; défauts = worldgen.go).
+Terrain/Hauteurs/Ressources/Monstres alimentées par les onglets Terrains + Monstres ; défauts = worldgen.go).
 **Grilles d'attaque GDD** (`AttackDef`/`SkillDef.targets+damage`, `GridShapeEditor` 7×7) : ciblage VERT
 relatif à l'attaquant ⚔️ + zone de dégâts ROUGE relative à la case touchée 🎯 (toujours incluse) — sur
-les attaques des monstres ET les pouvoirs `iso` des classes ; presets mêlée/portée 3 ; migration douce
-des docs sauvegardés (`normalizeDoc` : ancien champ `special` → attaque). Supprimer un biome le retire
-des terrains d'apparition des monstres. Fichiers : `types.ts` (schémas + **seeds = données actuelles du jeu**, miroir de
+les attaques des monstres ET les pouvoirs `iso` des classes ; presets mêlée/portée 3. **Migrations douces**
+(`normalizeDoc`, appliquée au load ET à l'import) : ancien `special` → attaque ; ancien onglet
+« resources » qui contenait les BIOMES (détecté par `searchable`) → `terrains`, et le catalogue d'items
+est re-seedé (l'import JSON fait le même reroutage). Supprimer un terrain le retire des terrains
+d'apparition des monstres. Fichiers : `types.ts` (schémas + **seeds = données actuelles du jeu**, miroir de
 town.go/craft.go/classes.go), `store.ts` (zustand, autosave localStorage `echoterra:designer:doc`,
 hook DEV `window.__dd`), `DesignerScreen.tsx` (liste + **arbre SVG** par profondeur de prérequis +
 inspecteur), `designer.css`. **Export JSON** (tout ou par onglet, `echoterra-design-*.json`) →
 l'utilisateur me redonne le fichier pour implémentation serveur ; import accepte doc complet ou
-partiel (une seule des trois clés). ♻️ Reset = re-seed depuis les valeurs du jeu.
+partiel. ♻️ Reset = re-seed depuis les valeurs du jeu.
 
 ## 8. Conventions & gotchas
 

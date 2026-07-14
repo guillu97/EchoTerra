@@ -116,8 +116,8 @@ export interface ResourceDrop {
   weight: number;
 }
 
-// What a biome yields when a hero searches it (fouille), plus worldgen richness.
-export interface BiomeResourceDef {
+// A TERRAIN (biome): walkability, worldgen richness and its search drop table.
+export interface TerrainDef {
   id: string; // water | sand | grass | forest | mountain | snow
   name: string;
   icon: string;
@@ -127,6 +127,30 @@ export interface BiomeResourceDef {
   resourcesMax: number;
   drops: ResourceDrop[];
   notes: string;
+}
+
+// Canonical resource/item categories (a resource's `type`).
+export const RESOURCE_CATEGORIES = [
+  "objet",
+  "minerai",
+  "plante",
+  "animal",
+  "eau",
+  "aliment",
+  "consommable",
+  "arme",
+  "deco",
+] as const;
+
+// The RESOURCE catalog: every item that exists in the game — search loot, monster
+// loot, construction materials, craft ingredients AND craft outputs. Everything
+// else references these by name through dropdowns (no more free-text items).
+export interface ResourceItemDef {
+  id: string;
+  name: string; // the in-game item name (matched by drops/costs/recipes)
+  icon: string;
+  type: string; // one of RESOURCE_CATEGORIES
+  desc: string;
 }
 
 // A monster species: stats, where it spawns, what it drops when defeated.
@@ -170,7 +194,8 @@ export interface DesignDoc {
   buildings: BuildingDef[];
   recipes: RecipeDef[];
   classes: HeroClassDef[];
-  resources: BiomeResourceDef[];
+  terrains: TerrainDef[]; // biomes (formerly exported as "resources")
+  resources: ResourceItemDef[]; // the item catalog
   monsters: MonsterDef[];
   mapgen: MapGenDef;
 }
@@ -250,7 +275,28 @@ const seedClasses = (): HeroClassDef[] => [
 // richness mirrors worldgen (forest/grass 3–6 searches, others 1–3, water 0).
 const drop = (type: string, name: string, qty = 1, weight = 1): ResourceDrop => ({ type, name, qty, weight });
 
-const seedResources = (): BiomeResourceDef[] => [
+// The item catalog: every item name used by the current game (loot tables, craft
+// ingredients/outputs, construction materials, well ration, combat trophy).
+const item = (id: string, name: string, icon: string, type: string, desc = ""): ResourceItemDef => ({ id, name, icon, type, desc });
+const seedItems = (): ResourceItemDef[] => [
+  item("bois", "Bois", "🪵", "objet", "Matériau de construction de base."),
+  item("pierre", "Pierre", "🪨", "minerai", "Matériau de construction."),
+  item("minerai-fer", "Minerai de fer", "⛓️", "minerai", "Minerai pour la forge."),
+  item("debris", "Débris", "🧱", "objet", "Restes récupérés en fouille."),
+  item("fleur", "Fleur", "🌸", "plante", "Plante commune des plaines."),
+  item("herbe-medicinale", "Herbe médicinale", "🌿", "plante", "Base des potions de soin."),
+  item("viande", "Viande", "🍖", "animal", "Nourriture crue."),
+  item("peau", "Peau", "🟤", "animal", "Peau de bête (artisanat)."),
+  item("trophee", "Trophée de monstre", "🏆", "animal", "Preuve de victoire sur un pack."),
+  item("ration-eau", "Ration d'eau", "💧", "eau", "Une ration du puits — étanche la Soif."),
+  item("mapo-curry", "Mapo Curry", "🍛", "aliment", "Plat cuisiné (craft)."),
+  item("jus-fruit", "Jus de fruit", "🧃", "aliment", "Boisson (craft)."),
+  item("potion-soin", "Potion de soin", "🧪", "consommable", "+8 PV, retire Blessé (craft)."),
+  item("lame-fer", "Lame de fer", "🗡️", "arme", "Arme forgée : +3 force (craft)."),
+  item("totem-bois", "Totem de bois", "🗿", "deco", "Décoration (craft)."),
+];
+
+const seedTerrains = (): TerrainDef[] => [
   { id: "water", name: "Eau", icon: "🌊", walkable: false, searchable: false, resourcesMin: 0, resourcesMax: 0, drops: [], notes: "Infranchissable. Rien à fouiller." },
   { id: "sand", name: "Sable", icon: "🏜️", walkable: true, searchable: true, resourcesMin: 3, resourcesMax: 6, drops: [drop("plante", "Fleur"), drop("animal", "Viande"), drop("objet", "Débris")], notes: "" },
   { id: "grass", name: "Plaine", icon: "🌾", walkable: true, searchable: true, resourcesMin: 3, resourcesMax: 6, drops: [drop("plante", "Fleur"), drop("animal", "Viande"), drop("objet", "Débris")], notes: "Biome de départ autour de la ville." },
@@ -302,6 +348,15 @@ export const DESIGN_DOC_VERSION = 1;
 // Migrate older saved/imported docs in place: monsters used to carry a free-text
 // `special` instead of the attacks list with targeting grids.
 export function normalizeDoc(d: DesignDoc): DesignDoc {
+  // "resources" used to hold the BIOMES (now "terrains"); the key now holds the
+  // item catalog. Old docs/exports: biome-shaped entries carry `searchable`.
+  const legacyResources = (d as { resources?: unknown[] }).resources;
+  const looksLikeTerrains = Array.isArray(legacyResources) && legacyResources.some((r) => typeof (r as TerrainDef).searchable === "boolean");
+  // Legacy data always wins over the seeded terrains (loadSavedDoc spreads seedDoc()
+  // first, so d.terrains is an array even when the saved doc predates it).
+  if (looksLikeTerrains) d.terrains = legacyResources as unknown as TerrainDef[];
+  else if (!Array.isArray(d.terrains)) d.terrains = seedTerrains();
+  if (!Array.isArray(d.resources) || looksLikeTerrains) d.resources = seedItems();
   d.monsters = (d.monsters ?? []).map((m) => {
     const legacy = m as MonsterDef & { special?: string };
     if (!Array.isArray(m.attacks)) {
@@ -328,7 +383,8 @@ export function seedDoc(): DesignDoc {
     buildings: seedBuildings(),
     recipes: seedRecipes(),
     classes: seedClasses(),
-    resources: seedResources(),
+    terrains: seedTerrains(),
+    resources: seedItems(),
     monsters: seedMonsters(),
     mapgen: seedMapGen(),
   };

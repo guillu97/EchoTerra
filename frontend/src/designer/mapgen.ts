@@ -6,7 +6,7 @@
 // The JS Perlin isn't bit-identical to Go's aquilax/go-perlin — the preview shows
 // the same STYLE of world; the exported parameters drive the real implementation.
 
-import type { BiomeResourceDef, MapGenDef, MonsterDef } from "./types";
+import type { TerrainDef, MapGenDef, MonsterDef } from "./types";
 
 export interface GeneratedPack {
   x: number;
@@ -82,7 +82,7 @@ function makePerlin(rnd: () => number) {
 
 export function generateMap(
   def: MapGenDef,
-  resourceDefs: BiomeResourceDef[],
+  resourceDefs: TerrainDef[],
   monsterDefs: MonsterDef[],
 ): GeneratedMap {
   const w = Math.max(6, def.width);

@@ -6,6 +6,39 @@
 
 ---
 
+## 2026-07-14 (10) — Studio : onglet ⛰️ Terrains + vrai onglet 📦 Ressources (catalogue) + dropdowns partout
+
+### Fait
+- **Renommage** : l'ancien onglet « 🌿 Ressources » (qui décrivait les BIOMES) devient **⛰️ Terrains**
+  (`TerrainDef`, `doc.terrains`, `updateTerrain`) — praticable/fouillable, richesse min–max, table de
+  fouille inchangées.
+- **Nouveau vrai onglet 📦 Ressources** : le **catalogue d'objets** (`ResourceItemDef {id, name, icon,
+  type, desc}`) groupé par catégories `RESOURCE_CATEGORIES` (objet, minerai, plante, animal, eau,
+  aliment, consommable, arme, deco). 15 items seedés depuis les données du jeu (bois, pierre, minerai
+  de fer, débris, fleur, herbe médicinale, viande, peau, trophée, ration d'eau, mapo curry, jus de
+  fruit, potion de soin, lame de fer, totem de bois). CRUD + cartes centrales par catégorie.
+- **Fin des inputs texte libres** : tout champ « objet » devient un **dropdown `ResourceSelect`**
+  (options groupées par catégorie via `<optgroup>`) — drops des terrains, loots de monstres,
+  matériaux des niveaux de bâtiments, ingrédients ET produit des recettes. Une valeur absente du
+  catalogue s'affiche « ⚠ … (hors catalogue) » (rien n'est cassé, on corrige via le dropdown).
+  Les terrains d'apparition des monstres viennent de `doc.terrains` (déjà des checkboxes).
+- **Migrations douces** (`normalizeDoc`, load + import) : un doc/export dont `resources` contient des
+  biomes (détection : champ `searchable`) est rerouté vers `terrains` (les données legacy GAGNENT sur
+  le seed) et le catalogue d'items est re-seedé ; `onImport` fait le même reroutage sur les fichiers
+  partiels et accepte désormais `terrains` + `mapgen`. MapGenPane/mapgen.ts consomment `doc.terrains`.
+
+### Fonctionnel (vérifié)
+- `npx tsc -b` ✓, `npm run build` ✓, `npm run test:perf` 13/13 ✓.
+- E2E Playwright (17/17) : migration legacy resources→terrains (biome Forêt conservé avec ses drops,
+  items re-seedés, `special`→attacks), onglets ⛰️/📦 présents, TerrainForm + dropdowns de drops avec
+  optgroups, cartes ressources groupées (9 catégories), ＋ Nouveau + changement de catégorie persisté,
+  RecipeForm avec 2 dropdowns catalogue, terrains cochables du MonsterForm issus de doc.terrains,
+  canvas Génération rendu sur doc.terrains.
+
+### À faire
+- Implémentation serveur des JSON exportés (arbre techno, recettes/effets, classes, mapgen, grilles
+  d'attaque en combat iso) quand Guillaume fournit les fichiers.
+
 ## 2026-07-14 (9) — Studio : onglet 🌍 Génération + grilles d'attaque GDD (monstres & héros)
 
 ### Fait

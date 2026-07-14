@@ -71,7 +71,7 @@ export function MapGenPane() {
     up({ thresholds: { ...def.thresholds, [key]: Math.min(hi, Math.max(lo, v)) } });
   };
 
-  const gen = useMemo(() => generateMap(def, doc.resources, doc.monsters), [def, doc.resources, doc.monsters]);
+  const gen = useMemo(() => generateMap(def, doc.terrains, doc.monsters), [def, doc.terrains, doc.monsters]);
   const speciesColor = (species: string) => {
     const i = Math.max(0, doc.monsters.findIndex((m) => m.name === species));
     return PACK_COLORS[i % PACK_COLORS.length];
@@ -85,7 +85,7 @@ export function MapGenPane() {
     canvas.height = gen.h * px;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    const maxRes = Math.max(1, ...doc.resources.map((r) => r.resourcesMax));
+    const maxRes = Math.max(1, ...doc.terrains.map((r) => r.resourcesMax));
 
     for (let y = 0; y < gen.h; y++)
       for (let x = 0; x < gen.w; x++) {
@@ -154,7 +154,7 @@ export function MapGenPane() {
     const ty = gen.town.y * px;
     ctx.fillRect(tx + 2, ty + 2, px - 4, px - 4);
     ctx.strokeRect(tx + 2, ty + 2, px - 4, px - 4);
-  }, [gen, view, def.maxHeight, doc.resources, doc.monsters]);
+  }, [gen, view, def.maxHeight, doc.terrains, doc.monsters]);
 
   return (
     <div className="dz-mapgen">
@@ -227,7 +227,7 @@ export function MapGenPane() {
               ))
             : BIOME_IDS.map((id, i) => (
                 <span key={id} className="dz-leg">
-                  <i style={{ background: hex(BIOME_COLORS[i as keyof typeof BIOME_COLORS] ?? 0x888888) }} /> {doc.resources.find((r) => r.id === id)?.name ?? id}
+                  <i style={{ background: hex(BIOME_COLORS[i as keyof typeof BIOME_COLORS] ?? 0x888888) }} /> {doc.terrains.find((r) => r.id === id)?.name ?? id}
                 </span>
               ))}
           <span className="dz-leg">

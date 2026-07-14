@@ -386,7 +386,7 @@
 /* drops editor + monster cards */
 .dz-drop-head {
   display: grid;
-  grid-template-columns: 96px 1fr 52px 52px 26px;
+  grid-template-columns: 1fr 52px 52px 26px;
   gap: 5px;
   font-size: 10px;
   color: #8fa1c0;
@@ -394,7 +394,7 @@
 }
 .dz-cost-row.drop {
   display: grid;
-  grid-template-columns: 96px 1fr 52px 52px 26px;
+  grid-template-columns: 1fr 52px 52px 26px;
 }
 .dz-cost-row.drop input[type="number"] {
   width: auto;

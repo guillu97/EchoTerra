@@ -1,12 +1,12 @@
 import { create } from "zustand";
-import type { BiomeResourceDef, BuildingDef, DesignDoc, HeroClassDef, MapGenDef, MonsterDef, RecipeDef } from "./types";
+import type { BuildingDef, DesignDoc, HeroClassDef, MapGenDef, MonsterDef, RecipeDef, ResourceItemDef, TerrainDef } from "./types";
 import { DESIGN_DOC_VERSION, normalizeDoc, seedDoc } from "./types";
 
 // Designer store — separate from the game store, like the map editor's. The doc is
 // autosaved to localStorage (debounced) and restored on load, so a refresh never
 // loses design work. Export/import via JSON files (see DesignerScreen).
 
-export type DesignTab = "buildings" | "recipes" | "classes" | "resources" | "monsters" | "mapgen";
+export type DesignTab = "buildings" | "recipes" | "classes" | "terrains" | "resources" | "monsters" | "mapgen";
 
 const LS_KEY = "echoterra:designer:doc";
 
@@ -45,7 +45,8 @@ interface DesignerState {
   updateBuilding: (id: string, next: BuildingDef) => void;
   updateRecipe: (id: string, next: RecipeDef) => void;
   updateClass: (id: string, next: HeroClassDef) => void;
-  updateResource: (id: string, next: BiomeResourceDef) => void;
+  updateTerrain: (id: string, next: TerrainDef) => void;
+  updateResource: (id: string, next: ResourceItemDef) => void;
   updateMonster: (id: string, next: MonsterDef) => void;
   updateMapgen: (next: MapGenDef) => void;
   addItem: () => void;
@@ -72,7 +73,7 @@ export const useDesigner = create<DesignerState>((set, get) => {
   return {
     doc: loadSavedDoc(),
     tab: "buildings",
-    selId: { buildings: null, recipes: null, classes: null, resources: null, monsters: null, mapgen: null },
+    selId: { buildings: null, recipes: null, classes: null, terrains: null, resources: null, monsters: null, mapgen: null },
     setTab: (tab) => set({ tab }),
     select: (id) => set((s) => ({ selId: { ...s.selId, [s.tab]: id } })),
 
@@ -89,6 +90,11 @@ export const useDesigner = create<DesignerState>((set, get) => {
     updateClass: (id, next) => {
       const { doc } = get();
       setDoc({ ...doc, classes: replace(doc.classes, id, next) });
+      if (next.id !== id) get().select(next.id);
+    },
+    updateTerrain: (id, next) => {
+      const { doc } = get();
+      setDoc({ ...doc, terrains: replace(doc.terrains, id, next) });
       if (next.id !== id) get().select(next.id);
     },
     updateResource: (id, next) => {
@@ -118,9 +124,13 @@ export const useDesigner = create<DesignerState>((set, get) => {
         const id = freshId("nouvelle-classe", doc.classes.map((c) => c.id));
         const c: HeroClassDef = { id, name: "Nouvelle classe", tier: 1, day: 2, requires: [], role: "", bonuses: { force: 0, dexterite: 0, agilite: 0, endurance: 0, athletisme: 0, precision: 0 }, paBonus: 0, skills: [], appearance: { map: "char-scout", icon: "char-scout" } };
         setDoc({ ...doc, classes: [...doc.classes, c] });
+      } else if (tab === "terrains") {
+        const id = freshId("nouveau-terrain", doc.terrains.map((r) => r.id));
+        const r: TerrainDef = { id, name: "Nouveau terrain", icon: "🗺️", walkable: true, searchable: true, resourcesMin: 1, resourcesMax: 3, drops: [], notes: "" };
+        setDoc({ ...doc, terrains: [...doc.terrains, r] });
       } else if (tab === "resources") {
-        const id = freshId("nouveau-biome", doc.resources.map((r) => r.id));
-        const r: BiomeResourceDef = { id, name: "Nouveau biome", icon: "🗺️", walkable: true, searchable: true, resourcesMin: 1, resourcesMax: 3, drops: [], notes: "" };
+        const id = freshId("nouvelle-ressource", doc.resources.map((r) => r.id));
+        const r: ResourceItemDef = { id, name: "Nouvelle ressource", icon: "📦", type: "objet", desc: "" };
         setDoc({ ...doc, resources: [...doc.resources, r] });
       } else {
         const id = freshId("nouveau-monstre", doc.monsters.map((m) => m.id));
@@ -132,6 +142,7 @@ export const useDesigner = create<DesignerState>((set, get) => {
         s.tab === "buildings" ? s.doc.buildings :
         s.tab === "recipes" ? s.doc.recipes :
         s.tab === "classes" ? s.doc.classes :
+        s.tab === "terrains" ? s.doc.terrains :
         s.tab === "resources" ? s.doc.resources : s.doc.monsters;
       s.select(list[list.length - 1].id);
     },
@@ -149,13 +160,14 @@ export const useDesigner = create<DesignerState>((set, get) => {
           ...doc,
           classes: doc.classes.filter((c) => c.id !== id).map((c) => ({ ...c, requires: c.requires.filter((r) => r !== id) })),
         });
-      else if (tab === "resources")
+      else if (tab === "terrains")
         setDoc({
           ...doc,
-          resources: doc.resources.filter((r) => r.id !== id),
-          // A removed biome disappears from the monsters' spawn lists too.
+          terrains: doc.terrains.filter((r) => r.id !== id),
+          // A removed terrain disappears from the monsters' spawn lists too.
           monsters: doc.monsters.map((m) => ({ ...m, biomes: m.biomes.filter((b) => b !== id) })),
         });
+      else if (tab === "resources") setDoc({ ...doc, resources: doc.resources.filter((r) => r.id !== id) });
       else setDoc({ ...doc, monsters: doc.monsters.filter((m) => m.id !== id) });
       get().select(null);
     },
