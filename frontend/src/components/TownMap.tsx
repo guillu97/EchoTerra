@@ -362,16 +362,16 @@ export function TownMap({
             el.dataset.baked = "1";
           }}
         />
-        {/* In-town heroes (everyone's): the map hides them once they're inside the
-            walls — HERE is where they live, standing on the grass. Deterministic
-            grass-cell assignment (hash of the hero id + linear probing). */}
+        {/* MY in-town heroes: the map hides them once they're inside the walls —
+            HERE is where they live, standing on the grass. Other players' heroes
+            stay invisible (their town view shows their own team). Deterministic
+            grass-cell assignment (hash of the hero id + wide-stride probing). */}
         {game &&
           baked.grass.length > 0 &&
           (() => {
-            const inTown = game.heroes.filter(
+            const inTown = myTeamHeroes(game, playerId).filter(
               (h) => h.hp > 0 && h.x === game.town.x && h.y === game.town.y,
             );
-            const mine = new Set(myTeamHeroes(game, playerId).map((h) => h.id));
             const used = new Set<number>();
             const hash = (s: string) => {
               let n = 0;
@@ -386,11 +386,7 @@ export function TownMap({
               used.add(idx);
               const g = baked.grass[idx];
               return (
-                <div
-                  key={h.id}
-                  className={`town-hero ${mine.has(h.id) ? "" : "other"}`}
-                  style={{ left: g.x, top: g.y }}
-                >
+                <div key={h.id} className="town-hero" style={{ left: g.x, top: g.y }}>
                   <img src={heroAssetUrl(h.class)} alt={h.name} />
                   <span className="th-name">{h.name}</span>
                 </div>

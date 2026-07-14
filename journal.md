@@ -6,6 +6,32 @@
 
 ---
 
+## 2026-07-14 (4) — Dropdown des héros sur le smiley + Home limité à MON équipe
+
+### Fait
+- **Home** : seuls MES personnages apparaissent sur l'herbe (les héros des autres joueurs ne sont
+  plus affichés — `myTeamHeroes` dans `TownMap`, style violet retiré).
+- **Nouvelle UI d'actions de la Map** : le smiley 🙂 de la TopBar ouvre un **dropdown**
+  (`components/HeroActionsMenu.tsx`) listant chaque héros de mon équipe : bouton nom + ❤️/⚡ →
+  **fiche de personnage** (HeroOverlay) ; 🎯 sélectionne le héros sur la carte (bascule sur Map) ;
+  actions contextuelles par héros (⚔️ monstre sur la case, 🔥 pack à portée, 🔎/🫥 hors ville,
+  🏃 si Tétanisé, « 🏰 en ville » sinon — mêmes règles que le menu radial). Chaque action
+  sélectionne le héros puis agit. La **barre du bas de la Map est réduite** (chips héros, ligne
+  nom, dpad et bouton ⚡ Actions supprimés) : Forcer vague + 👥 Autres + hint. Le déplacement est
+  INCHANGÉ : sélection + losanges jaunes (le menu radial au tap du héros reste).
+- **Bug débusqué** : le span « TownName 1 » de la TopBar portait `className="town"` → la règle
+  globale `.town {position:absolute; inset:0}` (conteneur du Home) l'étirait PAR-DESSUS l'avatar,
+  dont les clics étaient mangés (seul élément DOM placé avant lui). Renommé `town-name` (gotcha §8
+  du CLAUDE.md complété).
+
+### Fonctionnel (vérifié)
+- E2E : dropdown liste les 3 héros (actions « en ville » au spawn), clic nom → fiche ouverte,
+  🎯 → héros 2 sélectionné + onglet Map ; héros sorti de ville → 🔎🫥🔥 apparaissent ; partie à
+  2 joueurs → le Home d'Alice ne montre que ses 3 persos. `tsc -b` + `npm run build` OK,
+  `test:perf` 13/13.
+
+---
+
 ## 2026-07-14 (3) — Les héros en ville quittent la carte et apparaissent dans le Home
 
 ### Fait

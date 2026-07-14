@@ -356,7 +356,7 @@ body {
 .topbar .avatar:hover {
   border-color: #fff;
 }
-.topbar .town {
+.topbar .town-name {
   font-weight: 700;
   color: #fff;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
@@ -549,8 +549,88 @@ body {
   font-weight: 700;
   white-space: nowrap;
 }
-.town-hero.other .th-name {
-  background: rgba(88, 62, 128, 0.72); /* another player's hero: violet tag */
+/* ----- hero dropdown (TopBar smiley) --------------------------------------- */
+.hm-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 39;
+}
+.hero-menu {
+  position: absolute;
+  left: 8px;
+  top: 54px;
+  z-index: 40;
+  background: var(--glass-2);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 14px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 250px;
+  max-width: min(92vw, 340px);
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.5);
+  color: #fff;
+}
+.hm-row {
+  border-radius: 10px;
+  padding: 4px;
+}
+.hm-row.sel {
+  background: rgba(240, 196, 32, 0.14);
+  outline: 1px solid rgba(240, 196, 32, 0.5);
+}
+.hm-row.dead {
+  opacity: 0.55;
+}
+.hm-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: #fff;
+  border-radius: 8px;
+  padding: 6px 9px;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+}
+.hm-stats {
+  font-weight: 600;
+  font-size: 12px;
+  color: #cbd6e6;
+}
+.hm-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 5px;
+  padding: 0 2px;
+  flex-wrap: wrap;
+}
+.hm-act {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  padding: 5px 9px;
+  font-size: 15px;
+  cursor: pointer;
+  color: #fff;
+}
+.hm-act:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.hm-act.fight {
+  background: linear-gradient(180deg, #e0523f, var(--red-2));
+  border: none;
+}
+.hm-note {
+  font-size: 11px;
+  color: #9fb0c8;
 }
 /* Isometric tile platform. A centred zero-size origin point; tiles & buildings are
    positioned by px offsets (iso projection) relative to it, and depth-sorted by z-index. */

@@ -80,62 +80,19 @@ function ActionMenu() {
   );
 }
 
+// Slim map bar: hero selection and per-hero actions moved to the 🙂 dropdown in
+// the TopBar (HeroActionsMenu). Movement is unchanged: select a hero, tap the
+// yellow diamonds on the map. Only map-wide tools remain here.
 function MapControls() {
-  const { game, selectedHeroId, selectHero, move, advance, busy, myHeroes, showOthers, toggleOthers } =
-    useStore();
+  const { game, selectedHeroId, advance, busy, showOthers, toggleOthers } = useStore();
   if (!game) return null;
   const hero = game.heroes.find((h) => h.id === selectedHeroId);
-  if (!hero) return null;
-  const stuck = hero.states.includes("Tétanisé");
-  // Multiplayer: the roster only lists MY team; others exist as map dots (👥).
-  const mine = myHeroes();
+  const stuck = !!hero?.states.includes("Tétanisé");
   const multiplayer = (game.players?.length ?? 0) > 1;
-  const roster = mine.length ? game.heroes.filter((h) => mine.includes(h.id)) : game.heroes;
 
   return (
     <div className="map-controls">
-      <div className="hero-select">
-        {roster.map((h) => (
-          <button
-            key={h.id}
-            className={`hsel ${h.id === selectedHeroId ? "sel" : ""} ${h.hp <= 0 ? "dead" : ""}`}
-            disabled={h.hp <= 0}
-            onClick={() => selectHero(h.id)}
-          >
-            <span className="hsel-name">{h.name}</span>
-            <span className="hsel-stat">❤️{h.hp} ⚡{h.pa}</span>
-          </button>
-        ))}
-      </div>
       <div className="line">
-        <strong>{hero.name}</strong>
-        <span>❤️ {hero.hp}/{hero.maxHp}</span>
-        <span>⚡ {hero.pa}/{hero.maxPa}</span>
-        {hero.states.length > 0 && <span style={{ color: "#ffd166" }}>{hero.states.join(", ")}</span>}
-      </div>
-      <div className="line">
-        <div className="dpad-mini">
-          <span className="sp" />
-          <button disabled={busy} onClick={() => move(0, -1)}>↑</button>
-          <span className="sp" />
-          <button disabled={busy} onClick={() => move(-1, 0)}>←</button>
-          <span className="sp" />
-          <button disabled={busy} onClick={() => move(1, 0)}>→</button>
-          <span className="sp" />
-          <button disabled={busy} onClick={() => move(0, 1)}>↓</button>
-          <span className="sp" />
-        </div>
-        <button
-          className="small actions-btn"
-          disabled={busy}
-          title="Ouvrir le menu d'action du héros"
-          onClick={() => {
-            const r = document.querySelector(".map-host")?.getBoundingClientRect();
-            bus.emit(EV.MapHeroMenu, { sx: (r?.width ?? 300) / 2, sy: (r?.height ?? 420) - 160 });
-          }}
-        >
-          ⚡ Actions
-        </button>
         <button className="small" disabled={busy} onClick={() => advance()} title="Déclencher la prochaine vague maintenant">
           🌊 Forcer vague
         </button>
@@ -150,9 +107,11 @@ function MapControls() {
         )}
       </div>
       {stuck ? (
-        <div className="map-hint warn">⚠️ {hero.name} est Tétanisé — tue le monstre (Fight) ou fuis (Escape).</div>
+        <div className="map-hint warn">⚠️ {hero?.name} est Tétanisé — tue le monstre (Fight) ou fuis (Escape).</div>
       ) : (
-        <div className="map-hint">💡 Tape ton héros sur la carte pour les actions.</div>
+        <div className="map-hint">
+          💡 Héros et actions via 🙂 en haut — tape les losanges jaunes pour te déplacer.
+        </div>
       )}
     </div>
   );

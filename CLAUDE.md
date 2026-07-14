@@ -334,7 +334,14 @@ POST /api/games/{id}/combat/{c}/action            {unitId, action: move|attack|s
 - **Bottom nav** (5 tabs): only **Home** is gated to having one of MY heroes in town (`TOWN_TABS = ["home"]`;
   another player's hero in town doesn't open MY city screen).
   **Map/Stock/Structure/Craft are always accessible.**
-- **TopBar**: avatar (🙂) opens the **character screen**; 🏰% chip opens **TownStatus**; ⚙️ opens Settings.
+- **TopBar**: l'avatar (🙂) ouvre le **dropdown des héros** (`HeroActionsMenu`) : une ligne par héros de
+  MON équipe — le bouton nom/PV/PA ouvre la **fiche de personnage** (HeroOverlay), puis 🎯 sélectionne
+  sur la carte (et bascule sur l'onglet Map), et les actions contextuelles du héros (⚔️ si monstre sur
+  sa case, 🔥 si pack à portée, 🔎/🫥 hors ville, 🏃 si Tétanisé, note « en ville » sinon). Les actions
+  sélectionnent le héros puis agissent. La barre du bas de la Map est réduite à Forcer vague + 👥 Autres
+  + hint (déplacement inchangé : losanges jaunes). ⚠ le span du nom de ville est `className="town-name"`
+  — PAS `town` (collision `.town{position:absolute;inset:0}` qui recouvrait l'avatar et mangeait ses
+  clics). 🏰% chip opens **TownStatus**; ⚙️ opens Settings.
 - **Character screen** (`HeroOverlay`, from the avatar): Skill view only (class, attributes + bonuses, unique
   skills, Evolve, ◀▶ roster cycle). **No inventory tab / no Stock link** (user decision).
 - **Stock**: MY team's personal bags only (always) + the **Bank** section (only when ≥1 of MY heroes in town)
@@ -348,11 +355,11 @@ POST /api/games/{id}/combat/{c}/action            {unitId, action: move|attack|s
   **hotspots cliquables** (mapping fichier asset → id de bâtiment dans `ASSET_TO_BUILDING` ; pastille
   nom + barre de durabilité, contre-échelonnée `--inv = 1/zoom` pour rester lisible à tout zoom).
   **Zoom/pan dans la ville** : molette ancrée au curseur, drag, pinch en mapping absolu (même math que
-  MapScene), fit initial auto (refit au resize tant que l'utilisateur n'a pas bougé). **Les héros en
+  MapScene), fit initial auto (refit au resize tant que l'utilisateur n'a pas bougé). **MES héros en
   ville apparaissent sur l'herbe du Home** (cellules `GRASS_FILES` hors anneau des bâtiments,
-  affectation par hachage d'id ; étiquette violette = héros d'un autre joueur) et sont **masqués sur
-  la carte du monde** (`MapScene` saute tout héros sur la case ville — ils sont « dans les murs » ;
-  sélection via chips/tap de la case ville, sortie soumise à la porte). ⚠ le viewport
+  affectation par hachage d'id ; les héros des AUTRES joueurs n'y figurent pas) et tout héros en ville
+  est **masqué sur la carte du monde** (`MapScene` saute tout héros sur la case ville — ils sont
+  « dans les murs » ; sélection via le dropdown 🙂/tap de la case ville, sortie soumise à la porte). ⚠ le viewport
   fait `setPointerCapture` → les `click` des boutons ne partent JAMAIS : les taps sont résolus au
   `pointerup` par `elementFromPoint().closest(".town-spot")`. ⚠ les crops d'assets de l'éditeur vivent
   dans le localStorage du navigateur : le rendu peut différer légèrement sur un autre appareil. Pour
@@ -527,7 +534,8 @@ canvas2d** so the SAME `drawMap()` feeds both the live canvas and the PNG export
 
 - **CSS class collision**: do NOT use `town` as a tag/utility modifier — it collides with `.town
   { position:absolute; inset:0 }` (the Home town container) and blows the element up to fill its parent with a
-  blue overlay. The tab modifier was renamed `ttown`. (This caused the "Structure is all blue" bug.)
+  blue overlay. The tab modifier was renamed `ttown`. (This caused the "Structure is all blue" bug,
+  and the TopBar's town-name span — renamed `town-name` — used to cover the avatar and eat its clicks.)
 - **Phaser scenes** must remove their bus/resize listeners on `shutdown`/`destroy` (done) — otherwise a destroyed
   scene keeps reacting to events and crashes (`this.add` is null). Camera centering uses an explicit zoom-aware
   `setScroll` (Phaser `centerOn` ignores zoom).
