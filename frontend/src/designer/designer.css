@@ -410,6 +410,105 @@
   object-fit: contain;
 }
 
+/* map generation tab */
+.dz-mapgen {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+.dz-mg-params {
+  width: 320px;
+  flex: none;
+  overflow-y: auto;
+  border-right: 1px solid #2a3550;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.dz-mg-params h4 {
+  margin: 8px 0 0;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #8fa1c0;
+}
+.dz-mg-params input[type="number"] {
+  background: #101724;
+  border: 1px solid #33405e;
+  border-radius: 6px;
+  color: #e8edf6;
+  padding: 6px 8px;
+}
+.dz-slider {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+  color: #b9c6dd;
+  flex: 1;
+  min-width: 0;
+}
+.dz-slider b {
+  color: #fff;
+}
+.dz-slider input[type="range"] {
+  width: 100%;
+  accent-color: #4a79c8;
+}
+.dz-mg-note {
+  font-size: 11px;
+  color: #8fa1c0;
+  line-height: 1.5;
+  border-top: 1px solid #2a3550;
+  padding-top: 8px;
+}
+.dz-mg-view {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.dz-mg-viewbar {
+  display: flex;
+  gap: 6px;
+  padding: 10px 14px 0;
+}
+.dz-mg-canvas {
+  flex: 1;
+  overflow: auto;
+  display: grid;
+  place-items: center;
+  padding: 14px;
+}
+.dz-mg-canvas canvas {
+  image-rendering: pixelated;
+  border-radius: 6px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+}
+.dz-mg-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 0 14px 12px;
+  font-size: 12px;
+  color: #b9c6dd;
+}
+.dz-leg {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.dz-leg i {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  display: inline-block;
+}
+.dz-leg.muted {
+  color: #8fa1c0;
+}
+
 /* narrow screens: stack panes */
 @media (max-width: 900px) {
   .dz-body {

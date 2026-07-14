@@ -111,6 +111,26 @@ export interface MonsterDef {
   notes: string;
 }
 
+// Map-generation parameters (Perlin heightmap → biomes), previewed live in the
+// designer and exported for the server implementation (worldgen.go).
+export interface MapGenDef {
+  seed: number;
+  width: number;
+  height: number;
+  scale: number; // noise frequency (backend: 0.08) — smaller = larger landmasses
+  octaves: number; // layered noise passes (backend: 3)
+  persistence: number; // amplitude falloff per octave (backend: 0.5)
+  maxHeight: number; // elevation levels (backend: 6)
+  // Smoothing: max height difference between two orthogonal neighbours. 1 = very
+  // gentle slopes (a level-6 mountain can never touch a level-0 plain).
+  maxStep: number;
+  // Ascending biome thresholds on the normalized height (snow = above mountain).
+  thresholds: { water: number; sand: number; grass: number; forest: number; mountain: number };
+  monsterPacks: number; // packs seeded at game start (solo baseline)
+  packSizeMin: number;
+  packSizeMax: number;
+}
+
 export interface DesignDoc {
   version: number;
   buildings: BuildingDef[];
@@ -118,6 +138,7 @@ export interface DesignDoc {
   classes: HeroClassDef[];
   resources: BiomeResourceDef[];
   monsters: MonsterDef[];
+  mapgen: MapGenDef;
 }
 
 export const emptyStats = (): StatsDef => ({
@@ -212,6 +233,23 @@ const seedMonsters = (): MonsterDef[] => [
   { id: "windelemental", name: "Elementaire de Vent", icon: "🌀", appearance: "mob-windelemental", hp: 10, stats: { ...emptyStats(), dexterite: 2, agilite: 3, endurance: 5, precision: 2 }, packMin: 1, packMax: 2, biomes: ["sand", "grass", "forest", "mountain", "snow"], special: "Colonne de Vent (portée 3) : étourdit (Stun)", drops: [drop("animal", "Trophée de monstre")], notes: "" },
 ];
 
+// Defaults mirror the current worldgen.go (scale 0.08, 3 octaves, GDD thresholds,
+// heightLevel = round(v×6)) plus the new smoothing knob.
+const seedMapGen = (): MapGenDef => ({
+  seed: 42,
+  width: 22,
+  height: 22,
+  scale: 0.08,
+  octaves: 3,
+  persistence: 0.5,
+  maxHeight: 6,
+  maxStep: 1,
+  thresholds: { water: 0.3, sand: 0.35, grass: 0.6, forest: 0.75, mountain: 0.9 },
+  monsterPacks: 4,
+  packSizeMin: 1,
+  packSizeMax: 2,
+});
+
 export const DESIGN_DOC_VERSION = 1;
 
 export function seedDoc(): DesignDoc {
@@ -222,5 +260,6 @@ export function seedDoc(): DesignDoc {
     classes: seedClasses(),
     resources: seedResources(),
     monsters: seedMonsters(),
+    mapgen: seedMapGen(),
   };
 }

@@ -13,6 +13,7 @@ import type {
   SkillDef,
 } from "./types";
 import { ALL_ASSETS } from "../editor/assetIndex";
+import { MapGenPane } from "./MapGenPane";
 import "./designer.css";
 
 // Game-design data studio (dev tool, like the map editor): three JSON catalogs —
@@ -25,6 +26,7 @@ const TABS: { id: DesignTab; label: string }[] = [
   { id: "classes", label: "🧙 Classes" },
   { id: "resources", label: "🌿 Ressources" },
   { id: "monsters", label: "👹 Monstres" },
+  { id: "mapgen", label: "🌍 Génération" },
 ];
 
 const DROP_TYPES = ["plante", "animal", "objet", "minerai", "eau", "aliment", "consommable", "arme", "deco"];
@@ -608,7 +610,9 @@ export function DesignerScreen() {
       ? doc.classes.map((c) => ({ id: c.id, icon: c.tier === 1 ? "🟢" : "🟣", name: c.name, sub: `palier ${c.tier} · J${c.day}` }))
       : tab === "resources"
       ? doc.resources.map((r) => ({ id: r.id, icon: r.icon, name: r.name, sub: r.searchable ? `${r.drops.length} drops · ${r.resourcesMin}–${r.resourcesMax} fouilles` : "non fouillable" }))
-      : doc.monsters.map((m) => ({ id: m.id, icon: m.icon, name: m.name, sub: `${m.hp} PV · pack ${m.packMin}–${m.packMax}` }));
+      : tab === "monsters"
+      ? doc.monsters.map((m) => ({ id: m.id, icon: m.icon, name: m.name, sub: `${m.hp} PV · pack ${m.packMin}–${m.packMax}` }))
+      : [];
 
   const treeNodes: TreeNode[] =
     tab === "buildings"
@@ -666,7 +670,9 @@ export function DesignerScreen() {
           ))}
         </div>
         <span className="dz-spacer" />
-        <button className="dz-btn" onClick={addItem}>＋ Nouveau</button>
+        {tab !== "mapgen" && (
+          <button className="dz-btn" onClick={addItem}>＋ Nouveau</button>
+        )}
         <button
           className="dz-btn"
           title="Exporter uniquement l'onglet courant"
@@ -698,6 +704,10 @@ export function DesignerScreen() {
       </div>
 
       <div className="dz-body">
+        {tab === "mapgen" ? (
+          <MapGenPane />
+        ) : (
+          <>
         <div className="dz-list">
           {list.map((it) => (
             <button key={it.id} className={`dz-item ${it.id === sel ? "sel" : ""}`} onClick={() => select(it.id)}>
@@ -777,6 +787,8 @@ export function DesignerScreen() {
             </div>
           )}
         </div>
+          </>
+        )}
       </div>
     </div>
   );

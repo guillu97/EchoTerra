@@ -1,12 +1,12 @@
 import { create } from "zustand";
-import type { BiomeResourceDef, BuildingDef, DesignDoc, HeroClassDef, MonsterDef, RecipeDef } from "./types";
+import type { BiomeResourceDef, BuildingDef, DesignDoc, HeroClassDef, MapGenDef, MonsterDef, RecipeDef } from "./types";
 import { DESIGN_DOC_VERSION, seedDoc } from "./types";
 
 // Designer store — separate from the game store, like the map editor's. The doc is
 // autosaved to localStorage (debounced) and restored on load, so a refresh never
 // loses design work. Export/import via JSON files (see DesignerScreen).
 
-export type DesignTab = "buildings" | "recipes" | "classes" | "resources" | "monsters";
+export type DesignTab = "buildings" | "recipes" | "classes" | "resources" | "monsters" | "mapgen";
 
 const LS_KEY = "echoterra:designer:doc";
 
@@ -47,6 +47,7 @@ interface DesignerState {
   updateClass: (id: string, next: HeroClassDef) => void;
   updateResource: (id: string, next: BiomeResourceDef) => void;
   updateMonster: (id: string, next: MonsterDef) => void;
+  updateMapgen: (next: MapGenDef) => void;
   addItem: () => void;
   removeItem: (id: string) => void;
   importDoc: (doc: DesignDoc) => void;
@@ -71,7 +72,7 @@ export const useDesigner = create<DesignerState>((set, get) => {
   return {
     doc: loadSavedDoc(),
     tab: "buildings",
-    selId: { buildings: null, recipes: null, classes: null, resources: null, monsters: null },
+    selId: { buildings: null, recipes: null, classes: null, resources: null, monsters: null, mapgen: null },
     setTab: (tab) => set({ tab }),
     select: (id) => set((s) => ({ selId: { ...s.selId, [s.tab]: id } })),
 
@@ -100,9 +101,11 @@ export const useDesigner = create<DesignerState>((set, get) => {
       setDoc({ ...doc, monsters: replace(doc.monsters, id, next) });
       if (next.id !== id) get().select(next.id);
     },
+    updateMapgen: (next) => setDoc({ ...get().doc, mapgen: next }),
 
     addItem: () => {
       const { doc, tab } = get();
+      if (tab === "mapgen") return; // single parameter set — nothing to add
       if (tab === "buildings") {
         const id = freshId("nouveau-batiment", doc.buildings.map((b) => b.id));
         const b: BuildingDef = { id, name: "Nouveau bâtiment", icon: "🏚️", blurb: "", startsBuilt: false, requires: [], levels: [{ pa: 2, materials: [{ name: "Bois", qty: 2 }], effects: "" }] };
