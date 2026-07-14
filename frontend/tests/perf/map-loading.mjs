@@ -29,7 +29,10 @@ const APP_URL = process.env.PERF_APP_URL || "http://localhost:5173/";
 const API_HEALTH = "http://localhost:8080/healthz";
 
 const BUDGETS = {
-  totalPngMB: 16, // total PNG payload of a session (Phaser map set + DOM: Home town, backgrounds)
+  // Total PNG payload of a session: Phaser map set + the Home town (an
+  // editor-authored map whose renderer decodes its raw isotile/building sources —
+  // ~18 isotiles + 7 buildings on the current town-map.json).
+  totalPngMB: 24,
   duplicateDownloads: 0, // same PNG URL fetched more than once (see allow-list below)
   prewarmMs: 20000, // enter game -> pillar atlas baked (background, incl. downloads)
   // Open timings are ~10ms on real hardware, but headless software-GL (SwiftShader,
@@ -46,11 +49,16 @@ const BUDGETS = {
   canvasDprTolerancePx: 3, // |canvas.width - cssWidth * dpr|
 };
 
-// Files legitimately fetched by TWO consumers: the Home tab's DOM town uses these
-// isotiles as <img>/CSS while MapScene loads them for cube normalization. The dev
-// server sends no cache headers so both fetches hit the network; in production the
-// second is a cache hit. Any OTHER duplicate = a Phaser loader loading a file twice.
-const DUPLICATE_ALLOWLIST = ["/assets/isotiles/grass.png", "/assets/isotiles/stone.png"];
+// Files legitimately fetched by TWO consumers: the Home tab's town renderer (the
+// editor image cache) uses these isotiles while MapScene loads them for cube
+// normalization. The dev server sends no cache headers so both fetches hit the
+// network; in production the second is a cache hit. Any OTHER duplicate = a
+// Phaser loader loading a file twice.
+const DUPLICATE_ALLOWLIST = [
+  "/assets/isotiles/grass.png",
+  "/assets/isotiles/stone.png",
+  "/assets/isotiles/sand.png",
+];
 
 // ---------------------------------------------------------------------------
 

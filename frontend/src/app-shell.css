@@ -441,6 +441,86 @@ body {
   position: absolute;
   inset: 0;
 }
+
+/* ----- Home town map (editor-authored JSON, canvas render + zoom/pan) ------- */
+.town-map-viewport {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  touch-action: none; /* the viewport owns pan/pinch — no browser scrolling */
+  cursor: grab;
+}
+.town-map-viewport:active {
+  cursor: grabbing;
+}
+.town-map-world {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+.town-map-canvas {
+  display: block;
+  pointer-events: none;
+  user-select: none;
+}
+.town-map-loading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  font-weight: 700;
+}
+/* Building hotspot: a name pill anchored at the building's feet. Counter-scaled
+   (--inv = 1/zoom, set by TownMap) so pills keep a constant on-screen size. */
+.town-spot {
+  position: absolute;
+  transform: translate(-50%, -50%) scale(var(--inv, 1));
+  background: none;
+  border: none;
+  padding: 14px 10px; /* generous hit area around the pill */
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  z-index: 5;
+}
+.town-spot .ts-pill {
+  background: var(--glass);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: #fff;
+  border-radius: 999px;
+  padding: 3px 9px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+.town-spot.sel .ts-pill {
+  background: rgba(240, 196, 32, 0.85);
+  color: #2a2118;
+  text-shadow: none;
+}
+.town-spot.site .ts-pill {
+  border-style: dashed;
+  opacity: 0.9;
+}
+.town-spot .ts-dur {
+  width: 46px;
+  height: 4px;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+}
+.town-spot .ts-dur i {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+}
 /* Isometric tile platform. A centred zero-size origin point; tiles & buildings are
    positioned by px offsets (iso projection) relative to it, and depth-sorted by z-index. */
 .iso-stage {

@@ -6,6 +6,40 @@
 
 ---
 
+## 2026-07-14 — Home : la ville devient une carte d'éditeur (JSON) + zoom/pan
+
+### Fait
+- **La ville du Home est maintenant `src/data/town-map.json`** (export de l'éditeur, 54×59, 575
+  cellules en terrasses, 7 bâtiments posés) rendue par le **nouveau `components/TownMap.tsx`** avec
+  le renderer de l'éditeur (`drawMap` → canvas offscreen 2×, cuit une fois par session et mémoïsé,
+  bornes calculées sur les cellules OCCUPÉES — `contentBounds` couvrait la grille entière, 4× trop
+  grand). L'ancienne plateforme codée en dur (ISO_TOWN/ISO_TOWN_TILES/ISO_BUILDING_CELL + useIsoScale)
+  est supprimée de `HomeTab`/`data/buildings.ts`.
+- **Bâtiments cliquables** : les placements du JSON sont mappés vers les ids de bâtiments du jeu
+  (`ASSET_TO_BUILDING` : bld-well→well, gate→gate, bld-chapel→townhall, panel, workshop, bank,
+  bld-archerytower→tower) → pastille nom + barre de durabilité (chantiers : 🏗️ + « Construire » via
+  Structure, comme avant). Wall/kitchen n'ont pas de sprite sur cette carte → gérables via Structure.
+- **Zoom/pan dans la ville** (demande) : molette ancrée au curseur, drag pour panner, **pinch en
+  mapping absolu** (même math sans dérive que la Map), fit initial automatique + refit au resize tant
+  qu'on n'a pas bougé, pastilles contre-échelonnées (`--inv`) pour rester lisibles à tout zoom.
+- **Piège trouvé** : le viewport fait `setPointerCapture` (pan) → les `click` DOM des hotspots ne se
+  déclenchent jamais ; les taps sont résolus au `pointerup` via `elementFromPoint` (+ tap dans le
+  vide = désélection). Budgets perf ajustés : `totalPngMB` 16→24 (le renderer décode ~18 isotiles +
+  7 bâtiments sources), `sand.png` ajouté à l'allowlist des doublons (éditeur + MapScene).
+
+### Fonctionnel (vérifié)
+- E2E navigateur 1920 + 390 : rendu fidèle à l'éditeur, 7 hotspots présents, molette/drag/pinch
+  changent bien la vue, clic Well → modale du puits, clic Workshop → onglet Structure.
+  `tsc -b` + `npm run build` OK, `npm run test:perf` **13/13**.
+
+### À noter / à faire
+- Les **crops d'assets** de l'éditeur vivent dans le localStorage : sur un autre navigateur le rendu
+  peut différer légèrement (exporter/committer les crops un jour ?).
+- La carte pèse ~10 Mo de PNG sources au premier chargement du Home (cache navigateur ensuite) —
+  si ça gêne sur mobile, pré-rendre un PNG statique au build.
+
+---
+
 ## 2026-07-13 (13) — La porte fermée scelle la ville (entrée ET sortie)
 
 ### Fait

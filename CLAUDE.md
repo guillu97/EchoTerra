@@ -335,9 +335,19 @@ POST /api/games/{id}/combat/{c}/action            {unitId, action: move|attack|s
   + "deposit loot" (server deposits my team's bags only).
 - **Structure**: ONE compact list (no Blueprint tab) — sites → "Construire", built → "Améliorer", each showing
   PA + material cost vs Bank stock; build actions need a hero in town (consult-only otherwise).
-- **Home**: the iso town platform scales with the container via `useIsoScale`, mais l'échelle est **bornée**
-  (`ISO_TOWN.maxWidth` 1180 px + `heightRatio` 1.9 — largeur efficace `min(w, h×1.9, 1180)`) sinon le
-  full-bleed desktop gonflait la ville ×4,5 sans ciel autour. Tapping the **Workshop** or any
+- **Home**: la ville est une **carte créée dans l'éditeur** (`src/data/town-map.json`, export JSON de
+  l'éditeur §7b) rendue par **`components/TownMap.tsx`** avec le renderer de l'éditeur (`drawMap` →
+  canvas offscreen 2×, cuit UNE fois par session, bornes serrées sur les cellules occupées — PAS
+  `contentBounds` qui couvre toute la grille 54×59). Les bâtiments posés sur la carte deviennent des
+  **hotspots cliquables** (mapping fichier asset → id de bâtiment dans `ASSET_TO_BUILDING` ; pastille
+  nom + barre de durabilité, contre-échelonnée `--inv = 1/zoom` pour rester lisible à tout zoom).
+  **Zoom/pan dans la ville** : molette ancrée au curseur, drag, pinch en mapping absolu (même math que
+  MapScene), fit initial auto (refit au resize tant que l'utilisateur n'a pas bougé). ⚠ le viewport
+  fait `setPointerCapture` → les `click` des boutons ne partent JAMAIS : les taps sont résolus au
+  `pointerup` par `elementFromPoint().closest(".town-spot")`. ⚠ les crops d'assets de l'éditeur vivent
+  dans le localStorage du navigateur : le rendu peut différer légèrement sur un autre appareil. Pour
+  CHANGER la carte : éditer dans l'éditeur → exporter JSON → remplacer `town-map.json` (mettre à jour
+  `ASSET_TO_BUILDING` si de nouveaux bâtiments interactifs sont posés). Tapping the **Workshop** or any
   **construction site** jumps to Structure; other built buildings open a
   **centered modal** (`.bmenu-modal`, never cut off) with durability, defense contribution, building-specific
   actions (Well "Puiser de l'eau" free, Gate "Open/Close", etc.), "Améliorer (Structure)", and Restore.

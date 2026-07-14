@@ -40,62 +40,11 @@ export const BRIDGES: [string, string][] = [
 // Building size as a fraction of its island's size (so satellites get smaller sprites).
 export const BUILDING_SCALE = 0.34;
 
-// ── Isometric town (POC) ─────────────────────────────────────────────────────
-// The Home is an isometric tile platform; buildings sit on grid cells. Screen pos of
-// cell (gx,gy) is the standard iso projection — same math as the combat scene:
-//   sx = (gx - gy) * ISO_TOWN.tileW / 2
-//   sy = (gx + gy) * ISO_TOWN.tileH / 2
-// Tune these knobs to fit the generated cube art; they're intentionally data-driven.
-// Base sizes are defined at a reference container width (refWidth). At runtime every
-// size/spacing is multiplied by (containerWidth / refWidth), so the whole iso platform
-// scales with the screen resolution. Edit these base values to retune proportions.
-export const ISO_TOWN = {
-  refWidth: 430, // reference container width the base sizes below are tuned for
-  // Scale caps for the full-bleed shell: the raw width of a big desktop window
-  // would blow the town up until it fills everything (no sky, buildings cropped).
-  // The effective width is min(width, height×heightRatio, maxWidth) — maxWidth is
-  // the old desktop-frame width the layout was visually tuned for, heightRatio
-  // keeps the platform vertically contained on short/wide windows.
-  maxWidth: 1180,
-  heightRatio: 1.9,
-  tileW: 46, // iso step width (px) between columns
-  tileH: 23, // iso step height (px) between rows
-  cube: 74, // display size (px) of a cube tile image (square)
-  cubeAnchorY: 0.4, // where the cube's top-diamond centre sits within its square image
-  build: 124, // display size (px) of a building sprite (≈ a 2x2-tile footprint)
-  center: 3.5, // grid centre ((gridSize-1)/2) used to centre the platform on screen
-};
-
-export type IsoTileKind = "grass" | "stone" | "water" | "sand" | "forest" | "snow" | "bridge";
-export interface IsoTile { gx: number; gy: number; kind: IsoTileKind }
-
-const ISO_GRID = 8; // 8x8 platform (projects to a diamond)
-
-// Grassy rim, stone plaza in the centre.
-export const ISO_TOWN_TILES: IsoTile[] = (() => {
-  const tiles: IsoTile[] = [];
-  for (let gy = 0; gy < ISO_GRID; gy++) {
-    for (let gx = 0; gx < ISO_GRID; gx++) {
-      const plaza = gx >= 3 && gx <= 4 && gy >= 3 && gy <= 4;
-      tiles.push({ gx, gy, kind: plaza ? "stone" : "grass" });
-    }
-  }
-  return tiles;
-})();
-
-// Each building stands on a 2x2 footprint, anchored at the shared corner of 4 tiles
-// (half-integer cell). 9 buildings on the inner 6x6, leaving a 1-tile grassy rim.
-export const ISO_BUILDING_CELL: Record<string, { gx: number; gy: number }> = {
-  tower: { gx: 1.5, gy: 1.5 },
-  kitchen: { gx: 3.5, gy: 1.5 },
-  wall: { gx: 5.5, gy: 1.5 },
-  workshop: { gx: 1.5, gy: 3.5 },
-  townhall: { gx: 3.5, gy: 3.5 },
-  bank: { gx: 5.5, gy: 3.5 },
-  panel: { gx: 1.5, gy: 5.5 },
-  well: { gx: 3.5, gy: 5.5 },
-  gate: { gx: 5.5, gy: 5.5 },
-};
+// NOTE: the Home town visual is now an editor-authored map (src/data/town-map.json,
+// rendered by components/TownMap.tsx with the editor's renderer) — the old
+// hand-positioned iso platform (ISO_TOWN / ISO_TOWN_TILES / ISO_BUILDING_CELL) was
+// removed with it. TOWN_BUILDINGS below remains the game-side catalog: names, icons,
+// blurbs and modal metadata, matched to backend building ids.
 
 // x/y are % positions WITHIN the building's island box (centered anchor). Buildings are
 // spread across three islands: core (civic), ne (defense), sw (production).
