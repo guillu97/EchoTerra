@@ -394,8 +394,12 @@ POST /api/games/{id}/combat/{c}/action            {unitId, action: move|attack|s
   scroll dans `layout()`), les textes passent `resolution: DPR`, et le supersample des cubes suit
   (`SS = 2×DPR`, plafonné 6). **Textures d'unités** : les PNG 1024² (héros/monstres, ~4 Mio de VRAM chacun)
   sont réduits à leur taille d'affichage max après chargement (`game/textureUtils.ts`, `shrinkTexture` — même
-  clé, source canvas) et **CombatScene ne précharge plus rien** (MapScene est l'unique chargeur des sprites
-  partagés — les deux loaders téléchargeaient chaque PNG en double). **Test de chargement** :
+  clé, source canvas) et **recadrés au carré du contenu opaque** (`cropSquare`, ancré aux pieds : les marges
+  transparentes des PNG faisaient perdre ~40 % de la boîte d'affichage — recadré, le sprite est plus grand et
+  plus net à taille égale) ; **CombatScene ne précharge plus rien** (MapScene est l'unique chargeur des sprites
+  partagés — les deux loaders téléchargeaient chaque PNG en double). **Les héros des AUTRES joueurs** sont des
+  sprites translucides (alpha 0.45), visibles par défaut (`showOthers: true`, bouton 👥 pour masquer) ; les
+  héros partageant une case se répartissent en **ellipse iso 10×5** (anti-chevauchement). **Test de chargement** :
   `npm run test:perf` (`tests/perf/map-loading.mjs`, Playwright) vérifie les budgets — payload PNG, zéro
   téléchargement en double, sources brutes libérées, unités ≤512px, VRAM estimée, pré-cuisson, ouverture/
   réouverture de l'onglet, instance conservée, scènes endormies, canvas à la résolution native (DPR 3).

@@ -99,7 +99,7 @@ function MapControls() {
         {multiplayer && (
           <button
             className={`small ${showOthers ? "red" : ""}`}
-            title="Afficher/masquer les héros des autres joueurs (points violets)"
+            title="Afficher/masquer les héros des autres joueurs (sprites translucides)"
             onClick={() => toggleOthers()}
           >
             👥 Autres

@@ -6,6 +6,28 @@
 
 ---
 
+## 2026-07-14 (5) — Map : unités plus nettes, autres joueurs translucides, anti-chevauchement
+
+### Fait
+- **Résolution des personnages/monstres** (`textureUtils.shrinkTexture` + option `cropSquare`) : les
+  PNG 1024² gardaient leurs grosses marges transparentes → affiché dans sa boîte de ~14 px monde, le
+  contenu n'en occupait que ~60 %. Le shrink recadre désormais au **carré englobant du contenu opaque**
+  (ancré en bas — les sprites sont ancrés aux pieds, origin 0.5/1) : chaque texel est du personnage,
+  à taille d'affichage égale le sprite paraît ~1,5× plus grand et nettement plus net. S'applique aux
+  héros ET aux monstres (mêmes textures partagées avec CombatScene, qui en profite aussi).
+- **Héros des autres joueurs visibles** : rendus avec les MÊMES sprites chibi mais à alpha 0,45
+  (plus de petits points violets) ; visibles PAR DÉFAUT (`showOthers: true`), le bouton 👥 les masque.
+- **Anti-chevauchement** : les héros qui partagent une case se répartissent sur une **ellipse aplatie
+  iso** (rayon 10×5, angle réparti uniformément ; un héros seul reste centré) — plus d'empilement
+  quasi-total à l'ancien offset de 6 px.
+
+### Fonctionnel (vérifié)
+- E2E 2 joueurs : 2 héros d'Alice sur la même case → positions distinctes ; héros de Bob translucide
+  (alpha 0,45) ; texture char-* recadrée carrée (128 en DPR 1, 512 en DPR 3, jamais suréchantillonnée).
+  Capture zoomée : sprites plus grands et nets. `tsc -b` + `npm run build` OK, `test:perf` 13/13.
+
+---
+
 ## 2026-07-14 (4) — Dropdown des héros sur le smiley + Home limité à MON équipe
 
 ### Fait

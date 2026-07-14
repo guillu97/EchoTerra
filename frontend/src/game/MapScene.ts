@@ -93,9 +93,9 @@ export class MapScene extends Phaser.Scene {
   private gs?: GameState;
   private selectedHeroId?: string;
   // Multiplayer: my team's hero ids (empty = legacy solo, everyone is "mine").
-  // Other players' heroes render as small distinct dots, hidden unless showOthers.
+  // Other players' heroes render as translucent sprites (hidden if 👥 toggled off).
   private myHeroIds: string[] = [];
-  private showOthers = false;
+  private showOthers = true;
 
   private isMine(heroId: string): boolean {
     return this.myHeroIds.length === 0 || this.myHeroIds.includes(heroId);
@@ -1003,38 +1003,40 @@ export class MapScene extends Phaser.Scene {
       if (m.count > 1) this.text(f.sx + msz / 2 + 4, f.sy - msz - 4, `×${m.count}`, "#ffd0c4", 9);
     }
 
-    // Heroes (offset slightly when stacked so they don't fully overlap).
-    // Mine render as full chibi sprites; other players' heroes are small violet
-    // dots — and only when showOthers is on ("👥" toggle).
-    const stackIndex: Record<string, number> = {};
-    for (const h of game.heroes) {
-      if (h.hp <= 0) continue;
+    // Heroes: mine as full chibi sprites, other players' as the SAME sprites at
+    // lower alpha (visible by default; the "👥" toggle hides them). Heroes sharing
+    // a tile fan out on a small iso-flattened ellipse so they never fully overlap.
+    const OTHER_ALPHA = 0.45;
+    const visibleHero = (h: Hero) =>
+      h.hp > 0 &&
       // Heroes standing on the town tile are INSIDE the walls: they don't appear
       // on the world map (any player's) — they show up in the Home town instead.
-      // Selection still works through the hero chips / tapping the town tile.
-      if (h.x === game.town.x && h.y === game.town.y) continue;
+      // Selection still works through the 🙂 dropdown / tapping the town tile.
+      !(h.x === game.town.x && h.y === game.town.y) &&
+      (this.isMine(h.id) || this.showOthers);
+    const byTile: Record<string, string[]> = {};
+    for (const h of game.heroes) {
+      if (visibleHero(h)) (byTile[`${h.x},${h.y}`] ||= []).push(h.id);
+    }
+    for (const h of game.heroes) {
+      if (!visibleHero(h)) continue;
       const mine = this.isMine(h.id);
-      if (!mine && !this.showOthers) continue;
-      const skey = `${h.x},${h.y}`;
-      const i = stackIndex[skey] || 0;
-      stackIndex[skey] = i + 1;
+      const group = byTile[`${h.x},${h.y}`];
+      const i = group.indexOf(h.id);
       const t = game.tiles[h.y * game.width + h.x];
       const f = this.topFace(h.x, h.y, this.renderHeight(t));
-      const ox = i * 6 - 6;
-      const oy = i * 3;
+      // Formation: a lone hero sits centred; groups spread evenly on an ellipse
+      // matching the iso tile's proportions (2:1).
+      let ox = 0;
+      let oy = 0;
+      if (group.length > 1) {
+        const a = Math.PI + (i / group.length) * Math.PI * 2;
+        ox = Math.cos(a) * 10;
+        oy = Math.sin(a) * 5;
+      }
       const cx = f.sx + ox;
       const cy = f.sy + oy;
-      if (!mine) {
-        // Teammate marker: small violet dot with the hero's initial — clearly not
-        // one of my sprites, and never selectable.
-        this.g.fillStyle(OTHER_HERO_COLOR, 1);
-        this.g.fillCircle(cx, cy - 4, 4.5);
-        this.g.lineStyle(1.5, 0xffffff, 0.9);
-        this.g.strokeCircle(cx, cy - 4, 4.5);
-        this.text(cx, cy - 16, h.name[0], "#e6d7ff", 9);
-        continue;
-      }
-      const selected = h.id === this.selectedHeroId;
+      const selected = mine && h.id === this.selectedHeroId;
       const depth = (h.x + h.y) * 100 + 91 + i;
       // Selection ring at the hero's feet, in the iso stack just below the sprite —
       // the sprite (and units in front) draw over it instead of the ring covering them.
@@ -1057,13 +1059,18 @@ export class MapScene extends Phaser.Scene {
           .setOrigin(0.5, 1)
           .setDisplaySize(hsz, hsz)
           .setDepth(depth);
+        if (!mine) img.setAlpha(OTHER_ALPHA);
         this.unitSprites.push(img);
-      } else {
+      } else if (mine) {
         this.g.fillStyle(selected ? HERO_COLOR_SELECTED : HERO_COLOR, 1);
         this.g.fillCircle(cx, cy - 6, 6);
         this.g.lineStyle(selected ? 3 : 1, selected ? 0xffffff : 0x0a223a, 1);
         this.g.strokeCircle(cx, cy - 6, 6);
         this.text(cx, cy - 18, h.name[0], selected ? "#ffffff" : "#bfe2ff", 10);
+      } else {
+        this.g.fillStyle(OTHER_HERO_COLOR, OTHER_ALPHA);
+        this.g.fillCircle(cx, cy - 6, 6);
+        this.text(cx, cy - 18, h.name[0], "#e6d7ff", 9);
       }
     }
 

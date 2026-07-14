@@ -73,7 +73,7 @@ interface StoreState {
   playerName: string; // persisted display name
   lobbies: GameSummary[]; // open lobbies (join screen)
   lobbyMode: "public" | "private"; // which lobby entry the menu opened
-  showOthers: boolean; // map: reveal other players' heroes (as dots)
+  showOthers: boolean; // map: other players' heroes (translucent sprites) — ON by default
 
   // --- user account ---
   user?: User; // logged-in account (undefined = anonymous, always allowed)
@@ -260,7 +260,7 @@ export const useStore = create<StoreState>((set, get) => {
     playerName: localStorage.getItem(LS_PLAYER_NAME) ?? "",
     lobbies: [],
     lobbyMode: "public" as const,
-    showOthers: false,
+    showOthers: true,
     myGames: [],
 
     view: "map",
