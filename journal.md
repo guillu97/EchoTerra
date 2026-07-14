@@ -6,6 +6,23 @@
 
 ---
 
+## 2026-07-14 (6) — Dangerosité des packs : surbrillance jaune→rouge au lieu des ×N
+
+### Fait
+- **Les labels « ×2 ×4 » des packs de monstres sont supprimés** (demande UX). À la place, la case du
+  pack porte un **losange PLEIN teinté** du jaune (petit pack) au rouge (gros pack) : nouvelle texture
+  `hl-fill` (les losanges de déplacement restent des CONTOURS — pas de confusion), interpolation
+  `dangerTint` (count 1 = jaune `#ffd23f`, 6+ = rouge `#e03224`, linéaire entre les deux) et alpha
+  croissant avec le danger (0.38 → 0.58). Depth : sur la face de la tuile (+1), sous les losanges de
+  déplacement (montés à +2) et sous les unités (+90).
+
+### Fonctionnel (vérifié)
+- E2E : 4 packs → 4 fills, teintes distinctes selon count ; counts forcés 1/3/5/8 → dégradé
+  `ffd23f → f39234 → e65229 → e03224` mesuré sur les sprites + capture. Plus aucun label ×N.
+  `tsc -b` + `npm run build` OK, `test:perf` 13/13.
+
+---
+
 ## 2026-07-14 (5) — Map : unités plus nettes, autres joueurs translucides, anti-chevauchement
 
 ### Fait

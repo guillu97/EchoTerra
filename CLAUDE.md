@@ -439,8 +439,10 @@ POST /api/games/{id}/combat/{c}/action            {unitId, action: move|attack|s
   / `hl-ring`, depth `(x+y)*100+h+1`, anneau juste sous le sprite du héros) — les dessiner sur l'overlay du
   haut (depth 10000) les affichait PAR-DESSUS les personnages. Heroes/monsters reuse the same chibi/creature sprites,
   depth-sorted into the cube stack — **rendus petits par rapport aux tuiles** (`UNIT_SCALE = 1/3` dans
-  `MapScene` : héros/monstres/bâtiment de ville ~1/3 de leur ancienne taille ; anneau de sélection et
-  label ×count suivent). **Fond ciel** : le canvas Phaser est **transparent** (`transparent: true`,
+  `MapScene` : héros/monstres/bâtiment de ville ~1/3 de leur ancienne taille ; anneau de sélection suit).
+  **Dangerosité des packs** : plus de label ×N — la case du pack porte un **losange plein teinté
+  jaune→rouge** (`hl-fill` + `dangerTint`, count 1 = jaune, 6+ = rouge, alpha croissant ; depth tuile+1,
+  sous les losanges de déplacement à +2). **Fond ciel** : le canvas Phaser est **transparent** (`transparent: true`,
   pas de couleur caméra en MapScene, `.map-host` sans background) → le `.sky` du GameScreen (le même
   `app-bg.png` que l'onglet Home) est visible derrière la carte ; CombatScene garde son fond opaque.
   Tap a hero (or the **⚡ Actions** button) opens a **radial action menu**
