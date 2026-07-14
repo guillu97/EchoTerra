@@ -6,6 +6,27 @@
 
 ---
 
+## 2026-07-14 (8) — Studio de données : onglets Ressources (fouille par biome) et Monstres
+
+### Fait
+- **🌿 Ressources** : un biome = praticable/fouillable, richesse à la génération (fouilles min–max)
+  et **table de fouille** en drops pondérés (`{type, name, qty, weight}` — weight = pondération du
+  tirage). Seeds = `lootForBiome` + worldgen actuels (forêt : herbe/peau/bois 3–6 fouilles ;
+  montagne/neige : pierre/minerai 1–3 ; eau : rien).
+- **👹 Monstres** : espèce, PV, stats, taille de pack min–max, **terrains d'apparition** (checkboxes
+  des biomes de l'onglet Ressources), **pouvoir spécial** de combat, **loot du pack vaincu** (drops
+  pondérés) et **apparence** (asset `monsters/` avec préview). Seeds = monsters.go + `SkillFor`
+  (Absorbe / Tranche vicieuse / Colonne de Vent-Stun) + trophée générique actuel.
+- Store : 2 collections de plus (CRUD, export/import complet ou partiel, migration douce d'un doc
+  localStorage sans ces clés) ; supprimer un biome le retire des terrains des monstres.
+
+### Fonctionnel (vérifié)
+- E2E : 6 cartes biomes, édition d'une pondération reflétée dans le doc, 3 cartes monstres avec
+  sprites, « Exporter l'onglet » télécharge `echoterra-monsters-*.json`. `tsc -b` + build OK,
+  `test:perf` 13/13.
+
+---
+
 ## 2026-07-14 (7) — Studio de données : arbres techno bâtiments/craft/classes éditables + export JSON
 
 ### Fait

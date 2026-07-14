@@ -1,7 +1,17 @@
 import { useMemo, useRef } from "react";
 import { useStore } from "../store";
 import { useDesigner, type DesignTab } from "./store";
-import type { BuildingDef, DesignDoc, HeroClassDef, MaterialCost, RecipeDef, SkillDef } from "./types";
+import type {
+  BiomeResourceDef,
+  BuildingDef,
+  DesignDoc,
+  HeroClassDef,
+  MaterialCost,
+  MonsterDef,
+  RecipeDef,
+  ResourceDrop,
+  SkillDef,
+} from "./types";
 import { ALL_ASSETS } from "../editor/assetIndex";
 import "./designer.css";
 
@@ -13,7 +23,11 @@ const TABS: { id: DesignTab; label: string }[] = [
   { id: "buildings", label: "🏗️ Bâtiments" },
   { id: "recipes", label: "⚒️ Craft" },
   { id: "classes", label: "🧙 Classes" },
+  { id: "resources", label: "🌿 Ressources" },
+  { id: "monsters", label: "👹 Monstres" },
 ];
+
+const DROP_TYPES = ["plante", "animal", "objet", "minerai", "eau", "aliment", "consommable", "arme", "deco"];
 
 // --- small shared editors -----------------------------------------------------
 
@@ -54,6 +68,43 @@ function CostList({
         </div>
       ))}
       <button className="dz-add" onClick={() => onChange([...items, { name: "Bois", qty: 1 }])}>
+        ＋ {addLabel}
+      </button>
+    </div>
+  );
+}
+
+// Drop-table editor: type + name + qty + draw weight per row.
+function DropsList({
+  items,
+  onChange,
+  addLabel,
+}: {
+  items: ResourceDrop[];
+  onChange: (next: ResourceDrop[]) => void;
+  addLabel: string;
+}) {
+  const upRow = (i: number, patch: Partial<ResourceDrop>) =>
+    onChange(items.map((x, j) => (j === i ? { ...x, ...patch } : x)));
+  return (
+    <div className="dz-costs">
+      {items.length > 0 && (
+        <div className="dz-drop-head">
+          <span>Type</span><span>Nom</span><span>Qté</span><span>Poids</span><span />
+        </div>
+      )}
+      {items.map((d, i) => (
+        <div className="dz-cost-row drop" key={i}>
+          <select value={d.type} onChange={(e) => upRow(i, { type: e.target.value })}>
+            {DROP_TYPES.map((t) => <option key={t}>{t}</option>)}
+          </select>
+          <input value={d.name} placeholder="Objet" onChange={(e) => upRow(i, { name: e.target.value })} />
+          <input type="number" min={1} value={d.qty} onChange={(e) => upRow(i, { qty: Number(e.target.value) || 1 })} />
+          <input type="number" min={1} title="Pondération du tirage" value={d.weight} onChange={(e) => upRow(i, { weight: Number(e.target.value) || 1 })} />
+          <button className="dz-x" onClick={() => onChange(items.filter((_, j) => j !== i))}>✕</button>
+        </div>
+      ))}
+      <button className="dz-add" onClick={() => onChange([...items, { type: "objet", name: "Bois", qty: 1, weight: 1 }])}>
         ＋ {addLabel}
       </button>
     </div>
@@ -423,6 +474,103 @@ function ClassForm({ c }: { c: HeroClassDef }) {
   );
 }
 
+function BiomeForm({ r }: { r: BiomeResourceDef }) {
+  const update = useDesigner((s) => s.updateResource);
+  const removeItem = useDesigner((s) => s.removeItem);
+  const up = (patch: Partial<BiomeResourceDef>) => update(r.id, { ...r, ...patch });
+  return (
+    <div className="dz-form">
+      <div className="dz-form-head">
+        <Field label="Icône"><input className="dz-icon" value={r.icon} onChange={(e) => up({ icon: e.target.value })} /></Field>
+        <Field label="Nom"><input value={r.name} onChange={(e) => up({ name: e.target.value })} /></Field>
+        <Field label="Id"><input value={r.id} onChange={(e) => up({ id: e.target.value })} /></Field>
+      </div>
+      <label className="dz-check">
+        <input type="checkbox" checked={r.walkable} onChange={(e) => up({ walkable: e.target.checked })} />
+        Praticable (les héros peuvent y marcher)
+      </label>
+      <label className="dz-check">
+        <input type="checkbox" checked={r.searchable} onChange={(e) => up({ searchable: e.target.checked })} />
+        Fouillable (action Search)
+      </label>
+      <h4>Richesse à la génération</h4>
+      <div className="dz-form-head">
+        <Field label="Fouilles min">
+          <input type="number" min={0} value={r.resourcesMin} onChange={(e) => up({ resourcesMin: Number(e.target.value) || 0 })} />
+        </Field>
+        <Field label="Fouilles max">
+          <input type="number" min={0} value={r.resourcesMax} onChange={(e) => up({ resourcesMax: Number(e.target.value) || 0 })} />
+        </Field>
+      </div>
+      <h4>Table de fouille (drops)</h4>
+      <DropsList items={r.drops} addLabel="Drop" onChange={(drops) => up({ drops })} />
+      <Field label="Notes"><textarea value={r.notes} onChange={(e) => up({ notes: e.target.value })} /></Field>
+      <button className="dz-del" onClick={() => removeItem(r.id)}>🗑️ Supprimer ce biome</button>
+    </div>
+  );
+}
+
+function MonsterForm({ m }: { m: MonsterDef }) {
+  const doc = useDesigner((s) => s.doc);
+  const update = useDesigner((s) => s.updateMonster);
+  const removeItem = useDesigner((s) => s.removeItem);
+  const up = (patch: Partial<MonsterDef>) => update(m.id, { ...m, ...patch });
+  const mobAssets = useMemo(() => ALL_ASSETS.filter((a) => a.cat === "monsters"), []);
+  const url = mobAssets.find((a) => a.file === m.appearance)?.url ?? `/assets/monsters/${m.appearance}.png`;
+  return (
+    <div className="dz-form">
+      <div className="dz-form-head">
+        <Field label="Icône"><input className="dz-icon" value={m.icon} onChange={(e) => up({ icon: e.target.value })} /></Field>
+        <Field label="Espèce (nom)"><input value={m.name} onChange={(e) => up({ name: e.target.value })} /></Field>
+        <Field label="Id"><input value={m.id} onChange={(e) => up({ id: e.target.value })} /></Field>
+      </div>
+      <div className="dz-form-head">
+        <Field label="PV"><input type="number" min={1} value={m.hp} onChange={(e) => up({ hp: Number(e.target.value) || 1 })} /></Field>
+        <Field label="Pack min"><input type="number" min={1} value={m.packMin} onChange={(e) => up({ packMin: Number(e.target.value) || 1 })} /></Field>
+        <Field label="Pack max"><input type="number" min={1} value={m.packMax} onChange={(e) => up({ packMax: Number(e.target.value) || 1 })} /></Field>
+      </div>
+      <h4>Stats</h4>
+      <div className="dz-stats">
+        {STAT_KEYS.map((k) => (
+          <Field key={k} label={k}>
+            <input type="number" value={m.stats[k]} onChange={(e) => up({ stats: { ...m.stats, [k]: Number(e.target.value) || 0 } })} />
+          </Field>
+        ))}
+      </div>
+      <h4>Terrains d'apparition</h4>
+      <div className="dz-req-classes">
+        {doc.resources.map((b) => (
+          <label key={b.id} className="dz-check">
+            <input
+              type="checkbox"
+              checked={m.biomes.includes(b.id)}
+              onChange={(e) => up({ biomes: e.target.checked ? [...m.biomes, b.id] : m.biomes.filter((x) => x !== b.id) })}
+            />
+            {b.icon} {b.name}
+          </label>
+        ))}
+      </div>
+      <Field label="Pouvoir spécial (combat)"><input value={m.special} onChange={(e) => up({ special: e.target.value })} /></Field>
+      <h4>Loot (pack vaincu)</h4>
+      <DropsList items={m.drops} addLabel="Loot" onChange={(drops) => up({ drops })} />
+      <h4>Apparence</h4>
+      <div className="dz-appearance">
+        <div className="dz-app-slot">
+          <span className="dz-app-label">Sprite (carte & combat)</span>
+          <img src={url} alt="" />
+          <select value={m.appearance} onChange={(e) => up({ appearance: e.target.value })}>
+            {mobAssets.map((a) => (
+              <option key={a.file} value={a.file}>{a.label}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <Field label="Notes"><textarea value={m.notes} onChange={(e) => up({ notes: e.target.value })} /></Field>
+      <button className="dz-del" onClick={() => removeItem(m.id)}>🗑️ Supprimer ce monstre</button>
+    </div>
+  );
+}
+
 // --- export / import ------------------------------------------------------------
 
 function download(filename: string, data: unknown) {
@@ -456,7 +604,11 @@ export function DesignerScreen() {
       ? doc.buildings.map((b) => ({ id: b.id, icon: b.icon, name: b.name, sub: b.startsBuilt ? "de départ" : "chantier" }))
       : tab === "recipes"
       ? doc.recipes.map((r) => ({ id: r.id, icon: r.icon, name: r.name, sub: r.building ? `${r.building} · ${r.pa} PA` : `${r.pa} PA` }))
-      : doc.classes.map((c) => ({ id: c.id, icon: c.tier === 1 ? "🟢" : "🟣", name: c.name, sub: `palier ${c.tier} · J${c.day}` }));
+      : tab === "classes"
+      ? doc.classes.map((c) => ({ id: c.id, icon: c.tier === 1 ? "🟢" : "🟣", name: c.name, sub: `palier ${c.tier} · J${c.day}` }))
+      : tab === "resources"
+      ? doc.resources.map((r) => ({ id: r.id, icon: r.icon, name: r.name, sub: r.searchable ? `${r.drops.length} drops · ${r.resourcesMin}–${r.resourcesMax} fouilles` : "non fouillable" }))
+      : doc.monsters.map((m) => ({ id: m.id, icon: m.icon, name: m.name, sub: `${m.hp} PV · pack ${m.packMin}–${m.packMax}` }));
 
   const treeNodes: TreeNode[] =
     tab === "buildings"
@@ -483,6 +635,8 @@ export function DesignerScreen() {
         ...(Array.isArray(parsed.buildings) && { buildings: parsed.buildings }),
         ...(Array.isArray(parsed.recipes) && { recipes: parsed.recipes }),
         ...(Array.isArray(parsed.classes) && { classes: parsed.classes }),
+        ...(Array.isArray(parsed.resources) && { resources: parsed.resources }),
+        ...(Array.isArray(parsed.monsters) && { monsters: parsed.monsters }),
         version: parsed.version ?? doc.version,
       };
       importDoc(merged);
@@ -494,6 +648,10 @@ export function DesignerScreen() {
   const selBuilding = tab === "buildings" ? doc.buildings.find((b) => b.id === sel) : undefined;
   const selRecipe = tab === "recipes" ? doc.recipes.find((r) => r.id === sel) : undefined;
   const selClass = tab === "classes" ? doc.classes.find((c) => c.id === sel) : undefined;
+  const selResource = tab === "resources" ? doc.resources.find((r) => r.id === sel) : undefined;
+  const selMonster = tab === "monsters" ? doc.monsters.find((m) => m.id === sel) : undefined;
+  const dropsSummary = (drops: ResourceDrop[]) =>
+    drops.map((d) => `${d.qty > 1 ? `${d.qty} ` : ""}${d.name}${d.weight !== 1 ? ` (×${d.weight})` : ""}`).join(", ") || "—";
 
   return (
     <div className="dz-screen">
@@ -552,7 +710,32 @@ export function DesignerScreen() {
           ))}
         </div>
 
-        {tab === "recipes" ? (
+        {tab === "resources" ? (
+          <div className="dz-tree dz-recipe-groups">
+            {doc.resources.map((r) => (
+              <button key={r.id} className={`dz-node recipe ${r.id === sel ? "sel" : ""}`} onClick={() => select(r.id)}>
+                <span className="dz-node-name">{r.icon} {r.name}</span>
+                <span className="dz-node-sub">
+                  {r.searchable ? `🔎 ${r.resourcesMin}–${r.resourcesMax} fouilles · ${dropsSummary(r.drops)}` : "non fouillable"}
+                  {!r.walkable ? " · ⛔ impraticable" : ""}
+                </span>
+              </button>
+            ))}
+          </div>
+        ) : tab === "monsters" ? (
+          <div className="dz-tree dz-recipe-groups">
+            {doc.monsters.map((m) => (
+              <button key={m.id} className={`dz-node recipe monster ${m.id === sel ? "sel" : ""}`} onClick={() => select(m.id)}>
+                <img className="dz-mob-img" src={`/assets/monsters/${m.appearance}.png`} alt="" />
+                <span className="dz-node-name">{m.icon} {m.name}</span>
+                <span className="dz-node-sub">
+                  {m.hp} PV · pack {m.packMin}–{m.packMax} · {m.biomes.length ? m.biomes.join(", ") : "aucun terrain"}
+                </span>
+                <span className="dz-node-sub">🎁 {dropsSummary(m.drops)}</span>
+              </button>
+            ))}
+          </div>
+        ) : tab === "recipes" ? (
           <div className="dz-tree dz-recipe-groups">
             {[...doc.buildings.map((b) => ({ id: b.id, label: `${b.icon} ${b.name}` })), { id: "", label: "🎒 Sans bâtiment" }].map(
               (g) => {
@@ -583,7 +766,9 @@ export function DesignerScreen() {
           {selBuilding && <BuildingForm b={selBuilding} />}
           {selRecipe && <RecipeForm r={selRecipe} />}
           {selClass && <ClassForm c={selClass} />}
-          {!selBuilding && !selRecipe && !selClass && (
+          {selResource && <BiomeForm r={selResource} />}
+          {selMonster && <MonsterForm m={selMonster} />}
+          {!selBuilding && !selRecipe && !selClass && !selResource && !selMonster && (
             <div className="dz-empty">
               Sélectionne un élément (liste ou arbre) pour l'éditer,
               <br />ou crée-en un avec ＋ Nouveau.

@@ -539,12 +539,16 @@ canvas2d** so the SAME `drawMap()` feeds both the live canvas and the PNG export
 ## 7c. Studio de données (dev tool — `frontend/src/designer/`)
 
 **But** : éditer le game design en JSON — bouton 🧬 **Données** sur l'écran titre ou hash `#designer`
-(`appScreen === "designer"`, hors shell). Trois onglets : **🏗️ Bâtiments** (arbre techno : prérequis
+(`appScreen === "designer"`, hors shell). Cinq onglets : **🏗️ Bâtiments** (arbre techno : prérequis
 `{building, level}`, niveaux avec PA + matériaux + effets, `startsBuilt`), **⚒️ Craft** (recettes :
 bâtiment requis + niveau, `field`, PA, ingrédients, produit `{type,name,qty}`, effets — vue groupée
 par bâtiment), **🧙 Classes** (palier/jour/prérequis entre classes, rôle, bonus de stats + PA,
 pouvoirs `{name, scope map|iso, pa, desc, effects}`, apparence `{map, icon}` = assets `characters/`
-avec préviews). Fichiers : `types.ts` (schémas + **seeds = données actuelles du jeu**, miroir de
+avec préviews), **🌿 Ressources** (par biome : praticable/fouillable, richesse min–max à la génération,
+**table de fouille** `ResourceDrop {type,name,qty,weight}` — weight = pondération du tirage),
+**👹 Monstres** (PV/stats/pack min–max, **terrains d'apparition** = checkboxes des biomes, pouvoir
+spécial combat, **loot de pack vaincu** en drops pondérés, apparence = asset `monsters/` avec préview).
+Supprimer un biome le retire des terrains d'apparition des monstres. Fichiers : `types.ts` (schémas + **seeds = données actuelles du jeu**, miroir de
 town.go/craft.go/classes.go), `store.ts` (zustand, autosave localStorage `echoterra:designer:doc`,
 hook DEV `window.__dd`), `DesignerScreen.tsx` (liste + **arbre SVG** par profondeur de prérequis +
 inspecteur), `designer.css`. **Export JSON** (tout ou par onglet, `echoterra-design-*.json`) →

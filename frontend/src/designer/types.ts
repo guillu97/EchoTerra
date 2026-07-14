@@ -72,11 +72,52 @@ export interface HeroClassDef {
   };
 }
 
+// One possible drop when searching a tile / looting a monster. `weight` is the
+// draw weighting relative to the other drops of the same table (weight 2 = twice
+// as likely as weight 1).
+export interface ResourceDrop {
+  type: string; // plante | animal | objet | minerai | eau | consommable…
+  name: string;
+  qty: number;
+  weight: number;
+}
+
+// What a biome yields when a hero searches it (fouille), plus worldgen richness.
+export interface BiomeResourceDef {
+  id: string; // water | sand | grass | forest | mountain | snow
+  name: string;
+  icon: string;
+  walkable: boolean;
+  searchable: boolean;
+  resourcesMin: number; // tile richness range at worldgen (number of searches)
+  resourcesMax: number;
+  drops: ResourceDrop[];
+  notes: string;
+}
+
+// A monster species: stats, where it spawns, what it drops when defeated.
+export interface MonsterDef {
+  id: string;
+  name: string; // species (must match the game's Species strings)
+  icon: string;
+  appearance: string; // monster asset file (mob-*) for map & combat
+  hp: number;
+  stats: StatsDef;
+  packMin: number; // pack size range at spawn (grows with waves/players)
+  packMax: number;
+  biomes: string[]; // biome ids where it can spawn
+  special: string; // combat special (name + effect)
+  drops: ResourceDrop[]; // loot when the pack is defeated
+  notes: string;
+}
+
 export interface DesignDoc {
   version: number;
   buildings: BuildingDef[];
   recipes: RecipeDef[];
   classes: HeroClassDef[];
+  resources: BiomeResourceDef[];
+  monsters: MonsterDef[];
 }
 
 export const emptyStats = (): StatsDef => ({
@@ -150,8 +191,36 @@ const seedClasses = (): HeroClassDef[] => [
   ], appearance: { map: "char-healer", icon: "char-healer" } },
 ];
 
+// Search loot mirrors actions.go lootForBiome (uniform draw → weight 1 each);
+// richness mirrors worldgen (forest/grass 3–6 searches, others 1–3, water 0).
+const drop = (type: string, name: string, qty = 1, weight = 1): ResourceDrop => ({ type, name, qty, weight });
+
+const seedResources = (): BiomeResourceDef[] => [
+  { id: "water", name: "Eau", icon: "🌊", walkable: false, searchable: false, resourcesMin: 0, resourcesMax: 0, drops: [], notes: "Infranchissable. Rien à fouiller." },
+  { id: "sand", name: "Sable", icon: "🏜️", walkable: true, searchable: true, resourcesMin: 3, resourcesMax: 6, drops: [drop("plante", "Fleur"), drop("animal", "Viande"), drop("objet", "Débris")], notes: "" },
+  { id: "grass", name: "Plaine", icon: "🌾", walkable: true, searchable: true, resourcesMin: 3, resourcesMax: 6, drops: [drop("plante", "Fleur"), drop("animal", "Viande"), drop("objet", "Débris")], notes: "Biome de départ autour de la ville." },
+  { id: "forest", name: "Forêt", icon: "🌲", walkable: true, searchable: true, resourcesMin: 3, resourcesMax: 6, drops: [drop("plante", "Herbe médicinale"), drop("animal", "Peau"), drop("objet", "Bois")], notes: "" },
+  { id: "mountain", name: "Montagne", icon: "⛰️", walkable: true, searchable: true, resourcesMin: 1, resourcesMax: 3, drops: [drop("minerai", "Pierre"), drop("minerai", "Minerai de fer")], notes: "" },
+  { id: "snow", name: "Neige", icon: "❄️", walkable: true, searchable: true, resourcesMin: 1, resourcesMax: 3, drops: [drop("minerai", "Pierre"), drop("minerai", "Minerai de fer")], notes: "" },
+];
+
+// Species mirror monsters.go (stats/PV/pack) and combat.go SkillFor (specials);
+// defeat loot is today a single generic trophy (actions.go).
+const seedMonsters = (): MonsterDef[] => [
+  { id: "slime", name: "Slime Vorace", icon: "🟣", appearance: "mob-slime", hp: 9, stats: { ...emptyStats(), force: 2, agilite: 1, endurance: 4, precision: 2 }, packMin: 1, packMax: 2, biomes: ["sand", "grass", "forest", "mountain", "snow"], special: "Absorbe (mêlée) : régénère en absorbant sa cible", drops: [drop("animal", "Trophée de monstre")], notes: "" },
+  { id: "goblin", name: "Goblin Pillard", icon: "👺", appearance: "mob-goblin", hp: 6, stats: { ...emptyStats(), force: 4, agilite: 4, endurance: 1, precision: 2 }, packMin: 1, packMax: 2, biomes: ["sand", "grass", "forest", "mountain", "snow"], special: "Tranche vicieuse (mêlée)", drops: [drop("animal", "Trophée de monstre")], notes: "" },
+  { id: "windelemental", name: "Elementaire de Vent", icon: "🌀", appearance: "mob-windelemental", hp: 10, stats: { ...emptyStats(), dexterite: 2, agilite: 3, endurance: 5, precision: 2 }, packMin: 1, packMax: 2, biomes: ["sand", "grass", "forest", "mountain", "snow"], special: "Colonne de Vent (portée 3) : étourdit (Stun)", drops: [drop("animal", "Trophée de monstre")], notes: "" },
+];
+
 export const DESIGN_DOC_VERSION = 1;
 
 export function seedDoc(): DesignDoc {
-  return { version: DESIGN_DOC_VERSION, buildings: seedBuildings(), recipes: seedRecipes(), classes: seedClasses() };
+  return {
+    version: DESIGN_DOC_VERSION,
+    buildings: seedBuildings(),
+    recipes: seedRecipes(),
+    classes: seedClasses(),
+    resources: seedResources(),
+    monsters: seedMonsters(),
+  };
 }

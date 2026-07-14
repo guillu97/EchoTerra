@@ -383,6 +383,33 @@
   font-size: 12px;
 }
 
+/* drops editor + monster cards */
+.dz-drop-head {
+  display: grid;
+  grid-template-columns: 96px 1fr 52px 52px 26px;
+  gap: 5px;
+  font-size: 10px;
+  color: #8fa1c0;
+  padding: 0 2px;
+}
+.dz-cost-row.drop {
+  display: grid;
+  grid-template-columns: 96px 1fr 52px 52px 26px;
+}
+.dz-cost-row.drop input[type="number"] {
+  width: auto;
+}
+.dz-node.monster {
+  width: 280px;
+  align-items: center;
+  text-align: center;
+}
+.dz-mob-img {
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+}
+
 /* narrow screens: stack panes */
 @media (max-width: 900px) {
   .dz-body {
