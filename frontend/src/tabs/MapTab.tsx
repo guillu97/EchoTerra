@@ -60,11 +60,16 @@ function ActionMenu() {
             rien à fouiller) — le serveur les refuse aussi. */}
         {!onTown && (
           <>
-            {/* Fouille impossible quand le héros est bloqué par la horde. */}
+            {/* Fouille et cachette impossibles quand le héros est tenu par la horde
+                (Tétanisé) — le serveur les refuse aussi. */}
             <button disabled={noPa || stuck || (tile?.resources ?? 0) <= 0} onClick={() => run(search)}>
               🔎 Search <i>-1</i>
             </button>
-            <button disabled={noPa} onClick={() => run(hide)}>
+            <button
+              disabled={noPa || stuck}
+              title={stuck ? "Tétanisé — impossible de se cacher" : ""}
+              onClick={() => run(hide)}
+            >
               🫥 Hide <i>-1</i>
             </button>
           </>

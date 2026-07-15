@@ -113,7 +113,12 @@ export function HeroActionsMenu({ onClose }: { onClose: () => void }) {
                       >
                         🔎
                       </button>
-                      <button className="hm-act" title="Hide (-1 PA)" disabled={noPa} onClick={() => run(h, hide)}>
+                      <button
+                        className="hm-act"
+                        title={stuck ? "Tétanisé — impossible de se cacher" : "Hide (-1 PA)"}
+                        disabled={noPa || stuck}
+                        onClick={() => run(h, hide)}
+                      >
                         🫥
                       </button>
                     </>

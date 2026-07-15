@@ -91,6 +91,11 @@ func (g *GameState) HideHero(heroID string) error {
 	if h.X == g.Town.X && h.Y == g.Town.Y {
 		return ActionError{"inutile de se cacher en ville — la ville protège déjà ses habitants"}
 	}
+	// A hero pinned by a pack (Tétanisé) can't slip away to hide: the monsters
+	// hold them. Break free first (kill/thin the pack, or Escape).
+	if h.HasState(StateTetanise) {
+		return ActionError{h.Name + " est tétanisé — impossible de se cacher sous les griffes de la horde"}
+	}
 	if h.PA <= 0 {
 		return ActionError{h.Name + " n'a plus de point d'action"}
 	}
@@ -245,6 +250,10 @@ func (g *GameState) SearchTile(heroID string) (*Item, error) {
 	}
 	if h.PA <= 0 {
 		return nil, ActionError{h.Name + " n'a plus de point d'action"}
+	}
+	// A hero pinned by a pack (Tétanisé) fights for their life — no digging around.
+	if h.HasState(StateTetanise) {
+		return nil, ActionError{h.Name + " est tétanisé — impossible de fouiller sous les griffes de la horde"}
 	}
 	// The town tile is not searchable (its resources are zeroed at worldgen; town
 	// loot lives in the Bank, not under the plaza).

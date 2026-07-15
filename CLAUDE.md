@@ -244,9 +244,12 @@ the last one dies. A `Tétanisé` hero may still cast it (thinning the pack can 
 Casting clears `Caché`. Returns `{report:{species,damage,slain,killed,...}, game}`. Tests: `fireball_test.go`.
 
 **States (map)**: `Fatigue` (0 PA), `Soif`, `Tétanisé`, `Caché`, `Blessé`. **(iso)**: `Stun`, `Cécité`, `Root`…
-- **Tétanisé**: a hero on a tile with a pack is stuck (can't move) when `playersOnTile < ceil(monsters/heroesPerPack)`
-  with `heroesPerPack=4` and `monsters>=2`. A **Gardien** (advanced class) counts as 3 heroes in this calc
-  (`gardienWeight` in `wave.go`). Cleared by killing the monster (combat win) or leaving the tile.
+- **Tétanisé**: a hero on a tile with a pack is stuck when `playersOnTile < ceil(monsters/heroesPerPack)`
+  with `heroesPerPack=4` and `monsters>=2` (1 héros tient 4 créatures, la 5e le submerge). A **Gardien**
+  counts as 3 heroes (`gardienWeight`). **Un héros tétanisé ne peut NI bouger, NI fouiller, NI se cacher**
+  (refus serveur + UI) — il peut boule-de-feu, Tir précis, Escape, ou ouvrir le combat. Libéré quand le pack
+  passe sous le seuil (fireball/snipe/combat), qu'un renfort arrive sur la case, ou en quittant la case
+  (Escape). Tests exhaustifs : `tetanise_test.go`.
 - **Caché**: from **Hide** (1 PA) — the hero is skipped by the next wave's attack, then concealment is consumed.
 
 **Isometric combat** (`combat.go` / `CombatScene.ts`) — initiative by agility; each turn a unit moves once

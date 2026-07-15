@@ -251,3 +251,146 @@ func TestBotEvolvesAtDayGates(t *testing.T) {
 		}
 	}
 }
+
+// Bots spread out: a tile a teammate already works on is never picked as a target.
+func TestBotAvoidsTilesOccupiedByTeammates(t *testing.T) {
+	g, bot := botGame(t)
+	// Every tile barren except two: R1 (occupied by a teammate) and R2 (free).
+	for i := range g.Tiles {
+		g.Tiles[i].Resources = 0
+	}
+	r1x, r1y := g.Town.X+2, g.Town.Y
+	r2x, r2y := g.Town.X-2, g.Town.Y
+	g.TileAt(r1x, r1y).Resources = 5
+	g.TileAt(r2x, r2y).Resources = 5
+	// Teammate parked ON R1; the acting hero sits in between, others out of PA.
+	teammate := g.HeroByID(bot.HeroIDs[1])
+	teammate.X, teammate.Y, teammate.PA = r1x, r1y, 0
+	third := g.HeroByID(bot.HeroIDs[2])
+	third.PA = 0
+	actor := g.HeroByID(bot.HeroIDs[0])
+	actor.X, actor.Y, actor.PA = g.Town.X, g.Town.Y+3, 6 // équidistant des deux
+
+	tx, ty, ok := g.pickResourceTile(actor)
+	if !ok {
+		t.Fatal("R2 should be pickable")
+	}
+	if tx == r1x && ty == r1y {
+		t.Fatal("the bot must not queue behind a teammate already working R1")
+	}
+	if tx != r2x || ty != r2y {
+		t.Fatalf("expected R2 (%d,%d), got (%d,%d)", r2x, r2y, tx, ty)
+	}
+}
+
+// With the known map picked clean, bots go EXPLORING (a frontier tile touching the
+// fog) instead of idling in town.
+func TestBotExploresFrontierWhenNothingToGather(t *testing.T) {
+	g, bot := botGame(t)
+	for i := range g.Tiles {
+		g.Tiles[i].Resources = 0 // nothing to gather anywhere
+	}
+	// No town work either (all built and pristine), so exploring is the best move.
+	for _, b := range g.Town.Buildings {
+		b.Built, b.UnderConstruction = true, false
+		if b.Level < 1 {
+			b.Level = 1
+		}
+		if b.MaxDurability == 0 {
+			b.MaxDurability = 100
+		}
+		b.Durability = b.MaxDurability
+	}
+	parkTeam(g, bot, g.Town.X, g.Town.Y, 6)
+	h := g.HeroByID(bot.HeroIDs[0])
+	if _, _, ok := g.pickFrontierTile(h); !ok {
+		t.Fatal("staging: the fog frontier should exist around the revealed start")
+	}
+	if !g.BotAct() {
+		t.Fatal("bot should act")
+	}
+	moved := false
+	for _, id := range bot.HeroIDs {
+		hh := g.HeroByID(id)
+		if hh.X != g.Town.X || hh.Y != g.Town.Y {
+			moved = true
+		}
+	}
+	if !moved {
+		t.Fatal("with nothing to gather, the bots should head out to explore the fog")
+	}
+}
+
+// Per-hero compass bias: two heroes with different sectors pick different targets
+// when equidistant tiles exist all around.
+func TestBotSectorBiasSpreadsTargets(t *testing.T) {
+	g, bot := botGame(t)
+	for i := range g.Tiles {
+		g.Tiles[i].Resources = 0
+	}
+	// Four equidistant rich tiles around town.
+	for _, d := range [][2]int{{3, 0}, {-3, 0}, {0, 3}, {0, -3}} {
+		g.TileAt(g.Town.X+d[0], g.Town.Y+d[1]).Resources = 5
+	}
+	parkTeam(g, bot, g.Town.X, g.Town.Y, 6)
+	// The pick is randomized among the top three — sample each hero a few times and
+	// count the distinct targets across the team: a single shared destination for
+	// every draw would mean the old single-file behaviour.
+	seen := map[[2]int]bool{}
+	for _, id := range bot.HeroIDs {
+		h := g.HeroByID(id)
+		for i := 0; i < 6; i++ {
+			if tx, ty, ok := g.pickResourceTile(h); ok {
+				seen[[2]int{tx, ty}] = true
+			}
+		}
+	}
+	if len(seen) < 2 {
+		t.Fatalf("the team should spread over several gathering targets, saw %d", len(seen))
+	}
+}
+
+// A boss pack is never engaged by less than a full three-hero bot team.
+func TestBotRespectsBosses(t *testing.T) {
+	g, bot := botGame(t)
+	parkTeam(g, bot, 3, 3, 6)
+	lone := g.HeroByID(bot.HeroIDs[0])
+	for _, id := range bot.HeroIDs[1:] { // only one hero on the boss tile
+		hh := g.HeroByID(id)
+		hh.X, hh.Y = g.Town.X, g.Town.Y
+	}
+	m := NewMonster("Roi Gobelin sur Sanglier Géant", 3, 3)
+	g.Monsters[m.ID] = m
+	g.TileAt(3, 3).MonsterID = m.ID
+	if g.botShouldEngage(lone, m) {
+		t.Fatal("a lone bot hero must not challenge a boss")
+	}
+	// The full (buffed) team may.
+	parkTeam(g, bot, 3, 3, 6)
+	for _, id := range bot.HeroIDs {
+		hh := g.HeroByID(id)
+		hh.HP, hh.MaxHP, hh.Stats.Force = 40, 40, 10
+	}
+	if !g.botShouldEngage(lone, m) {
+		t.Fatal("a strong full team should engage the boss")
+	}
+}
+
+// The power estimate keeps weak parties out of losing fights even when they match
+// the pack unit-for-unit.
+func TestBotDeclinesFightAboveItsPower(t *testing.T) {
+	g, bot := botGame(t)
+	parkTeam(g, bot, 3, 3, 6)
+	for _, id := range bot.HeroIDs { // frail team
+		hh := g.HeroByID(id)
+		hh.HP, hh.MaxHP = 3, 3
+		hh.Stats.Force = 0
+	}
+	m := NewMonster("Loup-garou", 3, 3) // 12 PV force 5 -> power 27/unit
+	m.Count = 2
+	g.Monsters[m.ID] = m
+	g.TileAt(3, 3).MonsterID = m.ID
+	if g.botShouldEngage(g.HeroByID(bot.HeroIDs[0]), m) {
+		t.Fatal("a frail party must not engage a pack far above its power")
+	}
+}

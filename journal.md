@@ -6,6 +6,40 @@
 
 ---
 
+## 2026-07-15 (1) — Tétanisé durci + bots diversifiés (secteurs, exploration, prudence)
+
+### Fait
+- **Tétanisé (audit + durcissement)** : la règle GDD est confirmée et testée (1 héros tient 4
+  créatures, la 5e le submerge ; ceil(count/4) ; Gardien = 3 héros → tient 12). **Nouveau : un héros
+  tétanisé ne peut plus NI fouiller NI se cacher** (refus serveur + boutons désactivés dans le menu
+  héros et le menu radial) — il lui reste boule de feu, Tir précis, Escape et le combat. Libération
+  vérifiée : pack aminci sous le seuil, pack tué, **renfort qui arrive sur la case**, morts/voisins
+  ignorés. `tetanise_test.go` (6 tests, 7 seuils).
+- **Bots plus humains et moins clones** :
+  - `heroBias(id)` : personnalité stable par héros (hachage de l'id) → **secteur boussole préféré**
+    (N/S/E/O) + **marge de prudence** pour le retour (0 ou 1 PA d'avance) — l'équipe ne rentre plus au
+    même tick et ne marche plus en file indienne.
+  - `pickResourceTile` remplace « la case la plus proche » : score distance − richesse + pénalité hors
+    secteur, **tirage aléatoire parmi le top 3**, et **évitement des cases où un coéquipier travaille
+    déjà**.
+  - `pickFrontierTile` : quand la carte connue est épuisée, les bots partent **explorer la frontière du
+    brouillard** (chacun dans son secteur) au lieu de tourner en rond en ville.
+- **Combat auto des bots renforcé** (le système existait : `botShouldEngage` + `AutoResolve`) :
+  - engagement par **estimation de puissance** (PV + 3×force des deux camps) en plus des effectifs —
+    une équipe fragile décline un combat perdable ;
+  - **les boss (Roi Gobelin, Arbre Ancien) ne sont jamais engagés à moins de 3 héros** ;
+  - **garde anti-enlisement** : si AutoResolve n'aboutit pas (garde de 400 tours), les héros se
+    replient (`lost`) au lieu de laisser un combat orphelin bloquer toutes les actions de la partie.
+
+### Fonctionnel (vérifié)
+- `go test ./...` (6 paquets) : tetanise_test 6/6, 5 nouveaux tests bots (évitement des cases
+  occupées, exploration du brouillard, dispersion des cibles, respect des boss, refus au-dessus de ses
+  forces) + les 10 tests bots existants inchangés.
+- `npx tsc -b`, `npm run build`.
+
+### À faire
+- Craft par les bots (dépend de la consommation d'objets) ; hordePower ∝ joueurs.
+
 ## 2026-07-14 (13) — Le design JSON du Studio implémenté dans le jeu (sauf PA des bâtiments)
 
 ### Fait
