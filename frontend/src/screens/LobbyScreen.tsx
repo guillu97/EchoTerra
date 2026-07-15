@@ -11,16 +11,15 @@ export function LobbyScreen() {
 
   return (
     <div className="screen parchment lobby-screen">
-      <div className="ornament">
-        <i />
-        <i />
-        <i />
-      </div>
-      <Logo />
       {inLobby ? <WaitingRoom /> : <LobbyForms />}
     </div>
   );
 }
+
+// Per-lobby flavor icon (no server data for this yet — stable pick by name).
+const LOBBY_ICONS = ["🌲", "⛰️", "🏜️", "🌊", "🌸"];
+const lobbyIcon = (name: string) =>
+  LOBBY_ICONS[[...name].reduce((a, c) => a + c.charCodeAt(0), 0) % LOBBY_ICONS.length];
 
 // --- create / join forms -----------------------------------------------------
 
@@ -33,6 +32,7 @@ function LobbyForms() {
     fetchLobbies,
     lobbies,
     lobbyMode,
+    openLobby,
     busy,
     error,
     setScreen,
@@ -53,6 +53,22 @@ function LobbyForms() {
 
   return (
     <div className="lobby-panel">
+      <button className="back-link" onClick={() => setScreen("title")}>
+        ← Retour
+      </button>
+      <div className="lobby-logo">
+        <Logo />
+      </div>
+
+      <div className="lobby-tabs">
+        <button className={isPublic ? "on" : ""} onClick={() => openLobby("public")}>
+          🌍 Publiques
+        </button>
+        <button className={!isPublic ? "on" : ""} onClick={() => openLobby("private")}>
+          🎪 Privées
+        </button>
+      </div>
+
       <label className="lobby-field">
         <span>Ton nom d'aventurier</span>
         <input
@@ -66,36 +82,48 @@ function LobbyForms() {
       {isPublic ? (
         <div className="lobby-card">
           <div className="lobby-card-title">🌍 Parties publiques</div>
-          <div className="lobby-hint">
-            Elles démarrent automatiquement dès que le nombre minimal de joueurs est atteint. Chaque
-            joueur incarne une équipe de 3 héros.
+          <div className="lobby-hint left">
+            Une partie démarre dès son minimum de joueurs atteint. Chaque joueur incarne une équipe
+            de <b>3 héros</b>.
           </div>
           {publicLobbies.length === 0 && <div className="lobby-hint">Recherche de parties…</div>}
           {publicLobbies.length > 0 && (
             <div className="lobby-list">
-              {publicLobbies.map((l) => (
-                <button
-                  key={l.id}
-                  className="lobby-row"
-                  disabled={busy || l.players.length >= l.maxPlayers}
-                  onClick={() => joinLobby(l.id)}
-                >
-                  <span className="lobby-row-name">{l.name}</span>
-                  <span className="lobby-row-count">
-                    {l.players.length}/{l.maxPlayers} joueurs · départ à {l.minPlayers}
-                  </span>
-                </button>
-              ))}
+              {publicLobbies.map((l) => {
+                const full = l.players.length >= l.maxPlayers;
+                const ready = l.players.length >= l.minPlayers;
+                return (
+                  <button
+                    key={l.id}
+                    className="lobby-row"
+                    disabled={busy || full}
+                    onClick={() => joinLobby(l.id)}
+                  >
+                    <span className="lobby-row-main">
+                      <span className="lobby-row-icon">{lobbyIcon(l.name)}</span>
+                      <span className="lobby-row-text">
+                        <span className="lobby-row-name">{l.name}</span>
+                        <span className="lobby-row-status">
+                          {ready ? "Minimum atteint" : "En attente de joueurs"} ·{" "}
+                          {l.players.length}/{l.maxPlayers} joueurs
+                        </span>
+                      </span>
+                    </span>
+                    <span className={"lobby-badge" + (ready ? " hot" : "")}>
+                      {full ? "COMPLET" : ready ? "DÉMARRE" : `${l.players.length}/${l.minPlayers}`}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
       ) : (
         <>
           <div className="lobby-card">
-            <div className="lobby-card-title">🆕 Créer une partie privée</div>
-            <div className="lobby-hint">
-              Tu es l'hôte : partage le code, ajoute des bots si besoin, et lance quand tout le monde
-              est là. Chaque joueur incarne une équipe de 3 héros.
+            <div className="lobby-card-title">🆕 Créer une partie</div>
+            <div className="lobby-hint left">
+              Tu es l'hôte : partage le code, ajoute des bots et lance quand tout le monde est là.
             </div>
             <label className="lobby-field row">
               <span>Joueurs minimum</span>
@@ -108,7 +136,7 @@ function LobbyForms() {
               </select>
             </label>
             <button
-              className="pill red"
+              className="pill red compact"
               disabled={busy}
               onClick={() => createLobby({ minPlayers, maxPlayers: 4 })}
             >
@@ -118,26 +146,26 @@ function LobbyForms() {
 
           <div className="lobby-card">
             <div className="lobby-card-title">🤝 Rejoindre par code</div>
-            <label className="lobby-field row">
-              <span>Code</span>
+            <div className="lobby-join-row">
               <input
                 value={code}
                 maxLength={36}
                 placeholder="ABC12"
                 onChange={(e) => setCode(e.target.value.toUpperCase())}
               />
-            </label>
-            <button className="pill" disabled={busy || !code.trim()} onClick={() => joinLobby(code.trim())}>
-              Rejoindre
-            </button>
+              <button
+                className="pill compact"
+                disabled={busy || !code.trim()}
+                onClick={() => joinLobby(code.trim())}
+              >
+                Rejoindre
+              </button>
+            </div>
           </div>
         </>
       )}
 
       {error && <div className="lobby-error">⚠️ {error}</div>}
-      <button className="pill ghost" onClick={() => setScreen("title")}>
-        ← Retour
-      </button>
     </div>
   );
 }
@@ -173,13 +201,21 @@ function WaitingRoom() {
 
   return (
     <div className="lobby-panel">
-      <div className="lobby-card">
-        <div className="lobby-card-title">
+      <button className="back-link" onClick={() => leaveLobby()}>
+        ← Quitter le salon
+      </button>
+
+      <div className="lobby-card big">
+        <div className="lobby-room-title">
           {isPublic ? "🌍" : "🎪"} {game.name || "Salon"}
         </div>
         {isPublic ? (
-          <div className="lobby-hint">
-            Partie publique — elle démarre automatiquement à {game.minPlayers} joueurs.
+          <div className="lobby-banner">
+            <span className="lobby-banner-icon">🚀</span>
+            <span>
+              <b>Démarrage automatique</b> dès que le salon atteint {game.minPlayers} joueurs — aucun
+              hôte requis.
+            </span>
           </div>
         ) : (
           <>
@@ -196,6 +232,7 @@ function WaitingRoom() {
               <span>{p.host ? "👑" : p.bot ? "🤖" : "🧝"}</span>
               <span className="lobby-player-name">{p.name}</span>
               {p.id === playerId && <span className="lobby-me-tag">(toi)</span>}
+              {p.bot && <span className="lobby-me-tag">bot</span>}
               {isHost && p.id !== playerId && (
                 <button
                   className="lobby-kick"
@@ -226,9 +263,9 @@ function WaitingRoom() {
           ))}
         </div>
 
-        <div className="lobby-status">
+        <div className={"lobby-status" + (enough ? " ready" : "")}>
           {enough
-            ? `Prêt à partir (${game.players.length}/${game.minPlayers} minimum atteint)`
+            ? `Prêt à partir ✓ · ${game.players.length}/${game.minPlayers} minimum atteint`
             : `En attente de joueurs : ${game.players.length}/${game.minPlayers} minimum`}
         </div>
         <div className="lobby-hint">
@@ -238,7 +275,7 @@ function WaitingRoom() {
         {isHost ? (
           <>
             <button
-              className="pill"
+              className="pill compact"
               disabled={busy || game.players.length >= game.maxPlayers}
               onClick={() => addBot()}
             >
@@ -258,9 +295,6 @@ function WaitingRoom() {
       </div>
 
       {error && <div className="lobby-error">⚠️ {error}</div>}
-      <button className="pill ghost" onClick={() => leaveLobby()}>
-        ← Quitter le salon
-      </button>
     </div>
   );
 }

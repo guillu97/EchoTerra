@@ -1,9 +1,15 @@
+import { useEffect, useState } from "react";
 import { useStore } from "../store";
 import { Logo } from "../components/Logo";
-import { assetUrl } from "../assets";
+import { assetUrl, libUrl } from "../assets";
+import { api } from "../api/client";
+import type { GameState } from "../api/types";
+import { formatHMS } from "../useWave";
 
-// "Ecran de titre" — main menu: the three ways to play (solo, public, private),
-// settings, and a debug section (dev/test flows).
+const LS_GAME = "echoterra:gameId";
+
+// "Ecran de titre" — main menu: resume card, the three ways to play (solo,
+// public, private), ranking + settings, and a debug section (dev/test flows).
 export function TitleScreen() {
   const {
     openSettings,
@@ -22,7 +28,8 @@ export function TitleScreen() {
   return (
     <div className="screen parchment">
       <button className="account-chip" onClick={() => openAccount()}>
-        👤 {user ? user.name : "Connexion"}
+        <span className="avatar">{user ? "🦊" : "👤"}</span>
+        {user ? user.name : "Connexion"}
       </button>
       <div className="ornament">
         <i />
@@ -30,9 +37,12 @@ export function TitleScreen() {
         <i />
       </div>
       <Logo />
+
+      <ResumeCard onResume={() => continueTestGame()} busy={busy} />
+
       <div className="menu">
-        <button className="pill red" disabled={busy} onClick={() => startSoloBots()}>
-          🤖 Solo <small>(avec 4 bots)</small>
+        <button className="pill red pulse" disabled={busy} onClick={() => startSoloBots()}>
+          ⚔️ Solo <small>(avec 4 bots)</small>
         </button>
         <button className="pill" onClick={() => openLobby("public")}>
           🌍 Parties publiques
@@ -40,9 +50,14 @@ export function TitleScreen() {
         <button className="pill" onClick={() => openLobby("private")}>
           🎪 Parties privées
         </button>
-        <button className="pill" onClick={() => openSettings("menu")}>
-          ⚙️ Paramètres
-        </button>
+        <div className="menu-row">
+          <button className="pill cream" onClick={() => pushLog("Classement — bientôt")}>
+            🏆 Classement
+          </button>
+          <button className="pill cream" onClick={() => openSettings("menu")}>
+            ⚙️ Paramètres
+          </button>
+        </div>
       </div>
 
       <div className="dev-section">
@@ -63,9 +78,6 @@ export function TitleScreen() {
           <button className="pill dev-pill" onClick={() => setScreen("designer")}>
             🧬 Données
           </button>
-          <button className="pill dev-pill" onClick={() => pushLog("Classement — bientôt")}>
-            🏆 Classement
-          </button>
         </div>
       </div>
 
@@ -74,5 +86,48 @@ export function TitleScreen() {
         {assetUrl("bird") ? <img src={assetUrl("bird")} alt="🐦" /> : "🐦"}
       </div>
     </div>
+  );
+}
+
+// "Reprendre ta partie" — shown when the last played game still exists server-side.
+function ResumeCard({ onResume, busy }: { onResume: () => void; busy: boolean }) {
+  const [game, setGame] = useState<GameState | undefined>();
+
+  useEffect(() => {
+    const id = localStorage.getItem(LS_GAME);
+    if (!id) return;
+    let alive = true;
+    api
+      .getGame(id)
+      .then((g) => {
+        if (alive && g.status !== "gameover") setGame(g);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  if (!game) return null;
+
+  const townPct = Math.round((game.town.hp / game.town.maxHp) * 100);
+  const waveSec = Math.max(0, Math.floor((new Date(game.nextWaveAt).getTime() - Date.now()) / 1000));
+  const meta =
+    game.status === "lobby"
+      ? `Salon en attente · ${game.players.length}/${game.minPlayers} joueurs`
+      : `Jour ${game.day} · 🏰 ${townPct}% · 🌊 ${formatHMS(waveSec)}`;
+
+  return (
+    <button className="resume-card" disabled={busy} onClick={onResume}>
+      <span className="thumb">
+        <img src={libUrl("islands", "core-built")} alt="" />
+      </span>
+      <span className="body">
+        <span className="kicker">REPRENDRE TA PARTIE</span>
+        <span className="title">{game.name || "Expédition"}</span>
+        <span className="meta">{meta}</span>
+      </span>
+      <span className="play">▶</span>
+    </button>
   );
 }

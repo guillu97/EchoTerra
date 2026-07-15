@@ -1,9 +1,9 @@
-// Placeholder wordmark — swap for the real EchoTerra logo art later.
+// Wordmark — « Echo » encre, « Terra » rouge brique (design Claude).
 export function Logo() {
   return (
     <div>
       <div className="logo">
-        <span className="echo">Echo</span>Terra
+        Echo<span className="terra">Terra</span>
       </div>
       <div className="tagline">EVERY ACT COUNTS</div>
     </div>

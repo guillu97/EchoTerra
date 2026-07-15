@@ -1,0 +1,1123 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Nunito+Sans:opsz,wght@6..12,400;6..12,600;6..12,700;6..12,800;6..12,900&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { font-family: "Nunito Sans", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  a { color: #d9603b; }
+  a:hover { color: #b6472a; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-thumb { background: rgba(120,130,150,.4); border-radius: 8px; }
+  @keyframes et-bob { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-7px) } }
+  @keyframes et-bob2 { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-11px) } }
+  @keyframes et-sway { 0%,100% { transform: translateY(0) rotate(-3deg) } 50% { transform: translateY(-6px) rotate(3deg) } }
+  @keyframes et-rise { from { opacity: 0; transform: translateY(14px) } to { opacity: 1; transform: translateY(0) } }
+  @keyframes et-pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(217,96,59,.5) } 50% { box-shadow: 0 0 0 8px rgba(217,96,59,0) } }
+  @keyframes et-shimmer { 0% { background-position: -120% 0 } 100% { background-position: 220% 0 } }
+  @keyframes et-spin { to { transform: rotate(360deg) } }
+</style>
+</helmet>
+
+<div style="min-height:100dvh;display:flex;align-items:flex-start;justify-content:center;padding:108px 18px 20px;background:radial-gradient(1300px 900px at 50% -12%, #3b4670, #1a2036 55%, #0e121e 100%);">
+
+  <!-- prototype flow rail -->
+  <div style="position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:200;display:flex;gap:5px;flex-wrap:wrap;justify-content:center;background:rgba(14,19,31,.72);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.12);border-radius:999px;padding:5px 7px;box-shadow:0 10px 30px rgba(0,0,0,.4);max-width:94vw;">
+    <span style="font:800 10px 'Nunito Sans';letter-spacing:.14em;color:#8ea0bd;align-self:center;padding:0 6px;">PARCOURS</span>
+    <sc-for list="{{ flow }}" as="f" hint-placeholder-count="8">
+      <button onClick="{{ f.go }}" style="{{ f.style }}">{{ f.label }}</button>
+    </sc-for>
+    <span style="width:1px;height:20px;background:rgba(255,255,255,.18);align-self:center;margin:0 2px;"></span>
+    <button onClick="{{ toggleTown }}" title="Démo : présence d'un héros en ville" style="{{ townPillStyle }}">{{ townPillLabel }}</button>
+  </div>
+
+  <!-- device stage -->
+  <div style="position:relative;width:min(452px,100%);height:min(920px,calc(100dvh - 128px));border-radius:34px;overflow:hidden;background:#0e131f;box-shadow:0 40px 90px -20px rgba(0,0,0,.7), 0 0 0 1px rgba(255,255,255,.06), inset 0 0 0 6px rgba(255,255,255,.03);">
+
+    <!-- ============================ TITLE ============================ -->
+    <sc-if value="{{ isTitle }}" hint-placeholder-val="{{ true }}">
+    <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;padding:26px 26px 22px;text-align:center;background:radial-gradient(130% 100% at 50% 0%, #fbf5e6, #f2e7cd 58%, #e7d6b2 100%);color:#3a2e20;overflow:hidden;">
+      <div style="position:absolute;inset:0;background-image:radial-gradient(circle at 18% 12%, rgba(232,184,75,.16), transparent 40%), radial-gradient(circle at 84% 82%, rgba(217,96,59,.12), transparent 42%);pointer-events:none;"></div>
+      <button onClick="{{ goAccount }}" style="position:absolute;top:16px;right:16px;z-index:3;display:flex;align-items:center;gap:7px;border:1px solid rgba(90,62,27,.28);border-radius:999px;background:rgba(255,253,246,.85);color:#3a2e20;font:800 13px 'Nunito Sans';padding:7px 13px 7px 10px;cursor:pointer;box-shadow:0 3px 10px rgba(90,62,27,.12);">
+        <span style="width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,#ffd27d,#e08a4a);display:grid;place-items:center;font-size:12px;">🦊</span> Neyqoh
+      </button>
+
+      <div style="height:34px;"></div>
+      <div style="display:flex;gap:22px;margin-bottom:6px;">
+        <i style="width:13px;height:13px;background:#d9603b;transform:rotate(45deg);box-shadow:0 -22px 0 -4px #d9603b, 0 2px 4px rgba(0,0,0,.15);"></i>
+        <i style="width:13px;height:13px;background:#d9603b;transform:rotate(45deg);box-shadow:0 2px 4px rgba(0,0,0,.15);margin-top:8px;"></i>
+        <i style="width:13px;height:13px;background:#d9603b;transform:rotate(45deg);box-shadow:0 -22px 0 -4px #d9603b, 0 2px 4px rgba(0,0,0,.15);"></i>
+      </div>
+
+      <h1 style="font-family:'Baloo 2';font-weight:800;font-size:52px;line-height:.95;margin:8px 0 0;color:#2a2114;letter-spacing:-.01em;text-shadow:0 2px 0 rgba(255,255,255,.5), 0 4px 12px rgba(90,62,27,.18);">Echo<span style="color:#c0392b;">Terra</span></h1>
+      <div style="margin-top:10px;font:900 11px 'Nunito Sans';letter-spacing:.4em;color:#7a6440;border-top:2px solid #b9a884;padding-top:7px;">EVERY ACT COUNTS</div>
+
+      <sc-if value="{{ hasGame }}" hint-placeholder-val="{{ true }}">
+        <button onClick="{{ startGame }}" style="width:100%;max-width:320px;margin-top:28px;display:flex;align-items:center;gap:12px;border:2px solid #d9a441;border-radius:18px;padding:11px 13px;cursor:pointer;background:linear-gradient(180deg,#fffaf0,#f4e9cf);box-shadow:0 10px 22px -8px rgba(90,62,27,.4);text-align:left;">
+          <span style="width:46px;height:46px;border-radius:12px;overflow:hidden;flex:0 0 auto;box-shadow:0 2px 6px rgba(0,0,0,.2);"><img src="frontend/public/assets/islands/core-built.png" style="width:100%;height:100%;object-fit:cover;"></span>
+          <span style="flex:1;min-width:0;">
+            <span style="display:block;font:800 10px 'Nunito Sans';letter-spacing:.12em;color:#b6472a;">REPRENDRE TA PARTIE</span>
+            <span style="display:block;font:800 17px 'Baloo 2';color:#2a2114;line-height:1.1;">Val-des-Brumes</span>
+            <span style="display:block;font:700 11px 'Nunito Sans';color:#7a6440;">Jour 3 · 🏰 80% · 🌊 08:03</span>
+          </span>
+          <span style="font-size:20px;color:#c0392b;">▶</span>
+        </button>
+      </sc-if>
+      <div style="width:100%;max-width:320px;display:flex;flex-direction:column;gap:12px;margin-top:18px;">
+        <button onClick="{{ startGame }}" style="position:relative;border:none;border-radius:18px;padding:16px 18px;font:800 16px 'Nunito Sans';color:#fff;cursor:pointer;background:linear-gradient(180deg,#e46a44,#c0392b);box-shadow:inset 0 1.5px 0 rgba(255,255,255,.4), inset 0 -3px 0 rgba(0,0,0,.18), 0 8px 20px -4px rgba(192,57,43,.5);animation:et-pulse 3s ease-in-out infinite;">⚔️ Solo</button>
+        <button onClick="{{ goPublic }}" style="border:none;border-radius:18px;padding:15px 18px;font:800 15px 'Nunito Sans';color:#f4ecdb;cursor:pointer;background:linear-gradient(180deg,#3a4664,#27324c);box-shadow:inset 0 1.5px 0 rgba(255,255,255,.16), inset 0 -3px 0 rgba(0,0,0,.28), 0 6px 16px -4px rgba(20,26,43,.5);display:flex;align-items:center;justify-content:center;gap:9px;">🌍 Parties publiques</button>
+        <button onClick="{{ goPrivate }}" style="border:none;border-radius:18px;padding:15px 18px;font:800 15px 'Nunito Sans';color:#f4ecdb;cursor:pointer;background:linear-gradient(180deg,#3a4664,#27324c);box-shadow:inset 0 1.5px 0 rgba(255,255,255,.16), inset 0 -3px 0 rgba(0,0,0,.28), 0 6px 16px -4px rgba(20,26,43,.5);display:flex;align-items:center;justify-content:center;gap:9px;">🎪 Parties privées</button>
+        <div style="display:flex;gap:12px;">
+          <button onClick="{{ goRanking }}" style="flex:1;border:1px solid rgba(90,62,27,.22);border-radius:18px;padding:13px 12px;font:700 14px 'Nunito Sans';color:#5a4a30;cursor:pointer;background:rgba(255,253,246,.7);display:flex;align-items:center;justify-content:center;gap:7px;">🏆 Classement</button>
+          <button onClick="{{ toggleSettings }}" style="flex:1;border:1px solid rgba(90,62,27,.22);border-radius:18px;padding:13px 12px;font:700 14px 'Nunito Sans';color:#5a4a30;cursor:pointer;background:rgba(255,253,246,.7);display:flex;align-items:center;justify-content:center;gap:7px;">⚙️ Paramètres</button>
+        </div>
+      </div>
+
+      <div style="flex:1;"></div>
+      <div style="width:70%;height:0;border-top:3px solid #d59bb0;border-radius:4px;margin-bottom:6px;"></div>
+      <img src="frontend/public/assets/ui/bird.png" alt="oiseau" style="width:76px;height:76px;object-fit:contain;animation:et-sway 3s ease-in-out infinite;filter:drop-shadow(0 8px 8px rgba(90,62,27,.2));">
+
+      <sc-if value="{{ showSettings }}" hint-placeholder-val="{{ false }}">
+        <div onClick="{{ toggleSettings }}" style="position:absolute;inset:0;z-index:50;background:rgba(20,16,10,.5);display:flex;align-items:center;justify-content:center;padding:22px;">
+          <div style="width:100%;max-width:340px;background:linear-gradient(180deg,#fbf5e6,#f0e4c9);border:1px solid rgba(90,62,27,.2);border-radius:22px;padding:20px;box-shadow:0 30px 60px rgba(0,0,0,.4);color:#3a2e20;text-align:left;">
+            <div style="font-family:'Baloo 2';font-weight:800;font-size:20px;margin-bottom:14px;">⚙️ Paramètres</div>
+            <div style="font:800 12px 'Nunito Sans';margin-bottom:6px;">Volume</div>
+            <div style="height:8px;border-radius:6px;background:rgba(90,62,27,.15);margin-bottom:16px;overflow:hidden;"><div style="height:100%;width:72%;background:linear-gradient(90deg,#e8b84b,#d9603b);"></div></div>
+            <div style="font:800 12px 'Nunito Sans';margin-bottom:6px;">Langue</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;">
+              <span style="font:700 12px 'Nunito Sans';padding:6px 12px;border-radius:9px;background:#7fa85b;color:#fff;">Français</span>
+              <span style="font:700 12px 'Nunito Sans';padding:6px 12px;border-radius:9px;background:rgba(90,62,27,.1);">English</span>
+              <span style="font:700 12px 'Nunito Sans';padding:6px 12px;border-radius:9px;background:rgba(90,62,27,.1);">日本語</span>
+            </div>
+            <button onClick="{{ toggleSettings }}" style="width:100%;border:none;border-radius:14px;padding:13px;font:800 14px 'Nunito Sans';color:#fff;background:linear-gradient(180deg,#e46a44,#c0392b);cursor:pointer;">Fermer</button>
+          </div>
+        </div>
+      </sc-if>
+    </div>
+    </sc-if>
+
+    <!-- ============================ LOBBY ============================ -->
+    <sc-if value="{{ isLobby }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;inset:0;display:flex;flex-direction:column;padding:22px 22px 20px;background:radial-gradient(130% 100% at 50% 0%, #fbf5e6, #f2e7cd 60%, #e7d6b2 100%);color:#3a2e20;overflow-y:auto;">
+      <button onClick="{{ goTitle }}" style="align-self:flex-start;border:none;background:none;font:800 13px 'Nunito Sans';color:#7a6440;cursor:pointer;padding:2px 0;">← Retour</button>
+      <div style="text-align:center;margin-top:6px;">
+        <h1 style="font-family:'Baloo 2';font-weight:800;font-size:32px;margin:0;color:#2a2114;">Echo<span style="color:#c0392b;">Terra</span></h1>
+      </div>
+
+      <div style="display:flex;gap:6px;margin:16px 0;background:rgba(90,62,27,.08);padding:5px;border-radius:14px;">
+        <button onClick="{{ goPublic }}" style="{{ pubTabStyle }}">🌍 Publiques</button>
+        <button onClick="{{ goPrivate }}" style="{{ privTabStyle }}">🎪 Privées</button>
+      </div>
+
+      <label style="display:flex;flex-direction:column;gap:5px;font:800 12px 'Nunito Sans';margin-bottom:14px;">
+        Ton nom d'aventurier
+        <input value="Neyqoh" style="border:1px solid rgba(90,62,27,.3);border-radius:12px;padding:11px 13px;font:700 14px 'Nunito Sans';background:#fffdf6;color:#3a2e20;">
+      </label>
+
+      <sc-if value="{{ isPublic }}" hint-placeholder-val="{{ true }}">
+        <div style="background:rgba(255,255,255,.5);border:1px solid rgba(90,62,27,.18);border-radius:18px;padding:15px;box-shadow:0 6px 18px rgba(90,62,27,.08);">
+          <div style="font-family:'Baloo 2';font-weight:700;font-size:16px;margin-bottom:4px;">🌍 Parties publiques</div>
+          <div style="font-size:12px;color:#6b5a3c;margin-bottom:12px;line-height:1.45;">Une partie démarre dès son minimum de joueurs atteint — et tu peux encore rejoindre une partie en cours pendant tout le <b>Jour 1</b>. Chaque joueur incarne une équipe de 3 héros.</div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <sc-for list="{{ lobbies }}" as="l" hint-placeholder-count="3">
+              <button onClick="{{ goWaiting }}" style="display:flex;align-items:center;justify-content:space-between;gap:8px;border:1px solid rgba(90,62,27,.2);border-radius:12px;background:#fffdf6;padding:11px 13px;cursor:pointer;text-align:left;">
+                <span style="display:flex;align-items:center;gap:10px;min-width:0;">
+                  <span style="font-size:18px;flex:0 0 auto;">{{ l.icon }}</span>
+                  <span style="min-width:0;"><span style="display:block;font:800 14px 'Nunito Sans';color:#2a2114;">{{ l.name }}</span><span style="display:block;font:700 11px 'Nunito Sans';color:#7a6440;">{{ l.status }}</span></span>
+                </span>
+                <span style="font:800 9px 'Nunito Sans';letter-spacing:.04em;color:{{ l.badgeColor }};background:{{ l.badgeBg }};border-radius:7px;padding:3px 8px;white-space:nowrap;flex:0 0 auto;">{{ l.badge }}</span>
+              </button>
+            </sc-for>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isPrivate }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;flex-direction:column;gap:14px;">
+          <div style="background:rgba(255,255,255,.5);border:1px solid rgba(90,62,27,.18);border-radius:18px;padding:15px;box-shadow:0 6px 18px rgba(90,62,27,.08);">
+            <div style="font-family:'Baloo 2';font-weight:700;font-size:16px;margin-bottom:4px;">🆕 Créer une partie</div>
+            <div style="font-size:12px;color:#6b5a3c;margin-bottom:12px;line-height:1.45;">Tu es l'hôte : partage le code, ajoute des bots et lance quand tout le monde est là.</div>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;font:800 13px 'Nunito Sans';">Joueurs minimum
+              <select style="border:1px solid rgba(90,62,27,.3);border-radius:10px;padding:8px 12px;font:700 13px 'Nunito Sans';background:#fffdf6;color:#3a2e20;"><option>2</option><option>3</option><option>4</option></select>
+            </div>
+            <button onClick="{{ goWaiting }}" style="width:100%;border:none;border-radius:14px;padding:13px;font:800 14px 'Nunito Sans';color:#fff;background:linear-gradient(180deg,#e46a44,#c0392b);cursor:pointer;box-shadow:inset 0 1.5px 0 rgba(255,255,255,.35);">Créer le salon</button>
+          </div>
+          <div style="background:rgba(255,255,255,.5);border:1px solid rgba(90,62,27,.18);border-radius:18px;padding:15px;box-shadow:0 6px 18px rgba(90,62,27,.08);">
+            <div style="font-family:'Baloo 2';font-weight:700;font-size:16px;margin-bottom:12px;">🤝 Rejoindre par code</div>
+            <div style="display:flex;gap:10px;">
+              <input placeholder="ABC12" style="flex:1;border:1px solid rgba(90,62,27,.3);border-radius:12px;padding:11px;font:800 15px 'Nunito Sans';text-align:center;letter-spacing:.16em;text-transform:uppercase;background:#fffdf6;color:#3a2e20;">
+              <button onClick="{{ goWaiting }}" style="border:none;border-radius:12px;padding:0 20px;font:800 14px 'Nunito Sans';color:#f4ecdb;background:linear-gradient(180deg,#3a4664,#27324c);cursor:pointer;">Rejoindre</button>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+    </div>
+    </sc-if>
+
+    <!-- ============================ WAITING ROOM ============================ -->
+    <sc-if value="{{ isWaiting }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;inset:0;display:flex;flex-direction:column;padding:22px;background:radial-gradient(130% 100% at 50% 0%, #fbf5e6, #f2e7cd 60%, #e7d6b2 100%);color:#3a2e20;overflow-y:auto;">
+      <button onClick="{{ backToLobby }}" style="align-self:flex-start;border:none;background:none;font:800 13px 'Nunito Sans';color:#7a6440;cursor:pointer;">← Quitter le salon</button>
+      <div style="background:rgba(255,255,255,.55);border:1px solid rgba(90,62,27,.18);border-radius:20px;padding:18px;margin-top:8px;box-shadow:0 8px 22px rgba(90,62,27,.1);">
+        <sc-if value="{{ isPrivate }}" hint-placeholder-val="{{ false }}">
+          <div style="font-family:'Baloo 2';font-weight:800;font-size:20px;margin-bottom:12px;">🎪 Salon des Braves</div>
+          <button style="width:100%;border:2px dashed rgba(90,62,27,.4);border-radius:14px;background:#fffdf6;padding:12px;font:900 26px 'Nunito Sans';letter-spacing:.22em;color:#2a2114;cursor:pointer;margin-bottom:6px;">ABC12 📋</button>
+          <div style="text-align:center;font-size:12px;color:#6b5a3c;margin-bottom:14px;">Partage ce code pour inviter d'autres joueurs.</div>
+        </sc-if>
+        <sc-if value="{{ isPublic }}" hint-placeholder-val="{{ true }}">
+          <div style="font-family:'Baloo 2';font-weight:800;font-size:20px;margin-bottom:10px;">🌍 Sylve Éternelle</div>
+          <div style="display:flex;align-items:flex-start;gap:9px;background:rgba(111,165,68,.14);border:1px solid rgba(111,165,68,.4);border-radius:12px;padding:10px 12px;margin-bottom:14px;">
+            <span style="font-size:18px;">🚀</span>
+            <span style="font:700 12px 'Nunito Sans';color:#4f7a2e;line-height:1.45;"><b>Partie lancée — Jour 1.</b> De nouveaux aventuriers peuvent encore rejoindre pendant toute cette première journée.</span>
+          </div>
+        </sc-if>
+
+        <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;">
+          <sc-for list="{{ players }}" as="p" hint-placeholder-count="4">
+            <div style="display:flex;align-items:center;gap:10px;background:{{ p.bg }};border:1px solid {{ p.border }};border-radius:12px;padding:10px 12px;">
+              <span style="font-size:17px;">{{ p.icon }}</span>
+              <span style="font:800 14px 'Nunito Sans';flex:1;color:{{ p.color }};">{{ p.name }}</span>
+              <span style="font:700 11px 'Nunito Sans';color:#7a6440;">{{ p.tag }}</span>
+            </div>
+          </sc-for>
+        </div>
+
+        <sc-if value="{{ isPrivate }}" hint-placeholder-val="{{ false }}">
+          <div style="text-align:center;font:800 13px 'Nunito Sans';color:#6fa544;margin-bottom:4px;">Prêt à partir · 3/2 minimum atteint</div>
+          <div style="text-align:center;font-size:11px;color:#6b5a3c;margin-bottom:14px;">9 héros partiront à l'aventure (3 par joueur).</div>
+          <button style="width:100%;border:none;border-radius:14px;padding:13px;font:800 14px 'Nunito Sans';color:#f4ecdb;background:linear-gradient(180deg,#3a4664,#27324c);cursor:pointer;margin-bottom:9px;">🤖 Ajouter un bot</button>
+          <button onClick="{{ startGame }}" style="width:100%;border:none;border-radius:14px;padding:15px;font:800 15px 'Nunito Sans';color:#fff;background:linear-gradient(180deg,#e46a44,#c0392b);cursor:pointer;box-shadow:inset 0 1.5px 0 rgba(255,255,255,.35), 0 8px 20px -4px rgba(192,57,43,.5);">⚔️ Lancer la partie</button>
+        </sc-if>
+        <sc-if value="{{ isPublic }}" hint-placeholder-val="{{ true }}">
+          <div style="text-align:center;font:800 13px 'Nunito Sans';color:#6fa544;margin-bottom:4px;">Minimum atteint ✓ · 3 joueurs · 9 héros</div>
+          <div style="text-align:center;font-size:11px;color:#6b5a3c;margin-bottom:14px;">Démarrage automatique — aucun hôte requis.</div>
+          <button onClick="{{ startGame }}" style="width:100%;border:none;border-radius:14px;padding:15px;font:800 15px 'Nunito Sans';color:#fff;background:linear-gradient(180deg,#e46a44,#c0392b);cursor:pointer;box-shadow:inset 0 1.5px 0 rgba(255,255,255,.35), 0 8px 20px -4px rgba(192,57,43,.5);">➡️ Entrer dans la partie</button>
+        </sc-if>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- ============================ CLASSEMENT ============================ -->
+    <sc-if value="{{ isRanking }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;inset:0;display:flex;flex-direction:column;padding:22px 20px;background:radial-gradient(130% 100% at 50% 0%, #fbf5e6, #f2e7cd 60%, #e7d6b2 100%);color:#3a2e20;overflow-y:auto;">
+      <button onClick="{{ goTitle }}" style="align-self:flex-start;border:none;background:none;font:800 13px 'Nunito Sans';color:#7a6440;cursor:pointer;">← Retour</button>
+      <div style="text-align:center;margin:2px 0 16px;"><span style="font-family:'Baloo 2';font-weight:800;font-size:28px;color:#2a2114;">🏆 Classement</span></div>
+
+      <div style="display:flex;align-items:flex-end;justify-content:center;gap:8px;margin-bottom:20px;">
+        <sc-for list="{{ podium }}" as="p" hint-placeholder-count="3">
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;">
+            <div style="font-size:24px;">{{ p.medal }}</div>
+            <div style="font:800 13px 'Nunito Sans';color:#2a2114;">{{ p.name }}</div>
+            <div style="width:100%;height:{{ p.h }};border-radius:12px 12px 0 0;background:{{ p.bg }};display:flex;align-items:flex-start;justify-content:center;padding-top:9px;box-shadow:inset 0 2px 0 rgba(255,255,255,.45),0 4px 10px rgba(90,62,27,.15);">
+              <span style="font:900 15px 'Nunito Sans';color:{{ p.fg }};">{{ p.score }}</span>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+
+      <div style="font:800 11px 'Nunito Sans';letter-spacing:.08em;color:#8a6a3a;text-transform:uppercase;margin-bottom:8px;">Tes statistiques</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:20px;">
+        <sc-for list="{{ rankStats }}" as="st" hint-placeholder-count="4">
+          <div style="display:flex;align-items:center;gap:10px;background:#fffdf6;border:1.5px solid rgba(120,86,40,.18);border-radius:14px;padding:11px 13px;box-shadow:0 4px 12px rgba(90,62,27,.08);">
+            <span style="font-size:22px;">{{ st.icon }}</span>
+            <div><div style="font:700 11px 'Nunito Sans';color:#7a6440;">{{ st.label }}</div><div style="font:900 18px 'Nunito Sans';color:#2a2114;">{{ st.val }}</div></div>
+          </div>
+        </sc-for>
+      </div>
+
+      <div style="font:800 11px 'Nunito Sans';letter-spacing:.08em;color:#8a6a3a;text-transform:uppercase;margin-bottom:8px;">Parties terminées</div>
+      <div style="display:flex;flex-direction:column;gap:9px;">
+        <sc-for list="{{ finishedRows }}" as="f" hint-placeholder-count="4">
+          <div style="background:#fffdf6;border:1.5px solid rgba(120,86,40,.18);border-radius:14px;padding:12px 13px;box-shadow:0 4px 12px rgba(90,62,27,.08);">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px;">
+              <span style="font:800 14px 'Nunito Sans';color:#2a2114;flex:1;">{{ f.name }}</span>
+              <span style="{{ f.resultStyle }}">{{ f.result }}</span>
+              <span style="font:700 11px 'Nunito Sans';color:#9a8a6c;">{{ f.date }}</span>
+            </div>
+            <div style="display:flex;gap:14px;font:700 12px 'Nunito Sans';color:#5a4a30;">
+              <span>⭐ {{ f.score }}</span><span>🗓 {{ f.days }} j</span><span>🧝 {{ f.players }} joueurs</span>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- ============================ IN-GAME (chrome + tabs) ============================ -->
+    <sc-if value="{{ isGame }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;inset:0;display:flex;flex-direction:column;background:linear-gradient(180deg,#c3e0ee 0%,#dce7cf 46%,#e7d6b2 100%);overflow:hidden;">
+      <!-- topbar -->
+      <div style="position:relative;z-index:20;display:flex;align-items:center;gap:8px;padding:14px 13px 10px;background:linear-gradient(180deg,#fbf3e0,#f0e2c4);border-bottom:2px solid #d9a441;box-shadow:0 5px 16px rgba(90,62,27,.2);">
+        <button onClick="{{ openHero }}" style="width:38px;height:38px;border-radius:11px;border:2px solid #d9a441;padding:0;overflow:hidden;background:linear-gradient(135deg,#ffd27d,#e08a4a);cursor:pointer;flex:0 0 auto;box-shadow:0 2px 6px rgba(90,62,27,.3);">
+          <img src="frontend/public/assets/heroes/hero-eclaireur.png" style="width:100%;height:100%;object-fit:cover;object-position:top;">
+        </button>
+        <span style="flex:1;font:800 16px 'Baloo 2';color:#2a2114;">Val-des-Brumes</span>
+        <sc-if value="{{ townOccupied }}" hint-placeholder-val="{{ true }}"><button onClick="{{ openStatus }}" style="display:inline-flex;align-items:center;gap:4px;background:#fff;border:1.5px solid rgba(120,86,40,.25);border-radius:999px;padding:5px 11px;font:800 12px 'Nunito Sans';color:#b6472a;cursor:pointer;box-shadow:0 1px 3px rgba(90,62,27,.12);">🏰 {{ townHpPct }}%</button></sc-if>
+        <button onClick="{{ togglePaDemo }}" title="PA cumulés de l'équipe (démo : cliquer pour épuiser / régénérer)" style="display:inline-flex;align-items:center;gap:4px;background:linear-gradient(180deg,#fff4d6,#f4e2af);border:1.5px solid #d9a441;border-radius:999px;padding:5px 11px;font:800 12px 'Nunito Sans';color:#9a6a12;box-shadow:0 1px 3px rgba(90,62,27,.12);cursor:pointer;"><sc-if value="{{ paHasPoints }}" hint-placeholder-val="{{ true }}">⚡ {{ totalPA }} PA</sc-if><sc-if value="{{ paDepleted }}" hint-placeholder-val="{{ false }}">⏳ +1 PA · {{ paRegenTime }}</sc-if></button>
+        <sc-if value="{{ townOccupied }}" hint-placeholder-val="{{ true }}"><button onClick="{{ openJournal }}" style="width:30px;height:30px;border-radius:9px;background:#fff;border:1.5px solid rgba(120,86,40,.25);color:#7a6440;display:grid;place-items:center;cursor:pointer;font-size:14px;">📋</button></sc-if>
+        <button onClick="{{ toggleSettings }}" style="width:30px;height:30px;border-radius:9px;background:#fff;border:1.5px solid rgba(120,86,40,.25);color:#7a6440;display:grid;place-items:center;cursor:pointer;font-size:14px;">⚙️</button>
+      </div>
+
+      <!-- wave banner -->
+      <div style="position:relative;z-index:20;display:flex;justify-content:center;margin:12px 0 0;">
+        <button onClick="{{ openStatus }}" style="display:flex;align-items:center;gap:10px;width:172px;background:linear-gradient(180deg,#e46a44,#c0392b);color:#fff;border:none;border-radius:13px;padding:8px 16px;text-align:left;cursor:pointer;box-shadow:0 8px 18px -4px rgba(192,57,43,.5), inset 0 1px 0 rgba(255,255,255,.3);">
+          <span style="font-size:18px;flex:0 0 auto;">🌊</span>
+          <span><span style="display:block;font:800 9px 'Nunito Sans';letter-spacing:.12em;opacity:.85;">PROCHAINE VAGUE</span><span style="display:block;font:800 18px 'Nunito Sans';letter-spacing:.05em;font-variant-numeric:tabular-nums;">{{ waveTime }}</span></span>
+        </button>
+      </div>
+
+      <!-- ===== body ===== -->
+      <div style="position:relative;z-index:10;flex:1;overflow:hidden;">
+
+        <!-- TOWN -->
+        <sc-if value="{{ tabTown }}" hint-placeholder-val="{{ true }}">
+        <div style="position:absolute;inset:0;overflow:hidden;">
+          <button onClick="{{ openJournal }}" style="position:absolute;left:8px;top:6px;z-index:16;background:#fff;color:#223;border:none;text-align:left;border-radius:14px;padding:7px 11px;font-size:12px;max-width:80%;box-shadow:0 6px 16px rgba(0,0,0,.22);cursor:pointer;"><b style="color:#b6472a;">Neko :</b> Putain qui a laissé la porte ouverte encore&nbsp;!! <span style="color:#9a8a6c;font-weight:700;">📋</span></button>
+
+          <!-- floating islands scene -->
+          <div style="position:absolute;left:50%;top:53%;transform:translate(-50%,-50%);width:420px;height:420px;">
+            <img onClick="{{ openStatus }}" src="frontend/public/assets/islands/defense-built.png" style="position:absolute;right:-6px;top:2px;width:172px;cursor:pointer;animation:et-bob 5s ease-in-out infinite;filter:drop-shadow(0 18px 16px rgba(30,40,60,.32));">
+            <img onClick="{{ setTabStructure }}" src="frontend/public/assets/islands/production-built.png" style="position:absolute;left:-8px;bottom:6px;width:172px;cursor:pointer;animation:et-bob2 6s ease-in-out infinite .8s;filter:drop-shadow(0 18px 16px rgba(30,40,60,.32));">
+            <img onClick="{{ openStatus }}" src="frontend/public/assets/islands/core-built.png" style="position:absolute;left:50%;top:48%;transform:translate(-50%,-50%);width:266px;cursor:pointer;animation:et-bob 5.5s ease-in-out infinite .4s;filter:drop-shadow(0 22px 20px rgba(30,40,60,.36));">
+            <!-- hero chibis on the core -->
+            <img src="frontend/public/assets/characters/char-scout.png" style="position:absolute;left:44%;top:40%;width:66px;transform:translate(-50%,-100%);filter:drop-shadow(0 5px 5px rgba(0,0,0,.3));">
+            <img src="frontend/public/assets/characters/char-knight.png" style="position:absolute;left:58%;top:44%;width:70px;transform:translate(-50%,-100%);filter:drop-shadow(0 5px 5px rgba(0,0,0,.3));">
+          </div>
+
+          <!-- island name pills -->
+          <div style="position:absolute;left:50%;top:24%;transform:translateX(-50%);z-index:6;background:rgba(20,28,42,.55);border:1px solid rgba(255,255,255,.25);color:#fff;border-radius:999px;padding:3px 11px;font:800 11px 'Nunito Sans';text-shadow:0 1px 3px rgba(0,0,0,.6);">🛡 Défense</div>
+
+          <!-- gate + exit control -->
+          <div style="position:absolute;right:8px;bottom:74px;z-index:16;display:flex;flex-direction:column;gap:6px;align-items:flex-end;">
+            <button onClick="{{ toggleGate }}" style="{{ gateChipStyle }}">{{ gateChipLabel }}</button>
+            <sc-if value="{{ gateOpen }}" hint-placeholder-val="{{ true }}">
+              <button onClick="{{ tryExit }}" style="border:none;border-radius:999px;padding:8px 15px;font:800 13px 'Nunito Sans';color:#fff;cursor:pointer;background:linear-gradient(180deg,#e46a44,#c0392b);box-shadow:inset 0 1px 0 rgba(255,255,255,.3), 0 5px 14px -3px rgba(192,57,43,.5);">🌲 Sortir en exploration</button>
+            </sc-if>
+            <sc-if value="{{ gateClosed }}" hint-placeholder-val="{{ false }}">
+              <button disabled style="border:1.5px solid rgba(120,86,40,.25);border-radius:999px;padding:8px 15px;font:800 13px 'Nunito Sans';color:#9a8a6c;background:rgba(255,253,246,.6);cursor:not-allowed;">🔒 Sortie bloquée</button>
+            </sc-if>
+          </div>
+
+          <!-- shinki -->
+          <div style="position:absolute;bottom:10px;left:10px;right:10px;z-index:15;display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.94);border-radius:16px;padding:9px 12px;box-shadow:0 8px 20px rgba(0,0,0,.22);">
+            <img src="frontend/public/assets/npc/shinki.png" style="width:44px;height:44px;object-fit:contain;flex:0 0 auto;">
+            <div><div style="font:800 12px 'Baloo 2';color:#b6472a;">Shinki</div><div style="font-size:12.5px;color:#3a3a3a;">Bienvenue à Echo Terra, voyageuse&nbsp;! La horde approche…</div></div>
+          </div>
+
+          <!-- hero chips -->
+          <div style="position:absolute;left:8px;bottom:74px;z-index:16;display:flex;flex-direction:column;gap:6px;">
+            <sc-for list="{{ heroes }}" as="h" hint-placeholder-count="3">
+              <button onClick="{{ openHero }}" style="display:flex;align-items:center;gap:7px;background:linear-gradient(180deg,#fffaf0,#f3e7ce);border:1.5px solid #d9a441;border-radius:999px;padding:3px 12px 3px 3px;color:#3a2e20;font:800 12px 'Nunito Sans';cursor:pointer;box-shadow:0 3px 8px rgba(90,62,27,.22);">
+                <span style="width:26px;height:26px;border-radius:50%;overflow:hidden;border:1px solid #d9a441;flex:0 0 auto;background:#7a2d12 center/cover no-repeat;background-image:url('{{ h.portrait }}');background-position:top;"></span>
+                {{ h.name }} <span style="background:linear-gradient(180deg,#fff4d6,#f4e2af);border:1px solid #d9a441;border-radius:999px;padding:1px 7px;font:800 11px 'Nunito Sans';color:#9a6a12;">⚡{{ h.pa }}</span>
+              </button>
+            </sc-for>
+          </div>
+        </div>
+        </sc-if>
+
+        <!-- MAP -->
+        <sc-if value="{{ tabMap }}" hint-placeholder-val="{{ false }}">
+        <div style="position:absolute;inset:0;overflow:hidden;background:radial-gradient(120% 100% at 50% 30%, #cfe8c4, #9dc98a 55%, #6d9e6a 100%);">
+          <!-- gate + enter control -->
+          <div style="position:absolute;right:10px;top:10px;z-index:6;display:flex;flex-direction:column;gap:6px;align-items:flex-end;">
+            <span style="{{ gateViewStyle }}">{{ gateStateLabel }}</span>
+            <sc-if value="{{ gateOpen }}" hint-placeholder-val="{{ true }}">
+              <button onClick="{{ tryEnter }}" style="border:1.5px solid #d9a441;border-radius:999px;padding:8px 15px;font:800 13px 'Nunito Sans';color:#3a2e20;cursor:pointer;background:linear-gradient(180deg,#fffaf0,#f3e7ce);box-shadow:0 4px 12px rgba(90,62,27,.25);">🏰 Rentrer en ville</button>
+            </sc-if>
+            <sc-if value="{{ gateClosed }}" hint-placeholder-val="{{ false }}">
+              <button disabled style="border:1.5px solid rgba(255,255,255,.4);border-radius:999px;padding:8px 15px;font:800 13px 'Nunito Sans';color:#f0e2c4;background:rgba(16,21,31,.5);cursor:not-allowed;">🔒 Entrée bloquée</button>
+            </sc-if>
+          </div>
+          <!-- hero select + PA chips -->
+          <div style="position:absolute;left:10px;top:10px;z-index:6;display:flex;flex-direction:column;gap:6px;">
+            <sc-for list="{{ mapHeroes }}" as="h" hint-placeholder-count="3">
+              <button onClick="{{ h.selectMap }}" style="{{ h.mapSelStyle }}">
+                <span style="width:24px;height:24px;border-radius:50%;overflow:hidden;border:1px solid rgba(255,255,255,.4);flex:0 0 auto;background:#7a2d12 center/cover no-repeat;background-image:url('{{ h.portrait }}');background-position:top;"></span>
+                {{ h.name }} <span style="background:rgba(232,184,75,.28);border-radius:999px;padding:1px 6px;font:800 11px 'Nunito Sans';color:#ffd166;">⚡{{ h.pa }}</span>
+              </button>
+            </sc-for>
+          </div>
+          <!-- iso grid arena -->
+          <div style="position:absolute;left:50%;top:46%;transform:translate(-50%,-50%) rotateX(56deg) rotateZ(45deg);width:280px;height:280px;display:grid;grid-template-columns:repeat(6,1fr);grid-template-rows:repeat(6,1fr);gap:3px;">
+            <sc-for list="{{ mapCells }}" as="c" hint-placeholder-count="36">
+              <div style="background:{{ c.bg }};border-radius:5px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.14);"></div>
+            </sc-for>
+          </div>
+          <!-- tokens -->
+          <img src="frontend/public/assets/characters/char-scout.png" style="position:absolute;left:42%;top:44%;width:72px;transform:translate(-50%,-90%);filter:drop-shadow(0 6px 6px rgba(0,0,0,.35));z-index:3;">
+          <button onClick="{{ startCombat }}" style="position:absolute;left:60%;top:38%;transform:translate(-50%,-88%);border:none;background:none;cursor:pointer;z-index:3;">
+            <img src="frontend/public/assets/monsters/mob-goblin.png" style="width:66px;filter:drop-shadow(0 6px 6px rgba(0,0,0,.35));">
+            <span style="display:block;margin-top:-6px;font:800 10px 'Nunito Sans';color:#fff;background:#c0392b;border-radius:6px;padding:1px 6px;text-shadow:0 1px 2px rgba(0,0,0,.5);">Gobelin ⚠</span>
+          </button>
+
+          <!-- action menu -->
+          <!-- movement: floating reachable markers, rendered above relief -->
+          <sc-if value="{{ moveMode }}" hint-placeholder-val="{{ false }}">
+            <!-- demo raised terrain: proves the pastilles float above elevation -->
+            <div style="position:absolute;left:54%;top:52%;transform:translate(-50%,-100%);z-index:3;width:74px;height:58px;pointer-events:none;">
+              <div style="position:absolute;bottom:0;left:0;width:74px;height:34px;background:linear-gradient(180deg,#6f9152,#54703d);border-radius:0 0 12px 12px;box-shadow:0 6px 10px rgba(0,0,0,.3);"></div>
+              <div style="position:absolute;top:0;left:0;width:74px;height:30px;background:radial-gradient(60% 80% at 50% 35%,#bcd89c,#93b871);border-radius:50%/62%;box-shadow:inset 0 -4px 0 rgba(0,0,0,.12);"></div>
+            </div>
+            <div style="position:absolute;inset:0;z-index:7;">
+              <sc-for list="{{ reachTiles }}" as="mk" hint-placeholder-count="7">
+                <button onClick="{{ moveTo }}" style="position:absolute;left:{{ mk.left }};top:{{ mk.top }};transform:translate(-50%,-100%);background:none;border:none;padding:0;cursor:pointer;display:flex;flex-direction:column;align-items:center;">
+                  <span style="width:26px;height:26px;border-radius:50%;border:3px solid #ffd166;background:rgba(255,209,102,.28);box-shadow:0 0 14px rgba(255,209,102,.9);animation:et-bob 1.8s ease-in-out infinite;"></span>
+                  <span style="width:2px;height:18px;background:linear-gradient(#ffd166,rgba(255,209,102,0));"></span>
+                  <span style="width:14px;height:5px;border-radius:50%;background:rgba(0,0,0,.28);margin-top:-2px;"></span>
+                </button>
+              </sc-for>
+            </div>
+          </sc-if>
+
+          <div style="position:absolute;left:0;right:0;bottom:0;z-index:25;background:linear-gradient(180deg,#fbf3e0,#ecdfc0);border-top:2px solid #d9a441;color:#3a2e20;padding:11px 12px;display:flex;flex-direction:column;gap:9px;box-shadow:0 -6px 18px rgba(90,62,27,.2);">
+            <!-- selected hero header -->
+            <div style="display:flex;align-items:center;gap:9px;">
+              <span style="width:32px;height:32px;border-radius:9px;overflow:hidden;border:1.5px solid #d9a441;flex:0 0 auto;background:#7a2d12 center/cover no-repeat;background-image:url('{{ mapHero.portrait }}');background-position:top;"></span>
+              <div style="flex:1;min-width:0;"><div style="font:800 14px 'Nunito Sans';color:#2a2114;">{{ mapHero.name }}</div><div style="font:700 11px 'Nunito Sans';color:#7a6440;">{{ mapHero.cls }}</div></div>
+              <span style="background:linear-gradient(180deg,#fff4d6,#f4e2af);border:1.5px solid #d9a441;border-radius:999px;padding:4px 11px;font:800 12px 'Nunito Sans';color:#9a6a12;">⚡ {{ mapHero.pa }} PA</span>
+              <button onClick="{{ openHero }}" style="width:30px;height:30px;border-radius:9px;background:#fff;border:1.5px solid rgba(120,86,40,.25);color:#7a6440;cursor:pointer;font-size:13px;">ⓘ</button>
+            </div>
+
+            <sc-if value="{{ mapHero.overwhelmed }}" hint-placeholder-val="{{ false }}">
+              <div style="background:rgba(192,57,43,.1);border:1px solid rgba(192,57,43,.3);border-radius:10px;padding:7px 10px;font:700 11.5px 'Nunito Sans';color:#a02818;">⚠ Submergé par un pack — impossible de bouger. Vaincs un ennemi ou replie-toi.</div>
+            </sc-if>
+
+            <div style="display:flex;align-items:stretch;gap:10px;">
+              <div style="flex:1;display:flex;flex-direction:column;gap:6px;">
+                <button onClick="{{ toggleMove }}" style="{{ moveBtnStyle }}">{{ moveBtnLabel }} <span style="font-weight:700;opacity:.8;">· {{ moveRange }} cases</span></button>
+                <sc-if value="{{ mapHero.onMonster }}" hint-placeholder-val="{{ true }}">
+                  <button onClick="{{ startCombat }}" style="border:none;border-radius:10px;padding:10px;font:800 13px 'Nunito Sans';color:#fff;background:linear-gradient(180deg,#e46a44,#c0392b);cursor:pointer;box-shadow:inset 0 1.5px 0 rgba(255,255,255,.3), 0 4px 12px -3px rgba(192,57,43,.5);">⚔️ Combattre</button>
+                </sc-if>
+                <div style="display:flex;gap:6px;">
+                  <button onClick="{{ stop }}" style="flex:1;border:1.5px solid rgba(120,86,40,.25);border-radius:10px;padding:9px;font:700 12px 'Nunito Sans';color:#4a3a24;background:#fff;cursor:pointer;">🫥 Se cacher <span style="color:#9a8a6c;font-weight:800;">1</span></button>
+                  <sc-if value="{{ mapHero.overwhelmed }}" hint-placeholder-val="{{ false }}">
+                    <button onClick="{{ flee }}" style="flex:1;border:none;border-radius:10px;padding:9px;font:800 12px 'Nunito Sans';color:#fff;background:linear-gradient(180deg,#d8823a,#b5601c);cursor:pointer;">🏃 Fuir <span style="opacity:.85;">1</span></button>
+                  </sc-if>
+                </div>
+                <sc-for list="{{ mapHero.mapSkills }}" as="sk" hint-placeholder-count="1">
+                  <button onClick="{{ stop }}" style="display:flex;align-items:center;justify-content:space-between;border:1.5px solid #d9a441;border-radius:10px;padding:9px 11px;font:800 12px 'Nunito Sans';color:#7a4e12;background:linear-gradient(180deg,#fff4d6,#f4e2af);cursor:pointer;"><span>{{ sk.icon }} {{ sk.name }}</span><span style="color:#9a6a12;">⚡ {{ sk.cost }}</span></button>
+                </sc-for>
+              </div>
+            </div>
+            <div style="text-align:center;font:700 11px 'Nunito Sans';color:#8a6a3a;">{{ moveHint }}</div>
+          </div>
+        </div>
+        </sc-if>
+
+        <!-- STRUCTURE -->
+        <sc-if value="{{ tabStructure }}" hint-placeholder-val="{{ false }}">
+        <div style="position:absolute;inset:0;overflow:hidden;display:flex;flex-direction:column;background:radial-gradient(120% 100% at 50% 0%, #fbf5e6, #efe1c4 70%, #e6d5b0);color:#3a2e20;">
+          <div style="display:flex;align-items:center;gap:8px;padding:13px 16px;border-bottom:2px solid #d9a441;background:linear-gradient(180deg,#fbf3e0,#f0e2c4);">
+            <span style="font:800 17px 'Baloo 2';flex:1;color:#2a2114;">🧱 Structures</span>
+            <span style="background:linear-gradient(180deg,#e46a44,#c0392b);color:#fff;border-radius:999px;padding:5px 13px;font:800 12px 'Nunito Sans';box-shadow:inset 0 1px 0 rgba(255,255,255,.3);">⚡ {{ pa }} PA</span>
+          </div>
+          <div style="flex:1;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:10px;">
+            <sc-for list="{{ structures }}" as="s" hint-placeholder-count="6">
+              <div style="display:flex;align-items:center;gap:11px;background:#fffdf6;border:1.5px solid rgba(120,86,40,.18);border-radius:15px;padding:11px;box-shadow:0 4px 12px rgba(90,62,27,.1);">
+                <div style="width:46px;height:46px;border-radius:12px;background:linear-gradient(180deg,#f3e7ce,#e6d4ad);display:grid;place-items:center;font-size:24px;flex:0 0 auto;border:1px solid rgba(120,86,40,.15);">{{ s.icon }}</div>
+                <div style="flex:1;min-width:0;">
+                  <div style="font:800 14px 'Nunito Sans';display:flex;align-items:center;gap:7px;color:#2a2114;">{{ s.name }} <span style="font:800 10px 'Nunito Sans';color:#fff;background:#8a6a3a;border-radius:6px;padding:1px 6px;">Nv {{ s.lvl }}</span></div>
+                  <div style="font-size:11px;color:#7a6440;margin-top:3px;">Durabilité {{ s.dur }}</div>
+                  <div style="height:7px;border-radius:5px;background:rgba(120,86,40,.18);margin-top:5px;overflow:hidden;"><div style="height:100%;width:{{ s.durPct }};background:{{ s.durColor }};"></div></div>
+                </div>
+                <button style="flex:0 0 auto;border:none;border-radius:11px;padding:9px 13px;font:800 12px 'Nunito Sans';color:#fff;background:linear-gradient(180deg,#9ccf6b,#6fa544);cursor:pointer;display:flex;flex-direction:column;align-items:center;box-shadow:inset 0 1px 0 rgba(255,255,255,.3);">Améliorer<span style="font-size:10px;opacity:.9;">{{ s.cost }}</span></button>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+        </sc-if>
+
+        <!-- STOCK -->
+        <sc-if value="{{ tabStock }}" hint-placeholder-val="{{ false }}">
+        <div style="position:absolute;inset:0;overflow-y:auto;background:radial-gradient(120% 100% at 50% 0%, #fbf5e6, #efe1c4 70%, #e6d5b0);color:#3a2e20;">
+          <div style="padding:13px 16px;border-bottom:2px solid #d9a441;background:linear-gradient(180deg,#fbf3e0,#f0e2c4);font:800 17px 'Baloo 2';color:#2a2114;">🎒 Stock</div>
+          <div style="padding:14px;display:flex;flex-direction:column;gap:14px;">
+            <!-- target hero for "Prendre" -->
+            <div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap;">
+              <span style="font:800 11px 'Nunito Sans';color:#8a6a3a;text-transform:uppercase;letter-spacing:.06em;">Prendre pour</span>
+              <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                <sc-for list="{{ stockHeroes }}" as="h" hint-placeholder-count="3">
+                  <button onClick="{{ h.pick }}" style="{{ h.targetStyle }}">
+                    <span style="width:20px;height:20px;border-radius:50%;background:#7a2d12 center/cover no-repeat;background-image:url('{{ h.portrait }}');background-position:top;"></span>
+                    {{ h.name }}
+                  </button>
+                </sc-for>
+              </div>
+            </div>
+
+            <!-- bank -->
+            <div style="background:#fffdf6;border:1.5px solid rgba(120,86,40,.18);border-radius:16px;padding:13px;box-shadow:0 4px 12px rgba(90,62,27,.1);">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:11px;"><span style="font:800 14px 'Nunito Sans';color:#2a2114;">🏦 Banque de la ville</span><span style="margin-left:auto;font:800 10px 'Nunito Sans';color:#6fa544;background:rgba(111,165,68,.14);border-radius:6px;padding:2px 8px;">PARTAGÉ</span></div>
+              <sc-if value="{{ targetFull }}" hint-placeholder-val="{{ false }}"><div style="background:rgba(226,75,75,.1);border:1px solid rgba(226,75,75,.3);border-radius:10px;padding:8px 10px;margin-bottom:10px;font:700 11.5px 'Nunito Sans';color:#a02818;">🎒 Le sac de {{ targetName }} est plein — dépose un objet ou augmente sa capacité (Besace).</div></sc-if>
+              <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:8px;">
+                <sc-for list="{{ bankItems }}" as="it" hint-placeholder-count="8">
+                  <div style="position:relative;background:linear-gradient(180deg,#f6ecd6,#ece0c2);border:1px solid rgba(120,86,40,.15);border-radius:11px;padding:8px 6px 6px;text-align:center;">
+                    <div style="font-size:24px;height:34px;display:grid;place-items:center;">{{ it.icon }}</div>
+                    <span style="position:absolute;top:4px;right:7px;font:800 11px 'Nunito Sans';color:#b6472a;">{{ it.qty }}</span>
+                    <div style="font-size:10px;color:#7a6440;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:5px;">{{ it.name }}</div>
+                    <button onClick="{{ it.take }}" style="{{ takeBtnStyle }}">＋ Prendre</button>
+                  </div>
+                </sc-for>
+                <sc-if value="{{ bankEmpty }}" hint-placeholder-val="{{ false }}"><div style="grid-column:1/-1;text-align:center;color:#9a8a6c;font-size:12px;padding:12px;">Banque vide.</div></sc-if>
+              </div>
+            </div>
+
+            <!-- hero bags -->
+            <div style="font:800 11px 'Nunito Sans';letter-spacing:.08em;color:#8a6a3a;text-transform:uppercase;padding-left:2px;">Sacs des héros · touche un objet pour le déposer</div>
+            <sc-for list="{{ stockHeroes }}" as="h" hint-placeholder-count="3">
+              <div style="background:#fffdf6;border:1.5px solid rgba(120,86,40,.18);border-radius:16px;padding:13px;box-shadow:0 4px 12px rgba(90,62,27,.1);">
+                <div style="margin-bottom:10px;">
+                  <div style="display:flex;align-items:center;gap:9px;">
+                    <span style="width:30px;height:30px;border-radius:8px;overflow:hidden;border:1px solid #d9a441;flex:0 0 auto;background:#7a2d12 center/cover no-repeat;background-image:url('{{ h.portrait }}');background-position:top;"></span>
+                    <span style="font:800 14px 'Nunito Sans';color:#2a2114;">Sac de {{ h.name }}</span>
+                    <sc-if value="{{ h.hasBoost }}" hint-placeholder-val="{{ false }}"><span style="font:800 10px 'Nunito Sans';color:#7a4e12;background:rgba(217,164,65,.22);border-radius:6px;padding:2px 7px;">{{ h.boostLabel }}</span></sc-if>
+                    <span style="margin-left:auto;font:800 10px 'Nunito Sans';color:{{ h.locColor }};background:{{ h.locBg }};border-radius:6px;padding:2px 8px;">{{ h.loc }}</span>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:8px;margin-top:8px;">
+                    <span style="font:800 11px 'Nunito Sans';color:#7a6440;white-space:nowrap;">Capacité {{ h.capLabel }}</span>
+                    <div style="flex:1;height:7px;border-radius:5px;background:rgba(120,86,40,.18);overflow:hidden;"><div style="height:100%;width:{{ h.capPct }};background:{{ h.capColor }};"></div></div>
+                  </div>
+                </div>
+                <div style="display:flex;flex-wrap:wrap;gap:7px;">
+                  <sc-for list="{{ h.bag }}" as="b" hint-placeholder-count="3">
+                    <button onClick="{{ b.deposit }}" title="Déposer dans la banque" style="display:flex;align-items:center;gap:6px;background:linear-gradient(180deg,#f6ecd6,#ece0c2);border:1px solid rgba(120,86,40,.15);border-radius:999px;padding:5px 11px;font:700 12px 'Nunito Sans';color:#4a3a24;cursor:pointer;">{{ b.icon }} {{ b.name }} <span style="color:#b6472a;font-weight:800;">↩</span></button>
+                  </sc-for>
+                  <sc-if value="{{ h.bagEmpty }}" hint-placeholder-val="{{ false }}"><span style="font-size:12px;color:#9a8a6c;font-style:italic;">Sac vide.</span></sc-if>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+        </sc-if>
+
+        <!-- CRAFT -->
+        <sc-if value="{{ tabCraft }}" hint-placeholder-val="{{ false }}">
+        <div style="position:absolute;inset:0;overflow-y:auto;background:radial-gradient(120% 100% at 50% 0%, #fbf5e6, #efe1c4 70%, #e6d5b0);color:#3a2e20;">
+          <div style="padding:13px 16px;border-bottom:2px solid #d9a441;background:linear-gradient(180deg,#fbf3e0,#f0e2c4);font:800 17px 'Baloo 2';color:#2a2114;">⚒️ Atelier &amp; Cuisine</div>
+          <div style="padding:14px;display:flex;flex-direction:column;gap:10px;">
+            <sc-for list="{{ recipes }}" as="r" hint-placeholder-count="4">
+              <div style="display:flex;align-items:center;gap:11px;background:#fffdf6;border:1.5px solid rgba(120,86,40,.18);border-radius:15px;padding:11px;box-shadow:0 4px 12px rgba(90,62,27,.1);">
+                <div style="width:44px;height:44px;border-radius:12px;background:linear-gradient(180deg,#f3e7ce,#e6d4ad);display:grid;place-items:center;font-size:23px;border:1px solid rgba(120,86,40,.15);">{{ r.icon }}</div>
+                <div style="flex:1;"><div style="font:800 14px 'Nunito Sans';color:#2a2114;">{{ r.name }}</div><div style="font-size:11px;color:#7a6440;margin-top:2px;">{{ r.cost }}</div></div>
+                <button style="border:none;border-radius:11px;padding:9px 15px;font:800 12px 'Nunito Sans';color:#fff;background:linear-gradient(180deg,#9ccf6b,#6fa544);cursor:pointer;box-shadow:inset 0 1px 0 rgba(255,255,255,.3);">Fabriquer</button>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+        </sc-if>
+
+      </div>
+
+      <!-- bottom nav -->
+      <nav style="position:relative;z-index:20;display:flex;justify-content:space-around;align-items:center;padding:8px 4px 11px;background:linear-gradient(180deg,#fbf3e0,#ecdfc0);border-top:2px solid #d9a441;box-shadow:0 -5px 16px rgba(90,62,27,.16);">
+        <sc-for list="{{ navTabs }}" as="n" hint-placeholder-count="5">
+          <button onClick="{{ n.go }}" style="{{ n.style }}"><span style="font-size:21px;">{{ n.icon }}</span>{{ n.label }}</button>
+        </sc-for>
+      </nav>
+
+      <sc-if value="{{ showSettings }}" hint-placeholder-val="{{ false }}">
+        <div onClick="{{ toggleSettings }}" style="position:absolute;inset:0;z-index:60;background:rgba(20,16,10,.5);display:flex;align-items:center;justify-content:center;padding:22px;">
+          <div style="width:100%;max-width:340px;background:linear-gradient(180deg,#fbf5e6,#f0e4c9);border:1px solid rgba(120,86,40,.22);border-radius:22px;padding:20px;color:#3a2e20;box-shadow:0 30px 60px rgba(0,0,0,.4);">
+            <div style="font-family:'Baloo 2';font-weight:800;font-size:20px;margin-bottom:14px;color:#2a2114;">⚙️ Paramètres</div>
+            <div style="font:800 12px 'Nunito Sans';margin-bottom:6px;">Volume</div>
+            <div style="height:8px;border-radius:6px;background:rgba(120,86,40,.15);margin-bottom:16px;overflow:hidden;"><div style="height:100%;width:72%;background:linear-gradient(90deg,#e8b84b,#d9603b);"></div></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;background:#fffdf6;border:1px solid rgba(120,86,40,.15);border-radius:12px;padding:11px;margin-bottom:16px;"><span style="font:800 13px 'Nunito Sans';">Notifications</span><span style="width:44px;height:25px;border-radius:999px;background:#6fa544;position:relative;"><i style="position:absolute;top:3px;left:22px;width:19px;height:19px;border-radius:50%;background:#fff;"></i></span></div>
+            <button onClick="{{ toggleSettings }}" style="width:100%;border:none;border-radius:14px;padding:13px;font:800 14px 'Nunito Sans';color:#fff;background:linear-gradient(180deg,#e46a44,#c0392b);cursor:pointer;">Fermer</button>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ showStatus }}" hint-placeholder-val="{{ false }}">
+        <div onClick="{{ closeStatus }}" style="position:absolute;inset:0;z-index:60;background:rgba(20,16,10,.5);display:flex;align-items:flex-end;">
+          <div onClick="{{ stop }}" style="width:100%;background:linear-gradient(180deg,#fbf5e6,#efe1c4);border-top-left-radius:26px;border-top-right-radius:26px;border-top:3px solid #d9a441;padding:20px;color:#3a2e20;max-height:82%;overflow-y:auto;box-shadow:0 -12px 30px rgba(0,0,0,.3);">
+            <div style="width:40px;height:4px;border-radius:3px;background:rgba(120,86,40,.3);margin:0 auto 14px;"></div>
+            <div style="font-family:'Baloo 2';font-weight:800;font-size:20px;margin-bottom:4px;color:#2a2114;">🏰 État de la ville</div>
+            <div style="font:800 14px 'Nunito Sans';color:#6fa544;margin-bottom:12px;">PV {{ townHp }}/{{ townHpMax }} · {{ townHpPct }}%</div>
+            <div style="height:12px;border-radius:8px;background:rgba(120,86,40,.18);overflow:hidden;margin-bottom:16px;"><div style="height:100%;width:{{ townHpPct }}%;background:linear-gradient(90deg,#9ccf6b,#6fa544);"></div></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;">
+              <div style="background:#fffdf6;border:1px solid rgba(120,86,40,.15);border-radius:12px;padding:11px;"><div style="font-size:11px;color:#7a6440;">🛡 Défense</div><div style="font:800 18px 'Nunito Sans';color:#6fa544;">+18</div></div>
+              <div style="background:#fffdf6;border:1px solid rgba(120,86,40,.15);border-radius:12px;padding:11px;"><div style="font-size:11px;color:#7a6440;">🌊 Horde</div><div style="font:800 18px 'Nunito Sans';color:#c0392b;">24</div></div>
+              <div style="background:#fffdf6;border:1px solid rgba(120,86,40,.15);border-radius:12px;padding:11px;"><div style="font-size:11px;color:#7a6440;">⏱ Prochaine vague</div><div style="font:800 15px 'Nunito Sans';color:#2a2114;">{{ waveTime }}</div></div>
+              <div style="background:#fffdf6;border:1px solid rgba(120,86,40,.15);border-radius:12px;padding:11px;"><div style="font-size:11px;color:#7a6440;">📅 Jour</div><div style="font:800 18px 'Nunito Sans';color:#2a2114;">3</div></div>
+            </div>
+            <div style="background:rgba(192,57,43,.08);border:1px solid rgba(192,57,43,.25);border-radius:12px;padding:12px;font-size:12.5px;line-height:1.5;color:#8a3323;">⚔️ Dernier rapport — la horde a frappé la muraille (−6 durabilité). Aucun PV de ville perdu. Un nouveau pack de gobelins est apparu au sud.</div>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ showJournal }}" hint-placeholder-val="{{ false }}">
+        <div onClick="{{ closeJournal }}" style="position:absolute;inset:0;z-index:62;background:rgba(20,16,10,.5);display:flex;align-items:flex-end;">
+          <div onClick="{{ stop }}" style="width:100%;background:linear-gradient(180deg,#fbf5e6,#efe1c4);border-top-left-radius:26px;border-top-right-radius:26px;border-top:3px solid #d9a441;padding:18px 18px 22px;color:#3a2e20;max-height:84%;display:flex;flex-direction:column;box-shadow:0 -12px 30px rgba(0,0,0,.3);">
+            <div style="width:40px;height:4px;border-radius:3px;background:rgba(120,86,40,.3);margin:0 auto 14px;flex:0 0 auto;"></div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex:0 0 auto;">
+              <span style="font-family:'Baloo 2';font-weight:800;font-size:20px;color:#2a2114;">📋 Journal de la ville</span>
+              <button onClick="{{ closeJournal }}" style="margin-left:auto;width:30px;height:30px;border-radius:9px;background:#fff;border:1.5px solid rgba(120,86,40,.25);color:#7a6440;cursor:pointer;font-size:13px;">✕</button>
+            </div>
+            <div style="font-size:11.5px;color:#7a6440;margin-bottom:12px;flex:0 0 auto;">Événements, combats, constructions et messages de Val-des-Brumes.</div>
+            <div style="overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding-right:2px;">
+              <sc-for list="{{ journal }}" as="j" hint-placeholder-count="6">
+                <div style="display:flex;gap:11px;background:#fffdf6;border:1px solid rgba(120,86,40,.15);border-radius:12px;padding:10px 12px;box-shadow:0 2px 6px rgba(90,62,27,.06);">
+                  <span style="font-size:19px;flex:0 0 auto;line-height:1.2;">{{ j.icon }}</span>
+                  <span style="flex:1;min-width:0;">
+                    <span style="display:block;font:700 13px 'Nunito Sans';color:#3a2e20;line-height:1.4;">{{ j.text }}</span>
+                    <span style="display:block;font:800 10px 'Nunito Sans';color:#9a8a6c;margin-top:3px;letter-spacing:.02em;">{{ j.when }}</span>
+                  </span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+    </div>
+    </sc-if>
+
+    <!-- ============================ HERO SHEET ============================ -->
+    <sc-if value="{{ isHero }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;inset:0;overflow-y:auto;background:linear-gradient(180deg,#1a2233,#0e1420);color:#eaf1f8;">
+      <div style="position:relative;padding:22px 20px 20px;background:linear-gradient(180deg, rgba(217,96,59,.22), transparent);">
+        <button onClick="{{ backToTown }}" style="border:none;background:rgba(255,255,255,.08);border-radius:10px;color:#eaf1f8;font:800 13px 'Nunito Sans';padding:8px 12px;cursor:pointer;">← Ville</button>
+        <div style="display:flex;align-items:center;gap:14px;margin-top:16px;">
+          <div style="width:88px;height:88px;border-radius:20px;overflow:hidden;background:#7a2d12 center/cover no-repeat;background-image:url('{{ activeHero.portrait }}');background-position:top;flex:0 0 auto;box-shadow:0 8px 20px rgba(0,0,0,.4), inset 0 0 0 2px rgba(255,255,255,.2);"></div>
+          <div>
+            <div style="font-family:'Baloo 2';font-weight:800;font-size:26px;line-height:1;">{{ activeHero.name }}</div>
+            <div style="font-size:13px;color:#c9d5e6;margin-top:4px;">{{ activeHero.cls }} · Niveau {{ activeHero.lvl }}</div>
+            <div style="display:flex;gap:10px;margin-top:9px;font:800 13px 'Nunito Sans';">
+              <span style="color:#9ae66e;">❤️ {{ activeHero.hp }}/{{ activeHero.maxHp }}</span>
+              <span style="color:#ffd166;">⚡ {{ activeHero.pa }} PA</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="padding:4px 20px 24px;">
+        <!-- hero switch -->
+        <div style="display:flex;gap:8px;margin-bottom:16px;">
+          <sc-for list="{{ heroes }}" as="h" hint-placeholder-count="3">
+            <button onClick="{{ h.select }}" style="{{ h.selStyle }}">
+              <span style="width:34px;height:34px;border-radius:9px;overflow:hidden;display:block;background:#7a2d12 center/cover no-repeat;background-image:url('{{ h.portrait }}');background-position:top;"></span>
+              <span style="font:800 11px 'Nunito Sans';">{{ h.name }}</span>
+            </button>
+          </sc-for>
+        </div>
+
+        <div style="font:800 12px 'Nunito Sans';letter-spacing:.08em;color:#9fb2c9;text-transform:uppercase;margin-bottom:8px;">Attributs</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:18px;">
+          <sc-for list="{{ activeHero.attrs }}" as="a" hint-placeholder-count="4">
+            <div style="display:flex;justify-content:space-between;align-items:center;background:rgba(255,255,255,.06);border-radius:10px;padding:10px 13px;font:700 13px 'Nunito Sans';"><span style="color:#c9d5e6;">{{ a.label }}</span><b style="font-size:15px;">{{ a.val }}</b></div>
+          </sc-for>
+        </div>
+
+        <div style="font:800 12px 'Nunito Sans';letter-spacing:.08em;color:#9fb2c9;text-transform:uppercase;margin-bottom:8px;">Compétences</div>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:18px;">
+          <sc-for list="{{ activeHero.skills }}" as="sk" hint-placeholder-count="2">
+            <div style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:12px;">
+              <div style="font:800 14px 'Nunito Sans';display:flex;align-items:center;gap:8px;">{{ sk.icon }} {{ sk.name }}</div>
+              <div style="font-size:12.5px;color:#9fb2c9;margin-top:4px;line-height:1.45;">{{ sk.desc }}</div>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="font:800 12px 'Nunito Sans';letter-spacing:.08em;color:#9fb2c9;text-transform:uppercase;margin-bottom:8px;">Sac</div>
+        <div style="display:flex;flex-wrap:wrap;gap:7px;">
+          <sc-for list="{{ activeHero.bag }}" as="b" hint-placeholder-count="3">
+            <span style="background:rgba(255,255,255,.08);border-radius:999px;padding:6px 13px;font:700 12px 'Nunito Sans';">{{ b }}</span>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- ============================ COMBAT ============================ -->
+    <sc-if value="{{ isCombat }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;inset:0;overflow:hidden;background:radial-gradient(120% 90% at 50% 20%, #3a4a3f, #1d2620 60%, #12160f 100%);color:#fff;display:flex;flex-direction:column;">
+      <!-- HUD top -->
+      <div style="position:relative;z-index:5;display:flex;justify-content:space-between;gap:10px;padding:16px 14px 8px;">
+        <div style="flex:1;background:rgba(251,243,224,.94);border:1.5px solid #7fa85b;border-radius:12px;padding:8px 11px;box-shadow:0 4px 12px rgba(0,0,0,.3);">
+          <div style="font:800 12px 'Nunito Sans';display:flex;justify-content:space-between;color:#3a2e20;">Naya <span style="color:#4f8a34;">{{ heroHp }}/24</span></div>
+          <div style="height:8px;border-radius:5px;background:rgba(120,86,40,.2);margin-top:4px;overflow:hidden;"><div style="height:100%;width:{{ heroHpPct }}%;background:linear-gradient(90deg,#9ccf6b,#6fa544);transition:width .3s;"></div></div>
+        </div>
+        <div style="flex:1;background:rgba(251,243,224,.94);border:1.5px solid #d9603b;border-radius:12px;padding:8px 11px;box-shadow:0 4px 12px rgba(0,0,0,.3);">
+          <div style="font:800 12px 'Nunito Sans';display:flex;justify-content:space-between;color:#3a2e20;">Gobelin Pillard <span style="color:#c0392b;">{{ monsterHp }}/30</span></div>
+          <div style="height:8px;border-radius:5px;background:rgba(120,86,40,.2);margin-top:4px;overflow:hidden;"><div style="height:100%;width:{{ monsterHpPct }}%;background:linear-gradient(90deg,#e46a44,#c0392b);transition:width .3s;"></div></div>
+        </div>
+      </div>
+
+      <div style="text-align:center;font:800 11px 'Nunito Sans';letter-spacing:.12em;color:#f0e2c4;z-index:5;text-shadow:0 1px 3px rgba(0,0,0,.5);">TOUR DE {{ turnName }}</div>
+
+      <!-- iso combat field -->
+      <div style="flex:1;position:relative;">
+        <div style="position:absolute;left:50%;top:52%;transform:translate(-50%,-50%) rotateX(58deg) rotateZ(45deg);width:250px;height:250px;display:grid;grid-template-columns:repeat(5,1fr);grid-template-rows:repeat(5,1fr);gap:3px;">
+          <sc-for list="{{ combatCells }}" as="c" hint-placeholder-count="25">
+            <div style="background:{{ c.bg }};border-radius:5px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.12), 0 3px 0 rgba(0,0,0,.25);"></div>
+          </sc-for>
+        </div>
+        <img src="frontend/public/assets/characters/char-scout.png" style="position:absolute;left:40%;top:56%;width:86px;transform:translate(-50%,-92%);filter:drop-shadow(0 8px 8px rgba(0,0,0,.5));z-index:3;">
+        <img src="frontend/public/assets/monsters/mob-goblin.png" style="position:absolute;left:62%;top:42%;width:80px;transform:translate(-50%,-90%) scaleX(-1);filter:drop-shadow(0 8px 8px rgba(0,0,0,.5));z-index:3;{{ monsterHitStyle }}">
+        <sc-if value="{{ victory }}" hint-placeholder-val="{{ false }}">
+          <div style="position:absolute;left:50%;top:34%;transform:translate(-50%,-50%);z-index:6;font-family:'Baloo 2';font-weight:800;font-size:40px;color:#ffd54a;text-shadow:0 3px 0 #b6472a, 0 6px 16px rgba(0,0,0,.5);animation:et-bob 1.4s ease-in-out infinite;">Victoire !</div>
+        </sc-if>
+      </div>
+
+      <!-- combat log -->
+      <div style="z-index:5;margin:0 14px;background:rgba(251,243,224,.92);border:1.5px solid #d9a441;border-radius:12px;padding:9px 12px;font-size:12px;color:#4a3a24;max-height:70px;overflow-y:auto;">
+        <sc-for list="{{ combatLog }}" as="line" hint-placeholder-count="2">
+          <div style="padding:1px 0;">{{ line }}</div>
+        </sc-for>
+      </div>
+
+      <!-- action bar -->
+      <div style="z-index:5;padding:12px 14px 16px;display:flex;flex-direction:column;gap:8px;">
+        <sc-if value="{{ victory }}" hint-placeholder-val="{{ false }}">
+          <button onClick="{{ backToMap }}" style="border:none;border-radius:14px;padding:15px;font:800 15px 'Nunito Sans';color:#14310a;background:linear-gradient(180deg,#9ccf6b,#6fa544);cursor:pointer;box-shadow:inset 0 1.5px 0 rgba(255,255,255,.35);">🏆 Récupérer le butin &amp; revenir</button>
+        </sc-if>
+        <sc-if value="{{ fighting }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex;gap:8px;">
+            <button onClick="{{ attack }}" style="flex:2;border:none;border-radius:13px;padding:14px;font:800 14px 'Nunito Sans';color:#fff;background:linear-gradient(180deg,#e46a44,#c0392b);cursor:pointer;box-shadow:inset 0 1.5px 0 rgba(255,255,255,.3);">⚔️ Attaquer</button>
+            <button onClick="{{ skill }}" style="flex:2;border:none;border-radius:13px;padding:14px;font:800 14px 'Nunito Sans';color:#fff;background:linear-gradient(180deg,#ff8a3d,#d8421a);cursor:pointer;">🔥 Compétence</button>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button style="flex:1;border:1px solid rgba(255,255,255,.16);border-radius:13px;padding:11px;font:700 13px 'Nunito Sans';color:#fff;background:rgba(255,255,255,.1);cursor:pointer;">👣 Déplacer</button>
+            <button onClick="{{ backToMap }}" style="flex:1;border:1px solid rgba(255,255,255,.16);border-radius:13px;padding:11px;font:700 13px 'Nunito Sans';color:#fff;background:rgba(255,255,255,.1);cursor:pointer;">🏃 Fuir</button>
+          </div>
+        </sc-if>
+      </div>
+    </div>
+    </sc-if>
+
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:452,&quot;height&quot;:936}}">
+class Component extends DCLogic {
+  state = {
+    screen: "title",       // title | lobby | waiting | game | hero | combat
+    lobbyMode: "public",   // public | private
+    tab: "town",           // town | map | structure | stock | craft
+    showSettings: false,
+    showStatus: false,
+    showJournal: false,
+    gateOpen: true,
+    townOccupied: true,
+    pa: 5,
+    paDepleted: false,
+    paRegenSec: 2730,
+    heroIdx: 0,
+    mapHeroIdx: 0,
+    moveMode: false,
+    stockHeroIdx: 0,
+    bank: [
+      { icon: "🪵", name: "Bois", qty: 42 }, { icon: "🪨", name: "Pierre", qty: 28 },
+      { icon: "⛏️", name: "Minerai", qty: 11 }, { icon: "💧", name: "Eau", qty: 19 },
+      { icon: "🍖", name: "Viande", qty: 6 }, { icon: "🌿", name: "Herbe", qty: 14 },
+      { icon: "🧪", name: "Potion", qty: 3 }, { icon: "🗡️", name: "Lame de fer", qty: 2 },
+      { icon: "🎒", name: "Besace", qty: 2 },
+    ],
+    bags: [
+      [{ icon: "🗡️", name: "Dague de fer" }, { icon: "💧", name: "Ration d'eau" }, { icon: "🌿", name: "Herbe médicinale" }],
+      [{ icon: "🛡️", name: "Écu renforcé" }, { icon: "🍖", name: "Viande" }, { icon: "💧", name: "Ration d'eau" }],
+      [{ icon: "🏹", name: "Arc long" }, { icon: "🗡️", name: "Lame de fer" }, { icon: "🧪", name: "Potion de soin" }],
+    ],
+    waveSec: 512,
+    monsterHp: 30,
+    heroHp: 24,
+    combatLog: ["Le Gobelin Pillard surgit des fourrés."],
+    turn: "hero",          // hero | monster
+    victory: false,
+    hit: false,
+  };
+
+  componentDidMount() {
+    this._t = setInterval(() => {
+      this.setState((s) => {
+        const patch = { waveSec: s.waveSec > 0 ? s.waveSec - 1 : 600 };
+        if (s.paDepleted) {
+          const n = s.paRegenSec - 1;
+          if (n <= 0) { patch.paDepleted = false; patch.paRegenSec = 2730; }
+          else patch.paRegenSec = n;
+        }
+        return patch;
+      });
+    }, 1000);
+  }
+  componentWillUnmount() { clearInterval(this._t); }
+
+  ASSET = "frontend/public/assets";
+
+  HEROES = [
+    { name: "Naya", cls: "Éclaireuse", lvl: 3, hp: 22, maxHp: 24, pa: 5,
+      portrait: "hero-eclaireur",
+      attrs: [["Force", 6], ["Agilité", 9], ["Défense", 5], ["Volonté", 7]],
+      skills: [["🏹", "Tir précis", "Inflige 8 dégâts à distance, ignore 2 de défense. Portée 3 cases."], ["👁️", "Repérage", "Révèle les monstres cachés dans un rayon de 2 cases."]],
+      bag: ["🗡️ Dague de fer", "💧 Ration d'eau", "🌿 Herbe médicinale"] },
+    { name: "Bram", cls: "Gardien", lvl: 4, hp: 30, maxHp: 32, pa: 4,
+      portrait: "hero-gardien",
+      attrs: [["Force", 9], ["Agilité", 4], ["Défense", 10], ["Volonté", 6]],
+      skills: [["🛡️", "Provocation", "Force les monstres adjacents à l'attaquer. Compte pour 3 héros face à un pack."], ["⚔️", "Coup de bouclier", "6 dégâts + Étourdi 1 tour."]],
+      bag: ["🛡️ Écu renforcé", "🍖 Viande", "💧 Ration d'eau"] },
+    { name: "Elwin", cls: "Chasseur", lvl: 3, hp: 20, maxHp: 22, pa: 6,
+      portrait: "hero-chasseur",
+      attrs: [["Force", 7], ["Agilité", 8], ["Défense", 4], ["Volonté", 5]],
+      skills: [["🔥", "Flèche incendiaire", "10 dégâts de feu, Brûlure sur 2 tours."], ["🐾", "Piège", "Immobilise (Racines) un monstre pour 1 tour."]],
+      bag: ["🏹 Arc long", "🗡️ Lame de fer", "🧪 Potion de soin"] },
+  ];
+
+  STRUCTURES = [
+    { icon: "🏛️", name: "Hôtel de ville", lvl: 3, dur: "40/40", durPct: 100, cost: "12🪵 8🪨" },
+    { icon: "🧱", name: "Muraille", lvl: 2, dur: "18/30", durPct: 60, cost: "10🪵 14🪨" },
+    { icon: "🚪", name: "Grande porte", lvl: 2, dur: "9/24", durPct: 38, cost: "8🪵 6🪨" },
+    { icon: "🗼", name: "Tour de guet", lvl: 1, dur: "12/20", durPct: 60, cost: "6🪵 10🪨" },
+    { icon: "🏦", name: "Banque", lvl: 2, dur: "26/28", durPct: 92, cost: "9🪵 4🪨" },
+    { icon: "💧", name: "Puits", lvl: 1, dur: "16/16", durPct: 100, cost: "5🪵 8🪨" },
+  ];
+
+  ITEMS = [
+    { icon: "🪵", name: "Bois", qty: 42 }, { icon: "🪨", name: "Pierre", qty: 28 },
+    { icon: "⛏️", name: "Minerai", qty: 11 }, { icon: "💧", name: "Eau", qty: 19 },
+    { icon: "🍖", name: "Viande", qty: 6 }, { icon: "🌿", name: "Herbe", qty: 14 },
+    { icon: "🧪", name: "Potion", qty: 3 }, { icon: "🗡️", name: "Lame de fer", qty: 2 },
+  ];
+
+  RECIPES = [
+    { icon: "🧪", name: "Potion de soin", cost: "2🌿 1💧" },
+    { icon: "🗡️", name: "Lame de fer", cost: "3⛏️ 1🪵" },
+    { icon: "🍛", name: "Mapo Curry", cost: "2🍖 1🌿" },
+    { icon: "🧱", name: "Bloc de mur", cost: "4🪨 2🪵" },
+  ];
+
+  // Per-hero on-map context: is the hero on an enemy tile, is it overwhelmed
+  // (surrounded by a pack → must fight or flee), and its map-applicable skills.
+  MAP_CTX = [
+    { onMonster: true,  overwhelmed: false, mapSkills: [{ icon: "👁️", name: "Repérage", cost: 1 }] },
+    { onMonster: false, overwhelmed: true,  mapSkills: [{ icon: "📣", name: "Cri de ralliement", cost: 2 }] },
+    { onMonster: true,  overwhelmed: false, mapSkills: [{ icon: "🐾", name: "Poser un piège", cost: 1 }] },
+  ];
+
+  RANK_STATS = [
+    { icon: "🎮", label: "Parties jouées", val: "12" },
+    { icon: "🏆", label: "Victoires", val: "7" },
+    { icon: "⭐", label: "Meilleur score", val: "4 820" },
+    { icon: "🗓", label: "Record de jours", val: "21" },
+  ];
+  PODIUM = [
+    { medal: "🥈", name: "Sora", score: "4 120", h: "90px", bg: "linear-gradient(180deg,#e6e9ef,#bcc3cf)", fg: "#465060" },
+    { medal: "🥇", name: "Neyqoh", score: "4 820", h: "118px", bg: "linear-gradient(180deg,#f4d268,#d9a441)", fg: "#5a3e0e" },
+    { medal: "🥉", name: "Kael", score: "3 760", h: "72px", bg: "linear-gradient(180deg,#e6b487,#c08a52)", fg: "#5a3417" },
+  ];
+  FINISHED = [
+    { name: "Val-des-Brumes", date: "12 juil.", result: "Victoire", ok: true, score: "4 820", days: 21, players: 2 },
+    { name: "Sylve Éternelle", date: "8 juil.", result: "Défaite", ok: false, score: "2 140", days: 9, players: 4 },
+    { name: "Cols de Givre", date: "3 juil.", result: "Victoire", ok: true, score: "3 310", days: 15, players: 3 },
+    { name: "Dunes Rouges", date: "28 juin", result: "Défaite", ok: false, score: "1 780", days: 6, players: 2 },
+  ];
+
+  LOBBIES = [
+    { icon: "🌲", name: "Sylve Éternelle", status: "En cours · Jour 1 · 3/4", badge: "REJOIGNABLE", badgeColor: "#4f7a2e", badgeBg: "rgba(111,165,68,.18)" },
+    { icon: "⛰️", name: "Cols de Givre", status: "En attente de joueurs", badge: "1/3", badgeColor: "#7a6440", badgeBg: "rgba(120,86,40,.12)" },
+    { icon: "🏜️", name: "Dunes Rouges", status: "Minimum atteint", badge: "DÉMARRE", badgeColor: "#b6472a", badgeBg: "rgba(192,57,43,.14)" },
+  ];
+
+  JOURNAL = [
+    { icon: "⚔️", text: "La horde a frappé la muraille (−6 durabilité). Aucun PV de ville perdu.", when: "Jour 3 · 14:02" },
+    { icon: "🏗️", text: "Bram a amélioré la Tour de guet (Nv 1 → 2).", when: "Jour 3 · 09:30" },
+    { icon: "🦊", text: "Shinki : « Un nouveau pack de gobelins rôde au sud. »", when: "Jour 3 · 08:05" },
+    { icon: "🩸", text: "Elwin a été blessé sur la carte par une Harpie de Prairie.", when: "Jour 2 · 21:10" },
+    { icon: "🔍", text: "Naya a fouillé une plaine (+3 Bois, +1 Herbe médicinale).", when: "Jour 2 · 18:44" },
+    { icon: "🌊", text: "Vague repoussée. La défense a tenu (+18).", when: "Jour 2 · 08:00" },
+    { icon: "🚪", text: "Neko a laissé la grande porte ouverte toute la nuit.", when: "Jour 1 · 23:12" },
+    { icon: "🧝", text: "Sora a rejoint la partie pendant le Jour 1.", when: "Jour 1 · 20:15" },
+    { icon: "🎬", text: "La partie publique a démarré (minimum de 2 joueurs atteint).", when: "Jour 1 · 12:00" },
+  ];
+
+  PLAYERS = [
+    { icon: "👑", name: "Neyqoh", tag: "(toi)", bg: "rgba(192,57,43,.1)", border: "rgba(192,57,43,.4)", color: "#b6472a" },
+    { icon: "🧝", name: "Sora", tag: "", bg: "#fffdf6", border: "rgba(90,62,27,.2)", color: "#3a2e20" },
+    { icon: "🤖", name: "Bot Kael", tag: "bot", bg: "#fffdf6", border: "rgba(90,62,27,.2)", color: "#3a2e20" },
+    { icon: "💤", name: "En attente…", tag: "", bg: "rgba(90,62,27,.04)", border: "rgba(90,62,27,.15)", color: "#9a8a6c" },
+  ];
+
+  fmt(s) {
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+    const p = (n) => String(n).padStart(2, "0");
+    return h > 0 ? `${p(h)}:${p(m)}:${p(sec)}` : `${p(m)}:${p(sec)}`;
+  }
+
+  go(screen) { this.setState({ screen, showSettings: false, showStatus: false, showJournal: false }); }
+
+  renderVals() {
+    const s = this.state;
+    const heroImg = (p) => `${this.ASSET}/heroes/${p}.png`;
+
+    const chip = (active, base) => active
+      ? "flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;border:none;border-radius:11px;padding:8px 4px;cursor:pointer;background:rgba(217,96,59,.9);color:#fff;box-shadow:0 3px 10px rgba(217,96,59,.4);"
+      : "flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;border:none;border-radius:11px;padding:8px 4px;cursor:pointer;background:rgba(255,255,255,.06);color:#9fb2c9;";
+
+    // prototype flow rail
+    const flowDefs = [
+      ["Titre", "title"], ["Lobby", "lobby"], ["Salon", "waiting"],
+      ["Ville", "game:town"], ["Carte", "game:map"], ["Combat", "combat"],
+      ["Héros", "hero"], ["Structure", "game:structure"], ["Journal", "journal"], ["Classement", "ranking"],
+    ];
+    const curKey = s.screen === "game" ? `game:${s.tab}` : s.screen;
+    const flow = flowDefs.map(([label, key]) => {
+      const on = key === curKey || (key === s.screen);
+      return {
+        label,
+        style: `border:none;border-radius:999px;padding:6px 12px;font:800 11px 'Nunito Sans';cursor:pointer;transition:all .15s;` +
+          (on ? "background:#d9603b;color:#fff;box-shadow:0 2px 8px rgba(217,96,59,.5);"
+              : "background:rgba(255,255,255,.08);color:#c3cee0;"),
+        go: () => {
+          if (key === "journal") { if (this.state.townOccupied) this.setState({ screen: "game", showJournal: true, showStatus: false, showSettings: false }); }
+          else if (key.startsWith("game:")) { const t = key.split(":")[1]; const tab = (t === "town" && !this.state.townOccupied) ? "map" : t; this.setState({ screen: "game", tab, showSettings: false, showStatus: false, showJournal: false }); }
+          else if (key === "combat") { this.setState({ screen: "combat", monsterHp: 30, heroHp: 24, victory: false, turn: "hero", combatLog: ["Le Gobelin Pillard surgit des fourrés."] }); }
+          else this.go(key);
+        },
+      };
+    });
+
+    // nav tabs
+    const navDefs = [["home", "🏠", "Home", "town"], ["map", "🗺️", "Map", "map"], ["stock", "🎒", "Stock", "stock"], ["structure", "🧱", "Structure", "structure"], ["craft", "⚒️", "Craft", "craft"]];
+    const navTabs = navDefs.map(([id, icon, label, tab]) => {
+      const locked = tab === "town" && !s.townOccupied;
+      return {
+        icon: locked ? "🔒" : icon, label,
+        style: `background:none;border:none;display:flex;flex-direction:column;align-items:center;gap:2px;font:700 10px 'Nunito Sans';padding:6px 11px;border-radius:12px;` +
+          (locked ? "color:#c2ac82;opacity:.65;cursor:not-allowed;" : "cursor:pointer;" + (s.tab === tab ? "color:#fff;background:linear-gradient(180deg,#e46a44,#c0392b);box-shadow:0 3px 8px rgba(192,57,43,.35);" : "color:#8a6a3a;")),
+        go: locked ? (() => {}) : (() => this.setState({ tab })),
+      };
+    });
+
+    // heroes (with select handlers + portrait urls)
+    const locs = [
+      { loc: "🏰 en ville", locColor: "#6fa544", locBg: "rgba(111,165,68,.14)" },
+      { loc: "🏰 en ville", locColor: "#6fa544", locBg: "rgba(111,165,68,.14)" },
+      { loc: "🗺️ sur la carte", locColor: "#c9902b", locBg: "rgba(217,164,65,.16)" },
+    ];
+    const heroes = this.HEROES.map((h, i) => ({
+      ...h, portrait: heroImg(h.portrait), ...locs[i % 3],
+      select: () => this.setState({ heroIdx: i }),
+      selStyle: `flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;border:none;border-radius:13px;padding:9px 4px;cursor:pointer;` +
+        (i === s.heroIdx ? "background:rgba(217,96,59,.2);box-shadow:inset 0 0 0 2px #d9603b;color:#fff;" : "background:rgba(255,255,255,.06);color:#c9d5e6;"),
+    }));
+    const mh = this.HEROES[s.mapHeroIdx];
+    const mapHero = { ...mh, ...this.MAP_CTX[s.mapHeroIdx], portrait: heroImg(mh.portrait) };
+    const mapHeroes = this.HEROES.map((h, i) => ({
+      ...h, portrait: heroImg(h.portrait),
+      selectMap: () => this.setState({ mapHeroIdx: i }),
+      mapSelStyle: `display:flex;align-items:center;gap:6px;border-radius:999px;padding:3px 10px 3px 3px;font:800 12px 'Nunito Sans';cursor:pointer;box-shadow:0 3px 8px rgba(0,0,0,.3);` +
+        (i === s.mapHeroIdx ? "background:linear-gradient(180deg,#e46a44,#c0392b);border:1.5px solid #ffd166;color:#fff;" : "background:rgba(16,21,31,.62);border:1.5px solid rgba(255,255,255,.22);color:#fff;"),
+    }));
+
+    // Stock: bank + per-hero bags, both interactive (take / deposit).
+    const bankItems = s.bank.map((it, i) => ({ ...it, take: () => this.takeItem(i) }));
+    const stockHeroes = this.HEROES.map((h, i) => {
+      const cap = this.capOf(s.bags[i]);
+      const used = s.bags[i].length;
+      return {
+        name: h.name, portrait: heroImg(h.portrait), ...locs[i % 3],
+        pick: () => this.setState({ stockHeroIdx: i }),
+        targetStyle: `display:flex;align-items:center;gap:6px;border-radius:999px;padding:3px 11px 3px 3px;font:800 12px 'Nunito Sans';cursor:pointer;` +
+          (i === s.stockHeroIdx ? "background:linear-gradient(180deg,#e46a44,#c0392b);color:#fff;border:1.5px solid #ffd166;" : "background:#fff;color:#4a3a24;border:1.5px solid rgba(120,86,40,.25);"),
+        bag: s.bags[i].map((b, j) => ({ ...b, deposit: () => this.depositItem(i, j) })),
+        bagEmpty: used === 0,
+        used, cap, capLabel: `${used}/${cap}`,
+        capPct: Math.min(100, (used / cap) * 100) + "%",
+        capColor: used >= cap ? "#e24b4b" : used >= cap - 1 ? "#f4c430" : "#6fa544",
+        full: used >= cap,
+        hasBoost: cap > this.BASE_CAP,
+        boostLabel: "🎒 +" + (cap - this.BASE_CAP),
+      };
+    });
+    const stockTarget = stockHeroes[s.stockHeroIdx];
+
+    const ah = this.HEROES[s.heroIdx];
+    const activeHero = {
+      ...ah, portrait: heroImg(ah.portrait),
+      attrs: ah.attrs.map(([label, val]) => ({ label, val })),
+      skills: ah.skills.map(([icon, name, desc]) => ({ icon, name, desc })),
+    };
+
+    // structures durColor
+    const durColor = (p) => p > 60 ? "#4be36e" : p > 30 ? "#f4c430" : "#e24b4b";
+    const structures = this.STRUCTURES.map((x) => ({ ...x, durPct: x.durPct + "%", durColor: durColor(x.durPct) }));
+
+    // map + combat cells (biome-ish tints)
+    const mapPalette = ["#7fb069", "#8cbd77", "#6fa356", "#a3c98a", "#5f9450"];
+    const mapCells = Array.from({ length: 36 }, (_, i) => ({ bg: mapPalette[(i * 7 + (i % 5)) % mapPalette.length] }));
+    const combatPalette = ["#6d8c5f", "#7a9868", "#5e7d52", "#87a271"];
+    const combatCells = Array.from({ length: 25 }, (_, i) => ({ bg: combatPalette[(i * 3 + i % 4) % combatPalette.length] }));
+
+    const townHp = 128, townHpMax = 160;
+    const townHpPct = Math.round((townHp / townHpMax) * 100);
+
+    return {
+      // screen flags
+      isTitle: s.screen === "title",
+      isLobby: s.screen === "lobby",
+      isWaiting: s.screen === "waiting",
+      isGame: s.screen === "game",
+      isHero: s.screen === "hero",
+      isCombat: s.screen === "combat",
+      isRanking: s.screen === "ranking",
+      rankStats: this.RANK_STATS, podium: this.PODIUM, finished: this.FINISHED,
+      goRanking: () => this.go("ranking"),
+      finishedRows: this.FINISHED.map((f) => ({ ...f, resultStyle: `font:800 10px 'Nunito Sans';border-radius:7px;padding:3px 9px;` + (f.ok ? "color:#3f6a1e;background:rgba(111,165,68,.16);" : "color:#a02818;background:rgba(192,57,43,.14);") })),
+      // tab flags
+      tabTown: s.tab === "town", tabMap: s.tab === "map", tabStructure: s.tab === "structure",
+      tabStock: s.tab === "stock", tabCraft: s.tab === "craft",
+      // lobby
+      isPublic: s.lobbyMode === "public", isPrivate: s.lobbyMode === "private",
+      pubTabStyle: chip(s.lobbyMode === "public")
+        .replace("rgba(255,255,255,.06);color:#9fb2c9;", "transparent;color:#7a6440;")
+        .replace("rgba(217,96,59,.9);color:#fff;box-shadow:0 3px 10px rgba(217,96,59,.4);", "#fff;color:#2a2114;box-shadow:0 3px 10px rgba(90,62,27,.12);"),
+      privTabStyle: chip(s.lobbyMode === "private")
+        .replace("rgba(255,255,255,.06);color:#9fb2c9;", "transparent;color:#7a6440;")
+        .replace("rgba(217,96,59,.9);color:#fff;box-shadow:0 3px 10px rgba(217,96,59,.4);", "#fff;color:#2a2114;box-shadow:0 3px 10px rgba(90,62,27,.12);"),
+      lobbies: this.LOBBIES,
+      players: this.PLAYERS,
+      // overlays
+      showSettings: s.showSettings,
+      showStatus: s.showStatus,
+      // data
+      flow, navTabs, heroes, activeHero, structures, mapHero, mapHeroes,
+      flee: () => this.setState({ tab: "town" }),
+      moveMode: s.moveMode,
+      toggleMove: () => this.setState((st) => ({ moveMode: !st.moveMode })),
+      moveTo: () => this.setState({ moveMode: false }),
+      moveRange: this.HEROES[s.mapHeroIdx].pa,
+      reachTiles: [
+        { left: "46%", top: "38%" }, { left: "54%", top: "34%" }, { left: "34%", top: "46%" },
+        { left: "62%", top: "44%" }, { left: "40%", top: "56%" }, { left: "56%", top: "58%" },
+        { left: "28%", top: "56%" },
+      ],
+      moveBtnStyle: s.moveMode
+        ? "width:100%;border:none;border-radius:10px;padding:10px;font:800 13px 'Nunito Sans';cursor:pointer;color:#14310a;background:linear-gradient(180deg,#9ccf6b,#6fa544);box-shadow:inset 0 1.5px 0 rgba(255,255,255,.35), 0 0 0 2px rgba(111,165,68,.35);"
+        : "width:100%;border:1.5px solid rgba(120,86,40,.25);border-radius:10px;padding:10px;font:800 13px 'Nunito Sans';cursor:pointer;color:#4a3a24;background:#fff;",
+      moveBtnLabel: s.moveMode ? "✓ Déplacement — touche une case" : "👣 Se déplacer",
+      moveHint: s.moveMode
+        ? "Les cases accessibles s'affichent en pastilles flottantes, au-dessus du relief — jamais masquées par une case en hauteur."
+        : "Sélectionne un héros, puis « Se déplacer » pour voir ses cases accessibles.",
+      items: this.ITEMS, recipes: this.RECIPES,
+      bankItems, bankEmpty: s.bank.length === 0, stockHeroes,
+      targetFull: stockTarget.full, targetName: stockTarget.name,
+      takeBtnStyle: stockTarget.full
+        ? "width:100%;border:none;border-radius:8px;padding:5px;font:800 10px 'Nunito Sans';color:#9a8a6c;background:rgba(120,86,40,.16);cursor:not-allowed;"
+        : "width:100%;border:none;border-radius:8px;padding:5px;font:800 10px 'Nunito Sans';color:#14310a;background:linear-gradient(180deg,#9ccf6b,#6fa544);cursor:pointer;",
+      mapCells, combatCells,
+      hasGame: true,
+      totalPA: s.paDepleted ? 0 : this.HEROES.reduce((a, h) => a + h.pa, 0),
+      paDepleted: s.paDepleted,
+      paHasPoints: !s.paDepleted,
+      paRegenTime: this.fmt(s.paRegenSec),
+      togglePaDemo: () => this.setState((st) => (st.paDepleted ? { paDepleted: false } : { paDepleted: true, paRegenSec: 2730 })),
+      gateOpen: s.gateOpen,
+      gateClosed: !s.gateOpen,
+      pa: s.pa,
+      toggleGate: () => { if (this.state.pa >= 1) this.setState((st) => ({ gateOpen: !st.gateOpen, pa: st.pa - 1 })); },
+      tryExit: () => { if (this.state.gateOpen) this.setState({ screen: "game", tab: "map", showJournal: false, showStatus: false, showSettings: false }); },
+      tryEnter: () => { if (this.state.gateOpen) this.setState({ tab: "town" }); },
+      gateChipLabel: (s.gateOpen ? "🚪 Porte ouverte" : "🔒 Porte fermée") + " · 1 PA",
+      gateChipStyle: `border:1.5px solid ${s.gateOpen ? "#6fa544" : "#c0392b"};border-radius:999px;padding:6px 12px;font:800 12px 'Nunito Sans';box-shadow:0 3px 8px rgba(90,62,27,.2);` + (s.gateOpen ? "background:linear-gradient(180deg,#eaf6de,#d6ecc2);color:#3f6a1e;" : "background:linear-gradient(180deg,#fbe3dd,#f3c9c0);color:#a02818;") + (s.pa >= 1 ? "cursor:pointer;" : "opacity:.5;cursor:not-allowed;"),
+      waveTime: this.fmt(s.waveSec),
+      townHp, townHpMax, townHpPct,
+      // combat
+      monsterHp: s.monsterHp, monsterHpPct: Math.max(0, Math.round((s.monsterHp / 30) * 100)),
+      heroHp: s.heroHp, heroHpPct: Math.max(0, Math.round((s.heroHp / 24) * 100)),
+      combatLog: s.combatLog,
+      turnName: s.turn === "hero" ? "NAYA" : "GOBELIN",
+      victory: s.victory, fighting: !s.victory,
+      monsterHitStyle: s.hit ? "filter:drop-shadow(0 8px 8px rgba(0,0,0,.5)) brightness(2.2) sepia(1) hue-rotate(-30deg);" : "",
+
+      // handlers
+      goTitle: () => this.go("title"),
+      goAccount: () => this.go("title"),
+      goPublic: () => this.setState({ screen: "lobby", lobbyMode: "public" }),
+      goPrivate: () => this.setState({ screen: "lobby", lobbyMode: "private" }),
+      goWaiting: () => this.go("waiting"),
+      startGame: () => this.setState({ screen: "game", tab: "town", showSettings: false }),
+      openHero: () => this.go("hero"),
+      backToTown: () => this.setState({ screen: "game", tab: "town" }),
+      setTabStructure: () => this.setState({ tab: "structure" }),
+      startCombat: () => this.setState({ screen: "combat", monsterHp: 30, heroHp: 24, victory: false, turn: "hero", combatLog: ["Le Gobelin Pillard surgit des fourrés."] }),
+      backToMap: () => this.setState({ screen: "game", tab: "map" }),
+      toggleSettings: () => this.setState((st) => ({ showSettings: !st.showSettings })),
+      openStatus: () => { if (this.state.townOccupied) this.setState({ showStatus: true }); },
+      closeStatus: () => this.setState({ showStatus: false }),
+      townOccupied: s.townOccupied,
+      toggleTown: () => this.setState((st) => { const now = !st.townOccupied; const p = { townOccupied: now }; if (!now && st.tab === "town") p.tab = "map"; if (!now) p.showJournal = false; return p; }),
+      townPillLabel: s.townOccupied ? "🏠 En ville" : "🏚 Ville vide",
+      townPillStyle: `border-radius:999px;padding:6px 12px;font:800 11px 'Nunito Sans';cursor:pointer;` + (s.townOccupied ? "background:rgba(111,165,68,.9);color:#fff;border:1px solid #8fce62;" : "background:rgba(120,86,40,.5);color:#e7d6b2;border:1px solid rgba(255,255,255,.2);"),
+      gateStateLabel: s.gateOpen ? "🚪 Porte ouverte" : "🔒 Porte fermée",
+      gateViewStyle: `border:1.5px solid ${s.gateOpen ? "#6fa544" : "#c0392b"};border-radius:999px;padding:6px 12px;font:800 12px 'Nunito Sans';cursor:default;` + (s.gateOpen ? "background:linear-gradient(180deg,#eaf6de,#d6ecc2);color:#3f6a1e;" : "background:linear-gradient(180deg,#fbe3dd,#f3c9c0);color:#a02818;"),
+      openJournal: () => { if (this.state.townOccupied) this.setState({ screen: "game", showJournal: true, showStatus: false, showSettings: false }); },
+      closeJournal: () => this.setState({ showJournal: false }),
+      backToLobby: () => this.setState({ screen: "lobby" }),
+      showJournal: s.showJournal,
+      journal: this.JOURNAL,
+      stop: () => {},
+
+      attack: () => this.doAttack(6 + Math.floor(Math.random() * 4), "Naya frappe le Gobelin"),
+      skill: () => this.doAttack(9 + Math.floor(Math.random() * 4), "Tir précis ! Coup critique"),
+    };
+  }
+
+  BASE_CAP = 5;
+  BAG_BOOST = { "Besace": 3, "Sac à dos": 4 };
+  capOf(bag) { return this.BASE_CAP + bag.reduce((a, b) => a + (this.BAG_BOOST[b.name] || 0), 0); }
+
+  takeItem(i) {
+    this.setState((s) => {
+      if (s.bags[s.stockHeroIdx].length >= this.capOf(s.bags[s.stockHeroIdx])) return {};
+      const bank = s.bank.map((x) => ({ ...x }));
+      const it = bank[i];
+      if (!it || it.qty <= 0) return {};
+      it.qty -= 1;
+      const nb = it.qty <= 0 ? bank.filter((_, k) => k !== i) : bank;
+      const bags = s.bags.map((a) => a.slice());
+      bags[s.stockHeroIdx] = [...bags[s.stockHeroIdx], { icon: it.icon, name: it.name }];
+      return { bank: nb, bags };
+    });
+  }
+
+  depositItem(hi, ii) {
+    this.setState((s) => {
+      const bags = s.bags.map((a) => a.slice());
+      const it = bags[hi][ii];
+      if (!it) return {};
+      bags[hi] = bags[hi].filter((_, k) => k !== ii);
+      const bank = s.bank.map((x) => ({ ...x }));
+      const idx = bank.findIndex((b) => b.name === it.name);
+      if (idx >= 0) bank[idx] = { ...bank[idx], qty: bank[idx].qty + 1 };
+      else bank.push({ icon: it.icon, name: it.name, qty: 1 });
+      return { bank, bags };
+    });
+  }
+
+  doAttack(dmg, label) {
+    if (this.state.victory) return;
+    this.setState({ hit: true });
+    setTimeout(() => this.setState({ hit: false }), 180);
+    this.setState((s) => {
+      const mh = Math.max(0, s.monsterHp - dmg);
+      const log = [`⚔️ ${label} (−${dmg}).`, ...s.combatLog].slice(0, 6);
+      if (mh <= 0) return { monsterHp: 0, combatLog: ["🏆 Le Gobelin est vaincu !", ...log].slice(0, 6), victory: true };
+      // monster counter
+      const cdmg = 3 + Math.floor(Math.random() * 3);
+      const hh = Math.max(0, s.heroHp - cdmg);
+      return { monsterHp: mh, heroHp: hh, combatLog: [`🩸 Le Gobelin riposte (−${cdmg}).`, ...log].slice(0, 6) };
+    });
+  }
+}
+</script>
+</body>
+</html>

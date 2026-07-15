@@ -6,6 +6,55 @@
 
 ---
 
+## 2026-07-15 (2) — Design Claude appliqué, Phase 1 : thème parchemin + Titre/Lobby/Salon
+
+### Fait
+- **Source du design** : le redesign UI complet vit dans un projet Claude Design
+  (`claude.ai/design`, projet `3cf38013-68fb-45e6-a319-d4801f8f6b4b`, lisible via l'outil
+  DesignSync). Copie de référence extraite dans **`design/EchoTerra.dc.html`** (sections TITLE /
+  LOBBY / WAITING ROOM / CLASSEMENT / IN-GAME / HERO SHEET / COMBAT + données du proto dans le
+  `<script>` final). Tous les assets qu'il référence existent déjà dans `frontend/public/assets/`.
+- **Tokens du thème** (`app-shell.css :root`) : palette parchemin complète (`--parch-0/1/2`,
+  `--cream`, `--gold`, `--ink/-2/-soft/-muted`, `--red-hi`, `--accent`, `--navy/-hi`, `--line`…)
+  + fonts Google **Baloo 2** (titres, `--font-title`) et **Nunito Sans** (texte, `--font-body`)
+  chargées dans `index.html`.
+- **Écran Titre** : logo Baloo 2 52px « Echo » encre / « Terra » rouge, losanges décoratifs
+  (`--accent`, celui du centre décalé), chip compte avec avatar rond dégradé, **carte « Reprendre
+  ta partie »** (nouvelle : lit `echoterra:gameId`, fetch le résumé — nom, jour, 🏰 %, 🌊 compte à
+  rebours — clic = `continueTestGame`), menu du design (Solo rouge pulsant `.pill.pulse`,
+  Publiques/Privées bleu nuit, rangée Classement/Paramètres `.pill.cream`), oiseau 76px. `.pill`
+  global redessiné (rectangles arrondis 18px, dégradés + inset du design) — impacte toute l'app.
+- **Lobby** : onglets segmentés 🌍/🎪 (`.lobby-tabs`), retour texte en haut (`.back-link`), logo
+  compact sans tagline, cartes crème 18px ombrées, **liste publique à badges** (REJOIGNABLE →
+  `x/min` neutre, DÉMARRE rouge, COMPLET) avec icône + statut 2 lignes, création privée (select +
+  bouton rouge), rejoindre par code (input + bouton côte à côte).
+- **Salle d'attente** : titre Baloo, code en pointillés pleine largeur, bannière verte « Démarrage
+  automatique » (publique), rangées joueurs (👑/🤖/💤, rangée « toi » teintée rouge), statut vert
+  « Prêt à partir ✓ », boutons Ajouter un bot / ⚔️ Lancer.
+- Débordement vertical du Titre réglé : `justify-content: safe center` + `overflow-y:auto` sur
+  `.parchment`, ornement avec `padding-top` (l'ombre des losanges se faisait rogner), `.bird`
+  `line-height:1`.
+
+### Fonctionnel (vérifié)
+- Parcours complet au navigateur (1280×720 + 375×812) : Titre (fonts chargées, styles calculés
+  conformes, carte Reprendre avec vraie partie), Lobby publiques (liste + badge depuis le backend)
+  et privées, salon privé créé (code TSWSW, bot ajouté → statut vert, kick ✕), salon public rejoint
+  (bannière verte, slots 💤). `tsc -b` + `npm run build` OK.
+
+### À faire (suite du design — phases suivantes)
+**Contraintes utilisateur (2026-07-16)** : NE PAS toucher à l'apparence isométrique de la ville
+(Home) ni de la Map (boutons/mouvements/UI autour OK) — donc pas de Home « îles flottantes » ;
+NE PAS toucher à l'éditeur ni au Studio de données (arbres technologiques).
+- Phase 2 : chrome in-game (TopBar avatar+PA cumulés+📋, bandeau vague central, bottom nav rouge)
+  + restyle Structure/Stock/Craft.
+- Phase 3 : UI autour de la Map iso (panneau d'actions bas du design, chips héros), fiche héros
+  sombre, combat HUD.
+- Mécaniques design encore manquantes (backend) : « Prendre » depuis la Banque, capacité de sac +
+  Besace, Classement/scores, rejoindre une publique en cours (Jour 1), régén continue de PA.
+  (Journal de la ville et porte qui scelle la ville : DÉJÀ faits dans les sessions parallèles.)
+
+---
+
 ## 2026-07-15 (1) — Tétanisé durci + bots diversifiés (secteurs, exploration, prudence)
 
 ### Fait
