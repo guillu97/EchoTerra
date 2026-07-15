@@ -6,7 +6,6 @@ import type { TownBuilding } from "../api/types";
 import { HeroChips } from "../components/HeroChips";
 import { TownWorker, useWorkerPA } from "../components/TownWorker";
 import { effectiveTownHeroId } from "../townUtils";
-import { useWaveRemaining, formatHMS } from "../useWave";
 
 export function durColor(ratio: number) {
   if (ratio > 0.6) return "#4be36e";
@@ -148,10 +147,8 @@ function BuildingMenu({ layout, b, onClose }: { layout: BuildingLayout; b: TownB
 // Home tab = the town. Buildings funded by the PA of heroes in town + Bank materials.
 export function HomeTab() {
   const game = useStore((s) => s.game);
-  const toggleTownStatus = useStore((s) => s.toggleTownStatus);
   const setTab = useStore((s) => s.setTab);
   const [selected, setSelected] = useState<string | null>(null);
-  const remaining = useWaveRemaining(game);
   const buildingState = (id: string) => game?.town.buildings?.find((x) => x.id === id);
   const sel = selected ? TOWN_BUILDINGS.find((b) => b.id === selected) : null;
   const selState = sel ? buildingState(sel.id) : undefined;
@@ -168,13 +165,6 @@ export function HomeTab() {
 
   return (
     <div className="town-wrap" style={{ position: "absolute", inset: 0 }}>
-      <button className="wave-banner" onClick={() => toggleTownStatus(true)} title="Voir l'état de la ville">
-        Next wave in
-        <br />
-        <b>{formatHMS(remaining)}</b>
-        {game && <span className="wb-hp">🏰 {Math.round((game.town.hp / game.town.maxHp) * 100)}%</span>}
-      </button>
-
       <div className="chat-bubble">
         <span className="who">Neko :</span> Putain qui a laissé la porte ouverte encore !!
       </div>

@@ -404,86 +404,135 @@ body {
   pointer-events: none;
 }
 
-/* top bar */
+/* top bar — bandeau parchemin du design */
 .topbar {
   position: relative;
   z-index: 20;
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 34px 12px 8px;
-  color: #fff;
+  padding: max(14px, env(safe-area-inset-top)) 13px 10px;
+  background: linear-gradient(180deg, #fbf3e0, #f0e2c4);
+  border-bottom: 2px solid var(--gold);
+  box-shadow: 0 5px 16px rgba(90, 62, 27, 0.2);
+  color: var(--ink-2);
 }
 .topbar .avatar {
-  width: 34px;
-  height: 34px;
+  width: 38px;
+  height: 38px;
   padding: 0;
-  border-radius: 50%;
+  border-radius: 11px;
+  overflow: hidden;
   background: linear-gradient(135deg, #ffd27d, #e08a4a);
   display: grid;
   place-items: center;
   font-size: 18px;
-  border: 2px solid #fff8;
+  border: 2px solid var(--gold);
   flex: 0 0 auto;
   cursor: pointer;
+  box-shadow: 0 2px 6px rgba(90, 62, 27, 0.3);
+}
+.topbar .avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top;
 }
 .topbar .avatar:hover {
-  border-color: #fff;
+  filter: brightness(1.06);
 }
 .topbar .town-name {
-  font-weight: 700;
-  color: #fff;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  font-family: var(--font-title);
+  font-weight: 800;
+  font-size: 16px;
+  color: var(--ink);
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .chip {
-  background: var(--glass);
-  color: #fff;
+  background: #fff;
+  color: #b6472a;
   border-radius: 999px;
-  padding: 4px 10px;
+  padding: 5px 11px;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 800;
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  border: 1.5px solid rgba(120, 86, 40, 0.25);
+  box-shadow: 0 1px 3px rgba(90, 62, 27, 0.12);
+  cursor: pointer;
 }
 .chip.alert {
   background: #d23b32;
+  color: #fff;
+  border-color: #a02818;
+}
+.chip.pa {
+  background: linear-gradient(180deg, #fff4d6, #f4e2af);
+  border-color: var(--gold);
+  color: #9a6a12;
+  cursor: default;
 }
 .iconbtn {
   width: 30px;
   height: 30px;
-  border-radius: 50%;
-  background: var(--glass);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  color: #fff;
+  border-radius: 9px;
+  background: #fff;
+  border: 1.5px solid rgba(120, 86, 40, 0.25);
+  color: var(--ink-soft);
   display: grid;
   place-items: center;
   cursor: pointer;
-  font-size: 15px;
+  font-size: 14px;
 }
 
-.wave-banner {
-  position: relative;
-  z-index: 20;
-  align-self: center;
-  margin: 4px auto 0;
-  background: var(--glass-2);
-  color: #fff;
-  border-radius: 12px;
-  padding: 6px 16px;
-  text-align: center;
-  font-size: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  cursor: pointer;
+/* "PROCHAINE VAGUE" — bouton rouge central, superposé au haut du contenu
+   (position absolue : ne réduit pas la zone des vues isométriques). */
+.wave-row {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(max(14px, env(safe-area-inset-top)) + 50px);
+  z-index: 19;
+  display: flex;
+  justify-content: center;
+  margin-top: 12px;
+  pointer-events: none;
 }
-.wave-banner b {
-  font-size: 16px;
-  letter-spacing: 0.06em;
+.wave-banner {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: linear-gradient(180deg, var(--red-hi), var(--red));
+  color: #fff;
+  border: none;
+  border-radius: 13px;
+  padding: 8px 16px;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: 0 8px 18px -4px rgba(192, 57, 43, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+.wave-banner .wb-ico {
+  font-size: 18px;
+  flex: 0 0 auto;
+}
+.wave-banner .wb-kicker {
+  display: block;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  opacity: 0.85;
+}
+.wave-banner .wb-time {
+  display: block;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  font-variant-numeric: tabular-nums;
 }
 
 .chat-bubble {
@@ -1207,30 +1256,32 @@ body {
   display: flex;
   justify-content: space-around;
   align-items: center;
-  padding: 6px 4px max(6px, env(safe-area-inset-bottom));
-  background: var(--glass-2);
-  backdrop-filter: blur(6px);
-  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 8px 4px max(11px, env(safe-area-inset-bottom));
+  background: linear-gradient(180deg, #fbf3e0, #ecdfc0);
+  border-top: 2px solid var(--gold);
+  box-shadow: 0 -5px 16px rgba(90, 62, 27, 0.16);
 }
 .bottom-nav button {
   background: none;
   border: none;
-  color: #cdd9ea;
+  color: #8a6a3a;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 2px;
   font-size: 10px;
+  font-weight: 700;
   cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 10px;
+  padding: 6px 11px;
+  border-radius: 12px;
 }
 .bottom-nav button .ni {
-  font-size: 20px;
+  font-size: 21px;
 }
 .bottom-nav button.active {
   color: #fff;
-  background: rgba(255, 255, 255, 0.12);
+  background: linear-gradient(180deg, var(--red-hi), var(--red));
+  box-shadow: 0 3px 8px rgba(192, 57, 43, 0.35);
 }
 
 /* =========================  SETTINGS overlay  ============================= */
@@ -1872,6 +1923,8 @@ body {
 }
 .chip.warn {
   background: #b5851f;
+  color: #fff;
+  border-color: #8a6414;
 }
 
 /* Town journal (Panel building) */

@@ -6,6 +6,36 @@
 
 ---
 
+## 2026-07-16 — Design Claude Phase 2a : chrome in-game (TopBar / vague / bottom nav)
+
+### Fait
+- **TopBar parchemin** (`TopBar.tsx` + CSS) : avatar = portrait du héros sélectionné (carré arrondi,
+  liseré or ; garde le dropdown roster), nom de la partie en Baloo, chip 🏰 % (blanche, texte
+  brique ; warn/alert conservés), **chip ⚡ PA cumulés de MON équipe** (dorée — remplace le ⭐ 6/18
+  factice), bouton **📋 Journal** (visible si un de mes héros est en ville, ouvre `TownJournal`),
+  🔧 et ⚙️ en boutons carrés blancs.
+- **Bandeau « PROCHAINE VAGUE »** rouge central (design) rendu par `GameScreen` sur TOUS les onglets,
+  en **overlay absolu** (ne réduit pas la zone des vues iso) ; clic → État de la ville. L'ancien
+  bandeau « Next wave in » du HomeTab est supprimé.
+- **Bottom nav parchemin** : fond dégradé + liseré or, onglet actif en pastille rouge dégradée.
+- Rebase de la Phase 1 sur les 21 commits distants (Studio de données, journal de ville, porte
+  scellée, Home = carte d'éditeur…) — conflits résolus (TitleScreen garde 🧬 Données ; journal
+  fusionné), poussé sur main.
+
+### Fonctionnel (vérifié)
+- Partie test au navigateur : Home (ville iso INTACTE, chrome neuf, 📋 présent héros en ville) et
+  Map (rendu iso + mer de nuages INTACTS, bandeau vague par-dessus, onglet actif rouge). `tsc -b` OK.
+
+### Contraintes actives (utilisateur)
+- Ne pas changer l'apparence isométrique de la ville ni de la map (UI/boutons OK).
+- Ne pas toucher à l'éditeur ni au Studio de données (arbres technologiques).
+
+### À faire
+- Phase 2b : restyle Structure / Stock / Craft (cartes crème du design).
+- Puis : UI Map (panneau d'actions bas), fiche héros sombre, combat HUD, overlays Paramètres/État.
+
+---
+
 ## 2026-07-15 (2) — Design Claude appliqué, Phase 1 : thème parchemin + Titre/Lobby/Salon
 
 ### Fait

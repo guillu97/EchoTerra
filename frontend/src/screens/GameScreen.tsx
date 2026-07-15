@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useStore } from "../store";
+import { useWaveRemaining, formatHMS } from "../useWave";
 import { TopBar } from "../components/TopBar";
 import { BottomNav } from "../components/BottomNav";
 import { HomeTab } from "../tabs/HomeTab";
@@ -28,6 +29,7 @@ export function GameScreen() {
   return (
     <div className="screen sky">
       <TopBar />
+      <WaveBanner />
       <div className="tab-body">
         {tab === "home" && <HomeTab />}
         {/* The Map tab stays mounted for the whole game session (hidden via CSS when
@@ -48,6 +50,26 @@ export function GameScreen() {
       <GameOver />
       <CheatPanel />
       {error && <div className="toast">⚠️ {error}</div>}
+    </div>
+  );
+}
+
+// Central "PROCHAINE VAGUE" countdown (design chrome, shared by every tab).
+// Overlaid on the tab body so the iso views keep their full height.
+function WaveBanner() {
+  const game = useStore((s) => s.game);
+  const toggleTownStatus = useStore((s) => s.toggleTownStatus);
+  const remaining = useWaveRemaining(game);
+  if (!game || game.status !== "active") return null;
+  return (
+    <div className="wave-row">
+      <button className="wave-banner" onClick={() => toggleTownStatus(true)} title="État de la ville">
+        <span className="wb-ico">🌊</span>
+        <span>
+          <span className="wb-kicker">PROCHAINE VAGUE</span>
+          <span className="wb-time">{formatHMS(remaining)}</span>
+        </span>
+      </button>
     </div>
   );
 }
