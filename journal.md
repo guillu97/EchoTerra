@@ -6,6 +6,35 @@
 
 ---
 
+## 2026-07-16 (2) — Design Claude Phase 2b : Structure / Stock / Craft en parchemin
+
+### Fait
+- **Rethème complet du système `.panel-screen`** (partagé par Structure, Stock et Craft) : fond
+  parchemin radial, en-tête bandeau `#fbf3e0→#f0e2c4` + liseré or (titre en Baloo), boutons de
+  tri/catégories crème avec actif **rouge dégradé**, cartes `.ps-row` crème 15px ombrées, icônes
+  sur pastille dorée, badge « Lv » brun, bouton d'action vert (texte blanc + inset), barre de
+  progression chantier sur piste brune, groupes `PLANS À POSER / CONSTRUITS` en petites capitales
+  brunes. Tags : `ttown` doré, `miss` rouge brique ; `ing ok/miss` vert forêt / rouge brique.
+- **Stock** : sections héros/Banque en cartes crème, cellules d'objets `item-cell` dorées (qty
+  rouge brique), bouton « Déposer le butin » vert stylé, note hors-ville sur crème pointillé.
+- **TownWorker** (« PA payés par ») : chips crème, sélectionné = doré liseré or. `TownBar`/`tb-chip`
+  passés au thème aussi.
+- **Bandeau vague : passé d'overlay absolu au FLUX** entre TopBar et corps (comme le design) — en
+  overlay il masquait les filtres de catégories du Stock. La map Phaser se redimensionne proprement
+  (Scale.NONE + ResizeObserver), rendu iso inchangé.
+- AUCUNE logique touchée : plans/chantiers/prérequis d'arbre techno (Structure), catégories,
+  recettes et niveaux de bâtiments (Craft) fonctionnent comme avant.
+
+### Fonctionnel (vérifié)
+- Screenshots navigateur des 3 onglets + Home + Map : thème appliqué partout, ville et map iso
+  INTACTES, tous les contrôles visibles/cliquables. `tsc -b` OK.
+
+### À faire
+- Fiche héros (thème sombre du design), HUD combat, overlays (Paramètres / État de la ville /
+  Journal / modale bâtiment) encore en thème sombre ancien.
+
+---
+
 ## 2026-07-16 — Design Claude Phase 2a : chrome in-game (TopBar / vague / bottom nav)
 
 ### Fait
