@@ -19,9 +19,9 @@ export function TownStatus() {
   const defensive = t.buildings.filter((b) => DEFENSIVE.includes(b.id));
 
   return (
-    <div className="settings" onClick={() => close(false)}>
+    <div className="settings sheet" onClick={() => close(false)}>
       <div className="panel-card" onClick={(e) => e.stopPropagation()}>
-        <div className="banner">État de la ville</div>
+        <div className="banner">🏰 État de la ville</div>
 
         <div className="ts-hp">
           <span>🏰 PV ville {t.hp}/{t.maxHp}</span>
@@ -81,11 +81,11 @@ export function TownStatus() {
             <h4>Dernière vague (#{lw.wave})</h4>
             <div className="ts-report">
               <div>Horde <b>{lw.hordePower}</b> · Défense <b>{lw.defense}</b> · Dégâts ville <b className="lost">−{lw.townDamage}</b></div>
-              {lw.buildingsHit.length > 0 && (
-                <div>Bâtiments : {lw.buildingsHit.map((h) => `${h.name} ${h.delta}`).join(", ")}</div>
+              {(lw.buildingsHit ?? []).length > 0 && (
+                <div>Bâtiments : {(lw.buildingsHit ?? []).map((h) => `${h.name} ${h.delta}`).join(", ")}</div>
               )}
-              {lw.heroesHit.length > 0 && (
-                <div>Héros hors ville : {lw.heroesHit.map((h) => `${h.name} ${h.delta}`).join(", ")}</div>
+              {(lw.heroesHit ?? []).length > 0 && (
+                <div>Héros hors ville : {(lw.heroesHit ?? []).map((h) => `${h.name} ${h.delta}`).join(", ")}</div>
               )}
               <div>Monstres apparus : {lw.monstersSpawned}</div>
             </div>

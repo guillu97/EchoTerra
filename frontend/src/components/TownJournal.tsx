@@ -16,7 +16,7 @@ export function TownJournal() {
   };
 
   return (
-    <div className="settings" onClick={() => close(false)}>
+    <div className="settings sheet" onClick={() => close(false)}>
       <div className="panel-card" onClick={(e) => e.stopPropagation()}>
         <div className="banner">📋 Journal de la ville</div>
 
@@ -38,7 +38,7 @@ export function TownJournal() {
           </div>
         )}
 
-        <button className="pill red" style={{ marginTop: 12 }} onClick={() => close(false)}>
+        <button className="pill red" style={{ width: "100%", marginTop: 12 }} onClick={() => close(false)}>
           Fermer
         </button>
       </div>

@@ -6,6 +6,34 @@
 
 ---
 
+## 2026-07-16 (3) — Design Claude Phase 3 : overlays en parchemin (+ fix crash TownStatus)
+
+### Fait
+- **Système `.settings` rethémé** : voile brun chaud, `.panel-card` = carte parchemin 22px
+  (`#fbf5e6→#f0e4c9`, ombre profonde), titres `.banner` en Baloo encre (les ✕✕ décoratifs
+  supprimés). **Exception : `.hero-card-screen` garde le thème SOMBRE** (la fiche héros du design
+  est sombre). Boutons `.seg` crème (actif vert `#7fa85b`), langgrid/toggle-row/hint au thème.
+- **Variante `settings.sheet` (bottom sheet du design)** : collée en bas, coins hauts 26px, liseré
+  or, poignée de préhension — appliquée à **État de la ville** et **Journal de la ville**.
+- **État de la ville** : cartes de stats crème, panneau défense crème, rapport de vague sur fond
+  rouge pâle, mini-bars sur piste brune. **Journal** : lignes crème ombrées, dates estompées.
+- **Modale bâtiment** (`.bmenu-modal`) : action principale rouge dégradé, secondaires crème.
+- **FIX crash** `TownStatus` : `lastWave.buildingsHit`/`heroesHit` peuvent être `null` (Go
+  sérialise les slices vides en null) → `?? []`. L'écran devenait tout noir en ouvrant l'état de
+  la ville après une vague sans dégâts listés.
+
+### Fonctionnel (vérifié)
+- Screenshots : État de la ville (sheet + rapport), Journal (sheet vide), Paramètres (carte crème),
+  modale Puits (actions + chips PA). `tsc -b` OK. Vues iso toujours intactes.
+
+### À faire
+- Fiche héros : vérifier/peaufiner le thème sombre du design (attributs, compétences, Évoluer).
+- HUD combat (CombatScene) : barres HP crème, journal, barre d'actions du design.
+- UI Map : panneau d'actions bas du design (remplace le menu radial ?) — mouvements/boutons
+  seulement, rendu iso intouchable.
+
+---
+
 ## 2026-07-16 (2) — Design Claude Phase 2b : Structure / Stock / Craft en parchemin
 
 ### Fait
