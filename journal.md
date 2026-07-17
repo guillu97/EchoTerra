@@ -6,6 +6,26 @@
 
 ---
 
+## 2026-07-17 — Plan « carte voxel » (VOXEL-PLAN.md)
+
+### Fait
+- **`VOXEL-PLAN.md`** (racine) : plan en 7 phases pour passer Home / Map / Combat sur un **moteur
+  voxel 3D unique** (Three.js, caméra ortho dimétrique, rotation 4 orientations). Points clés :
+  blocs voxel **générés localement sans ComfyUI** (recettes procédurales + palette extraite des
+  `isotiles/`, sortie `.vox`, preview par rendu logiciel Node), terrain en `InstancedMesh`
+  (transposition de l'atlas de piliers), personnages en **2 étapes** (billboards PNG puis modèles
+  voxel), **déplacements sans animation, case par case**, transition sous flag avec Phaser en
+  fallback, budgets perf mobiles étendus. Décisions ouvertes : D1 résolution 32³/64³, D2 meshing
+  runtime (recommandé), D3 ordre Combat avant Home (recommandé), D4 flag dans Settings.
+
+### Fonctionnel (vérifié)
+- Rien de codé — session de planification uniquement.
+
+### À faire
+- Trancher D1–D4 puis démarrer Phase 0 (`scripts/voxel/gen-blocks.mjs` + contact sheet).
+
+---
+
 ## 2026-07-16 (3) — Design Claude Phase 3 : overlays en parchemin (+ fix crash TownStatus)
 
 ### Fait
