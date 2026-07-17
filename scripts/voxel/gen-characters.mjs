@@ -25,6 +25,14 @@ const KEYS = ["char-scout", "char-builder", "char-archer", "char-knight", "char-
 const lum = ([r, g, b]) => 0.299 * r + 0.587 * g + 0.114 * b;
 const sat = ([r, g, b]) => { const mx = Math.max(r, g, b), mn = Math.min(r, g, b); return mx ? (mx - mn) / mx : 0; };
 
+// Boost de saturation (retour : héros « boueux » sur la carte) : écarte la
+// couleur de son gris + petite pointe de luminosité — la peau n'y passe PAS.
+function vivid([r, g, b], k = 1.45, lift = 1.06) {
+  const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+  const c = (v) => Math.max(0, Math.min(255, Math.round((gray + (v - gray) * k) * lift)));
+  return [c(r), c(g), c(b)];
+}
+
 // Couleur dominante d'une zone (fractions du bbox du contenu opaque).
 function zoneColor(px, bbox, fx0, fx1, fy0, fy1, filter = () => true) {
   const buckets = new Map();
@@ -81,7 +89,7 @@ async function samplePalette(key) {
   let acc = null;
   for (const e of satBuckets.values()) if (!acc || e.n > acc.n) acc = e;
   const accent = acc ? [Math.round(acc.r / acc.n), Math.round(acc.g / acc.n), Math.round(acc.b / acc.n)] : [200, 90, 70];
-  return { skin, hair, outfit, outfit2, accent };
+  return { skin, hair: vivid(hair), outfit: vivid(outfit), outfit2: vivid(outfit2), accent: vivid(accent, 1.55) };
 }
 
 async function writePng(render, file) {

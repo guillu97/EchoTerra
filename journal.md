@@ -6,6 +6,21 @@
 
 ---
 
+## 2026-07-17 (19) — Lisibilité des héros sur carte + brume nettoyée
+
+### Fait
+- **Héros plus lisibles sur la carte** (mes 3 conseils appliqués) : (1) modèles voxel ×1.25
+  sur la Map ; (2) `vivid()` dans gen-characters — saturation +45 % / accent +55 % sur
+  cheveux/tenue/accents (PAS la peau), personnages régénérés ; (3) **étiquette de nom**
+  au-dessus de MES héros (makeLabel, comme en ville/combat).
+- **Brume 16³ nettoyée** (recipes.mjs, LOD < 24) : moitié moins de bosses, deux fois plus
+  basses, voile limité à la moitié CLAIRE de la rampe — fini les « débris gris » épars sous
+  la lumière diorama. `voxels/16/mist-*` régénérés.
+
+### Fonctionnel (vérifié, capture)
+- Brisa/Aldric/Cael nets, nommés et colorés au milieu des tornades ; brume propre ;
+  combat re-vérifié (les .vox de personnages ont changé) ; `tsc` + build verts.
+
 ## 2026-07-17 (18) — Reliefs rehaussés + sol texturé (retour « trop lisse »)
 
 ### Fait

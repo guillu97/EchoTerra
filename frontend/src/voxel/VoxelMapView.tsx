@@ -21,6 +21,7 @@ import { VoxelControls } from "./controls";
 import { BlockLibrary, buildTerrain, type TerrainCell } from "./terrain";
 import { SmoothTerrain } from "./smoothTerrain";
 import { ALL_CHAR_KEYS, CharLibrary } from "./characters";
+import { makeLabel } from "./labels";
 import { heroTexKey as heroKey } from "../assets";
 import { useStore } from "../store";
 
@@ -372,6 +373,7 @@ class MapWorld {
       if (mesh) {
         mesh.position.set(h.x + ox, topOf(h.x, h.y), h.y + oy);
         mesh.rotation.y = engine.azimuthNow;
+        mesh.scale.multiplyScalar(1.25); // lisibilité carte : héros un peu plus grands
         if (!mine) {
           mesh.material = (mesh.material as THREE.MeshBasicMaterial).clone();
           (mesh.material as THREE.MeshBasicMaterial).transparent = true;
@@ -379,6 +381,12 @@ class MapWorld {
         }
         this.sprites.add(mesh);
         this.charMeshes.push(mesh);
+        if (mine) {
+          const lbl = makeLabel(h.name, "#fff6d8", 0.24);
+          lbl.center.set(0.5, 0);
+          lbl.position.set(h.x + ox, topOf(h.x, h.y) + 1.15, h.y + oy);
+          this.sprites.add(lbl);
+        }
       } else {
         billboard(libUrl("characters", heroTexKey(h.class)), h.x, h.y, {
           alpha: mine ? 1 : OTHER_ALPHA,

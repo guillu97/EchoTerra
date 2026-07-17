@@ -294,9 +294,12 @@ function planksRecipe(b, pal, rnd, seed) {
 function mistRecipe(b, pal, rnd, seed) {
   const { size } = b;
   const bumps = [];
-  const n = 9 + Math.floor(rnd() * 4); // beaucoup de petites bosses = moutonnement doux
+  // au LOD carte (16³) : moitié moins de bosses, deux fois plus basses — de
+  // loin les moutonnements ressortaient en « débris » gris sous la lumière
+  const lodK = size >= 24 ? 1 : 0.5;
+  const n = Math.round((9 + Math.floor(rnd() * 4)) * lodK);
   for (let i = 0; i < n; i++) {
-    bumps.push({ x: rnd() * size, y: rnd() * size, r: size * (0.12 + rnd() * 0.14), h: size * (0.04 + rnd() * 0.08) });
+    bumps.push({ x: rnd() * size, y: rnd() * size, r: size * (0.12 + rnd() * 0.14), h: size * (0.04 + rnd() * 0.08) * lodK });
   }
   const margin = b.sz - size;
   for (let y = 0; y < size; y++) {
@@ -315,7 +318,9 @@ function mistRecipe(b, pal, rnd, seed) {
       for (let z = 0; z < top; z++) {
         const t = clamp01(z / (size + margin * 0.6)); // 0 bas → 1 haut
         const n2 = noise2(x + z, y - z, size, seed + 11, 2);
-        let c = ramp(pal.top, clamp01((1 - t) * 0.85 + (n2 - 0.5) * 0.2));
+        // voile plus CLAIR au LOD carte (plage limitée à la moitié claire)
+        const range = size >= 24 ? 0.85 : 0.55;
+        let c = ramp(pal.top, clamp01((1 - t) * range + (n2 - 0.5) * 0.2));
         if (z >= top - 1 && rnd() < 0.05) c = pal.accents[0] ?? c; // mote lumineuse
         b.set(x, y, z, c);
       }
