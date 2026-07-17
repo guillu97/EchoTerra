@@ -6,6 +6,21 @@
 
 ---
 
+## 2026-07-17 (18) — Reliefs rehaussés + sol texturé (retour « trop lisse »)
+
+### Fait
+- **`HEIGHT_SCALE = 1.9`** : les hauteurs du monde sont amplifiées à l'affichage — collines
+  et montagnes ~2× plus hautes, massifs à falaises multi-terrasses.
+- **`rollNoise` + `ROLL_AMP = 1.1`** : ondulation LENTE inter-tuiles (bruit de valeur lisse,
+  2 octaves, périodes ~6.5/2.8 tuiles) ajoutée aux terres — les plaines roulent en buttes de
+  marches au lieu d'un aplat ; le sable près de l'eau ondule à 35 % (plages basses).
+- **`MICRO` 0.06 → 0.13** : bosses voxel isolées éparses dans les plaines (texture de sol).
+- Rendu purement CLIENT (smoothTerrain) : les données serveur/gameplay ne bougent pas ;
+  unités/props/losanges suivent via `heightAt` quantifiée.
+
+### Fonctionnel (vérifié, capture banc + vraie partie)
+- Massifs imposants, plaines texturées ; move serveur + rotation OK ; `tsc` + build verts.
+
 ## 2026-07-17 (17) — Couleurs densifiées (retour « moins pâle »)
 
 ### Fait

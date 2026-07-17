@@ -22,8 +22,11 @@ export type TerrainSource = {
 
 const R = 4; // colonnes voxel par côté de tuile
 const VS = 0.25; // pas vertical (= 1/R : voxels cubiques)
-const MICRO = 0.06; // micro-relief (± unités) — produit des marches isolées rares
+const MICRO = 0.13; // micro-relief (± unités) — bosses voxel isolées dans les plaines
 const TERRACE_BAND = 0.26; // largeur de la transition de terrasse
+// Retour utilisateur (« sol trop lisse, reliefs plus hauts ») :
+const HEIGHT_SCALE = 1.9; // amplification des hauteurs du monde (collines ~2× plus hautes)
+const ROLL_AMP = 1.1; // ondulation lente des plaines (± unités) — buttes en marches
 
 // Palette diorama par biome (désaturée façon maquette), deux nuances par biome.
 // Palette densifiée (retour utilisateur : « moins pâle ») — pastels francs,
@@ -59,6 +62,19 @@ function hash01(x: number, y: number, s = 0): number {
   return ((h >>> 16) & 0xffff) / 0x10000;
 }
 
+// bruit de valeur LISSE inter-tuiles (2 octaves) — l'ondulation des plaines
+function rollNoise(x: number, y: number): number {
+  const oct = (px: number, py: number, s: number) => {
+    const x0 = Math.floor(px), y0 = Math.floor(py);
+    const fx = px - x0, fy = py - y0;
+    const sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
+    const v00 = hash01(x0, y0, s), v10 = hash01(x0 + 1, y0, s);
+    const v01 = hash01(x0, y0 + 1, s), v11 = hash01(x0 + 1, y0 + 1, s);
+    return v00 + (v10 - v00) * sx + (v01 + (v11 - v01) * sx - (v00 + (v10 - v00) * sx)) * sy;
+  };
+  return 0.65 * oct(x / 6.5, y / 6.5, 21) + 0.35 * oct(x / 2.8, y / 2.8, 22);
+}
+
 export class SmoothTerrain {
   mesh: THREE.Mesh | null = null;
   private cols: Float32Array | null = null; // hauteur quantifiée par colonne
@@ -90,7 +106,11 @@ export class SmoothTerrain {
       const t = tileAt(tx, ty);
       if (!t?.discovered) return 0;
       if (t.biome === 0) return -0.45; // l'eau se creuse
-      return renderHeight(t);
+      // hauteurs AMPLIFIÉES + ondulation lente des terres (les plaines roulent
+      // en buttes de marches au lieu d'un grand aplat) — le sable près de
+      // l'eau ondule moins pour garder des plages basses
+      const rollScale = t.biome === 1 ? 0.35 : 1;
+      return renderHeight(t) * HEIGHT_SCALE + (rollNoise(tx, ty) - 0.5) * ROLL_AMP * rollScale;
     };
     const cornerH = (cx: number, cy: number): number => {
       let sum = 0, cnt = 0;
