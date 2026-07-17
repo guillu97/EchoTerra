@@ -6,6 +6,24 @@
 
 ---
 
+## 2026-07-17 (8) — Voxel : passe polish + perf (Map/Combat/Home)
+
+### Fait
+- **LOD 16³ complet** (26 blocs régénérés dans `voxels/16/`) et **la ville passe au 16³** :
+  6,1 M tris → **426 k** (14×) — lisible de près, style voxel assumé.
+- **`labels.ts`** : étiquettes texte en sprites canvas (cache par contenu, **depthTest OFF** —
+  au bord d'un bloc le test de profondeur les avalait ; bonus FFTA2 : le nom reste lisible
+  quand l'unité est cachée derrière un pilier).
+- **Combat** : cases atteignables en vert franc + liseré sombre (l'ancien vert doux se noyait
+  dans l'herbe), **noms (+ états) sous les unités**.
+- **Home** : pastilles remontées AU-DESSUS des sprites de bâtiments (elles les recouvraient ;
+  recalées sur la hauteur réelle du sprite au chargement de sa texture), héros sur l'herbe
+  agrandis (1.35) + **étiquette de nom**.
+
+### Fonctionnel (vérifié e2e)
+- Ville 426 k tris / 63 draw calls, 7 pastilles, modal Puits OK ; combat re-vérifié (clic case
+  verte → move serveur, labels visibles sur capture). Build vert.
+
 ## 2026-07-17 (7) — Voxel Phase 4 : le Home (ville) en voxel
 
 ### Fait

@@ -15,6 +15,7 @@ import { useStore } from "../store";
 import { VoxelEngine } from "./engine";
 import { VoxelControls } from "./controls";
 import { BlockLibrary, buildTerrain, type TerrainCell } from "./terrain";
+import { makeLabel } from "./labels";
 
 class CombatWorld {
   lib = new BlockLibrary("/voxels"); // 32³ : le combat est vu de près
@@ -123,9 +124,18 @@ class CombatWorld {
       this.overlays.add(m);
     };
 
-    // cases atteignables (vert) — servies par le serveur (current.reachable)
+    // cases atteignables — servies par le serveur (current.reachable). Vert franc
+    // + liseré sombre : le quad 0x6ee36e à 0.5 se noyait dans l'herbe claire.
     if (c.status === "active") {
-      for (const [rx, ry] of this.current?.reachable ?? []) quad(rx, ry, 0x6ee36e, 0.5);
+      for (const [rx, ry] of this.current?.reachable ?? []) {
+        quad(rx, ry, 0x1fb63c, 0.62);
+        const edge = new THREE.Mesh(
+          new THREE.RingGeometry(0.6, 0.67, 4).rotateZ(Math.PI / 4).rotateX(-Math.PI / 2),
+          new THREE.MeshBasicMaterial({ color: 0x0c5c1d, transparent: true, opacity: 0.85, depthWrite: false }),
+        );
+        edge.position.set(rx, topOf(rx, ry) + 0.025, ry);
+        this.overlays.add(edge);
+      }
     }
 
     // unités : billboards + barre de PV (sprites face caméra)
@@ -160,6 +170,19 @@ class CombatWorld {
       fill.scale.set(0.5 * ratio, 0.06, 1);
       fill.position.set(u.x - (0.5 * (1 - ratio)) / 2, topOf(u.x, u.y) + 0.921, u.y);
       this.sprites.add(fill);
+
+      // nom (+ états) sous l'unité, comme CombatScene
+      const short = u.name.length > 10 ? u.name.slice(0, 9) + "…" : u.name;
+      const lbl = makeLabel(short, "#e8e8f0", 0.17);
+      lbl.center.set(0.5, 1);
+      lbl.position.set(u.x, topOf(u.x, u.y) - 0.06, u.y);
+      this.sprites.add(lbl);
+      if (u.states.length) {
+        const st = makeLabel(u.states.join(","), "#ffd166", 0.15);
+        st.center.set(0.5, 1);
+        st.position.set(u.x, topOf(u.x, u.y) - 0.26, u.y);
+        this.sprites.add(st);
+      }
     }
 
     if (!this.fitted) {

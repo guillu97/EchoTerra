@@ -25,6 +25,7 @@ import { durColor } from "../tabs/HomeTab";
 import { VoxelEngine } from "./engine";
 import { VoxelControls } from "./controls";
 import { BlockLibrary, buildStacks, type StackItem } from "./terrain";
+import { makeLabel } from "./labels";
 
 // Mêmes mappings que TownMap.
 const ASSET_TO_BUILDING: Record<string, string> = {
@@ -79,7 +80,9 @@ export function VoxelTownView({
     engine.minZoom = 8;
     engine.maxZoom = 90;
     const controls = new VoxelControls(engine);
-    const lib = new BlockLibrary("/voxels"); // 32³ : la ville se regarde de près
+    // LOD 16³ aussi pour la ville : 575 cellules × 32³ pesaient 6,1 M tris —
+    // en 16³ le style voxel reste lisible de près et le budget retombe ~4×.
+    const lib = new BlockLibrary("/voxels/16");
     const doc = getDoc();
 
     // 1) terrain : toutes les piles de blocs occupées
@@ -123,6 +126,9 @@ export function VoxelTownView({
           const aspect = t.image ? t.image.height / t.image.width : 1;
           const w = ((p.scale ?? 1) * ISO.objW) / ISO.tileW;
           spr.scale.set(p.flipX ? -w : w, w * aspect, 1);
+          // remonter la pastille AU-DESSUS du sprite (elle recouvrait le bâtiment)
+          const spot = spots.find((s2) => s2.world === spotWorld);
+          if (spot) spot.world.y = lvl + w * aspect + 0.15;
           engine.invalidate();
         });
         tex.colorSpace = THREE.NoColorSpace;
@@ -132,9 +138,10 @@ export function VoxelTownView({
         spr.position.set(wx, lvl, wy);
         sprites.add(spr);
         const bid = ASSET_TO_BUILDING[p.asset.file];
+        const spotWorld = new THREE.Vector3(wx, lvl + 0.6, wy);
         if (bid) {
           spriteBuildingOf.current.set(spr, bid);
-          spots.push({ buildingId: bid, world: new THREE.Vector3(wx, lvl + 0.2, wy) });
+          spots.push({ buildingId: bid, world: spotWorld });
         }
       }
     }
@@ -176,10 +183,14 @@ export function VoxelTownView({
         tex.colorSpace = THREE.NoColorSpace;
         textures.push(tex);
         const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, alphaTest: 0.35, transparent: true }));
-        spr.scale.set(0.9, 0.9, 1);
+        spr.scale.set(1.35, 1.35, 1); // bien visibles au fit initial
         spr.center.set(0.5, 0.02);
         spr.position.set(gpos.x, gpos.lvl, gpos.y);
         heroGroup.add(spr);
+        const lbl = makeLabel(h.name, "#fff6d8", 0.3);
+        lbl.center.set(0.5, 0);
+        lbl.position.set(gpos.x, gpos.lvl + 1.4, gpos.y);
+        heroGroup.add(lbl);
       }
       engine.invalidate();
     };
