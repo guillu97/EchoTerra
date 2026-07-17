@@ -6,6 +6,31 @@
 
 ---
 
+## 2026-07-17 (6) — Voxel Phase 3 : combat iso sur le moteur voxel
+
+### Fait
+- **`frontend/src/voxel/VoxelCombatView.tsx`** : le combat 7×7 sur le MÊME moteur (blocs 32³ vus
+  de près — herbe sur terre, piliers = `combat.heights`), contrat bus identique à CombatScene
+  (CombatRender entrant ; **clic unité PRIORITAIRE** puis case, via raycast sprites→terrain →
+  CombatUnitClick/CombatTileClick). Cases atteignables serveur en quads verts, unité courante
+  cerclée jaune, cibles rouge (attaque) / violet (skill), unités en billboards + **barres de PV
+  en sprites face caméra**, fond opaque #161022, **rotation FFTA2 ↺/↻** (cadrage centre de grille).
+- `MapTab` : `settings.voxelMap` couvre maintenant les DEUX vues (Map hors combat, Combat en
+  combat) — Phaser plus monté du tout quand le flag est actif.
+- Pas encore porté : étiquettes nom/états sous les unités (l'UI CombatControls les montre),
+  grilles d'attaque VERTES/ROUGES du ciblage GDD par case (les cibles restent les anneaux) —
+  à faire quand `combatResponse` exposera les grilles par case côté vue.
+
+### Fonctionnel (vérifié e2e — backend réel)
+- Héros marché jusqu'à un pack (2 pas), combat lancé : Aldric vs 2 Harpies de Prairie,
+  13 cases atteignables rendues, **clic RÉEL sur case verte projetée → move serveur
+  (2,6)→(3,6)**, rotation 90° (les harpies masquées par un pilier deviennent visibles —
+  la démo parfaite de l'intérêt du 3D). `tsc` vert. Captures inspectées.
+
+### À faire
+- Phase 4 : Home voxel (town-map.json → piles de blocs + bâtiments billboards + hotspots raycast).
+- Peaufinage combat : contraste des cases vertes, labels, grilles de ciblage par case.
+
 ## 2026-07-17 (5) — Voxel Phase 2 : la carte monde en voxel (réglage `voxelMap`)
 
 ### Fait
