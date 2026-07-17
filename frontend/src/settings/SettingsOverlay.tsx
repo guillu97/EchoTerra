@@ -95,6 +95,25 @@ export function SettingsOverlay() {
           Rendu 3D voxel de la carte monde avec rotation de caméra (↻). En cours de développement — l'iso classique reste le défaut.
         </span>
       </div>
+      {settings.voxelMap && (
+        <div className="row">
+          <span className="lbl">Terrain voxel</span>
+          <div className="seg">
+            {[false, true].map((v) => (
+              <button
+                key={String(v)}
+                className={settings.voxelSmooth === v ? "on" : ""}
+                onClick={() => updateSettings({ voxelSmooth: v })}
+              >
+                {v ? "Lisse (continu)" : "Blocs"}
+              </button>
+            ))}
+          </div>
+          <span className="hint">
+            Lisse = collines continues et biomes fondus ; Blocs = marches voxel discrètes. La carte monde uniquement.
+          </span>
+        </div>
+      )}
       <button className="pill green" style={{ width: "100%", marginTop: 8 }} onClick={() => openSettings("menu")}>
         Return
       </button>

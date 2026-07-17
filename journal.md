@@ -6,6 +6,31 @@
 
 ---
 
+## 2026-07-17 (12) — Carte : terrain CONTINU (lisse) en alternative aux blocs
+
+### Fait
+- **`frontend/src/voxel/smoothTerrain.ts`** : surface lissée construite des MÊMES données
+  serveur — hauteur aux COINS = moyenne des tuiles adjacentes (pentes continues au lieu de
+  marches), sous-division 3×3/tuile + micro-relief (nul sur l'eau), **couleurs par vertex
+  depuis palettes.json** (mêmes teintes pastel que les blocs) FONDUES aux frontières de
+  biomes (plages dégradées automatiques) + grain léger, jupe périmétrique, normales lissées
+  (le Lambert + ombres de la passe beauté font le modelé), `heightAt(x,y)` bilinéaire.
+- **Réglages → « Terrain voxel » : Blocs / Lisse** (`settings.voxelSmooth`, défaut LISSE,
+  visible quand la carte voxel est active, bascule à chaud). CARTE MONDE uniquement —
+  Combat/Home gardent leurs blocs (grille tactique/carte d'auteur).
+- Intégration `VoxelMapView` : en mode lisse le sol découvert vient de la surface (la brume
+  reste en blocs voxel par-dessus les tuiles vierges), overlays/unités posés à
+  `smooth.heightAt+0.04`, **picking = point d'impact arrondi** (plus simple que les blocs),
+  clé de terrain étendue (`:s|:b`) pour reconstruire au changement de mode.
+
+### Fonctionnel (vérifié e2e)
+- Île découverte = colline lisse aux biomes fondus, losanges/danger épousent la pente,
+  move serveur OK, rotation OK (captures). `tsc` + build verts.
+
+### À faire (si le mode lisse plaît)
+- Fondu brume↔surface au bord de la découverte, eau animée, falaises plus marquées
+  (accentuer les fortes pentes), étendre aux 16³ l'idée si on veut du lisse au Home.
+
 ## 2026-07-17 (11) — Voxel : passe BEAUTÉ (lumière pastel, ombres, textures adoucies)
 
 ### Fait

@@ -34,6 +34,7 @@ export interface Settings {
   language: string;
   notif: { loot: boolean; wave: boolean; actionPoint: boolean; communication: boolean };
   voxelMap: boolean; // carte monde en voxel 3D (expérimental — VOXEL-PLAN Phase 2)
+  voxelSmooth: boolean; // carte : terrain CONTINU lissé (true) ou blocs discrets (false)
 }
 
 const DEFAULT_SETTINGS: Settings = {
@@ -44,6 +45,7 @@ const DEFAULT_SETTINGS: Settings = {
   language: "Français",
   notif: { loot: true, wave: true, actionPoint: true, communication: false },
   voxelMap: false,
+  voxelSmooth: true,
 };
 
 function loadSettings(): Settings {

@@ -19,8 +19,10 @@ import { heroTexKey, libUrl, monsterTexKey } from "../assets";
 import { VoxelEngine } from "./engine";
 import { VoxelControls } from "./controls";
 import { BlockLibrary, buildTerrain, type TerrainCell } from "./terrain";
+import { SmoothTerrain } from "./smoothTerrain";
 import { ALL_CHAR_KEYS, CharLibrary } from "./characters";
 import { heroTexKey as heroKey } from "../assets";
+import { useStore } from "../store";
 
 const GROUND_LEVEL = 3; // même convention que MapScene : plaines = niveau 0
 const BIOME_BLOCKS = ["water", "sand", "grass", "forest", "stone", "snow"];
@@ -39,6 +41,10 @@ class MapWorld {
   libReady = false;
   terrain: THREE.Group | null = null;
   terrainKey = "";
+  // terrain CONTINU (settings.voxelSmooth) : surface lissée + brume en blocs
+  smooth = new SmoothTerrain();
+  smoothMode = true;
+  palettes: Record<string, { palette: { top: number[][] } }> | null = null;
   lookup = new Map<THREE.Object3D, TerrainCell[]>();
   overlays = new THREE.Group(); // losanges/danger/anneau — reconstruits à chaque render
   sprites = new THREE.Group(); // billboards héros/monstres/ville
@@ -62,6 +68,11 @@ class MapWorld {
         this.draw();
       });
     void this.chars.load(ALL_CHAR_KEYS).then(() => this.draw());
+    // palettes des biomes (mêmes teintes que les blocs) pour la surface lissée
+    void fetch("/voxels/palettes.json")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((p) => { this.palettes = p; this.terrainKey = ""; this.draw(); })
+      .catch(() => undefined);
     // les modèles voxel tournent avec la caméra (rotation animée incluse)
     engine.onFrame = () => {
       for (const m of this.charMeshes) m.rotation.y = engine.azimuthNow;
@@ -71,6 +82,7 @@ class MapWorld {
   dispose() {
     this.lib.dispose();
     this.chars.dispose();
+    this.smooth.dispose();
     for (const t of this.textures.values()) t.dispose();
   }
 
@@ -102,8 +114,13 @@ class MapWorld {
     const game = this.game;
     if (!game) return;
     const hits = this.engine.pick(cssX, cssY);
-    let cell: TerrainCell | undefined;
+    let cell: { x: number; y: number } | undefined;
     for (const h of hits) {
+      if (this.smooth.mesh && h.object === this.smooth.mesh) {
+        // surface continue : le point d'impact désigne directement la tuile
+        cell = { x: Math.round(h.point.x), y: Math.round(h.point.z) };
+        break;
+      }
       const cells = this.lookup.get(h.object);
       if (cells && h.instanceId !== undefined) { cell = cells[h.instanceId]; break; }
     }
@@ -132,9 +149,10 @@ class MapWorld {
     // --- terrain (re-instancié seulement quand la découverte/partie change) ----
     let discovered = 0;
     for (const t of game.tiles) if (t.discovered) discovered++;
-    const key = `${game.id}:${game.width}x${game.height}:${discovered}`;
+    const key = `${game.id}:${game.width}x${game.height}:${discovered}:${this.smoothMode ? "s" : "b"}`;
     if (this.terrainKey !== key) {
       if (this.terrain) engine.scene.remove(this.terrain);
+      if (this.smooth.mesh) engine.scene.remove(this.smooth.mesh);
       const cells: TerrainCell[] = [];
       for (let y = 0; y < game.height; y++) {
         for (let x = 0; x < game.width; x++) {
@@ -143,6 +161,7 @@ class MapWorld {
             cells.push({ x, y, block: "mist", levels: 1 });
             continue;
           }
+          if (this.smoothMode) continue; // le sol découvert vient de la surface lissée
           const block = BIOME_BLOCKS[t.biome] ?? "grass";
           const levels = renderHeight(t) + 1;
           const shade = Math.min(0.8 + Math.min(levels - 1, 6) * 0.033, 1);
@@ -153,10 +172,13 @@ class MapWorld {
           });
         }
       }
-      const built = buildTerrain(this.lib, cells);
+      const built = buildTerrain(this.lib, cells); // blocs — ou seulement la brume en mode lisse
       this.terrain = built.group;
       this.lookup = built.lookup;
       engine.scene.add(built.group);
+      if (this.smoothMode) {
+        engine.scene.add(this.smooth.build(game, this.palettes, renderHeight));
+      }
       this.terrainKey = key;
     }
 
@@ -174,7 +196,14 @@ class MapWorld {
     };
     const tileAt = (x: number, y: number) =>
       x < 0 || y < 0 || x >= game.width || y >= game.height ? undefined : game.tiles[y * game.width + x];
+    // hauteur du sol au centre d'une tuile : surface lissée en mode continu
+    // (léger +0.04 : les quads plats posés sur une pente clippent moins),
+    // sommet du pilier de blocs sinon
     const topOf = (x: number, y: number) => {
+      if (this.smoothMode) {
+        const t = tileAt(x, y);
+        return t && !t.discovered ? 1 : this.smooth.heightAt(x, y) + 0.04;
+      }
       const t = tileAt(x, y);
       return t ? this.levelsOf(t) : 1;
     };
@@ -297,6 +326,14 @@ export function VoxelMapView({ active = true }: { active?: boolean }) {
     const controls = new VoxelControls(engine);
     const world = new MapWorld(engine);
     controls.onTap = (t) => world.onTap(t.cssX, t.cssY);
+    // mode terrain (blocs ⇄ lisse) depuis les Réglages, à chaud
+    world.smoothMode = useStore.getState().settings.voxelSmooth;
+    const unsubSettings = useStore.subscribe((s, prev) => {
+      if (s.settings.voxelSmooth !== prev.settings.voxelSmooth) {
+        world.smoothMode = s.settings.voxelSmooth;
+        world.draw();
+      }
+    });
 
     const off = bus.on(
       EV.MapRender,
@@ -319,6 +356,7 @@ export function VoxelMapView({ active = true }: { active?: boolean }) {
     if (import.meta.env.DEV) (window as unknown as { __vm?: unknown }).__vm = { engine, world };
     return () => {
       off();
+      unsubSettings();
       controls.dispose();
       world.dispose();
       engine.dispose();
