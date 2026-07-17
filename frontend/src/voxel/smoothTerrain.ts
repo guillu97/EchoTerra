@@ -62,6 +62,12 @@ export class SmoothTerrain {
   private cols: Float32Array | null = null; // hauteur quantifiée par colonne
   private gw = 0;
   private gh = 0;
+  private timeUniform: { value: number } | null = null; // uniform du shader d'eau
+
+  /** avance le temps du shader d'eau (appelé sur les frames rendues) */
+  setTime(seconds: number) {
+    if (this.timeUniform) this.timeUniform.value = seconds;
+  }
 
   /** hauteur de la MARCHE sous (x, y) monde — les props/unités s'y posent */
   heightAt(x: number, y: number): number {
@@ -143,7 +149,9 @@ export class SmoothTerrain {
     const positions: number[] = [];
     const colors: number[] = [];
     const normals: number[] = [];
+    const waterAttr: number[] = []; // 1 = colonne d'eau (le shader n'anime qu'elle)
     const indices: number[] = [];
+    let quadIsWater = 0;
     const pushQuad = (
       pts: [number, number, number][],
       n: [number, number, number],
@@ -155,6 +163,7 @@ export class SmoothTerrain {
         positions.push(px, py, pz);
         normals.push(n[0], n[1], n[2]);
         colors.push((rgb[0] / 255) * shade, (rgb[1] / 255) * shade, (rgb[2] / 255) * shade);
+        waterAttr.push(quadIsWater);
       }
       // enroulement choisi pour que la face géométrique suive la normale voulue
       const [a, b, c] = pts;
@@ -191,6 +200,7 @@ export class SmoothTerrain {
         const aoMax = isWater ? 0.1 : 0.3;
         const ao = (1 - Math.min(aoMax, Math.max(0, concave) * 0.8)) * (rim ? 1.05 : 1);
 
+        quadIsWater = isWater ? 1 : 0;
         pushQuad(
           [[x0, h, z0], [x1, h, z0], [x1, h, z1], [x0, h, z1]],
           [0, 1, 0], base, SHADE_TOP * ao,
@@ -225,10 +235,43 @@ export class SmoothTerrain {
     geom.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
     geom.setAttribute("normal", new THREE.Float32BufferAttribute(normals, 3));
     geom.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+    geom.setAttribute("aWater", new THREE.Float32BufferAttribute(waterAttr, 1));
     geom.setIndex(indices);
     geom.computeBoundingSphere();
 
+    // SHADER d'eau : injection dans le Lambert — les fragments d'eau chatoient
+    // (vaguelettes de luminosité qui glissent) selon l'uniform uTime, avancé
+    // sur les frames RENDUES (rendu on-demand : l'eau vit pendant les
+    // interactions/ticks, immobile au repos — pas de boucle continue).
     const mat = new THREE.MeshLambertMaterial({ vertexColors: true });
+    const timeUniform = { value: 0 };
+    this.timeUniform = timeUniform;
+    mat.onBeforeCompile = (shader) => {
+      shader.uniforms.uTime = timeUniform;
+      shader.vertexShader = shader.vertexShader
+        .replace(
+          "#include <common>",
+          "#include <common>\nattribute float aWater;\nvarying float vWater;\nvarying vec3 vWpos;",
+        )
+        .replace(
+          "#include <begin_vertex>",
+          "#include <begin_vertex>\nvWater = aWater;\nvWpos = position;",
+        );
+      shader.fragmentShader = shader.fragmentShader
+        .replace(
+          "#include <common>",
+          "#include <common>\nuniform float uTime;\nvarying float vWater;\nvarying vec3 vWpos;",
+        )
+        .replace(
+          "#include <color_fragment>",
+          `#include <color_fragment>
+          if (vWater > 0.5) {
+            float w1 = sin(vWpos.x * 9.0 + vWpos.z * 6.0 + uTime * 1.6);
+            float w2 = sin(vWpos.x * 4.0 - vWpos.z * 11.0 + uTime * 1.1);
+            diffuseColor.rgb += vec3(0.05, 0.06, 0.07) * (w1 * 0.6 + w2 * 0.4);
+          }`,
+        );
+    };
     this.mesh?.geometry.dispose();
     this.mesh = new THREE.Mesh(geom, mat);
     this.mesh.castShadow = true;

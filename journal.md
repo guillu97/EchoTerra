@@ -6,6 +6,28 @@
 
 ---
 
+## 2026-07-17 (16) — CYCLE SOLAIRE sur le timer de vague + shader d'eau
+
+### Fait
+- **`engine.setDayTime(t)`** (t = progression 0..1 vers la prochaine vague) : le SOLEIL
+  parcourt un arc dans le ciel (azimut −1→+0.9 rad, élévation en cloche qui plonge après
+  t=0.85) et les couleurs suivent des rampes multi-arrêts — **aube dorée-orangée** après la
+  vague → plein jour neutre chaud → heure dorée → **crépuscule MAUVE-INDIGO marqué** quand
+  la vague approche (sun 0.8/0.5/0.62 int. 0.95 ; hemi 0.6/0.56/0.88 int. 1.05). Position
+  soleil calculée dans applyCamera (suit la cible ET le cycle). 1re passe trop subtile —
+  rampes amplifiées sur comparaison de captures banc.
+- **`VoxelMapView.waveProgress()`** : t = 1 − restant/période (période = nextWaveAt −
+  lastWave.at, fallback 600 s) ; tick 5 s (`sunTick`) → setDayTime + temps du shader —
+  compatible rendu on-demand (~12 rendus/min au repos).
+- **SHADER d'eau** (`smoothTerrain`) : attribut `aWater` par vertex + injection
+  `onBeforeCompile` dans le Lambert (uniform `uTime`, deux ondes sinus croisées ±0.06 de
+  luminosité sur les fragments d'eau) — l'eau chatoie sur les frames rendues, immobile au
+  repos (pas de boucle continue, batterie). `setTime` avancé par engine.onFrame + le tick.
+
+### Fonctionnel (vérifié, captures aube/midi/crépuscule sur le banc plein monde)
+- Aube pêche-dorée / midi neutre / crépuscule mauve nettement différenciés ; move serveur
+  + rotation OK en vraie partie ; `tsc` + build verts.
+
 ## 2026-07-17 (15) — PENTES VOXEL : le continu rasterisé en marches (choix utilisateur)
 
 ### Fait

@@ -80,10 +80,23 @@ class MapWorld {
       this.terrainKey = "";
       this.draw();
     });
-    // les modèles voxel tournent avec la caméra (rotation animée incluse)
+    // les modèles voxel tournent avec la caméra (rotation animée incluse) ;
+    // le shader d'eau avance son temps sur chaque frame RENDUE
     engine.onFrame = () => {
       for (const m of this.charMeshes) m.rotation.y = engine.azimuthNow;
+      this.smooth.setTime(performance.now() / 1000);
     };
+  }
+
+  /** progression 0..1 vers la prochaine vague — pilote le cycle solaire */
+  waveProgress(): number {
+    const g = this.game;
+    if (!g?.nextWaveAt) return 0.35;
+    const next = new Date(g.nextWaveAt).getTime();
+    const last = g.lastWave?.at ? new Date(g.lastWave.at).getTime() : NaN;
+    const period = Number.isFinite(last) && next > last ? next - last : 600_000;
+    const remaining = Math.max(0, next - Date.now());
+    return Math.min(1, Math.max(0, 1 - remaining / period));
   }
 
   dispose() {
@@ -425,10 +438,21 @@ export function VoxelMapView({ active = true }: { active?: boolean }) {
     // même poignée de main que MapScene : le store re-pousse l'état courant
     bus.emit(EV.MapSceneReady);
 
+    // CYCLE SOLAIRE piloté par le timer de vague : aube après chaque vague,
+    // crépuscule menaçant à l'approche de la suivante. Tick 5 s (rendu
+    // on-demand : ~12 rendus/min au repos, négligeable).
+    const sunTick = () => {
+      engine.setDayTime(world.waveProgress());
+      world.smooth.setTime(performance.now() / 1000);
+    };
+    sunTick();
+    const sunTimer = setInterval(sunTick, 5000);
+
     if (import.meta.env.DEV) (window as unknown as { __vm?: unknown }).__vm = { engine, world };
     return () => {
       off();
       unsubSettings();
+      clearInterval(sunTimer);
       controls.dispose();
       world.dispose();
       engine.dispose();

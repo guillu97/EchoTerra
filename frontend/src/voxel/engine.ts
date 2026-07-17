@@ -31,6 +31,9 @@ export class VoxelEngine {
 
   private azimuth = azimuthFor(0);
   private sun: THREE.DirectionalLight | null = null;
+  private hemi: THREE.HemisphereLight | null = null;
+  /** progression du cycle solaire 0..1 (0 = aube après la vague, 1 = vague imminente) */
+  private dayTime = 0.35;
   private rotAnim: { from: number; to: number; t0: number } | null = null;
   private raf = 0;
   private ro: ResizeObserver;
@@ -84,6 +87,7 @@ export class VoxelEngine {
     // pointe de chaleur — un couple trop chaud tirait les verts vers l'olive
     const hemi = new THREE.HemisphereLight(0xf7f5ff, 0xcfc2e8, 1.4);
     this.scene.add(hemi);
+    this.hemi = hemi;
     const sun = new THREE.DirectionalLight(0xfff2e0, 1.75);
     sun.castShadow = true;
     sun.shadow.mapSize.set(1024, 1024);
@@ -117,12 +121,66 @@ export class VoxelEngine {
     this.camera.lookAt(this.target);
     this.camera.updateProjectionMatrix();
     this.camera.updateMatrixWorld();
-    // le soleil (et sa boîte d'ombre) suit la cible : le pan ne sort jamais de l'ombre
+    // le soleil (et sa boîte d'ombre) suit la cible : le pan ne sort jamais de
+    // l'ombre — et sa POSITION dans le ciel suit le cycle du jour (setDayTime)
     if (this.sun) {
-      this.sun.position.set(this.target.x - 70, this.target.y + 150, this.target.z - 45);
+      const t = this.dayTime;
+      // arc dans le ciel : est → zénith → couchant ; il descend vers la vague
+      const az = -1.0 + t * 1.9; // rad, autour de la direction de base
+      const el = 0.42 + Math.sin(Math.min(1, t / 0.85) * Math.PI) * 0.55 - Math.max(0, t - 0.85) * 1.2;
+      const d = 180;
+      this.sun.position.set(
+        this.target.x + Math.sin(az) * Math.cos(el) * d,
+        this.target.y + Math.max(0.12, Math.sin(el)) * d,
+        this.target.z - Math.cos(az) * Math.cos(el) * d,
+      );
       this.sun.target.position.copy(this.target);
       this.sun.target.updateMatrixWorld();
     }
+  }
+
+  /**
+   * Cycle solaire piloté par LE TIMER DE VAGUE (t = 0 aube après la vague,
+   * t = 1 vague imminente) : le soleil parcourt son arc et la lumière glisse
+   * de l'aube dorée au plein jour, puis à un crépuscule mauve menaçant.
+   */
+  setDayTime(t: number) {
+    this.dayTime = Math.min(1, Math.max(0, t));
+    if (!this.sun || !this.hemi) return;
+    const ramp = (stops: [number, number][], x: number): number => {
+      for (let i = 1; i < stops.length; i++) {
+        if (x <= stops[i][0]) {
+          const [x0, v0] = stops[i - 1];
+          const [x1, v1] = stops[i];
+          const k = (x - x0) / (x1 - x0);
+          return v0 + (v1 - v0) * Math.min(1, Math.max(0, k));
+        }
+      }
+      return stops[stops.length - 1][1];
+    };
+    const lerpColor = (stops: [number, number][][], x: number) =>
+      new THREE.Color(ramp(stops[0], x), ramp(stops[1], x), ramp(stops[2], x));
+    // couleurs (0..1 par canal) : aube dorée-orangée → jour neutre chaud →
+    // heure dorée → crépuscule MAUVE marqué (la vague approche, ça se voit)
+    this.sun.color = lerpColor(
+      [
+        [[0, 1.0], [0.2, 1.0], [0.6, 1.0], [0.85, 1.0], [1, 0.8]],
+        [[0, 0.7], [0.2, 0.95], [0.6, 0.95], [0.85, 0.76], [1, 0.5]],
+        [[0, 0.45], [0.2, 0.88], [0.6, 0.88], [0.85, 0.52], [1, 0.62]],
+      ],
+      this.dayTime,
+    );
+    this.sun.intensity = ramp([[0, 1.25], [0.25, 1.75], [0.7, 1.75], [1, 0.95]], this.dayTime);
+    this.hemi.color = lerpColor(
+      [
+        [[0, 1.0], [0.25, 0.97], [0.7, 0.97], [1, 0.6]],
+        [[0, 0.86], [0.25, 0.96], [0.7, 0.96], [1, 0.56]],
+        [[0, 0.78], [0.25, 1.0], [0.7, 1.0], [1, 0.88]],
+      ],
+      this.dayTime,
+    ); // ciel : pêche d'aube → neutre → indigo crépusculaire
+    this.hemi.intensity = ramp([[0, 1.25], [0.5, 1.4], [1, 1.05]], this.dayTime);
+    this.invalidate();
   }
 
   /** point du plan sol (y=0) sous un point écran (px CSS relatifs au canvas) */
