@@ -6,6 +6,39 @@
 
 ---
 
+## 2026-07-17 (7) — Voxel Phase 4 : le Home (ville) en voxel
+
+### Fait
+- **15 nouveaux blocs voxel** (32³, `gen-blocks.mjs`) : TOUS les matériaux de sol de
+  `town-map.json` (sandstone, goldblock, coalblock, cactus, mud, limestone, redsand, jungle,
+  ash, fallgrass, dungeon, basalt, darkgrass, copperblock, darkstone) — palettes extraites de
+  leurs isotiles → les couleurs de la carte d'auteur sont préservées. 26 blocs au total.
+- **`terrain.ts` : `buildStacks()`** — instanciation de blocs à niveaux ARBITRAIRES (le format
+  `Cell.blocks[]` de l'éditeur : piles hétérogènes, trous permis).
+- **`frontend/src/voxel/VoxelTownView.tsx`** : le Home voxel, MÊMES props que TownMap
+  (`selected/onBuildingClick/onClear` — HomeTab bascule sur `settings.voxelMap`) :
+  - terrain = town-map.json interprété pile par pile (575 cellules) ;
+  - bâtiments/props de l'éditeur en billboards aux positions d'auteur (inversion des offsets
+    écran dx/dy → monde : du=dx/tileW+dy/tileH, dv=dy/tileH−dx/tileW ; scale·objW/tileW, flipX) ;
+  - **hotspots par raycast** sur les sprites (remplace le hack elementFromPoint) + **pastilles
+    DOM projetées chaque frame** (nom + durabilité, CSS .town-spot réutilisé, MAJ impérative
+    dans engine.onFrame — pas de re-render React au pan) ;
+  - MES héros en ville sur l'herbe (mêmes GRASS_FILES/hachage/stride que TownMap) ;
+  - zoom/pan/pinch du moteur + rotation ↺/↻, fit initial sur la zone occupée.
+
+### Fonctionnel (vérifié e2e — backend réel)
+- Onglet Home flag ON : ville rendue (60 draw calls), **7 pastilles projetées**, clic pastille
+  Puits → **modal réel** (Eau 6/50, durabilité 97/100, « Puiser de l'eau (Aldric) », PA de
+  l'équipe), rotation 180° (la Tour et son sprite passent au premier plan, pastilles suivent).
+  `tsc` vert. Captures inspectées.
+
+### À faire (peaufinage voxel avant Phase 5)
+- Ville : 6,1 M tris (32³ × 575 cellules) — envisager un LOD 16³ ville ou accepter (rendu
+  on-demand) ; sprites bâtiments petits sous les pastilles (offset pastille au-dessus du
+  sprite) ; héros sur l'herbe peu visibles (taille/label).
+- Combat : contraste cases vertes, labels d'unités. Map : test perf dédié.
+- Puis Phase 5 (gabarit chibi voxel) et Phase 6 (retrait Phaser).
+
 ## 2026-07-17 (6) — Voxel Phase 3 : combat iso sur le moteur voxel
 
 ### Fait

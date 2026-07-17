@@ -1,0 +1,305 @@
+// Home (ville) en VOXEL (Phase 4 du VOXEL-PLAN) — mêmes props que TownMap :
+// HomeTab bascule TownMap ⇄ VoxelTownView selon `settings.voxelMap`.
+//
+// La ville reste LA CARTE AUTEUR de l'éditeur (town-map.json) : chaque
+// `Cell.blocks[niveau]` (asset isotile) devient une instance du bloc voxel
+// HOMONYME (générés avec les palettes de ces isotiles — les couleurs de la
+// carte sont préservées). Les bâtiments/props de l'éditeur sont des billboards
+// aux mêmes positions (dx/dy écran de l'éditeur inversés vers le monde), avec
+// **hotspots par raycast** (fini le hack elementFromPoint) + pastilles DOM
+// projetées (nom, durabilité, compat CSS .town-spot). MES héros en ville sont
+// des billboards sur l'herbe (mêmes règles que TownMap). Zoom/pan/pinch/
+// rotation = les contrôles du moteur.
+
+import { useEffect, useRef, useState } from "react";
+import * as THREE from "three";
+import townJson from "../data/town-map.json";
+import type { Cell, MapDoc, Placement } from "../editor/types";
+import { normalizeCell } from "../editor/types";
+import { ISO } from "../editor/isoRender";
+import { TOWN_BUILDINGS } from "../data/buildings";
+import { heroAssetUrl, libUrl } from "../assets";
+import { myTeamHeroes } from "../townUtils";
+import { useStore } from "../store";
+import { durColor } from "../tabs/HomeTab";
+import { VoxelEngine } from "./engine";
+import { VoxelControls } from "./controls";
+import { BlockLibrary, buildStacks, type StackItem } from "./terrain";
+
+// Mêmes mappings que TownMap.
+const ASSET_TO_BUILDING: Record<string, string> = {
+  "bld-well": "well",
+  gate: "gate",
+  "bld-chapel": "townhall",
+  panel: "panel",
+  workshop: "workshop",
+  bank: "bank",
+  "bld-archerytower": "tower",
+};
+const GRASS_FILES = new Set(["grass", "jungle", "darkgrass", "fallgrass", "mossy"]);
+
+function getDoc(): MapDoc {
+  const d = townJson as unknown as MapDoc;
+  d.cells = d.cells.map((c) => normalizeCell({ ...(c as Cell) }));
+  return d;
+}
+
+// Offsets écran de l'éditeur (px au tileW courant) → offsets monde (unités
+// tuile) : sx=(x−y)·tileW/2, sy=(x+y)·tileH/2 ⇒ du=dx/tileW+dy/tileH,
+// dv=dy/tileH−dx/tileW.
+function screenOffsetToWorld(dx: number, dy: number): { du: number; dv: number } {
+  return { du: dx / ISO.tileW + dy / ISO.tileH, dv: dy / ISO.tileH - dx / ISO.tileW };
+}
+
+type Spot = { buildingId: string; world: THREE.Vector3 };
+
+export function VoxelTownView({
+  selected,
+  onBuildingClick,
+  onClear,
+}: {
+  selected: string | null;
+  onBuildingClick: (id: string) => void;
+  onClear: () => void;
+}) {
+  const game = useStore((s) => s.game);
+  const hostRef = useRef<HTMLDivElement>(null);
+  const pillsRef = useRef<HTMLDivElement>(null);
+  const engineRef = useRef<VoxelEngine | null>(null);
+  const spotsRef = useRef<Spot[]>([]);
+  const [spotList, setSpotList] = useState<Spot[]>([]); // version React des spots (pills)
+  const spriteBuildingOf = useRef(new Map<THREE.Object3D, string>());
+
+  // moteur + scène statique (une fois)
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+    const engine = new VoxelEngine(host);
+    engineRef.current = engine;
+    engine.minZoom = 8;
+    engine.maxZoom = 90;
+    const controls = new VoxelControls(engine);
+    const lib = new BlockLibrary("/voxels"); // 32³ : la ville se regarde de près
+    const doc = getDoc();
+
+    // 1) terrain : toutes les piles de blocs occupées
+    const items: StackItem[] = [];
+    const used = new Set<string>();
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (let cy = 0; cy < doc.gridH; cy++) {
+      for (let cx = 0; cx < doc.gridW; cx++) {
+        const cell = doc.cells[cy * doc.gridW + cx];
+        const blocks = cell?.blocks ?? [];
+        for (let lvl = 0; lvl < blocks.length; lvl++) {
+          const b = blocks[lvl];
+          if (!b) continue;
+          items.push({ x: cx, y: cy, level: lvl, block: b.file });
+          used.add(b.file);
+          minX = Math.min(minX, cx); maxX = Math.max(maxX, cx);
+          minY = Math.min(minY, cy); maxY = Math.max(maxY, cy);
+        }
+      }
+    }
+
+    // 2) bâtiments/props de l'éditeur → billboards + hotspots raycast
+    const texLoader = new THREE.TextureLoader();
+    const textures: THREE.Texture[] = [];
+    const sprites = new THREE.Group();
+    const spots: Spot[] = [];
+    const occupied = new Set<string>();
+    for (const l of doc.layers) {
+      if (!l.visible) continue;
+      for (const p of l.placements as Placement[]) {
+        for (let dy = -1; dy <= 1; dy++)
+          for (let dx = -1; dx <= 1; dx++) occupied.add(`${p.cx + dx},${p.cy + dy}`);
+        const { du, dv } = screenOffsetToWorld(p.dx ?? 0, p.dy ?? 0);
+        const wx = p.cx + du;
+        const wy = p.cy + dv;
+        const cell = doc.cells[p.cy * doc.gridW + p.cx];
+        const lvl = (cell?.height ?? 0) + 1 + (p.lift ?? 0);
+        const url = `/assets/${p.asset.cat}/${p.asset.file}.png`;
+        const tex = texLoader.load(url, (t) => {
+          // taille réelle : largeur = objW·scale en unités tuile, aspect du PNG
+          const aspect = t.image ? t.image.height / t.image.width : 1;
+          const w = ((p.scale ?? 1) * ISO.objW) / ISO.tileW;
+          spr.scale.set(p.flipX ? -w : w, w * aspect, 1);
+          engine.invalidate();
+        });
+        tex.colorSpace = THREE.NoColorSpace;
+        textures.push(tex);
+        const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, alphaTest: 0.3, transparent: true }));
+        spr.center.set(0.5, 0.02);
+        spr.position.set(wx, lvl, wy);
+        sprites.add(spr);
+        const bid = ASSET_TO_BUILDING[p.asset.file];
+        if (bid) {
+          spriteBuildingOf.current.set(spr, bid);
+          spots.push({ buildingId: bid, world: new THREE.Vector3(wx, lvl + 0.2, wy) });
+        }
+      }
+    }
+    spotsRef.current = spots;
+    setSpotList(spots);
+    engine.scene.add(sprites);
+
+    // 3) MES héros en ville, sur l'herbe (mêmes règles/hachage que TownMap)
+    const heroGroup = new THREE.Group();
+    engine.scene.add(heroGroup);
+    const grass: { x: number; y: number; lvl: number }[] = [];
+    for (let cy = 0; cy < doc.gridH; cy++) {
+      for (let cx = 0; cx < doc.gridW; cx++) {
+        const cell = doc.cells[cy * doc.gridW + cx];
+        const blocks = cell?.blocks ?? [];
+        let top: string | undefined;
+        let topLvl = 0;
+        for (let i = blocks.length - 1; i >= 0; i--)
+          if (blocks[i]) { top = blocks[i]!.file; topLvl = i + 1; break; }
+        if (!top || !GRASS_FILES.has(top) || occupied.has(`${cx},${cy}`)) continue;
+        grass.push({ x: cx, y: cy, lvl: topLvl });
+      }
+    }
+    const drawHeroes = () => {
+      heroGroup.clear();
+      const g = useStore.getState().game;
+      const pid = useStore.getState().playerId;
+      if (!g || !grass.length) return;
+      const inTown = myTeamHeroes(g, pid).filter((h) => h.hp > 0 && h.x === g.town.x && h.y === g.town.y);
+      const usedIdx = new Set<number>();
+      const hash = (s: string) => { let n = 0; for (let i = 0; i < s.length; i++) n = (n * 31 + s.charCodeAt(i)) >>> 0; return n; };
+      for (const h of inTown) {
+        let idx = hash(h.id) % grass.length;
+        while (usedIdx.has(idx)) idx = (idx + 29) % grass.length;
+        usedIdx.add(idx);
+        const gpos = grass[idx];
+        const url = heroAssetUrl(h.class);
+        const tex = texLoader.load(url, () => engine.invalidate());
+        tex.colorSpace = THREE.NoColorSpace;
+        textures.push(tex);
+        const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, alphaTest: 0.35, transparent: true }));
+        spr.scale.set(0.9, 0.9, 1);
+        spr.center.set(0.5, 0.02);
+        spr.position.set(gpos.x, gpos.lvl, gpos.y);
+        heroGroup.add(spr);
+      }
+      engine.invalidate();
+    };
+
+    // pastilles DOM projetées à chaque frame (imperatif — pas de re-render React)
+    engine.onFrame = () => {
+      const layer = pillsRef.current;
+      if (!layer) return;
+      const rect = engine.renderer.domElement.getBoundingClientRect();
+      const v = new THREE.Vector3();
+      for (const el of Array.from(layer.children) as HTMLElement[]) {
+        const spot = spotsRef.current.find((s) => s.buildingId === el.dataset.bid);
+        if (!spot) continue;
+        v.copy(spot.world).project(engine.camera);
+        el.style.left = `${((v.x + 1) / 2) * rect.width}px`;
+        el.style.top = `${((1 - v.y) / 2) * rect.height}px`;
+      }
+    };
+
+    // tap : bâtiment (sprite) prioritaire, sinon vider la sélection
+    controls.onTap = (t) => {
+      const hits = engine.pick(t.cssX, t.cssY);
+      for (const h of hits) {
+        const bid = spriteBuildingOf.current.get(h.object);
+        if (bid) { onBuildingClickRef.current(bid); return; }
+      }
+      onClearRef.current();
+    };
+
+    // chargement des blocs puis construction + cadrage sur la zone occupée
+    let terrain: THREE.Group | null = null;
+    void lib.load([...used]).then(() => {
+      const built = buildStacks(lib, items);
+      terrain = built.group;
+      engine.scene.add(built.group);
+      const cxm = (minX + maxX) / 2;
+      const cym = (minY + maxY) / 2;
+      engine.target.set(cxm, 0, cym);
+      const span = Math.max(maxX - minX, maxY - minY) + 6;
+      engine.zoom = Math.max(engine.minZoom, Math.min(engine.maxZoom, Math.min(host.clientWidth, host.clientHeight) / span * 1.6));
+      drawHeroes();
+      engine.invalidate();
+    });
+
+    const unsub = useStore.subscribe((s, prev) => {
+      if (s.game !== prev.game) drawHeroes();
+    });
+
+    if (import.meta.env.DEV) (window as unknown as { __vt?: unknown }).__vt = { engine };
+    return () => {
+      unsub();
+      controls.dispose();
+      lib.dispose();
+      for (const t of textures) t.dispose();
+      if (terrain) engine.scene.remove(terrain);
+      engine.dispose();
+      engineRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // callbacks vivants (le moteur est monté une fois, les props changent)
+  const onBuildingClickRef = useRef(onBuildingClick);
+  onBuildingClickRef.current = onBuildingClick;
+  const onClearRef = useRef(onClear);
+  onClearRef.current = onClear;
+
+  const buildingState = (id: string) => game?.town.buildings?.find((x) => x.id === id);
+
+  return (
+    <div className="town-map-viewport" style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
+      <div ref={hostRef} style={{ position: "absolute", inset: 0 }} />
+      {/* pastilles nom + durabilité, projetées par le moteur (left/top pilotés en onFrame) */}
+      <div ref={pillsRef} style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
+        {spotList.map((s) => {
+          const layout = TOWN_BUILDINGS.find((b) => b.id === s.buildingId);
+          const bs = buildingState(s.buildingId);
+          if (!layout || !bs) return null;
+          const site = !bs.built;
+          return (
+            <button
+              key={s.buildingId}
+              data-bid={s.buildingId}
+              className={`town-spot ${selected === s.buildingId ? "sel" : ""} ${site ? "site" : ""}`}
+              style={{ position: "absolute", pointerEvents: "auto" }}
+              onClick={() => onBuildingClick(s.buildingId)}
+              title={site ? `${layout.name} — en construction` : layout.name}
+            >
+              <span className="ts-pill">
+                {site ? "🏗️" : layout.icon} {layout.name}
+              </span>
+              {bs.built && (
+                <span className="ts-dur">
+                  <i
+                    style={{
+                      width: `${bs.maxDurability > 0 ? Math.min(100, (bs.durability / bs.maxDurability) * 100) : 0}%`,
+                      background: durColor(bs.maxDurability > 0 ? bs.durability / bs.maxDurability : 0),
+                    }}
+                  />
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+      <div style={{ position: "absolute", top: 8, right: 8, display: "flex", gap: 6 }}>
+        <button style={rotBtn} onClick={() => engineRef.current?.rotate(-1)}>↺</button>
+        <button style={rotBtn} onClick={() => engineRef.current?.rotate(1)}>↻</button>
+      </div>
+    </div>
+  );
+}
+
+const rotBtn: React.CSSProperties = {
+  background: "rgba(30,34,46,.78)",
+  color: "#f3efdf",
+  border: "1px solid rgba(255,255,255,.25)",
+  borderRadius: 10,
+  width: 40,
+  height: 40,
+  fontSize: 19,
+  cursor: "pointer",
+};

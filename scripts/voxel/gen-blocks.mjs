@@ -40,6 +40,23 @@ const BLOCKS = [
   { id: "cobblestone", src: "cobblestone", recipe: "cobble", params: {} },
   { id: "brick", src: "brick", recipe: "brick", params: {} },
   { id: "woodfloor", src: "woodfloor", recipe: "planks", params: {} },
+  // Matériaux de sol de la CARTE DE VILLE (town-map.json, éditée dans l'éditeur) —
+  // chaque asset isotile posé au sol a son bloc voxel homonyme, palette héritée.
+  { id: "sandstone", src: "sandstone", recipe: "rock", params: { bump: 1 } },
+  { id: "goldblock", src: "goldblock", recipe: "rock", params: { bump: 0 } },
+  { id: "coalblock", src: "coalblock", recipe: "rock", params: { bump: 0 } },
+  { id: "cactus", src: "cactus", recipe: "ground", params: { blades: 0.02, bump: 1 } },
+  { id: "mud", src: "mud", recipe: "ground", params: { bump: 1, surfaceDepth: 5 } },
+  { id: "limestone", src: "limestone", recipe: "rock", params: { bump: 1 } },
+  { id: "redsand", src: "redsand", recipe: "ground", params: { pebbles: 0.004, bump: 1, surfaceDepth: 5 } },
+  { id: "jungle", src: "jungle", recipe: "ground", params: { blades: 0.06, bump: 1 } },
+  { id: "ash", src: "ash", recipe: "ground", params: { bump: 1, surfaceDepth: 4 } },
+  { id: "fallgrass", src: "fallgrass", recipe: "ground", params: { blades: 0.02, flowers: 0.015, bump: 1 }, accentsFrom: "fallgrass" },
+  { id: "dungeon", src: "dungeon", recipe: "cobble", params: {} },
+  { id: "basalt", src: "basalt", recipe: "rock", params: { bump: 1 } },
+  { id: "darkgrass", src: "darkgrass", recipe: "ground", params: { blades: 0.04, bump: 1 } },
+  { id: "copperblock", src: "copperblock", recipe: "rock", params: { bump: 0 } },
+  { id: "darkstone", src: "darkstone", recipe: "rock", params: { bump: 1 } },
 ];
 
 // Palette procédurale de la brume — les constantes MIST_* de MapScene.

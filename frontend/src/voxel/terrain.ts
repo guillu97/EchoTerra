@@ -116,3 +116,44 @@ export function buildTerrain(lib: BlockLibrary, cells: TerrainCell[]): {
 }
 
 const WHITE = new THREE.Color(1, 1, 1);
+
+export type StackItem = { x: number; y: number; level: number; block: string };
+
+/**
+ * Instancie des blocs posés à des niveaux ARBITRAIRES (le format `Cell.blocks[]`
+ * de l'éditeur de carte : pierre au niveau 0, sable au niveau 1, trous permis) —
+ * utilisé par le Home voxel qui lit town-map.json tel quel.
+ */
+export function buildStacks(lib: BlockLibrary, items: StackItem[]): {
+  group: THREE.Group;
+  lookup: Map<THREE.Object3D, StackItem[]>;
+  instances: number;
+} {
+  const buckets = new Map<string, { geom: THREE.BufferGeometry; items: StackItem[] }>();
+  for (const it of items) {
+    const v = variantAt(it.x, it.y);
+    const geom = lib.get(it.block, v);
+    if (!geom) continue;
+    const key = `${it.block}-v${v}`;
+    let b = buckets.get(key);
+    if (!b) buckets.set(key, (b = { geom, items: [] }));
+    b.items.push(it);
+  }
+  const group = new THREE.Group();
+  const lookup = new Map<THREE.Object3D, StackItem[]>();
+  const mat = new THREE.MeshBasicMaterial({ vertexColors: true });
+  const m = new THREE.Matrix4();
+  let instances = 0;
+  for (const { geom, items: list } of buckets.values()) {
+    const mesh = new THREE.InstancedMesh(geom, mat, list.length);
+    for (let i = 0; i < list.length; i++) {
+      m.makeTranslation(list[i].x, list[i].level, list[i].y);
+      mesh.setMatrixAt(i, m);
+    }
+    mesh.instanceMatrix.needsUpdate = true;
+    lookup.set(mesh, list);
+    group.add(mesh);
+    instances += list.length;
+  }
+  return { group, lookup, instances };
+}
