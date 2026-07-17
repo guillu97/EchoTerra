@@ -6,6 +6,36 @@
 
 ---
 
+## 2026-07-17 (5) — Voxel Phase 2 : la carte monde en voxel (réglage `voxelMap`)
+
+### Fait
+- **`frontend/src/voxel/VoxelMapView.tsx`** : la Map voxel EXPÉRIMENTALE, derrière **Settings →
+  Réglages → « Carte voxel (expérimental) »** (`settings.voxelMap`, persisté ; défaut = iso
+  classique). Elle parle **le même contrat bus que MapScene** (MapRender entrant ;
+  MapTileClick/MapHeroClick/MapHeroMenu sortants ; MapSceneReady au montage) → menu radial,
+  TopBar, store inchangés. `MapTab` monte VoxelMapView OU PhaserGame ; **un combat repasse sur
+  Phaser** (jusqu'à la Phase 3).
+- Contenu : terrain InstancedMesh (blocs 16³, `under` terre/pierre, ombrage d'altitude par tint),
+  **fog serveur → blocs de brume** (tuiles vierges), re-instanciation quand `discovered` évolue ;
+  losanges de déplacement (mêmes règles : ortho, eau connue, porte scellée), socle + **église
+  billboard** sur la ville, monstres = teinte de danger (jaune→rouge par count) + sprite créature,
+  héros = billboards chibi (miens pleins / autres α0.45 / en ville masqués, ellipse par case),
+  anneau de sélection ; boutons ↺/↻ (rotation 4 orientations) en haut à droite de la vue.
+  Textures en `NoColorSpace` + renderer laissé linéaire → les octets PNG/palettes passent tels
+  quels (pas de dérive sRGB vs les previews).
+- Déplacement **sans animation, case par case** : positions snap sur l'état serveur (consigne).
+
+### Fonctionnel (vérifié e2e — backend Go réel + Chromium headless)
+- Partie créée via `newGame`, flag activé, onglet Map : terrain construit (49 découvertes / 484,
+  reste en brume), **déplacement serveur OK** ((11,11)→(12,11), PA 6→5) via MapTileClick,
+  **rotation 90° OK** (billboards face caméra), 26 draw calls / 409 k tris sur 22×22.
+  `tsc` + build verts. Captures inspectées (shell téléphone complet).
+
+### À faire
+- Phase 3 : combat iso voxel (grilles GDD en quads, mêmes blocs, rotation FFTA2) puis Phase 4
+  (Home voxel depuis town-map.json). Peaufinage Map : pinch réel sur appareil, perf test dédié,
+  hint « pas encore de combat voxel ». Vague/brume animée (respiration) à porter si souhaité.
+
 ## 2026-07-17 (4) — Voxel Phase 1b : éditeur voxel (🧊 Voxels / #voxeledit)
 
 ### Fait

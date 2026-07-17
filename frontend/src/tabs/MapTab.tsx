@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useStore } from "../store";
 import { PhaserGame } from "../game/PhaserGame";
+import { VoxelMapView } from "../voxel/VoxelMapView";
 import { bus, EV } from "../eventBus";
 
 // Radial action menu (Hordes-style) that pops at the selected hero when tapped on the map.
@@ -195,6 +196,11 @@ function CombatControls() {
 export function MapTab({ active = true }: { active?: boolean }) {
   const view = useStore((s) => s.view);
   const syncScene = useStore((s) => s.syncScene);
+  // Carte voxel expérimentale (VOXEL-PLAN Phase 2) : la vue voxel parle le même
+  // contrat bus que MapScene. Le combat reste Phaser tant que la Phase 3 n'est
+  // pas faite — quand un combat démarre, on repasse sur PhaserGame.
+  const voxelMap = useStore((s) => s.settings.voxelMap);
+  const useVoxel = voxelMap && view !== "combat";
 
   // Hidden pre-warm: as soon as MapScene has registered its handlers, push the state
   // so it bakes its pillar atlas and builds the tile layer in the background
@@ -212,7 +218,7 @@ export function MapTab({ active = true }: { active?: boolean }) {
 
   return (
     <div className={active ? "map-host" : "map-host map-host-hidden"}>
-      <PhaserGame active={active} />
+      {useVoxel ? <VoxelMapView active={active} /> : <PhaserGame active={active} />}
       {view !== "combat" && <ActionMenu />}
       {view === "combat" ? <CombatControls /> : <MapControls />}
     </div>

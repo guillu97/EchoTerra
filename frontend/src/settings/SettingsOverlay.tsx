@@ -78,6 +78,23 @@ export function SettingsOverlay() {
         </div>
         <span className="hint">Baisser la qualité réduit l'usage de batterie et la surchauffe.</span>
       </div>
+      <div className="row">
+        <span className="lbl">Carte voxel (expérimental)</span>
+        <div className="seg">
+          {[false, true].map((v) => (
+            <button
+              key={String(v)}
+              className={settings.voxelMap === v ? "on" : ""}
+              onClick={() => updateSettings({ voxelMap: v })}
+            >
+              {v ? "Voxel 3D" : "Classique"}
+            </button>
+          ))}
+        </div>
+        <span className="hint">
+          Rendu 3D voxel de la carte monde avec rotation de caméra (↻). En cours de développement — l'iso classique reste le défaut.
+        </span>
+      </div>
       <button className="pill green" style={{ width: "100%", marginTop: 8 }} onClick={() => openSettings("menu")}>
         Return
       </button>

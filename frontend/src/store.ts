@@ -33,6 +33,7 @@ export interface Settings {
   quality: "Normal" | "Medium" | "High" | "Very high";
   language: string;
   notif: { loot: boolean; wave: boolean; actionPoint: boolean; communication: boolean };
+  voxelMap: boolean; // carte monde en voxel 3D (expérimental — VOXEL-PLAN Phase 2)
 }
 
 const DEFAULT_SETTINGS: Settings = {
@@ -42,6 +43,7 @@ const DEFAULT_SETTINGS: Settings = {
   quality: "Medium",
   language: "Français",
   notif: { loot: true, wave: true, actionPoint: true, communication: false },
+  voxelMap: false,
 };
 
 function loadSettings(): Settings {

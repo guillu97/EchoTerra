@@ -506,6 +506,24 @@ POST /api/games/{id}/combat/{c}/action            {unitId, action: move|attack|s
   Tétanisé** ; **Search/Hide cachés sur la case ville** — note "En ville" à la place). Combat reached from the map.
 - Server timer: `nextWaveAt` drives "Next wave in"; GameScreen polls every 20s so scheduler waves show up.
 
+## 7a-bis. Chantier VOXEL (2026-07-17 — voir `VOXEL-PLAN.md`, branche `claude/voxel-map-mobile-2blara`)
+
+Migration progressive du rendu vers un **moteur voxel 3D unique** (Three.js, ortho dimétrique 30°,
+**rotation 4 orientations**). Réalisé : **Phase 0** `scripts/voxel/` (gen-blocks.mjs SANS ComfyUI —
+palettes extraites des isotiles, recettes procédurales `recipes.mjs` [JS pur, partagé navigateur],
+`.vox` 32³ racine + **LOD 16³** dans `voxels/16/` [obligatoire à l'échelle carte : 32³ = 21,9 M tris
+mesurés], previews par rendu logiciel `render-iso.mjs` → `asset-index/voxels/`) ; **Phase 1**
+`frontend/src/voxel/` (mesher greedy couleurs-par-vertex [⚠ chiralité : enroulement inversé par
+l'échange d'axes], moteur ON-DEMAND, InstancedMesh par (bloc,variante) + bloc `under`, contrôles
+pinch absolu, banc `#voxel-bench`) ; **Phase 1b** éditeur `#voxeledit` / bouton 🧊 (bibliothèque,
+édition raycast, palette, undo, **recettes live** via import direct de recipes.mjs + palettes.json,
+export/import .vox, orbite libre) ; **Phase 2** `VoxelMapView.tsx` — la Map voxel derrière
+**Settings → « Carte voxel (expérimental) »** (`settings.voxelMap`), MÊME contrat bus que MapScene
+(le reste de l'app est agnostique), fog serveur → blocs de brume, billboards persos (étape 1),
+déplacement snap sans animation ; le combat retombe sur Phaser tant que la Phase 3 n'est pas faite.
+Restent : Phase 3 combat, Phase 4 Home (town-map.json = déjà des piles de blocs), Phase 5 persos
+voxel, Phase 6 retrait de Phaser.
+
 ## 7b. Map editor (dev tool — `frontend/src/editor/`)
 
 A self-contained, full-screen **isometric map editor** ("juste pour moi", inspired by Tiled). Reached via a
