@@ -14,14 +14,35 @@ import * as THREE from "three";
 import type { GameState } from "../api/types";
 
 const SUB = 3; // sous-divisions par tuile (3×3 quads)
-const MICRO = 0.07; // amplitude du micro-relief (unités monde)
+const MICRO = 0.05; // amplitude du micro-relief (unités monde)
 
-// nuances de secours si palettes.json n'est pas (encore) chargé
-const FALLBACK: Record<number, [number, number, number]> = {
-  0: [96, 168, 204], 1: [226, 202, 148], 2: [156, 188, 96],
-  3: [96, 140, 72], 4: [150, 144, 134], 5: [232, 238, 246],
+// STYLE DIORAMA (référence utilisateur 2026-07-17) : plateaux plats aux rebords
+// organiques (terrasses), falaises pierre crème, AO cuite, palette menthe/crème.
+const TERRACE_BAND = 0.34; // largeur de la transition falaise (fraction de niveau)
+
+// Palette diorama par biome — désaturée façon maquette (la référence) ; deux
+// nuances par biome pour les taches douces par tuile.
+const DIORAMA: Record<number, [number, number, number][]> = {
+  0: [[150, 202, 222], [138, 192, 214]], // eau laiteuse
+  1: [[228, 213, 176], [220, 203, 164]], // sable crème
+  2: [[186, 216, 170], [174, 208, 156]], // herbe menthe
+  3: [[162, 198, 142], [152, 190, 132]], // forêt (sol clair — les arbres font le vert)
+  4: [[204, 197, 186], [192, 185, 174]], // roche claire
+  5: [[240, 242, 247], [230, 234, 241]], // neige
 };
+const CLIFF: [number, number, number] = [227, 219, 198]; // falaise pierre crème
 const BIOME_IDS = ["water", "sand", "grass", "forest", "stone", "snow"];
+void BIOME_IDS;
+
+// Terrasse : plateau plat + montée douce centrée sur les demi-niveaux → les
+// courbes de niveau du champ LISSÉ deviennent des rebords organiques (elles ne
+// suivent pas les frontières de tuiles).
+function terrace(h: number): number {
+  const base = Math.floor(h);
+  const frac = h - base;
+  const k = Math.min(1, Math.max(0, (frac - (0.5 - TERRACE_BAND / 2)) / TERRACE_BAND));
+  return base + k * k * (3 - 2 * k);
+}
 
 type Palettes = Record<string, { palette: { top: number[][] } }>;
 
@@ -63,17 +84,14 @@ export class SmoothTerrain {
     const W = game.width, H = game.height, n = SUB;
     const gw = W * n + 1, gh = H * n + 1;
 
-    // couleur de base par tuile : nuance de la palette du biome, choisie par
-    // hachage (mêmes teintes que les blocs, cohérence garantie)
+    // couleur de base par tuile : palette DIORAMA du biome (désaturée façon
+    // maquette — la référence), deux nuances alternées par hachage
+    void palettes; // (l'extraction isotiles reste utilisée par les BLOCS)
     const tileColor = (tx: number, ty: number): [number, number, number] => {
       const t = game.tiles[ty * W + tx];
       if (!t?.discovered) return [225, 227, 244]; // sous la brume (peu visible)
-      const id = BIOME_IDS[t.biome] ?? "grass";
-      const top = palettes?.[id]?.palette.top;
-      if (!top?.length) return FALLBACK[t.biome] ?? [150, 150, 150];
-      // nuances claires en tête de rampe : on pioche dans la moitié claire
-      const i = Math.floor(hash01(tx, ty) * Math.min(4, top.length));
-      return top[i] as [number, number, number];
+      const shades = DIORAMA[t.biome] ?? DIORAMA[2];
+      return shades[hash01(tx, ty) < 0.5 ? 0 : 1];
     };
     const tileH = (tx: number, ty: number): number => {
       const t = game.tiles[ty * W + tx];
@@ -102,7 +120,10 @@ export class SmoothTerrain {
         const sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
         const h00 = cornerH(tx, ty), h10 = cornerH(tx + 1, ty);
         const h01 = cornerH(tx, ty + 1), h11 = cornerH(tx + 1, ty + 1);
-        let hgt = h00 + (h10 - h00) * sx + (h01 + (h11 - h01) * sx - (h00 + (h10 - h00) * sx)) * sy;
+        const smooth = h00 + (h10 - h00) * sx + (h01 + (h11 - h01) * sx - (h00 + (h10 - h00) * sx)) * sy;
+        // TERRASSES : le champ lissé est re-quantifié en plateaux aux rebords
+        // organiques (style diorama) ; micro-relief léger par-dessus
+        let hgt = terrace(smooth);
         const t = game.tiles[ty * W + tx];
         const isWater = t?.discovered && t.biome === 0;
         if (!isWater) hgt += (hash01(gx, gy, 7) - 0.5) * 2 * MICRO;
@@ -131,10 +152,28 @@ export class SmoothTerrain {
           const c = tileColor(tx, ty);
           r += c[0]; g2 += c[1]; b += c[2]; cnt++;
         }
-        const grain = 0.96 + hash01(gx, gy, 3) * 0.08;
-        colors[i * 3] = (r / cnt / 255) * grain;
-        colors[i * 3 + 1] = (g2 / cnt / 255) * grain;
-        colors[i * 3 + 2] = (b / cnt / 255) * grain;
+        // FALAISES CRÈME : plus la pente locale est forte, plus la couleur
+        // glisse du biome vers la pierre claire (les rebords de terrasses
+        // ressortent en crème, comme la référence)
+        const hL = heights[gy * gw + Math.max(0, gx - 1)];
+        const hR = heights[gy * gw + Math.min(gw - 1, gx + 1)];
+        const hU = heights[Math.max(0, gy - 1) * gw + gx];
+        const hD = heights[Math.min(gh - 1, gy + 1) * gw + gx];
+        const slope = Math.hypot((hR - hL) * n * 0.5, (hD - hU) * n * 0.5);
+        // seuil haut : seuls les VRAIS rebords de terrasse passent en pierre —
+        // une pente douce garde la couleur du biome
+        const cliff = Math.min(1, Math.max(0, (slope - 1.15) / 1.2));
+        r = r / cnt + (CLIFF[0] - r / cnt) * cliff;
+        g2 = g2 / cnt + (CLIFF[1] - g2 / cnt) * cliff;
+        b = b / cnt + (CLIFF[2] - b / cnt) * cliff;
+        // AO CUITE : les creux (concavité) foncent doucement — pieds de
+        // falaises et vallons gagnent le contact sombre du style maquette
+        const concave = (hL + hR + hU + hD) / 4 - heights[i];
+        const ao = 1 - Math.min(0.32, Math.max(0, concave) * 0.85);
+        const grain = 0.97 + hash01(gx, gy, 3) * 0.06;
+        colors[i * 3] = (r / 255) * grain * ao;
+        colors[i * 3 + 1] = (g2 / 255) * grain * ao;
+        colors[i * 3 + 2] = (b / 255) * grain * ao;
       }
     }
     const indices: number[] = [];
@@ -147,7 +186,7 @@ export class SmoothTerrain {
 
     // jupe périmétrique : rideau vertical vers y=0 sur le pourtour (duplique
     // les sommets de bord dans un second buffer, double face)
-    const skirtColor = [0.62, 0.55, 0.5];
+    const skirtColor = [CLIFF[0] / 255 * 0.94, CLIFF[1] / 255 * 0.94, CLIFF[2] / 255 * 0.94];
     const skirtPos: number[] = [];
     const skirtCol: number[] = [];
     const skirtIdx: number[] = [];

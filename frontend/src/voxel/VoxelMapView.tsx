@@ -45,6 +45,9 @@ class MapWorld {
   smooth = new SmoothTerrain();
   smoothMode = true;
   palettes: Record<string, { palette: { top: number[][] } }> | null = null;
+  // props diorama (arbres-boules, rochers) scatter sur la surface lissée
+  propsLib = new BlockLibrary("/voxels/props");
+  props: THREE.Group | null = null;
   lookup = new Map<THREE.Object3D, TerrainCell[]>();
   overlays = new THREE.Group(); // losanges/danger/anneau — reconstruits à chaque render
   sprites = new THREE.Group(); // billboards héros/monstres/ville
@@ -73,6 +76,10 @@ class MapWorld {
       .then((r) => (r.ok ? r.json() : null))
       .then((p) => { this.palettes = p; this.terrainKey = ""; this.draw(); })
       .catch(() => undefined);
+    void this.propsLib.load(["tree-green", "tree-pink", "rock"]).then(() => {
+      this.terrainKey = "";
+      this.draw();
+    });
     // les modèles voxel tournent avec la caméra (rotation animée incluse)
     engine.onFrame = () => {
       for (const m of this.charMeshes) m.rotation.y = engine.azimuthNow;
@@ -83,7 +90,69 @@ class MapWorld {
     this.lib.dispose();
     this.chars.dispose();
     this.smooth.dispose();
+    this.propsLib.dispose();
     for (const t of this.textures.values()) t.dispose();
+  }
+
+  // Scatter des props (mode lisse) : forêt = bosquets verts, herbe = arbre
+  // occasionnel (rose 1/3 — les cerisiers de la référence), roche = cailloux.
+  // Déterministe par hachage de position, posé sur la surface lissée.
+  private buildProps(game: GameState): THREE.Group {
+    const items = new Map<string, THREE.Matrix4[]>();
+    const add = (id: string, v: number, m: THREE.Matrix4) => {
+      const key = `${id}-v${v}`;
+      let list = items.get(key);
+      if (!list) items.set(key, (list = []));
+      list.push(m);
+    };
+    const hash = (x: number, y: number, s: number) => {
+      let h = (x * 374761393 + y * 668265263 + s * 2246822519) >>> 0;
+      h = (h ^ (h >> 13)) * 1274126177;
+      return ((h >>> 16) & 0xffff) / 0x10000;
+    };
+    for (let y = 0; y < game.height; y++) {
+      for (let x = 0; x < game.width; x++) {
+        const t = game.tiles[y * game.width + x];
+        if (!t.discovered) continue;
+        if (x === game.town.x && y === game.town.y) continue; // l'église est là
+        const plant = (id: string, k: number, scale: number) => {
+          const px = x + (hash(x, y, k) - 0.5) * 0.7;
+          const py = y + (hash(x, y, k + 1) - 0.5) * 0.7;
+          const s = scale * (0.75 + hash(x, y, k + 2) * 0.4);
+          const m = new THREE.Matrix4().compose(
+            new THREE.Vector3(px, this.smooth.heightAt(px, py) - 0.02, py),
+            new THREE.Quaternion().setFromAxisAngle(UP, hash(x, y, k + 3) * Math.PI * 2),
+            new THREE.Vector3(s, s, s),
+          );
+          add(id, Math.floor(hash(x, y, k + 4) * 3), m);
+        };
+        if (t.biome === 3) { // forêt : bosquet
+          plant("tree-green", 10, 0.62);
+          if (hash(x, y, 20) < 0.75) plant("tree-green", 30, 0.5);
+          if (hash(x, y, 40) < 0.18) plant("tree-pink", 50, 0.55);
+        } else if (t.biome === 2) { // prairie : arbre occasionnel
+          const r = hash(x, y, 60);
+          if (r < 0.06) plant("tree-pink", 70, 0.55);
+          else if (r < 0.14) plant("tree-green", 80, 0.5);
+          if (hash(x, y, 90) < 0.05) plant("rock", 95, 0.5);
+        } else if (t.biome === 4 && hash(x, y, 99) < 0.3) {
+          plant("rock", 100, 0.65);
+        }
+      }
+    }
+    const group = new THREE.Group();
+    for (const [key, mats] of items) {
+      const dash = key.lastIndexOf("-v");
+      const geom = this.propsLib.get(key.slice(0, dash), Number(key.slice(dash + 2)));
+      if (!geom) continue;
+      const mesh = new THREE.InstancedMesh(geom, PROP_MAT, mats.length);
+      for (let i = 0; i < mats.length; i++) mesh.setMatrixAt(i, mats[i]);
+      mesh.instanceMatrix.needsUpdate = true;
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      group.add(mesh);
+    }
+    return group;
   }
 
   texture(url: string): THREE.Texture {
@@ -176,8 +245,11 @@ class MapWorld {
       this.terrain = built.group;
       this.lookup = built.lookup;
       engine.scene.add(built.group);
+      if (this.props) engine.scene.remove(this.props);
       if (this.smoothMode) {
         engine.scene.add(this.smooth.build(game, this.palettes, renderHeight));
+        this.props = this.buildProps(game);
+        engine.scene.add(this.props);
       }
       this.terrainKey = key;
     }
@@ -375,6 +447,9 @@ export function VoxelMapView({ active = true }: { active?: boolean }) {
     </>
   );
 }
+
+const UP = new THREE.Vector3(0, 1, 0);
+const PROP_MAT = new THREE.MeshLambertMaterial({ vertexColors: true });
 
 const rotBtn: React.CSSProperties = {
   background: "rgba(30,34,46,.78)",

@@ -6,6 +6,36 @@
 
 ---
 
+## 2026-07-17 (13) — Terrain continu : STYLE DIORAMA (référence image utilisateur)
+
+### Fait
+- **Terrasses organiques** (`smoothTerrain.ts terrace()`) : le champ lissé est re-quantifié en
+  plateaux plats + montée douce centrée sur les demi-niveaux (bande `TERRACE_BAND` 0.34) —
+  les courbes de niveau du champ lissé deviennent des rebords arrondis, PAS les frontières
+  de tuiles.
+- **Falaises pierre crème** : fondu couleur biome → `CLIFF` crème par pente locale (seuil
+  HAUT 1.15 — première passe à 0.55 passait la moitié de l'île en crème, corrigé sur
+  capture) ; jupe périmétrique assortie.
+- **AO cuite** : la concavité locale (moyenne des 4 voisins − h) fonce doucement les creux
+  et pieds de falaises (max −32 %).
+- **Palette DIORAMA par biome** (dans smoothTerrain, remplace palettes.json pour le mode
+  lisse) : herbe menthe, sable crème, eau laiteuse, sol forêt clair (les ARBRES font le
+  vert) — 1re passe trop délavée, re-saturée sur capture.
+- **`gen-props.mjs` + scatter** : arbres-boules (tronc + canopées ellipsoïdes fondues,
+  jitter de teinte) verts ×3 + ROSES cerisier ×3 + rochers ×3 → `voxels/props/` ;
+  `VoxelMapView.buildProps()` : forêt = bosquet (2-3 arbres), prairie = arbre occasionnel
+  (rose 1/3) + caillou rare, roche = rochers — InstancedMesh, positions/échelles/rotations
+  par hachage déterministe, posés sur `smooth.heightAt`, ombres portées.
+
+### Fonctionnel (vérifié e2e, captures)
+- Île diorama : plateaux menthe, bosquets + cerisiers, rebords crème, église, move serveur
+  OK, rotation OK. `tsc` + build verts.
+
+### À faire (suite diorama)
+- Vérifier sur un monde PLUS GRAND (l'île de test 22×22 est petite), rives d'eau claires,
+  pointillés d'herbe discrets (la référence en a), densité d'arbres à goûter, terrasses
+  plus marquées si besoin.
+
 ## 2026-07-17 (12) — Carte : terrain CONTINU (lisse) en alternative aux blocs
 
 ### Fait
