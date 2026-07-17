@@ -17,6 +17,11 @@
   voxel), **déplacements sans animation, case par case**, transition sous flag avec Phaser en
   fallback, budgets perf mobiles étendus. Décisions ouvertes : D1 résolution 32³/64³, D2 meshing
   runtime (recommandé), D3 ordre Combat avant Home (recommandé), D4 flag dans Settings.
+- Ajout **Phase 1b — Éditeur voxel** (dev tool à part, façon éditeur de carte / Studio de
+  données) : bouton 🧊 titre + `#voxeledit`, bibliothèque des `.vox`, vue 3D orbite + 4
+  orientations + tuilage 3×3, édition voxel (poser/effacer/pipette/miroir/palette, undo),
+  **recettes live** via module `recipes.mjs` partagé script↔navigateur, autosave localStorage,
+  export/import `.vox` ; absorbe le banc d'essai `#voxel-bench`.
 
 ### Fonctionnel (vérifié)
 - Rien de codé — session de planification uniquement.

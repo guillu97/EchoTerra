@@ -82,6 +82,41 @@ Le point « il faut que tu puisses le faire » : tout est du **Node pur** (pngjs
 **Critère de sortie** : 60 fps au pan/zoom/rotation sur mobile, ≤ ~30 draw calls terrain, rendu
 on-demand vérifié (0 frame rendue au repos).
 
+## Phase 1b — Éditeur voxel (dev tool — `frontend/src/voxeledit/`)
+
+Un troisième outil dev à part, dans la lignée de l'éditeur de carte (§7b) et du Studio de données
+(§7c) : **voir et éditer les rendus voxel** — d'abord les blocs, plus tard les personnages.
+
+- **Accès** : bouton 🧊 **Voxels** sur l'écran titre (section dev) OU hash `#voxeledit` ;
+  `appScreen === "voxeledit"` rendu par `App.tsx` **hors** du shell, plein écran. Store zustand
+  séparé (`voxeditStore.ts`, hook DEV `window.__vx`), indépendant du store du jeu.
+- **Il consomme le moteur de la Phase 1** (voxLoader / mesher / engine / rotation) — c'est aussi
+  son banc d'essai visuel permanent : le hash `#voxel-bench` de la Phase 1 devient un onglet
+  « Terrain 60×60 » de cet éditeur (perf + rendu réel au même endroit).
+- **Bibliothèque** (panneau gauche) : énumère `public/voxels/**/*.vox` via `import.meta.glob`
+  (clés seulement, comme `assetIndex.ts`), groupé par catégorie, vignettes rendues par le mesher,
+  navigation entre variantes d'un même bloc.
+- **Vue 3D** (centre) : orbite libre + les 4 orientations du jeu (pour vérifier qu'un bloc lit
+  bien sous chaque angle), zoom, grille de référence. **Modes de prévisualisation** essentiels
+  pour les blocs de terrain : bloc seul / **tuilage 3×3** (contrôle des raccords entre blocs
+  adjacents) / **colonne empilée** (raccord vertical `cubeDepth`) / au sol vs en falaise.
+- **Outils d'édition** (droite) : poser/effacer un voxel (raycast sur les faces, comme un mini
+  MagicaVoxel), pipette, remplissage boîte, **miroir X** (symétrie), undo/redo par strokes
+  (mêmes patterns que `editorStore`), **éditeur de palette** (les couleurs du `.vox` — recolorer
+  un bloc entier sans toucher aux voxels).
+- **Recettes en direct** : le cœur des recettes de `gen-blocks.mjs` est extrait dans un **module
+  partagé pur JS** (`scripts/voxel/recipes.mjs`, sans dépendance Node) importé à la fois par le
+  script ET par l'éditeur → sliders (bruit, densités de scatter, strates, seed, résolution D1)
+  avec régénération instantanée dans la vue. Le réglage validé se fige dans la recette du script.
+- **Persistance & export** : autosave localStorage (`echoterra:voxeled:doc`, debounce) + restore,
+  comme l'éditeur de carte ; **export `.vox`** (téléchargement — re-déposé dans `public/voxels/`
+  pour publication, même flux que l'export JSON de la carte de ville) ; import `.vox` par
+  drag-and-drop ; export PNG de la vue (vignettes/partage).
+- **Plus tard (Phase 5)** : onglet personnages — turntable du modèle, aperçu côte à côte avec le
+  billboard PNG source, réglages du gabarit chibi paramétré.
+- **Gotcha connu** : comme l'éditeur de carte, la vue vit sous `requestAnimationFrame` → invérifiable
+  par screenshot headless ; vérification via le hook `window.__vx` + export PNG programmatique.
+
 ## Phase 2 — Onglet Map (monde)
 
 - `VoxelMapView` monté par `MapTab` derrière un **flag** (réglage Settings + hash dev) ;
@@ -167,6 +202,7 @@ roder la rotation et les overlays de grille avant la ville, plus grosse et plus 
 |---|---|---|
 | 0 | Générateur de blocs + previews | 2–4 j |
 | 1 | Moteur + rotation + banc d'essai | 4–6 j |
+| 1b | Éditeur voxel (viewer + édition + recettes live) | 3–5 j |
 | 2 | Map monde (parité + fog + persos images) | 5–8 j |
 | 3 | Combat iso | 4–6 j |
 | 4 | Home ville | 3–5 j |
