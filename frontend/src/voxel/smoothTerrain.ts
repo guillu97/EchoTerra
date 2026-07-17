@@ -1,14 +1,15 @@
-// Terrain CONTINU de la carte monde (par opposition aux blocs discrets) :
-// une surface lisse interpolée construite depuis les MÊMES données serveur.
-// - hauteur aux COINS = moyenne des tuiles adjacentes → pentes continues au
-//   lieu de marches ; sous-division 3×3 par tuile + micro-relief de bruit ;
-// - couleurs PAR VERTEX : palette du biome (palettes.json — les mêmes teintes
-//   pastel que les blocs), FONDUES aux frontières de biomes (plage sable→herbe
-//   dégradée toute seule) + variation par tuile et grain léger ;
-// - jupe périmétrique vers le bas (la tranche du monde reste fermée) ;
-// - la BRUME (non découvert) reste en blocs voxel : nuages posés sur un sol à 0.
-// Le mode se choisit dans Réglages (`settings.voxelSmooth`) — les blocs restent
-// disponibles pour comparer ; Combat et Home gardent leurs blocs (grille lisible).
+// Terrain de la carte en PENTES VOXEL (choix utilisateur 2026-07-17) : le champ
+// de hauteurs lissé + terrassé n'est PAS rendu en surface continue (essayée,
+// pas aimée) mais RASTERISÉ en fines colonnes voxel — 4 colonnes par côté de
+// tuile, pas verticaux de ¼ d'unité (voxels cubiques) : les pentes deviennent
+// des escaliers de petits cubes, comme la référence diorama.
+// - plateaux plats aux rebords organiques (terrasses sur le champ lissé) ;
+// - palette DIORAMA par biome, fondue aux frontières ; murs des marches en
+//   pierre crème (proportionnel à la hauteur de la marche) ; AO cuite ;
+// - l'eau se creuse (rives en escaliers doux) ; pointillés d'herbe discrets ;
+// - bord de monde = murs jusqu'à 0 (jupe intégrée).
+// `heightAt` renvoie la hauteur QUANTIFIÉE de la colonne (props/unités posés
+// sur les marches). Réglage : Réglages → « Terrain voxel : Blocs / Pentes ».
 
 import * as THREE from "three";
 
@@ -19,15 +20,12 @@ export type TerrainSource = {
   tiles: { biome: number; height: number; discovered?: boolean }[];
 };
 
-const SUB = 3; // sous-divisions par tuile (3×3 quads)
-const MICRO = 0.05; // amplitude du micro-relief (unités monde)
+const R = 4; // colonnes voxel par côté de tuile
+const VS = 0.25; // pas vertical (= 1/R : voxels cubiques)
+const MICRO = 0.06; // micro-relief (± unités) — produit des marches isolées rares
+const TERRACE_BAND = 0.26; // largeur de la transition de terrasse
 
-// STYLE DIORAMA (référence utilisateur 2026-07-17) : plateaux plats aux rebords
-// organiques (terrasses), falaises pierre crème, AO cuite, palette menthe/crème.
-const TERRACE_BAND = 0.26; // largeur de la transition falaise (fraction de niveau)
-
-// Palette diorama par biome — désaturée façon maquette (la référence) ; deux
-// nuances par biome pour les taches douces par tuile.
+// Palette diorama par biome (désaturée façon maquette), deux nuances par biome.
 const DIORAMA: Record<number, [number, number, number][]> = {
   0: [[150, 202, 222], [138, 192, 214]], // eau laiteuse
   1: [[228, 213, 176], [220, 203, 164]], // sable crème
@@ -36,13 +34,14 @@ const DIORAMA: Record<number, [number, number, number][]> = {
   4: [[204, 197, 186], [192, 185, 174]], // roche claire
   5: [[240, 242, 247], [230, 234, 241]], // neige
 };
-const CLIFF: [number, number, number] = [227, 219, 198]; // falaise pierre crème
-const BIOME_IDS = ["water", "sand", "grass", "forest", "stone", "snow"];
-void BIOME_IDS;
+const CLIFF: [number, number, number] = [227, 219, 198]; // pierre crème des marches
+const UNDISCOVERED: [number, number, number] = [225, 227, 244]; // sous la brume
 
-// Terrasse : plateau plat + montée douce centrée sur les demi-niveaux → les
-// courbes de niveau du champ LISSÉ deviennent des rebords organiques (elles ne
-// suivent pas les frontières de tuiles).
+// ombrage voxel par face (mêmes valeurs douces que le mesher des blocs)
+const SHADE_TOP = 1.0;
+const SHADE_X = { p: 0.93, n: 0.84 };
+const SHADE_Z = { p: 0.97, n: 0.78 };
+
 function terrace(h: number): number {
   const base = Math.floor(h);
   const frac = h - base;
@@ -60,55 +59,31 @@ function hash01(x: number, y: number, s = 0): number {
 
 export class SmoothTerrain {
   mesh: THREE.Mesh | null = null;
-  private heights: Float32Array | null = null; // hauteur lissée par sommet de sous-grille
-  private game: TerrainSource | null = null;
+  private cols: Float32Array | null = null; // hauteur quantifiée par colonne
+  private gw = 0;
+  private gh = 0;
 
-  /** hauteur du sol lissé au point (x, y) monde (coordonnées tuile continues) */
+  /** hauteur de la MARCHE sous (x, y) monde — les props/unités s'y posent */
   heightAt(x: number, y: number): number {
-    if (!this.game || !this.heights) return 1;
-    const g = this.game;
-    const n = SUB;
-    const fx = Math.min(Math.max((x + 0.5) * n, 0), g.width * n - 0.001);
-    const fy = Math.min(Math.max((y + 0.5) * n, 0), g.height * n - 0.001);
-    const x0 = Math.floor(fx), y0 = Math.floor(fy);
-    const w = g.width * n + 1;
-    const h00 = this.heights[y0 * w + x0];
-    const h10 = this.heights[y0 * w + x0 + 1];
-    const h01 = this.heights[(y0 + 1) * w + x0];
-    const h11 = this.heights[(y0 + 1) * w + x0 + 1];
-    const tx = fx - x0, ty = fy - y0;
-    return h00 + (h10 - h00) * tx + (h01 + (h11 - h01) * tx - (h00 + (h10 - h00) * tx)) * ty;
+    if (!this.cols) return 1;
+    const cx = Math.min(Math.max(Math.floor((x + 0.5) * R), 0), this.gw - 1);
+    const cy = Math.min(Math.max(Math.floor((y + 0.5) * R), 0), this.gh - 1);
+    return this.cols[cy * this.gw + cx];
   }
 
-  /**
-   * (Re)construit la surface. `renderHeight` = niveaux de LA VUE BLOCS (0 =
-   * plaine) pour rester cohérent avec brume/overlays ; les tuiles non
-   * découvertes comptent hauteur 0 (la brume les couvre).
-   */
   build(game: TerrainSource, palettes: Palettes | null, renderHeight: (t: TerrainSource["tiles"][number]) => number): THREE.Mesh {
-    this.game = game;
-    const W = game.width, H = game.height, n = SUB;
-    const gw = W * n + 1, gh = H * n + 1;
+    void palettes; // l'extraction isotiles reste l'affaire des blocs
+    const W = game.width, H = game.height;
+    const gw = (this.gw = W * R), gh = (this.gh = H * R);
 
-    // couleur de base par tuile : palette DIORAMA du biome (désaturée façon
-    // maquette — la référence), deux nuances alternées par hachage
-    void palettes; // (l'extraction isotiles reste utilisée par les BLOCS)
-    const tileColor = (tx: number, ty: number): [number, number, number] => {
-      const t = game.tiles[ty * W + tx];
-      if (!t?.discovered) return [225, 227, 244]; // sous la brume (peu visible)
-      const shades = DIORAMA[t.biome] ?? DIORAMA[2];
-      return shades[hash01(tx, ty) < 0.5 ? 0 : 1];
-    };
+    const tileAt = (tx: number, ty: number) =>
+      game.tiles[Math.min(Math.max(ty, 0), H - 1) * W + Math.min(Math.max(tx, 0), W - 1)];
     const tileH = (tx: number, ty: number): number => {
-      const t = game.tiles[ty * W + tx];
+      const t = tileAt(tx, ty);
       if (!t?.discovered) return 0;
-      if (t.biome === 0) return -0.45; // l'eau SE CREUSE : rives en pente douce
+      if (t.biome === 0) return -0.45; // l'eau se creuse
       return renderHeight(t);
     };
-
-    // hauteurs de la sous-grille : coins = moyenne des 4 tuiles, intérieur =
-    // interpolation lissée (smoothstep) + micro-relief (nul sur l'eau)
-    const heights = new Float32Array(gw * gh);
     const cornerH = (cx: number, cy: number): number => {
       let sum = 0, cnt = 0;
       for (let dy = -1; dy <= 0; dy++) {
@@ -120,120 +95,137 @@ export class SmoothTerrain {
       }
       return cnt ? sum / cnt : 0;
     };
-    for (let gy = 0; gy < gh; gy++) {
-      for (let gx = 0; gx < gw; gx++) {
-        const tx = Math.min(Math.floor(gx / n), W - 1);
-        const ty = Math.min(Math.floor(gy / n), H - 1);
-        const fx = (gx - tx * n) / n, fy = (gy - ty * n) / n;
+
+    // 1) hauteur quantifiée par colonne : champ lissé (coins moyennés,
+    // smoothstep dans la tuile) → terrasses → micro → QUANTIFICATION au pas VS
+    const cols = new Float32Array(gw * gh);
+    for (let cy = 0; cy < gh; cy++) {
+      for (let cx = 0; cx < gw; cx++) {
+        const tx = Math.floor(cx / R), ty = Math.floor(cy / R);
+        const fx = (cx + 0.5) / R - tx, fy = (cy + 0.5) / R - ty;
         const sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
         const h00 = cornerH(tx, ty), h10 = cornerH(tx + 1, ty);
         const h01 = cornerH(tx, ty + 1), h11 = cornerH(tx + 1, ty + 1);
         const smooth = h00 + (h10 - h00) * sx + (h01 + (h11 - h01) * sx - (h00 + (h10 - h00) * sx)) * sy;
-        // TERRASSES : le champ lissé est re-quantifié en plateaux aux rebords
-        // organiques (style diorama) ; micro-relief léger par-dessus
         let hgt = terrace(smooth);
-        const t = game.tiles[ty * W + tx];
-        const isWater = t?.discovered && t.biome === 0;
-        if (!isWater) hgt += (hash01(gx, gy, 7) - 0.5) * 2 * MICRO;
-        heights[gy * gw + gx] = hgt + 1; // +1 : le "sol" des blocs est à 1 (dessus du bloc 0)
+        const t = tileAt(tx, ty);
+        if (!(t?.discovered && t.biome === 0)) hgt += (hash01(cx, cy, 7) - 0.5) * 2 * MICRO;
+        cols[cy * gw + cx] = Math.round((hgt + 1) / VS) * VS; // +1 : sol des blocs
       }
     }
-    this.heights = heights;
+    this.cols = cols;
 
-    // maillage : sommets partagés de la sous-grille + couleurs fondues aux coins
-    const positions = new Float32Array(gw * gh * 3);
-    const colors = new Float32Array(gw * gh * 3);
-    for (let gy = 0; gy < gh; gy++) {
-      for (let gx = 0; gx < gw; gx++) {
-        const i = gy * gw + gx;
-        positions[i * 3] = gx / n - 0.5;
-        positions[i * 3 + 1] = heights[i];
-        positions[i * 3 + 2] = gy / n - 0.5;
-        // couleur du sommet : moyenne des tuiles qui le touchent (fondu de
-        // biomes), pondérée + grain discret par sommet
-        const cx = gx / n - 0.5, cy = gy / n - 0.5; // position monde
-        let r = 0, g2 = 0, b = 0, cnt = 0;
-        const tx0 = Math.round(cx), ty0 = Math.round(cy);
-        for (const [dx, dy] of [[0, 0], [Math.sign(cx - tx0) || 0, 0], [0, Math.sign(cy - ty0) || 0]]) {
-          const tx = Math.min(Math.max(tx0 + dx, 0), W - 1);
-          const ty = Math.min(Math.max(ty0 + dy, 0), H - 1);
-          const c = tileColor(tx, ty);
-          r += c[0]; g2 += c[1]; b += c[2]; cnt++;
-        }
-        // FALAISES CRÈME : plus la pente locale est forte, plus la couleur
-        // glisse du biome vers la pierre claire (les rebords de terrasses
-        // ressortent en crème, comme la référence)
-        const hL = heights[gy * gw + Math.max(0, gx - 1)];
-        const hR = heights[gy * gw + Math.min(gw - 1, gx + 1)];
-        const hU = heights[Math.max(0, gy - 1) * gw + gx];
-        const hD = heights[Math.min(gh - 1, gy + 1) * gw + gx];
-        const slope = Math.hypot((hR - hL) * n * 0.5, (hD - hU) * n * 0.5);
-        // seuil haut : seuls les VRAIS rebords de terrasse passent en pierre —
-        // une pente douce garde la couleur du biome
-        const cliff = Math.min(1, Math.max(0, (slope - 1.15) / 1.2));
-        r = r / cnt + (CLIFF[0] - r / cnt) * cliff;
-        g2 = g2 / cnt + (CLIFF[1] - g2 / cnt) * cliff;
-        b = b / cnt + (CLIFF[2] - b / cnt) * cliff;
-        // AO CUITE : les creux (concavité) foncent doucement — pieds de
-        // falaises et vallons gagnent le contact sombre du style maquette
-        const concave = (hL + hR + hU + hD) / 4 - heights[i];
-        const ao = 1 - Math.min(0.32, Math.max(0, concave) * 0.85);
-        // pointillés d'herbe discrets (la référence en a) : rares vertex un
-        // cran plus foncés sur herbe/forêt
-        const tHere = game.tiles[Math.min(Math.max(ty0, 0), H - 1) * W + Math.min(Math.max(tx0, 0), W - 1)];
-        const dot = tHere?.discovered && (tHere.biome === 2 || tHere.biome === 3) && hash01(gx, gy, 13) < 0.05 ? 0.86 : 1;
-        const grain = (0.97 + hash01(gx, gy, 3) * 0.06) * dot;
-        colors[i * 3] = (r / 255) * grain * ao;
-        colors[i * 3 + 1] = (g2 / 255) * grain * ao;
-        colors[i * 3 + 2] = (b / 255) * grain * ao;
-      }
-    }
-    const indices: number[] = [];
-    for (let gy = 0; gy < gh - 1; gy++) {
-      for (let gx = 0; gx < gw - 1; gx++) {
-        const a = gy * gw + gx, bI = a + 1, c = a + gw, d = c + 1;
-        indices.push(a, c, bI, bI, c, d);
-      }
-    }
-
-    // jupe périmétrique : rideau vertical vers y=0 sur le pourtour (duplique
-    // les sommets de bord dans un second buffer, double face)
-    const skirtColor = [CLIFF[0] / 255 * 0.94, CLIFF[1] / 255 * 0.94, CLIFF[2] / 255 * 0.94];
-    const skirtPos: number[] = [];
-    const skirtCol: number[] = [];
-    const skirtIdx: number[] = [];
-    const pushEdge = (ids: number[]) => {
-      for (let k = 0; k < ids.length - 1; k++) {
-        const iA = ids[k], iB = ids[k + 1];
-        const base = skirtPos.length / 3;
-        for (const i of [iA, iB]) {
-          skirtPos.push(positions[i * 3], positions[i * 3 + 1], positions[i * 3 + 2]);
-          skirtCol.push(...skirtColor);
-        }
-        for (const i of [iA, iB]) {
-          skirtPos.push(positions[i * 3], 0, positions[i * 3 + 2]);
-          skirtCol.push(skirtColor[0] * 0.6, skirtColor[1] * 0.6, skirtColor[2] * 0.6);
-        }
-        skirtIdx.push(base, base + 2, base + 1, base + 1, base + 2, base + 3);
-        skirtIdx.push(base, base + 1, base + 2, base + 1, base + 3, base + 2); // double face
-      }
+    // 2) couleur de base par colonne : palette du biome le plus proche, fondue
+    // avec les tuiles voisines selon la position dans la tuile
+    const tileColor = (tx: number, ty: number): [number, number, number] => {
+      const t = tileAt(tx, ty);
+      if (!t?.discovered) return UNDISCOVERED;
+      const shades = DIORAMA[t.biome] ?? DIORAMA[2];
+      return shades[hash01(tx, ty) < 0.5 ? 0 : 1];
     };
-    const north: number[] = [], south: number[] = [], west: number[] = [], east: number[] = [];
-    for (let gx = 0; gx < gw; gx++) { north.push(gx); south.push((gh - 1) * gw + gx); }
-    for (let gy = 0; gy < gh; gy++) { west.push(gy * gw); east.push(gy * gw + gw - 1); }
-    pushEdge(north); pushEdge(south); pushEdge(west); pushEdge(east);
+    const colColor = (cx: number, cy: number): [number, number, number] => {
+      const wx = (cx + 0.5) / R - 0.5, wy = (cy + 0.5) / R - 0.5;
+      const tx0 = Math.round(wx), ty0 = Math.round(wy);
+      let r = 0, g = 0, b = 0, cnt = 0;
+      for (const [dx, dy] of [[0, 0], [Math.sign(wx - tx0) || 0, 0], [0, Math.sign(wy - ty0) || 0]]) {
+        const c = tileColor(tx0 + dx, ty0 + dy);
+        r += c[0]; g += c[1]; b += c[2]; cnt++;
+      }
+      // pointillés d'herbe + grain
+      const t = tileAt(tx0, ty0);
+      const dot = t?.discovered && (t.biome === 2 || t.biome === 3) && hash01(cx, cy, 13) < 0.05 ? 0.86 : 1;
+      const grain = (0.97 + hash01(cx, cy, 3) * 0.06) * dot;
+      return [(r / cnt) * grain, (g / cnt) * grain, (b / cnt) * grain];
+    };
+
+    // 3) géométrie : face du DESSUS par colonne + murs vers les voisins plus
+    // bas (bord du monde : mur jusqu'à 0 — la jupe est intégrée)
+    const positions: number[] = [];
+    const colors: number[] = [];
+    const normals: number[] = [];
+    const indices: number[] = [];
+    const pushQuad = (
+      pts: [number, number, number][],
+      n: [number, number, number],
+      rgb: [number, number, number],
+      shade: number,
+    ) => {
+      const base = positions.length / 3;
+      for (const [px, py, pz] of pts) {
+        positions.push(px, py, pz);
+        normals.push(n[0], n[1], n[2]);
+        colors.push((rgb[0] / 255) * shade, (rgb[1] / 255) * shade, (rgb[2] / 255) * shade);
+      }
+      // enroulement choisi pour que la face géométrique suive la normale voulue
+      const [a, b, c] = pts;
+      const e1 = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+      const e2 = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+      const crDotN =
+        (e1[1] * e2[2] - e1[2] * e2[1]) * n[0] +
+        (e1[2] * e2[0] - e1[0] * e2[2]) * n[1] +
+        (e1[0] * e2[1] - e1[1] * e2[0]) * n[2];
+      if (crDotN > 0) indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
+      else indices.push(base, base + 2, base + 1, base, base + 3, base + 2);
+    };
+    const s = 1 / R; // taille d'une colonne (unités monde)
+    for (let cy = 0; cy < gh; cy++) {
+      for (let cx = 0; cx < gw; cx++) {
+        const h = cols[cy * gw + cx];
+        const x0 = cx * s - 0.5, x1 = x0 + s;
+        const z0 = cy * s - 0.5, z1 = z0 + s;
+        const base = colColor(cx, cy);
+
+        // AO : colonne en creux vs ses voisines → assombrie ; rebord → +5 %
+        const nb = [
+          cx > 0 ? cols[cy * gw + cx - 1] : 0,
+          cx < gw - 1 ? cols[cy * gw + cx + 1] : 0,
+          cy > 0 ? cols[(cy - 1) * gw + cx] : 0,
+          cy < gh - 1 ? cols[(cy + 1) * gw + cx] : 0,
+        ];
+        const avg = (nb[0] + nb[1] + nb[2] + nb[3]) / 4;
+        const concave = avg - h;
+        const rim = nb.some((v) => h - v >= VS * 2);
+        // l'eau (toujours en creux) garde sa teinte laiteuse : AO plafonnée
+        const tHere = tileAt(Math.floor(cx / R), Math.floor(cy / R));
+        const isWater = tHere?.discovered && tHere.biome === 0;
+        const aoMax = isWater ? 0.1 : 0.3;
+        const ao = (1 - Math.min(aoMax, Math.max(0, concave) * 0.8)) * (rim ? 1.05 : 1);
+
+        pushQuad(
+          [[x0, h, z0], [x1, h, z0], [x1, h, z1], [x0, h, z1]],
+          [0, 1, 0], base, SHADE_TOP * ao,
+        );
+
+        // murs : vers chaque voisin plus bas — teinte glissant vers la pierre
+        // crème avec la HAUTEUR de la marche (les rebords de terrasse en crème)
+        const wall = (lo: number, nx: number, nz: number, pts: [number, number, number][]) => {
+          const drop = h - lo;
+          if (drop <= 0.0001) return;
+          const k = Math.min(1, (drop - VS) / 0.9);
+          const rgb: [number, number, number] = [
+            base[0] + (CLIFF[0] - base[0]) * Math.max(0, k),
+            base[1] + (CLIFF[1] - base[1]) * Math.max(0, k),
+            base[2] + (CLIFF[2] - base[2]) * Math.max(0, k),
+          ];
+          const shade = nx !== 0 ? (nx > 0 ? SHADE_X.p : SHADE_X.n) : nz > 0 ? SHADE_Z.p : SHADE_Z.n;
+          pushQuad(pts, [nx, 0, nz], rgb, shade);
+        };
+        const hW = cx > 0 ? cols[cy * gw + cx - 1] : 0;
+        const hE = cx < gw - 1 ? cols[cy * gw + cx + 1] : 0;
+        const hN = cy > 0 ? cols[(cy - 1) * gw + cx] : 0;
+        const hS = cy < gh - 1 ? cols[(cy + 1) * gw + cx] : 0;
+        wall(hW, -1, 0, [[x0, h, z1], [x0, h, z0], [x0, hW, z0], [x0, hW, z1]]);
+        wall(hE, 1, 0, [[x1, h, z0], [x1, h, z1], [x1, hE, z1], [x1, hE, z0]]);
+        wall(hN, 0, -1, [[x0, h, z0], [x1, h, z0], [x1, hN, z0], [x0, hN, z0]]);
+        wall(hS, 0, 1, [[x1, h, z1], [x0, h, z1], [x0, hS, z1], [x1, hS, z1]]);
+      }
+    }
 
     const geom = new THREE.BufferGeometry();
-    const allPos = new Float32Array(positions.length + skirtPos.length);
-    allPos.set(positions); allPos.set(skirtPos, positions.length);
-    const allCol = new Float32Array(colors.length + skirtCol.length);
-    allCol.set(colors); allCol.set(skirtCol, colors.length);
-    const skirtBase = positions.length / 3;
-    const allIdx = [...indices, ...skirtIdx.map((i) => i + skirtBase)];
-    geom.setAttribute("position", new THREE.BufferAttribute(allPos, 3));
-    geom.setAttribute("color", new THREE.BufferAttribute(allCol, 3));
-    geom.setIndex(allIdx);
-    geom.computeVertexNormals(); // normales lissées = le modelé continu
+    geom.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+    geom.setAttribute("normal", new THREE.Float32BufferAttribute(normals, 3));
+    geom.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+    geom.setIndex(indices);
     geom.computeBoundingSphere();
 
     const mat = new THREE.MeshLambertMaterial({ vertexColors: true });

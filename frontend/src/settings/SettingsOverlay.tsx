@@ -105,12 +105,12 @@ export function SettingsOverlay() {
                 className={settings.voxelSmooth === v ? "on" : ""}
                 onClick={() => updateSettings({ voxelSmooth: v })}
               >
-                {v ? "Lisse (continu)" : "Blocs"}
+                {v ? "Pentes voxel" : "Blocs"}
               </button>
             ))}
           </div>
           <span className="hint">
-            Lisse = collines continues et biomes fondus ; Blocs = marches voxel discrètes. La carte monde uniquement.
+            Pentes voxel = relief en petites marches de voxels (¼ de tuile, style diorama) ; Blocs = piliers pleine tuile. Carte monde uniquement.
           </span>
         </div>
       )}

@@ -6,6 +6,28 @@
 
 ---
 
+## 2026-07-17 (15) — PENTES VOXEL : le continu rasterisé en marches (choix utilisateur)
+
+### Fait
+- Retour utilisateur : le sol continu ne plaît pas — il veut des pentes EN VOXELS.
+  **`smoothTerrain.ts` réécrit** : le champ de hauteurs lissé + terrassé est RASTERISÉ en
+  colonnes voxel (R=4 par côté de tuile, pas vertical VS=¼ → voxels cubiques) — les pentes
+  sont des ESCALIERS de petits cubes, comme la référence diorama. Face du dessus par
+  colonne + murs vers les voisins plus bas (bord de monde → mur jusqu'à 0, jupe intégrée).
+- Conservé : terrasses organiques, palette diorama fondue, pointillés, eau en creux
+  (AO plafonnée sur l'eau pour rester laiteuse), ombrage voxel par face (mêmes valeurs que
+  le mesher) + **teinte pierre crème ∝ hauteur de la marche** (rebords de terrasse crème),
+  AO par concavité + léger rehaut de rebord. `heightAt` = hauteur QUANTIFIÉE de la marche.
+- ⚠ enroulement des quads choisi par produit (normale géométrique · normale voulue) — pas
+  de dérivation manuelle par face (la leçon de chiralité du mesher).
+- Réglage renommé : « Terrain voxel : Blocs / **Pentes voxel** » (le mode continu lisse
+  n'existe plus). ~124 k colonnes au banc 60×60, coût comparable au lisse.
+
+### Fonctionnel (vérifié e2e, captures)
+- Banc plein monde : collines en escaliers voxel, étangs étagés, arbres/ombres inchangés ;
+  vraie partie : île en plateau à rebords crème étagés, move serveur OK, rotation OK.
+  `tsc` + build verts.
+
 ## 2026-07-17 (14) — Diorama itération 2 : rives, pointillés, GRAND MONDE au banc
 
 ### Fait
