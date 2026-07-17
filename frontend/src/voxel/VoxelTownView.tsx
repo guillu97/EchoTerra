@@ -77,6 +77,7 @@ export function VoxelTownView({
     if (!host) return;
     const engine = new VoxelEngine(host);
     engineRef.current = engine;
+    engine.enableLighting({ shadowSpan: 32 }); // lumière pastel + ombres sur la ville
     engine.minZoom = 8;
     engine.maxZoom = 90;
     const controls = new VoxelControls(engine);

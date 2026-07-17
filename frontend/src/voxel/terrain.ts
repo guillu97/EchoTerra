@@ -93,11 +93,14 @@ export function buildTerrain(lib: BlockLibrary, cells: TerrainCell[]): {
   }
   const group = new THREE.Group();
   const lookup = new Map<THREE.Object3D, TerrainCell[]>();
-  const mat = new THREE.MeshBasicMaterial({ vertexColors: true });
+  const mat = new THREE.MeshLambertMaterial({ vertexColors: true });
+  // la BRUME s'auto-éclaire (Basic) : c'est un voile magique qui porte ses
+  // couleurs — éclairée/ombrée en Lambert elle devenait un papier gris sale
+  const mistMat = new THREE.MeshBasicMaterial({ vertexColors: true });
   let instances = 0;
   const m = new THREE.Matrix4();
-  for (const { geom, items } of buckets.values()) {
-    const mesh = new THREE.InstancedMesh(geom, mat, items.length);
+  for (const [key, { geom, items }] of buckets.entries()) {
+    const mesh = new THREE.InstancedMesh(geom, key.startsWith("mist") ? mistMat : mat, items.length);
     const cellsOf: TerrainCell[] = [];
     for (let i = 0; i < items.length; i++) {
       const { cell, level } = items[i];
@@ -108,6 +111,8 @@ export function buildTerrain(lib: BlockLibrary, cells: TerrainCell[]): {
     }
     mesh.instanceMatrix.needsUpdate = true;
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
     lookup.set(mesh, cellsOf);
     group.add(mesh);
     instances += items.length;
@@ -141,7 +146,7 @@ export function buildStacks(lib: BlockLibrary, items: StackItem[]): {
   }
   const group = new THREE.Group();
   const lookup = new Map<THREE.Object3D, StackItem[]>();
-  const mat = new THREE.MeshBasicMaterial({ vertexColors: true });
+  const mat = new THREE.MeshLambertMaterial({ vertexColors: true });
   const m = new THREE.Matrix4();
   let instances = 0;
   for (const { geom, items: list } of buckets.values()) {
@@ -151,6 +156,8 @@ export function buildStacks(lib: BlockLibrary, items: StackItem[]): {
       mesh.setMatrixAt(i, m);
     }
     mesh.instanceMatrix.needsUpdate = true;
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
     lookup.set(mesh, list);
     group.add(mesh);
     instances += list.length;

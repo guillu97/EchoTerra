@@ -6,6 +6,33 @@
 
 ---
 
+## 2026-07-17 (11) — Voxel : passe BEAUTÉ (lumière pastel, ombres, textures adoucies)
+
+### Fait
+- **`engine.enableLighting({shadowSpan})`** : hémisphérique ciel quasi neutre `#f7f5ff` →
+  rebond lavande `#cfc2e8` (1.4) + **soleil directionnel** à peine chaud `#fff2e0` (1.75),
+  FIXE DANS LE MONDE (les ombres tournent avec la caméra — lisible), **ombres portées douces**
+  (PCFSoft 1024, boîte suivant `target` — le pan ne sort jamais de l'ombre ; span par vue :
+  map 45, ville 32, combat 9, éditeur 4). PAS de tone mapping (l'ACES essayé boueusait les
+  pastels) ni de fog (à 300 de caméra ortho, tout était dans le voile — retiré).
+- **Matériaux Lambert** partout (terrain instancié, personnages ; normales émises par le
+  mesher — mapping d'axes voxel→monde [0,2,1]) ; ombrage CUIT réduit (py1/ny.55/px.93/nx.84/
+  pz.97/nz.78) pour laisser la lumière modeler. **La brume reste en Basic auto-éclairé**
+  (éclairée, elle devenait un papier gris sale). castShadow/receiveShadow sur tout le voxel.
+- **Palettes pastelisées** (`pastelize` dans gen-blocks : +14 % vers le blanc, −10 % de
+  saturation) — blocs 32³ ET 16³ régénérés ; les 5 vues (Map/Combat/Home/banc/éditeur)
+  activent la lumière (éditeur = WYSIWYG).
+- ⚠ le comptage renderer double (tris/calls ×2) : c'est la PASSE D'OMBRE — attendu.
+
+### Fonctionnel (vérifié e2e, captures)
+- Map : brume lumineuse, verts adoucis, flancs modelés, move serveur OK. Combat : ombres des
+  piliers visibles, relief net, move OK. Ville : le rempart projette son ombre, héros nommés.
+  Banc 5,36 M tris (2×2,68 M avec ombre), éditeur pose/undo/régénération OK. Build vert.
+
+### À faire (idées beauté suivantes)
+- AO par vertex (fusion greedy consciente de l'AO), eau animée (shader onBeforeCompile),
+  respiration de la brume, ciel dégradé du combat.
+
 ## 2026-07-17 (10) — Voxel Phase 5 (fin) : monstres voxel + catalogue — FIN du chantier autonome
 
 ### Fait

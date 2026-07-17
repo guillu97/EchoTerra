@@ -51,6 +51,7 @@ class MapWorld {
   showOthers = true;
 
   constructor(readonly engine: VoxelEngine) {
+    engine.enableLighting({ shadowSpan: 45 }); // passe beauté : lumière pastel + ombres
     engine.scene.add(this.overlays);
     engine.scene.add(this.sprites);
     void this.lib

@@ -43,6 +43,8 @@ export class CharLibrary {
     if (!e) return undefined;
     const m = new THREE.Mesh(e.geometry, CHAR_MAT);
     m.scale.setScalar(e.scale);
+    m.castShadow = true;
+    m.receiveShadow = true;
     return m;
   }
 
@@ -52,4 +54,4 @@ export class CharLibrary {
   }
 }
 
-const CHAR_MAT = new THREE.MeshBasicMaterial({ vertexColors: true });
+const CHAR_MAT = new THREE.MeshLambertMaterial({ vertexColors: true });

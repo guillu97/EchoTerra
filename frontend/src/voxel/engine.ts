@@ -30,6 +30,7 @@ export class VoxelEngine {
   onFrame: ((info: { calls: number; triangles: number; ms: number }) => void) | null = null;
 
   private azimuth = azimuthFor(0);
+  private sun: THREE.DirectionalLight | null = null;
   private rotAnim: { from: number; to: number; t0: number } | null = null;
   private raf = 0;
   private ro: ResizeObserver;
@@ -67,6 +68,43 @@ export class VoxelEngine {
     this.invalidate();
   }
 
+  /**
+   * Éclairage pastel storybook (passe beauté 2026-07-17) :
+   * - hémisphérique crème (ciel) → lavande (rebond sol) : le dégradé pastel ;
+   * - soleil directionnel chaud FIXE DANS LE MONDE (les ombres tournent avec la
+   *   rotation de caméra — correct et lisible) avec OMBRES PORTÉES douces ;
+   * - tone mapping ACES : compresse les hautes lumières, adoucit l'ensemble.
+   * Les matériaux voxel sont des Lambert `vertexColors` ; l'ombrage cuit du
+   * mesher a été réduit en conséquence. `shadowSpan` = demi-étendue (unités
+   * monde) de la boîte d'ombre, à dimensionner par vue (combat 8, ville 30…).
+   */
+  enableLighting({ shadowSpan = 40 }: { shadowSpan?: number } = {}) {
+    if (this.sun) return;
+    // ciel quasi neutre + rebond lavande : le soleil apporte seulement une
+    // pointe de chaleur — un couple trop chaud tirait les verts vers l'olive
+    const hemi = new THREE.HemisphereLight(0xf7f5ff, 0xcfc2e8, 1.4);
+    this.scene.add(hemi);
+    const sun = new THREE.DirectionalLight(0xfff2e0, 1.75);
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(1024, 1024);
+    sun.shadow.camera.left = -shadowSpan;
+    sun.shadow.camera.right = shadowSpan;
+    sun.shadow.camera.top = shadowSpan;
+    sun.shadow.camera.bottom = -shadowSpan;
+    sun.shadow.camera.near = 1;
+    sun.shadow.camera.far = 500;
+    sun.shadow.bias = -0.0008;
+    this.scene.add(sun);
+    this.scene.add(sun.target);
+    this.sun = sun;
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    // pas de tone mapping agressif : il boueusait les pastels — les intensités
+    // hémisphérique/soleil sont calibrées pour que les faces du dessus gardent
+    // ~la luminosité des palettes d'origine
+    this.invalidate();
+  }
+
   /** applique zoom + azimut + cible à la caméra (avant chaque rendu) */
   private applyCamera() {
     this.camera.zoom = this.zoom;
@@ -79,6 +117,12 @@ export class VoxelEngine {
     this.camera.lookAt(this.target);
     this.camera.updateProjectionMatrix();
     this.camera.updateMatrixWorld();
+    // le soleil (et sa boîte d'ombre) suit la cible : le pan ne sort jamais de l'ombre
+    if (this.sun) {
+      this.sun.position.set(this.target.x - 70, this.target.y + 150, this.target.z - 45);
+      this.sun.target.position.copy(this.target);
+      this.sun.target.updateMatrixWorld();
+    }
   }
 
   /** point du plan sol (y=0) sous un point écran (px CSS relatifs au canvas) */

@@ -12,12 +12,15 @@
 import * as THREE from "three";
 import type { VoxModel } from "./vox";
 
-// Ombrage fixe par direction (normale monde) : dessus plein feu, dessous sombre,
-// flancs différenciés pour que les arêtes lisent sous les 4 orientations.
+// Ombrage fixe par direction (normale monde) — ADOUCI depuis la passe lumière :
+// les scènes sont maintenant éclairées (hémisphérique + soleil, voir
+// engine.enableLighting) et le Lambert apporte le vrai modelé ; le cuit ne
+// garde qu'une petite différenciation d'arêtes (l'ancien contraste fort
+// cumulé à la lumière rendait les flancs charbonneux).
 const FACE_SHADE: Record<string, number> = {
-  "py": 1.0, "ny": 0.45,
-  "px": 0.8, "nx": 0.62,
-  "pz": 0.9, "nz": 0.7,
+  "py": 1.0, "ny": 0.55,
+  "px": 0.93, "nx": 0.84,
+  "pz": 0.97, "nz": 0.78,
 };
 
 export type MeshedBlock = {
@@ -33,6 +36,7 @@ export function meshVoxModel(model: VoxModel, size = model.sx): MeshedBlock {
 
   const positions: number[] = [];
   const colors: number[] = [];
+  const normals: number[] = [];
   const indices: number[] = [];
 
   // Convention d'axes voxel→monde pour positions ET normales.
@@ -89,9 +93,14 @@ export function meshVoxModel(model: VoxModel, size = model.sx): MeshedBlock {
             [pt[0] + du[0] + dv2[0], pt[1] + du[1] + dv2[1], pt[2] + du[2] + dv2[2]],
             [pt[0] + dv2[0], pt[1] + dv2[1], pt[2] + dv2[2]],
           ];
+          // normale monde du quad (axe voxel d ± → axe monde via l'échange x/z/y)
+          const worldAxis = [0, 2, 1][d]; // voxel x→X(0), y→Z(2), z→Y(1)
+          const n3 = [0, 0, 0];
+          n3[worldAxis] = sign;
           for (const [qx, qy, qz] of quad) {
             const [wx, wy, wz] = toWorld(qx, qy, qz);
             positions.push(wx, wy, wz);
+            normals.push(n3[0], n3[1], n3[2]);
             colors.push((rgb[0] / 255) * shade, (rgb[1] / 255) * shade, (rgb[2] / 255) * shade);
           }
           // sens d'enroulement : l'échange d'axes voxel(x,y,z-up)→three(x,z,y)
@@ -110,6 +119,7 @@ export function meshVoxModel(model: VoxModel, size = model.sx): MeshedBlock {
 
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute("normal", new THREE.Float32BufferAttribute(normals, 3));
   geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
   geometry.setIndex(indices);
   geometry.computeBoundingSphere();

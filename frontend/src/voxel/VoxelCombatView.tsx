@@ -37,6 +37,7 @@ class CombatWorld {
   mode = "move";
 
   constructor(readonly engine: VoxelEngine) {
+    engine.enableLighting({ shadowSpan: 9 }); // arène 7×7 : ombres serrées et nettes
     engine.scene.background = new THREE.Color(0x161022); // fond opaque (comme CombatScene)
     engine.scene.add(this.overlays);
     engine.scene.add(this.sprites);

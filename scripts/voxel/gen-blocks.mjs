@@ -67,6 +67,17 @@ const MIST_PALETTE = {
 };
 
 const lum = ([r, g, b]) => 0.299 * r + 0.587 * g + 0.114 * b;
+
+// Lift PASTEL (passe beauté) : léger voile blanc + désaturation douce — les
+// palettes extraites gardent leur identité mais gagnent la douceur storybook
+// (l'éclairage 3D restitue ensuite le modelé sans salir les teintes).
+function pastelize([r, g, b]) {
+  const lift = (v) => v + (255 - v) * 0.14;
+  let [pr, pg, pb] = [lift(r), lift(g), lift(b)];
+  const gray = 0.299 * pr + 0.587 * pg + 0.114 * pb;
+  const k = 0.1;
+  return [Math.round(pr + (gray - pr) * k), Math.round(pg + (gray - pg) * k), Math.round(pb + (gray - pb) * k)];
+}
 const sat = ([r, g, b]) => { const mx = Math.max(r, g, b), mn = Math.min(r, g, b); return mx ? (mx - mn) / mx : 0; };
 const dist2 = (a, b) => (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2;
 
@@ -153,7 +164,7 @@ async function main() {
         const acc = await extractPalette(def.accentsFrom);
         accents = dominantColors(acc.accentPool, 4, { bySat: true, minDist: 40 });
       }
-      pal = { top: base.top, side: base.side, accents };
+      pal = { top: base.top.map(pastelize), side: base.side.map(pastelize), accents };
       if (def.id === "water") {
         // l'isotile eau traîne des reflets verdâtres de berge — on ne garde que
         // les nuances où le bleu domine (la profondeur reste bleue, pas kaki)

@@ -70,6 +70,7 @@ export function VoxelBench() {
     if (!host) return;
     const engine = new VoxelEngine(host);
     engineRef.current = engine;
+    engine.enableLighting({ shadowSpan: 45 });
     const controls = new VoxelControls(engine);
     engine.target.set(W / 2, 0, H / 2);
     engine.zoom = 28;

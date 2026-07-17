@@ -34,6 +34,7 @@ export function VoxelEditScreen() {
     if (!host) return;
     const engine = new VoxelEngine(host);
     engineRef.current = engine;
+    engine.enableLighting({ shadowSpan: 4 }); // WYSIWYG : même lumière que le jeu
     engine.zoom = 180;
     engine.target.set(0, 0.45, 0);
     const controls = new VoxelControls(engine);
@@ -101,7 +102,7 @@ export function VoxelEditScreen() {
     }
     meshesRef.current = [];
     const { geometry } = meshVoxModel(m, Math.max(m.sx, m.sy));
-    const mat = new THREE.MeshBasicMaterial({ vertexColors: true });
+    const mat = new THREE.MeshLambertMaterial({ vertexColors: true });
     const places: [number, number, number][] =
       st.view === "single" ? [[0, 0, 0]]
       : st.view === "tiling" ? ([-1, 0, 1].flatMap((gx) => [-1, 0, 1].map((gz) => [gx, 0, gz])) as [number, number, number][])
