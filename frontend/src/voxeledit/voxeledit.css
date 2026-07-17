@@ -1,0 +1,83 @@
+/* Éditeur voxel — thème sombre compact, cohérent avec l'éditeur de carte. */
+.vxe {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: #23212b;
+  color: #e8e4d8;
+  font-family: system-ui, sans-serif;
+  font-size: 13px;
+}
+.vxe button {
+  background: #3a4152;
+  color: #e8e4d8;
+  border: 1px solid #555d72;
+  border-radius: 7px;
+  padding: 5px 10px;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.vxe button.on { background: #7fa85b; border-color: #9cc47a; color: #1d2314; }
+.vxe button:disabled { opacity: 0.4; cursor: default; }
+
+.vxe-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  background: #2b2933;
+  border-bottom: 1px solid #454152;
+  flex-wrap: wrap;
+}
+.vxe-status { color: #a49ec2; font-size: 12px; }
+.vxe-sp { width: 12px; }
+
+.vxe-body { flex: 1; display: flex; min-height: 0; }
+
+.vxe-lib {
+  width: 168px;
+  overflow-y: auto;
+  background: #2b2933;
+  border-right: 1px solid #454152;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.vxe-lib-title { font-weight: 700; margin-bottom: 4px; }
+.vxe-lib-lod { color: #a49ec2; margin: 8px 0 3px; font-size: 11.5px; }
+.vxe-lib button { display: block; width: 100%; text-align: left; margin-bottom: 3px; }
+.vxe-lib button.vxe-cur { background: #565f92; border-color: #7b84bd; }
+
+.vxe-view { flex: 1; position: relative; min-width: 0; }
+
+.vxe-tools {
+  width: 230px;
+  overflow-y: auto;
+  background: #2b2933;
+  border-left: 1px solid #454152;
+  padding: 10px;
+}
+.vxe-sec { font-weight: 700; margin: 12px 0 6px; }
+.vxe-sec:first-child { margin-top: 0; }
+.vxe-row { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 6px; }
+
+.vxe-pal { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.vxe-sw {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 5px;
+  border: 2px solid #454152;
+}
+.vxe-sw.on { border-color: #ffe066; }
+.vxe-pal input[type="color"] { width: 26px; height: 26px; padding: 0; border: none; background: none; cursor: pointer; }
+
+.vxe-slider { display: block; margin-bottom: 7px; }
+.vxe-slider span { display: flex; justify-content: space-between; color: #cfc9e4; }
+.vxe-slider em { color: #ffe066; font-style: normal; }
+.vxe-slider input { width: 100%; }
+
+.vxe-hint { color: #8f89ab; font-size: 11.5px; line-height: 1.5; margin-top: 10px; }
+.vxe-hint code { color: #cfc9e4; }

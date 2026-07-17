@@ -9,6 +9,7 @@ import { SettingsOverlay } from "./settings/SettingsOverlay";
 import { EditorScreen } from "./editor/EditorScreen";
 import { DesignerScreen } from "./designer/DesignerScreen";
 import { VoxelBench } from "./voxel/VoxelBench";
+import { VoxelEditScreen } from "./voxeledit/VoxelEditScreen";
 
 // The app shell is full-bleed at every viewport size: `.device` is simply the
 // full-viewport container (see app-shell.css) — the old phone/tablet frame on
@@ -21,6 +22,7 @@ export default function App() {
   if (appScreen === "editor") return <EditorScreen />;
   if (appScreen === "designer") return <DesignerScreen />;
   if (appScreen === "voxelbench") return <VoxelBench />;
+  if (appScreen === "voxeledit") return <VoxelEditScreen />;
 
   return (
     <div className="app-bg">

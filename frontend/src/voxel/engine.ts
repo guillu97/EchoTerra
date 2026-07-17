@@ -25,6 +25,8 @@ export class VoxelEngine {
   zoom = 48; // px CSS par unité monde (1 unité = 1 bloc)
   minZoom = 12;
   maxZoom = 220;
+  /** élévation caméra (rad) — ELEVATION dimétrique par défaut, modifiable en orbite libre */
+  elevation = ELEVATION;
   onFrame: ((info: { calls: number; triangles: number; ms: number }) => void) | null = null;
 
   private azimuth = azimuthFor(0);
@@ -68,7 +70,7 @@ export class VoxelEngine {
   /** applique zoom + azimut + cible à la caméra (avant chaque rendu) */
   private applyCamera() {
     this.camera.zoom = this.zoom;
-    const [dx, dy, dz] = cameraDir(this.azimuth);
+    const [dx, dy, dz] = cameraDir(this.azimuth, this.elevation);
     this.camera.position.set(
       this.target.x + dx * CAM_DIST,
       this.target.y + dy * CAM_DIST,
@@ -110,6 +112,15 @@ export class VoxelEngine {
     const from = this.azimuth;
     this.orientation = nextOrientation(this.orientation, dir);
     this.rotAnim = { from, to: from + (dir * Math.PI) / 2, t0: performance.now() };
+    this.elevation = ELEVATION; // une rotation "jeu" reprend l'angle dimétrique
+    this.invalidate();
+  }
+
+  /** orbite LIBRE (éditeur) : delta d'azimut/élévation, sans animation */
+  orbitBy(dAz: number, dEl: number) {
+    this.rotAnim = null;
+    this.azimuth += dAz;
+    this.elevation = Math.min(Math.PI / 2 - 0.05, Math.max(0.08, this.elevation + dEl));
     this.invalidate();
   }
 

@@ -124,6 +124,7 @@ async function main() {
   await mkdir(outPreview, { recursive: true });
 
   const sheetTiles = [];
+  const palettesOut = {}; // id → palette + recette : consommé par l'éditeur voxel
   for (const def of BLOCKS) {
     if (only?.length && !only.includes(def.id)) continue;
     let pal;
@@ -163,8 +164,18 @@ async function main() {
     );
     await writePng(tiling, path.join(outPreview, `${def.id}-tiling.png`));
     sheetTiles.push(def.id);
+    palettesOut[def.id] = { palette: pal, recipe: def.recipe, params: def.params };
     console.log(`✓ ${def.id} (${variants} variantes, palette ${pal.top.length}+${pal.side.length}+${pal.accents.length})`);
   }
+
+  // Palettes + recettes en JSON à la RACINE voxels/ (indépendant du LOD) : le
+  // navigateur ne peut pas extraire les palettes (sharp) — l'éditeur voxel lit
+  // ce fichier pour régénérer les blocs en direct avec recipes.mjs. Fusion avec
+  // l'existant pour que --only ne perde pas les autres entrées.
+  const palettesFile = path.join(OUT_VOX, "palettes.json");
+  let merged = palettesOut;
+  try { merged = { ...JSON.parse(await readFile(palettesFile, "utf8")), ...palettesOut }; } catch { /* première écriture */ }
+  await writeFile(palettesFile, JSON.stringify(merged, null, 1));
 
   // Contact sheet : previews "bloc seul" en grille, étiquettes SVG.
   const CELL = 240, LABEL = 26;

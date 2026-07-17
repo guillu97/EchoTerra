@@ -16,10 +16,10 @@ export function nextOrientation(o: Orientation, dir: 1 | -1 = 1): Orientation {
 }
 
 /** Vecteur unitaire caméra→scène inversé (position = cible + dir · dist). */
-export function cameraDir(azimuth: number): [number, number, number] {
+export function cameraDir(azimuth: number, elevation: number = ELEVATION): [number, number, number] {
   return [
-    Math.cos(ELEVATION) * Math.sin(azimuth),
-    Math.sin(ELEVATION),
-    Math.cos(ELEVATION) * Math.cos(azimuth),
+    Math.cos(elevation) * Math.sin(azimuth),
+    Math.sin(elevation),
+    Math.cos(elevation) * Math.cos(azimuth),
   ];
 }

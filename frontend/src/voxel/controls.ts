@@ -19,8 +19,11 @@ export type TapInfo = { cssX: number; cssY: number; ground: THREE.Vector3 };
 
 export class VoxelControls {
   onTap: ((t: TapInfo) => void) | null = null;
+  /** "pan" (défaut) : drag déplace la cible ; "orbit" (éditeur) : drag orbite */
+  mode: "pan" | "orbit" = "pan";
   private pointers = new Map<number, { x: number; y: number }>();
   private downAt: { x: number; y: number } | null = null;
+  private lastPos = { x: 0, y: 0 }; // position précédente (deltas du mode orbit)
   private moved = false;
   private lastGround = new THREE.Vector3();
   private pinch: { dist0: number; zoom0: number; world0: THREE.Vector3 } | null = null;
@@ -51,6 +54,7 @@ export class VoxelControls {
     this.pointers.set(e.pointerId, p);
     if (this.pointers.size === 1) {
       this.downAt = p;
+      this.lastPos = p;
       this.moved = false;
       this.engine.groundAt(p.x, p.y, this.lastGround);
     } else if (this.pointers.size === 2) {
@@ -83,6 +87,12 @@ export class VoxelControls {
     }
     if (this.pointers.size === 1 && this.downAt) {
       if (Math.hypot(p.x - this.downAt.x, p.y - this.downAt.y) > TAP_SLOP_CSS) this.moved = true;
+      if (this.moved && this.mode === "orbit") {
+        const dx = p.x - this.lastPos.x, dy = p.y - this.lastPos.y;
+        this.engine.orbitBy(-dx * 0.008, dy * 0.006);
+        this.lastPos = p;
+        return;
+      }
       if (this.moved) {
         // pan "attrape le sol" : le point-monde saisi reste sous le doigt
         const now = this.engine.groundAt(p.x, p.y);

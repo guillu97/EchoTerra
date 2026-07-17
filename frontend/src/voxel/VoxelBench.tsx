@@ -124,6 +124,7 @@ export function VoxelBench() {
       <div ref={hostRef} style={{ position: "absolute", inset: 0 }} />
       <div style={{ position: "absolute", top: 8, left: 8, display: "flex", gap: 8, alignItems: "center" }}>
         <button onClick={() => { location.hash = ""; setScreen("title"); }} style={btn}>← Retour</button>
+        <button onClick={() => setScreen("voxeledit")} style={btn}>🧊 Éditeur</button>
         <button onClick={() => engineRef.current?.rotate(1)} style={btn}>↻ Rotation</button>
         <button onClick={() => engineRef.current?.rotate(-1)} style={btn}>↺</button>
       </div>

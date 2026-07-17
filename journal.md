@@ -6,6 +6,38 @@
 
 ---
 
+## 2026-07-17 (4) — Voxel Phase 1b : éditeur voxel (🧊 Voxels / #voxeledit)
+
+### Fait
+- **`frontend/src/voxeledit/`** (écran `voxeledit`, hors shell, bouton titre « 🧊 Voxels » →
+  éditeur ; le banc garde `#voxel-bench` + liens croisés « 🌍 Terrain 60×60 » / « 🧊 Éditeur ») :
+  - `voxeditStore.ts` (zustand séparé, hook DEV `window.__vx`) : modèle mutable + `rev`,
+    undo/redo par snapshots (≤60), autosave localStorage `echoterra:voxeled:doc` (base64) +
+    restore, bibliothèque par `import.meta.glob` sur `public/voxels/**/*.vox` (groupée 32³/16³),
+    **palette tronquée aux couleurs utilisées** au décodage.
+  - `VoxelEditScreen.tsx` + `voxeledit.css` : bibliothèque (gauche), vue moteur (centre —
+    modes **Bloc / 3×3 / Pile** pour vérifier les raccords, GridHelper décalé -0.002 [z-fight]),
+    outils (droite) : ✋ nav, 🧱 poser, ⌫ effacer, 💉 pipette (raycast face → voxel ±normale/2),
+    ⇄ miroir X, palette cliquable + ajout couleur, **recettes LIVE** (sliders params/seed/16³-32³
+    → `regenerate()` via l'IMPORT DIRECT de `scripts/voxel/recipes.mjs` — le module partagé),
+    export .vox (download, à redéposer dans public/voxels/) / import .vox.
+- **Moteur** : `orbitBy` (orbite libre azimut/élévation, éditeur), `elevation` paramétrable,
+  `cameraDir(az, el)` ; `VoxelControls.mode = "pan" | "orbit"`. Une rotation « jeu » (↻/↺)
+  reprend l'angle dimétrique.
+- **`gen-blocks.mjs` écrit `voxels/palettes.json`** (id → palette extraite + recette + params,
+  fusion avec l'existant) : le navigateur ne peut pas faire l'extraction sharp — c'est le pont
+  qui permet la régénération 100 % navigateur.
+
+### Fonctionnel (vérifié)
+- `tsc` + build OK ; vérifié headless : chargement grass-v0, pose de voxel (history 1) → undo (0),
+  panneau recette (sliders + seed), **régénération live OK** (« régénéré grass (seed 777, 32³) »),
+  vue 3×3, orbite libre par drag. Captures inspectées.
+
+### À faire
+- Phase 2 : Map monde réelle branchée sur GameState (fog serveur → blocs mist, sélection/
+  losanges/danger en quads, billboards persos, flag Settings). Éventuel : brosse rectangle,
+  crop de plans, thumbnails bibliothèque.
+
 ## 2026-07-17 (3) — Voxel Phase 1 : moteur Three.js + banc d'essai
 
 ### Fait
