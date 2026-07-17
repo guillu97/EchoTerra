@@ -12,6 +12,7 @@ import { useStore } from "../store";
 import { VoxelEngine } from "./engine";
 import { VoxelControls } from "./controls";
 import { BlockLibrary, buildTerrain, type TerrainCell } from "./terrain";
+import { SmoothTerrain, type TerrainSource } from "./smoothTerrain";
 
 const W = 60, H = 60; // mêmes dimensions que worldgen.DefaultSize
 const FOG_RADIUS = 21; // au-delà : brume (simule les tuiles non découvertes)
@@ -33,6 +34,19 @@ function terrainNoise(x: number, y: number): number {
   return 0.65 * n(13, x, y) + 0.35 * n(5, x + 77, y + 77);
 }
 
+// biome + hauteur synthétiques (mêmes seuils que la vraie génération, en gros)
+function tileFor(x: number, y: number): { biome: number; height: number } {
+  const v = terrainNoise(x, y);
+  if (v < 0.32) return { biome: 0, height: 0 };
+  if (v < 0.4) return { biome: 1, height: 0 };
+  if (v < 0.58) return { biome: 2, height: 0 };
+  if (v < 0.72) return { biome: 3, height: Math.round((v - 0.58) / 0.07) };
+  if (v < 0.86) return { biome: 4, height: 1 + Math.round((v - 0.72) / 0.06) };
+  return { biome: 5, height: 3 };
+}
+const BLOCK_OF = ["water", "sand", "grass", "forest", "stone", "snow"];
+const UNDER_OF: Record<string, string | undefined> = { forest: "dirt", snow: "stone" };
+
 function makeCells(): TerrainCell[] {
   const cells: TerrainCell[] = [];
   const cx = W / 2, cy = H / 2;
@@ -42,20 +56,23 @@ function makeCells(): TerrainCell[] {
         cells.push({ x, y, block: "mist", levels: 1 });
         continue;
       }
-      const v = terrainNoise(x, y);
-      let block = "grass", levels = 1, under: string | undefined;
-      if (v < 0.32) block = "water";
-      else if (v < 0.4) block = "sand";
-      else if (v < 0.58) block = "grass";
-      else if (v < 0.72) { block = "forest"; levels = 1 + Math.round((v - 0.58) / 0.07); under = "dirt"; }
-      else if (v < 0.86) { block = "stone"; levels = 2 + Math.round((v - 0.72) / 0.06); }
-      else { block = "snow"; levels = 4; under = "stone"; }
-      // ombrage d'altitude léger, comme le tint de MapScene
+      const t = tileFor(x, y);
+      const block = BLOCK_OF[t.biome];
+      const levels = t.biome === 0 || t.biome === 1 || t.biome === 2 ? 1 : t.height + 1;
       const shade = 1 - Math.min(0.18, (levels - 1) * 0.05);
-      cells.push({ x, y, block, levels, under, tint: new THREE.Color(shade, shade, shade) });
+      cells.push({ x, y, block, levels, under: UNDER_OF[block], tint: new THREE.Color(shade, shade, shade) });
     }
   }
   return cells;
+}
+
+// source "tout découvert" pour évaluer le style diorama sur un GRAND monde
+function makeSource(): TerrainSource {
+  const tiles: TerrainSource["tiles"] = [];
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) tiles.push({ ...tileFor(x, y), discovered: true });
+  }
+  return { width: W, height: H, tiles };
 }
 
 export function VoxelBench() {
@@ -64,6 +81,8 @@ export function VoxelBench() {
   const engineRef = useRef<VoxelEngine | null>(null);
   const [hud, setHud] = useState({ calls: 0, triangles: 0, ms: 0, instances: 0, meshMs: 0, loadMs: 0 });
   const [picked, setPicked] = useState<string>("");
+  const [mode, setMode] = useState<"blocks" | "smooth">("smooth");
+  const rebuildRef = useRef<((m: "blocks" | "smooth") => void) | null>(null);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -87,11 +106,82 @@ export function VoxelBench() {
     (async () => {
       const t0 = performance.now();
       lib = new BlockLibrary("/voxels/16"); // LOD carte : blocs 16³
-      await lib.load(["water", "sand", "grass", "forest", "stone", "snow", "mist", "dirt"]);
+      const propsLib = new BlockLibrary("/voxels/props");
+      await Promise.all([
+        lib.load(["water", "sand", "grass", "forest", "stone", "snow", "mist", "dirt"]),
+        propsLib.load(["tree-green", "tree-pink", "rock"]),
+      ]);
       if (disposed) return;
-      const cells = makeCells();
-      const { group, lookup, instances } = buildTerrain(lib, cells);
-      engine.scene.add(group);
+      const smooth = new SmoothTerrain();
+      const roots: THREE.Object3D[] = [];
+      let lookup = new Map<THREE.Object3D, TerrainCell[]>();
+      let instances = 0;
+      const rebuild = (mode: "blocks" | "smooth") => {
+        for (const r of roots) engine.scene.remove(r);
+        roots.length = 0;
+        if (mode === "blocks") {
+          const built = buildTerrain(lib!, makeCells());
+          lookup = built.lookup;
+          instances = built.instances;
+          roots.push(built.group);
+        } else {
+          // GRAND MONDE tout découvert : l'évaluation du style diorama
+          const source = makeSource();
+          roots.push(smooth.build(source, null, (t) => t.height));
+          // scatter d'arbres/rochers, même logique que la carte (compacte)
+          const h01 = (x: number, y: number, s: number) => {
+            let h = (x * 374761393 + y * 668265263 + s * 2246822519) >>> 0;
+            h = (h ^ (h >> 13)) * 1274126177;
+            return ((h >>> 16) & 0xffff) / 0x10000;
+          };
+          const mats = new Map<string, THREE.Matrix4[]>();
+          const up = new THREE.Vector3(0, 1, 0);
+          for (const [i, t] of source.tiles.entries()) {
+            const x = i % W, y = Math.floor(i / W);
+            const plant = (id: string, k: number, sc: number) => {
+              const px = x + (h01(x, y, k) - 0.5) * 0.7;
+              const py = y + (h01(x, y, k + 1) - 0.5) * 0.7;
+              const s = sc * (0.75 + h01(x, y, k + 2) * 0.4);
+              const m = new THREE.Matrix4().compose(
+                new THREE.Vector3(px, smooth.heightAt(px, py) - 0.02, py),
+                new THREE.Quaternion().setFromAxisAngle(up, h01(x, y, k + 3) * Math.PI * 2),
+                new THREE.Vector3(s, s, s),
+              );
+              const key = `${id}-v${Math.floor(h01(x, y, k + 4) * 3)}`;
+              (mats.get(key) ?? mats.set(key, []).get(key)!).push(m);
+            };
+            if (t.biome === 3) {
+              plant("tree-green", 10, 0.62);
+              if (h01(x, y, 20) < 0.75) plant("tree-green", 30, 0.5);
+              if (h01(x, y, 40) < 0.18) plant("tree-pink", 50, 0.55);
+            } else if (t.biome === 2) {
+              const r = h01(x, y, 60);
+              if (r < 0.06) plant("tree-pink", 70, 0.55);
+              else if (r < 0.14) plant("tree-green", 80, 0.5);
+            } else if (t.biome === 4 && h01(x, y, 99) < 0.3) plant("rock", 100, 0.65);
+          }
+          const group = new THREE.Group();
+          instances = 0;
+          for (const [key, list] of mats) {
+            const dash = key.lastIndexOf("-v");
+            const geom = propsLib.get(key.slice(0, dash), Number(key.slice(dash + 2)));
+            if (!geom) continue;
+            const mesh = new THREE.InstancedMesh(geom, new THREE.MeshLambertMaterial({ vertexColors: true }), list.length);
+            for (let k = 0; k < list.length; k++) mesh.setMatrixAt(k, list[k]);
+            mesh.instanceMatrix.needsUpdate = true;
+            mesh.castShadow = mesh.receiveShadow = true;
+            group.add(mesh);
+            instances += list.length;
+          }
+          roots.push(group);
+          lookup = new Map();
+        }
+        for (const r of roots) engine.scene.add(r);
+        engine.invalidate();
+      };
+      rebuild("smooth");
+      rebuildRef.current = rebuild;
+      (window as unknown as { __vbRebuild?: (m: "blocks" | "smooth") => void }).__vbRebuild = rebuild;
       engine.onFrame = (f) =>
         setHud((h) => ({ ...h, ...f, instances, meshMs: Math.round(lib!.meshMs), loadMs: Math.round(performance.now() - t0) }));
       controls.onTap = (tap) => {
@@ -128,6 +218,12 @@ export function VoxelBench() {
         <button onClick={() => setScreen("voxeledit")} style={btn}>🧊 Éditeur</button>
         <button onClick={() => engineRef.current?.rotate(1)} style={btn}>↻ Rotation</button>
         <button onClick={() => engineRef.current?.rotate(-1)} style={btn}>↺</button>
+        <button
+          style={{ ...btn, background: mode === "smooth" ? "#5a7d4a" : btn.background }}
+          onClick={() => { const m = mode === "smooth" ? "blocks" : "smooth"; setMode(m); rebuildRef.current?.(m); }}
+        >
+          {mode === "smooth" ? "🌄 Lisse" : "🧱 Blocs"}
+        </button>
       </div>
       <div style={{ position: "absolute", bottom: 8, left: 8, fontSize: 12, background: "rgba(0,0,0,.55)", padding: "6px 10px", borderRadius: 8, lineHeight: 1.6 }}>
         <div>draw calls {hud.calls} · tris {hud.triangles.toLocaleString()} · instances {hud.instances}</div>

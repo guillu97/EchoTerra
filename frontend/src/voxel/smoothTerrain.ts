@@ -11,14 +11,20 @@
 // disponibles pour comparer ; Combat et Home gardent leurs blocs (grille lisible).
 
 import * as THREE from "three";
-import type { GameState } from "../api/types";
+
+/** source structurelle : GameState convient, le banc fabrique la sienne */
+export type TerrainSource = {
+  width: number;
+  height: number;
+  tiles: { biome: number; height: number; discovered?: boolean }[];
+};
 
 const SUB = 3; // sous-divisions par tuile (3×3 quads)
 const MICRO = 0.05; // amplitude du micro-relief (unités monde)
 
 // STYLE DIORAMA (référence utilisateur 2026-07-17) : plateaux plats aux rebords
 // organiques (terrasses), falaises pierre crème, AO cuite, palette menthe/crème.
-const TERRACE_BAND = 0.34; // largeur de la transition falaise (fraction de niveau)
+const TERRACE_BAND = 0.26; // largeur de la transition falaise (fraction de niveau)
 
 // Palette diorama par biome — désaturée façon maquette (la référence) ; deux
 // nuances par biome pour les taches douces par tuile.
@@ -55,7 +61,7 @@ function hash01(x: number, y: number, s = 0): number {
 export class SmoothTerrain {
   mesh: THREE.Mesh | null = null;
   private heights: Float32Array | null = null; // hauteur lissée par sommet de sous-grille
-  private game: GameState | null = null;
+  private game: TerrainSource | null = null;
 
   /** hauteur du sol lissé au point (x, y) monde (coordonnées tuile continues) */
   heightAt(x: number, y: number): number {
@@ -79,7 +85,7 @@ export class SmoothTerrain {
    * plaine) pour rester cohérent avec brume/overlays ; les tuiles non
    * découvertes comptent hauteur 0 (la brume les couvre).
    */
-  build(game: GameState, palettes: Palettes | null, renderHeight: (t: GameState["tiles"][number]) => number): THREE.Mesh {
+  build(game: TerrainSource, palettes: Palettes | null, renderHeight: (t: TerrainSource["tiles"][number]) => number): THREE.Mesh {
     this.game = game;
     const W = game.width, H = game.height, n = SUB;
     const gw = W * n + 1, gh = H * n + 1;
@@ -95,7 +101,9 @@ export class SmoothTerrain {
     };
     const tileH = (tx: number, ty: number): number => {
       const t = game.tiles[ty * W + tx];
-      return t?.discovered ? renderHeight(t) : 0;
+      if (!t?.discovered) return 0;
+      if (t.biome === 0) return -0.45; // l'eau SE CREUSE : rives en pente douce
+      return renderHeight(t);
     };
 
     // hauteurs de la sous-grille : coins = moyenne des 4 tuiles, intérieur =
@@ -170,7 +178,11 @@ export class SmoothTerrain {
         // falaises et vallons gagnent le contact sombre du style maquette
         const concave = (hL + hR + hU + hD) / 4 - heights[i];
         const ao = 1 - Math.min(0.32, Math.max(0, concave) * 0.85);
-        const grain = 0.97 + hash01(gx, gy, 3) * 0.06;
+        // pointillés d'herbe discrets (la référence en a) : rares vertex un
+        // cran plus foncés sur herbe/forêt
+        const tHere = game.tiles[Math.min(Math.max(ty0, 0), H - 1) * W + Math.min(Math.max(tx0, 0), W - 1)];
+        const dot = tHere?.discovered && (tHere.biome === 2 || tHere.biome === 3) && hash01(gx, gy, 13) < 0.05 ? 0.86 : 1;
+        const grain = (0.97 + hash01(gx, gy, 3) * 0.06) * dot;
         colors[i * 3] = (r / 255) * grain * ao;
         colors[i * 3 + 1] = (g2 / 255) * grain * ao;
         colors[i * 3 + 2] = (b / 255) * grain * ao;

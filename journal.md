@@ -6,6 +6,27 @@
 
 ---
 
+## 2026-07-17 (14) — Diorama itération 2 : rives, pointillés, GRAND MONDE au banc
+
+### Fait
+- **L'eau se creuse** (`tileH` → −0.45 pour biome 0) : rives en pente douce, étangs laiteux
+  aux bords fondus (sable auto par le fondu de biomes). **Pointillés d'herbe** discrets
+  (5 % des vertex herbe/forêt à −14 %). Terrasses resserrées (bande 0.34 → 0.26).
+- **`SmoothTerrain` accepte une source STRUCTURELLE** (`TerrainSource`) → le **banc 60×60
+  a un mode 🌄 Lisse / 🧱 Blocs** (bouton + hook `__vbRebuild`) qui construit le diorama
+  TOUT DÉCOUVERT (2 415 arbres/rochers scatter) — l'outil d'évaluation du style et de la
+  perf pire-cas. Résultat visuel TRÈS proche de la référence (captures).
+- **Jitter des canopées quantifié en 3 teintes** (gen-props) : 7,0 → 5,9 M tris au banc
+  plein monde (ombres comprises) — l'arbre voxel bosselé fusionne mal par nature ; en vraie
+  partie le fog réduit à ~10-20 % de ça. Blocs re-générés.
+- Backend mort pendant une interruption (diagnostic : dernier log 16:12, curl 000) —
+  relancé, e2e re-vérifié.
+
+### Fonctionnel (vérifié e2e, captures)
+- Banc lisse plein monde : collines terrassées crème, forêts de boules + cerisiers, étangs,
+  longues ombres — le style de la référence. Vraie partie : île diorama, move serveur OK,
+  rotation OK. `tsc` + build verts.
+
 ## 2026-07-17 (13) — Terrain continu : STYLE DIORAMA (référence image utilisateur)
 
 ### Fait

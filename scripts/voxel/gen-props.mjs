@@ -25,7 +25,9 @@ function ellipsoid(g, cx, cy, cz, rx, ry, rz, rgb, rnd, jitterRgb = 8) {
       for (let x = Math.floor(cx - rx); x <= cx + rx; x++) {
         const d = ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 + ((z - cz) / rz) ** 2;
         if (d > 1) continue;
-        const j = (rnd() - 0.5) * 2 * jitterRgb;
+        // jitter QUANTIFIÉ en 3 teintes (−j / 0 / +j) : un jitter par voxel
+        // faisait exploser le greedy meshing (~2 k tris/arbre × 2 400 arbres)
+        const j = (((rnd() * 3) | 0) - 1) * jitterRgb;
         g.set(x, y, z, [rgb[0] + j, rgb[1] + j, rgb[2] + j].map((v) => Math.max(0, Math.min(255, Math.round(v)))));
       }
     }
