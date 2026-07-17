@@ -16,9 +16,12 @@ import { VoxelEngine } from "./engine";
 import { VoxelControls } from "./controls";
 import { BlockLibrary, buildTerrain, type TerrainCell } from "./terrain";
 import { makeLabel } from "./labels";
+import { CharLibrary } from "./characters";
 
 class CombatWorld {
   lib = new BlockLibrary("/voxels"); // 32³ : le combat est vu de près
+  chars = new CharLibrary();
+  charMeshes: THREE.Mesh[] = [];
   libReady = false;
   terrain: THREE.Group | null = null;
   terrainKey = "";
@@ -42,9 +45,16 @@ class CombatWorld {
       this.terrainKey = "";
       this.draw();
     });
+    void this.chars
+      .load(["char-scout", "char-builder", "char-archer", "char-knight", "char-merchant", "char-healer", "char-wizard"])
+      .then(() => this.draw());
+    engine.onFrame = () => {
+      for (const m of this.charMeshes) m.rotation.y = engine.azimuthNow;
+    };
   }
   dispose() {
     this.lib.dispose();
+    this.chars.dispose();
     for (const t of this.textures.values()) t.dispose();
   }
   texture(url: string): THREE.Texture {
@@ -105,6 +115,7 @@ class CombatWorld {
     this.overlays.clear();
     this.sprites.clear();
     this.unitOf.clear();
+    this.charMeshes = [];
 
     const topOf = (x: number, y: number) => this.heightAt(x, y) + 1;
     const quad = (x: number, y: number, color: number, opacity: number) => {
@@ -149,14 +160,24 @@ class CombatWorld {
 
       const tex =
         u.side === "hero" ? (u.appearance || heroTexKey(u.kind)) : monsterTexKey(u.kind, u.appearance);
-      const url = libUrl(u.side === "hero" ? "characters" : "monsters", tex || "char-scout");
-      const mat = new THREE.SpriteMaterial({ map: this.texture(url), alphaTest: 0.35, transparent: true });
-      const s = new THREE.Sprite(mat);
-      s.scale.set(0.78, 0.78, 1);
-      s.center.set(0.5, 0.04);
-      s.position.set(u.x, topOf(u.x, u.y), u.y);
-      this.sprites.add(s);
-      this.unitOf.set(s, u.id);
+      // héros : modèle voxel de la classe si disponible (tourne avec la caméra)
+      const mesh = u.side === "hero" && tex ? this.chars.make(tex) : undefined;
+      if (mesh) {
+        mesh.position.set(u.x, topOf(u.x, u.y), u.y);
+        mesh.rotation.y = this.engine.azimuthNow;
+        this.sprites.add(mesh);
+        this.charMeshes.push(mesh);
+        this.unitOf.set(mesh, u.id);
+      } else {
+        const url = libUrl(u.side === "hero" ? "characters" : "monsters", tex || "char-scout");
+        const mat = new THREE.SpriteMaterial({ map: this.texture(url), alphaTest: 0.35, transparent: true });
+        const s = new THREE.Sprite(mat);
+        s.scale.set(0.78, 0.78, 1);
+        s.center.set(0.5, 0.04);
+        s.position.set(u.x, topOf(u.x, u.y), u.y);
+        this.sprites.add(s);
+        this.unitOf.set(s, u.id);
+      }
 
       // barre de PV : fond sombre + remplissage coloré, toujours face caméra
       const ratio = Math.max(0, u.hp / u.maxHp);

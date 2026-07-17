@@ -153,4 +153,9 @@ export class VoxelEngine {
   get elevationPx(): number {
     return this.zoom * Math.sin(ELEVATION);
   }
+
+  /** azimut caméra courant (rad) — pour orienter les modèles face caméra */
+  get azimuthNow(): number {
+    return this.azimuth;
+  }
 }

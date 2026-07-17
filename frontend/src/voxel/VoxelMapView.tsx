@@ -19,6 +19,8 @@ import { heroTexKey, libUrl, monsterTexKey } from "../assets";
 import { VoxelEngine } from "./engine";
 import { VoxelControls } from "./controls";
 import { BlockLibrary, buildTerrain, type TerrainCell } from "./terrain";
+import { CharLibrary } from "./characters";
+import { heroTexKey as heroKey } from "../assets";
 
 const GROUND_LEVEL = 3; // même convention que MapScene : plaines = niveau 0
 const BIOME_BLOCKS = ["water", "sand", "grass", "forest", "stone", "snow"];
@@ -32,6 +34,8 @@ function renderHeight(t: { biome: number; height: number }): number {
 
 class MapWorld {
   lib = new BlockLibrary("/voxels/16");
+  chars = new CharLibrary(); // modèles voxel des héros (fallback billboard)
+  charMeshes: THREE.Mesh[] = []; // orientés face caméra à chaque frame
   libReady = false;
   terrain: THREE.Group | null = null;
   terrainKey = "";
@@ -56,10 +60,18 @@ class MapWorld {
         this.terrainKey = ""; // forcer la construction maintenant que les blocs sont là
         this.draw();
       });
+    void this.chars
+      .load(["char-scout", "char-builder", "char-archer", "char-knight", "char-merchant", "char-healer", "char-wizard"])
+      .then(() => this.draw());
+    // les modèles voxel tournent avec la caméra (rotation animée incluse)
+    engine.onFrame = () => {
+      for (const m of this.charMeshes) m.rotation.y = engine.azimuthNow;
+    };
   }
 
   dispose() {
     this.lib.dispose();
+    this.chars.dispose();
     for (const t of this.textures.values()) t.dispose();
   }
 
@@ -152,6 +164,7 @@ class MapWorld {
     // --- overlays + billboards (reconstruits à chaque render, ~dizaines) -------
     this.overlays.clear();
     this.sprites.clear();
+    this.charMeshes = [];
     const quad = (x: number, y: number, top: number, color: number, opacity: number) => {
       const m = new THREE.Mesh(
         new THREE.PlaneGeometry(0.96, 0.96).rotateX(-Math.PI / 2),
@@ -234,10 +247,25 @@ class MapWorld {
         ring.position.set(h.x + ox, topOf(h.x, h.y) + 0.03, h.y + oy);
         this.overlays.add(ring);
       }
-      billboard(libUrl("characters", heroTexKey(h.class)), h.x, h.y, {
-        alpha: mine ? 1 : OTHER_ALPHA,
-        ox, oy,
-      });
+      // Phase 5 : modèle voxel de la classe quand il existe (il tourne avec la
+      // caméra), billboard PNG sinon — bascule progressive par modèle.
+      const mesh = this.chars.make(heroKey(h.class));
+      if (mesh) {
+        mesh.position.set(h.x + ox, topOf(h.x, h.y), h.y + oy);
+        mesh.rotation.y = engine.azimuthNow;
+        if (!mine) {
+          mesh.material = (mesh.material as THREE.MeshBasicMaterial).clone();
+          (mesh.material as THREE.MeshBasicMaterial).transparent = true;
+          (mesh.material as THREE.MeshBasicMaterial).opacity = OTHER_ALPHA;
+        }
+        this.sprites.add(mesh);
+        this.charMeshes.push(mesh);
+      } else {
+        billboard(libUrl("characters", heroTexKey(h.class)), h.x, h.y, {
+          alpha: mine ? 1 : OTHER_ALPHA,
+          ox, oy,
+        });
+      }
     }
 
     // cadrage initial : zoomé sur la ville (comme MapScene)

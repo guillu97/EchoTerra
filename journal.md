@@ -6,6 +6,35 @@
 
 ---
 
+## 2026-07-17 (9) — Voxel Phase 5 : personnages voxel (héros, étape 2)
+
+### Fait
+- **`scripts/voxel/char-recipe.mjs`** (JS pur, partageable) : gabarit CHIBI voxel paramétré
+  20×12×30 — grosse tête, yeux + reflet, joues, tunique/ceinture/bottes, et **accessoire par
+  classe** : cape (éclaireur), casque de chantier (bâtisseur), arc + carquois (chasseur),
+  heaume + cimier + épée (chevalier), sac à dos (récupérateur), capuche + bâton à gemme
+  (soigneur), chapeau pointu + bâton (mage). Le personnage FAIT FACE à +y.
+- **`gen-characters.mjs`** : couleurs (peau/cheveux/tenue/accent) **échantillonnées par ZONES**
+  dans les PNG chibi existants (bande haute = cheveux, visage = peau [filtre teinte chair],
+  torse = tenue, accent = cluster le plus saturé) → 7 `.vox` dans `public/voxels/chars/` +
+  previews/SHEET dans `asset-index/voxels/chars/`. Retouche MagicaVoxel possible (re-déposer).
+- **`frontend/src/voxel/characters.ts`** (CharLibrary : fetch+mesh, échelle normalisée
+  HERO_HEIGHT, fallback silencieux si le .vox manque) ; **Map et Combat utilisent le modèle
+  voxel des héros quand il existe** (sinon billboard — bascule progressive) ; le modèle
+  **tourne réellement avec la caméra** (rotation.y = azimut, mis à jour chaque frame via
+  engine.onFrame + getter `azimuthNow` ; l'animation de rotation l'entraîne aussi).
+  Monstres : billboards conservés (gabarits blob/volant = suite).
+
+### Fonctionnel (vérifié e2e)
+- Contact sheet des 7 classes inspectée (accessoires reconnaissables) ; combat réel : Aldric
+  rendu en VOXEL sur l'arène (capture), clic case verte → move serveur OK, rotation OK.
+  `tsc` + build verts.
+
+### À faire
+- Monstres voxel (gabarits blob/volant/quadrupède), catalogue `voxels` dans build-catalog,
+  onglet personnages de l'éditeur voxel, MAJ CLAUDE.md §7a-bis. **Phase 6 (retrait Phaser +
+  flag par défaut) = décision utilisateur après test sur téléphone réel.**
+
 ## 2026-07-17 (8) — Voxel : passe polish + perf (Map/Combat/Home)
 
 ### Fait
