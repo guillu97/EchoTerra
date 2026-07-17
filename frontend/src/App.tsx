@@ -8,6 +8,7 @@ import { GameScreen } from "./screens/GameScreen";
 import { SettingsOverlay } from "./settings/SettingsOverlay";
 import { EditorScreen } from "./editor/EditorScreen";
 import { DesignerScreen } from "./designer/DesignerScreen";
+import { VoxelBench } from "./voxel/VoxelBench";
 
 // The app shell is full-bleed at every viewport size: `.device` is simply the
 // full-viewport container (see app-shell.css) — the old phone/tablet frame on
@@ -19,6 +20,7 @@ export default function App() {
   // The editor and the data studio are full-screen dev tools, outside the app shell.
   if (appScreen === "editor") return <EditorScreen />;
   if (appScreen === "designer") return <DesignerScreen />;
+  if (appScreen === "voxelbench") return <VoxelBench />;
 
   return (
     <div className="app-bg">

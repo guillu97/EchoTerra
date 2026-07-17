@@ -3,7 +3,9 @@
 // direction DA est héritée, pas réinventée), les formes viennent des recettes
 // procédurales (recipes.mjs, module partagé avec le futur éditeur navigateur).
 //
-//   node scripts/voxel/gen-blocks.mjs [--size 32] [--variants 3] [--only grass,stone]
+//   node scripts/voxel/gen-blocks.mjs [--size 32] [--variants 3] [--only grass,stone] [--out 16]
+//   --out écrit dans frontend/public/voxels/<out>/ (LOD : blocs 16³ de la carte
+//   monde dans voxels/16/, les 32³ de près restant à la racine)
 //
 // Sorties :
 //   frontend/public/voxels/<id>-v<k>.vox      modèles MagicaVoxel (retouchables)
@@ -115,8 +117,11 @@ async function main() {
   const size = Number(opt("size", 32)); // D1 : 32 par défaut, paramétrable
   const variants = Number(opt("variants", 3));
   const only = opt("only", "")?.split(",").filter(Boolean);
-  await mkdir(OUT_VOX, { recursive: true });
-  await mkdir(OUT_PREVIEW, { recursive: true });
+  const sub = opt("out", "");
+  const outVox = sub ? path.join(OUT_VOX, sub) : OUT_VOX;
+  const outPreview = sub ? path.join(OUT_PREVIEW, sub) : OUT_PREVIEW;
+  await mkdir(outVox, { recursive: true });
+  await mkdir(outPreview, { recursive: true });
 
   const sheetTiles = [];
   for (const def of BLOCKS) {
@@ -142,10 +147,10 @@ async function main() {
     for (let v = 0; v < variants; v++) {
       const model = generateBlock(def, pal, { size, seed: 42 + v * 1000 + def.id.length });
       models.push(model);
-      await writeFile(path.join(OUT_VOX, `${def.id}-v${v}.vox`), encodeVox(model));
+      await writeFile(path.join(outVox, `${def.id}-v${v}.vox`), encodeVox(model));
     }
     // previews : bloc seul (v0) + tuilage 2×2 mélangeant les variantes + pile de 2
-    await writePng(renderModel(models[0], { s: 6 }), path.join(OUT_PREVIEW, `${def.id}.png`));
+    await writePng(renderModel(models[0], { s: 6 }), path.join(outPreview, `${def.id}.png`));
     const tiling = renderTiling(
       [
         { model: models[0], gx: 0, gy: 0, gz: 0 },
@@ -156,7 +161,7 @@ async function main() {
       ],
       { s: 3 },
     );
-    await writePng(tiling, path.join(OUT_PREVIEW, `${def.id}-tiling.png`));
+    await writePng(tiling, path.join(outPreview, `${def.id}-tiling.png`));
     sheetTiles.push(def.id);
     console.log(`✓ ${def.id} (${variants} variantes, palette ${pal.top.length}+${pal.side.length}+${pal.accents.length})`);
   }
@@ -169,7 +174,7 @@ async function main() {
   for (let i = 0; i < sheetTiles.length; i++) {
     const id = sheetTiles[i];
     const x = (i % cols) * CELL, y = Math.floor(i / cols) * (CELL + LABEL);
-    const img = await sharp(path.join(OUT_PREVIEW, `${id}.png`))
+    const img = await sharp(path.join(outPreview, `${id}.png`))
       .resize(CELL - 16, CELL - 16, { fit: "inside" })
       .toBuffer();
     composites.push({ input: img, left: x + 8, top: y + 8 });
@@ -186,8 +191,8 @@ async function main() {
   })
     .composite(composites)
     .png()
-    .toFile(path.join(OUT_PREVIEW, "SHEET.png"));
-  console.log(`Contact sheet → ${path.relative(ROOT, path.join(OUT_PREVIEW, "SHEET.png"))}`);
+    .toFile(path.join(outPreview, "SHEET.png"));
+  console.log(`Contact sheet → ${path.relative(ROOT, path.join(outPreview, "SHEET.png"))}`);
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });

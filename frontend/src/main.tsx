@@ -12,6 +12,7 @@ const applyHash = () => {
   const h = location.hash.replace("#", "");
   if (h === "editor") useStore.getState().setScreen("editor");
   if (h === "designer") useStore.getState().setScreen("designer");
+  if (h === "voxel-bench") useStore.getState().setScreen("voxelbench");
 };
 window.addEventListener("hashchange", applyHash);
 // Defer one tick so the store is initialized before we flip the screen.

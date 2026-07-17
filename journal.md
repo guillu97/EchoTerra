@@ -6,6 +6,38 @@
 
 ---
 
+## 2026-07-17 (3) — Voxel Phase 1 : moteur Three.js + banc d'essai
+
+### Fait
+- **`frontend/src/voxel/`** (dep `three`) : `vox.ts` (décodeur .vox navigateur), `mesher.ts`
+  (greedy meshing → BufferGeometry couleurs par vertex, éclairage CUIT par direction de face —
+  ⚠ l'échange d'axes voxel(z-up)→three(y-up) inverse la chiralité : enroulement OPPOSÉ, vérifié
+  par test de normales sur cube unité), `engine.ts` (WebGL **on-demand** — 0 frame au repos,
+  caméra ORTHO dimétrique élévation 30°, canvas px physiques DPR, frustum en px CSS → zoom = px/unité),
+  `rotation.ts` (4 orientations, azimut 45°+k·90°, animée 240 ms), `controls.ts` (pan « attrape le
+  sol », molette ancrée, **pinch absolu depuis baseline** — même math que MapScene, TAP_SLOP 10px CSS),
+  `terrain.ts` (BlockLibrary par LOD + `buildTerrain` : **InstancedMesh par (bloc,variante)**,
+  bloc `under` sous la surface [terre sous herbe — sinon piliers « rayés »], tint par instance,
+  lookup instance→cellule pour le picking).
+- **Banc `#voxel-bench`** (bouton titre « 🧊 Voxels », écran hors shell `voxelbench`) : monde 60×60
+  simulé (biomes par bruit + anneau de brume), HUD draw calls/tris/instances/meshing/frame,
+  boutons rotation, tap→sélection (quad jaune posé sur la tuile).
+- **LOD 16³** (`gen-blocks --size 16 --out 16` → `voxels/16/`) : à l'échelle carte, 32³ = 21,9 M
+  tris (mesuré) → 16³ + flancs unis + scatter atténué = **2,7 M tris, 24 draw calls, meshing
+  64 ms, chargement ~200 ms** (mesuré headless). Recettes : tons quantifiés en paliers (aide le
+  greedy + style aplats), flancs speckle seulement ≥24³.
+
+### Fonctionnel (vérifié)
+- `tsc -b` + `npm run build` OK ; bench vérifié en Chromium headless GL logiciel (Playwright,
+  poll par evaluate) : terrain rendu (captures), tap → « (33,34) forest ×3 », rotation 90°/180°
+  correcte, zéro erreur console. Budgets HUD ci-dessus.
+
+### À faire
+- Phase 1b : éditeur voxel (`#voxeledit`, bibliothèque, vue 3D, édition, recettes live via
+  `recipes.mjs` partagé) — absorbera le banc. Puis Phase 2 (Map réelle branchée sur GameState),
+  3 (Combat), 4 (Home). Optimisation possible si besoin réel : meshing par chunks avec culling
+  des faces entre piliers voisins (~5-10× de tris en moins). Catalogue `voxels` à ajouter.
+
 ## 2026-07-17 (2) — Voxel Phase 0 : générateur de blocs (sans ComfyUI)
 
 ### Fait

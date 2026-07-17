@@ -107,15 +107,22 @@ function groundRecipe(b, pal, rnd, seed, p) {
   const bumpAmp = p.bump ?? 1;
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
-      // socle : strates légèrement bruitées + moucheture
+      // socle : strates légèrement bruitées + moucheture. Les tons sont
+      // QUANTIFIÉS en paliers : de grandes plages d'une même couleur fusionnent
+      // en grands rectangles au greedy meshing (≈3× moins de triangles) et le
+      // rendu en aplats colle mieux au style storybook qu'un mouchetis.
       for (let z = 0; z < size - surfDepth; z++) {
-        const band = noise2(x + z * 3, y + z * 7, size, seed + 40, 1);
+        // aux petites tailles (LOD carte) les flancs restent en bandes UNIES :
+        // chaque voxel distinct sur la coque coûte des rectangles au mesher
+        const band = size >= 24
+          ? Math.round(noise2(x + z * 3, y + z * 7, size, seed + 40, 1) * 3) / 3
+          : Math.round((z / size) * 2) / 2;
         let c = ramp(pal.side, 0.25 + 0.6 * band);
-        if (rnd() < 0.03) c = shade(c, 0.82); // caillou sombre incrusté
+        if (size >= 24 && rnd() < 0.03) c = shade(c, 0.82); // caillou sombre incrusté
         b.set(x, y, z, c);
       }
-      // couche de surface : nuance par bruit doux (taches d'herbe/sable)
-      const tone = noise2(x, y, size, seed, 2);
+      // couche de surface : nuance par bruit doux (taches d'herbe/sable), en paliers
+      const tone = Math.round(noise2(x, y, size, seed, 2) * 4) / 4;
       for (let z = size - surfDepth; z < size; z++) {
         const deep = (size - 1 - z) / surfDepth; // 0 en surface
         b.set(x, y, z, ramp(pal.top, clamp01(0.15 + 0.5 * tone + 0.25 * deep)));
@@ -127,10 +134,12 @@ function groundRecipe(b, pal, rnd, seed, p) {
       }
     }
   }
-  // scatter — densités par voxel de surface
+  // scatter — densités par voxel de surface, atténuées au LOD réduit (un voxel
+  // de 16³ est 2× plus gros à l'écran : même densité = 2× plus de bruit visuel)
   const cells = size * size;
+  const lod = Math.min(1, size / 32);
   const scatter = (density, fn) => {
-    const n = Math.round(cells * density);
+    const n = Math.round(cells * density * lod);
     for (let i = 0; i < n; i++) fn(Math.floor(rnd() * size), Math.floor(rnd() * size));
   };
   const topAt = (x, y) => { let z = b.sz - 1; while (z > 0 && !b.get(x, y, z)) z--; return z; };
