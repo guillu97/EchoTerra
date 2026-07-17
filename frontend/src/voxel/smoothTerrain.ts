@@ -26,15 +26,17 @@ const MICRO = 0.06; // micro-relief (± unités) — produit des marches isolée
 const TERRACE_BAND = 0.26; // largeur de la transition de terrasse
 
 // Palette diorama par biome (désaturée façon maquette), deux nuances par biome.
+// Palette densifiée (retour utilisateur : « moins pâle ») — pastels francs,
+// pas délavés : verts qui existent, eau vraiment bleue, sable doré.
 const DIORAMA: Record<number, [number, number, number][]> = {
-  0: [[150, 202, 222], [138, 192, 214]], // eau laiteuse
-  1: [[228, 213, 176], [220, 203, 164]], // sable crème
-  2: [[186, 216, 170], [174, 208, 156]], // herbe menthe
-  3: [[162, 198, 142], [152, 190, 132]], // forêt (sol clair — les arbres font le vert)
-  4: [[204, 197, 186], [192, 185, 174]], // roche claire
-  5: [[240, 242, 247], [230, 234, 241]], // neige
+  0: [[110, 182, 214], [96, 170, 205]], // eau lagon
+  1: [[222, 199, 146], [213, 187, 130]], // sable doré
+  2: [[150, 200, 118], [136, 190, 104]], // herbe verte franche
+  3: [[124, 176, 92], [112, 166, 84]], // sol forêt (les arbres font la canopée)
+  4: [[190, 178, 160], [176, 164, 146]], // roche chaude
+  5: [[234, 238, 246], [222, 228, 238]], // neige
 };
-const CLIFF: [number, number, number] = [227, 219, 198]; // pierre crème des marches
+const CLIFF: [number, number, number] = [214, 199, 168]; // pierre des marches, plus chaude
 const UNDISCOVERED: [number, number, number] = [225, 227, 244]; // sous la brume
 
 // ombrage voxel par face (mêmes valeurs douces que le mesher des blocs)

@@ -58,9 +58,10 @@ function rock(seed) {
   return { ...SIZE, size: SIZE.sx, data: g.data, palette: g.palette };
 }
 
-const GREEN = [176, 214, 160];
-const PINK = [232, 198, 210];
-const DEEP = [148, 194, 138];
+// canopées densifiées (retour « moins pâle ») : verts feuillus, rose cerisier franc
+const GREEN = [134, 192, 108];
+const PINK = [232, 164, 188];
+const DEEP = [104, 168, 88];
 
 async function main() {
   await mkdir(OUT_VOX, { recursive: true });

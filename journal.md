@@ -6,6 +6,20 @@
 
 ---
 
+## 2026-07-17 (17) — Couleurs densifiées (retour « moins pâle »)
+
+### Fait
+- **Palette diorama saturée** (`smoothTerrain.DIORAMA`) : herbe verte franche (150,200,118),
+  eau lagon (110,182,214), sable doré, sol forêt profond, falaises plus chaudes (214,199,168).
+- **Canopées d'arbres densifiées** (gen-props : vert feuillu 134,192,108 / profond 104,168,88 /
+  rose cerisier 232,164,188 — props régénérés).
+- **Lumière calibrée en conséquence** : hemi 1.4→1.2, sun 1.75→1.7 (+ rampes du cycle solaire
+  alignées) — la surexposition délavait les teintes.
+
+### Fonctionnel (vérifié, captures midi/crépuscule banc + vraie partie)
+- Verts qui existent, eau vraiment bleue, cerisiers qui ressortent ; crépuscule mauve sur
+  palette dense très lisible. Move serveur + rotation OK, `tsc` + build verts.
+
 ## 2026-07-17 (16) — CYCLE SOLAIRE sur le timer de vague + shader d'eau
 
 ### Fait
