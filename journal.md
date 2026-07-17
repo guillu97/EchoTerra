@@ -6,6 +6,33 @@
 
 ---
 
+## 2026-07-17 (2) — Voxel Phase 0 : générateur de blocs (sans ComfyUI)
+
+### Fait
+- **`scripts/voxel/`** : `recipes.mjs` (recettes procédurales JS PUR — partageable avec le futur
+  éditeur navigateur ; bruit de valeur **périodique** → tuilage sans couture, cube plein + relief
+  ADDITIF dans une marge HEADROOM au-dessus → raccords verticaux garantis), `vox-format.mjs`
+  (encode/décode `.vox` MagicaVoxel), `render-iso.mjs` (rendu logiciel iso 2:1 sans GPU — l'outil
+  de validation en session), `gen-blocks.mjs` (CLI : **palettes extraites des isotiles existants**
+  — face du haut / flancs séparés, quantification 5 bits, accents saturés depuis flowers/mushroom ;
+  `--size` (D1, 32 défaut) `--variants` `--only`).
+- **11 blocs × 3 variantes** dans `frontend/public/voxels/` : water (dégradé de profondeur +
+  vaguelettes), sand, grass (brins + fleurs accent), forest, stone (fissures), snow (étincelles),
+  **mist** (banc de nuages moutonné, palette MIST_* de MapScene), dirt, cobblestone (Voronoï
+  périodique), brick (appareillage 3D), woodfloor (lames + abouts).
+- Previews dans `asset-index/voxels/` : bloc seul, **tuilage 2×2 + empilement** (vérif raccords),
+  `SHEET.png` (contact sheet).
+
+### Fonctionnel (vérifié)
+- Génération complète sans erreur ; contact sheet inspectée visuellement (style storybook OK,
+  raccords 2×2 et vertical sans couture) ; décodage `.vox` round-trip OK (données identiques ;
+  seuls les octets alpha de palette inutilisés diffèrent).
+
+### À faire
+- Phase 1 : moteur Three.js (`frontend/src/voxel/`) — mesher greedy, InstancedMesh, caméra ortho
+  dimétrique, rotation 4 orientations, banc `#voxel-bench`. Puis 1b (éditeur), 2 (Map), 3 (Combat),
+  4 (Home), 5 (persos voxel). Ajouter la catégorie `voxels` à `build-catalog.mjs`.
+
 ## 2026-07-17 — Plan « carte voxel » (VOXEL-PLAN.md)
 
 ### Fait
