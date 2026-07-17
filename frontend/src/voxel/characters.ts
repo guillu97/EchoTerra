@@ -10,6 +10,13 @@ import { meshVoxModel } from "./mesher";
 
 export const HERO_HEIGHT = 0.85; // hauteur monde d'un héros (unités tuile)
 
+// Tout ce que le générateur voxel sait produire (chars/ contient héros ET
+// monstres) ; un .vox manquant retombe silencieusement en billboard.
+export const ALL_CHAR_KEYS = [
+  "char-scout", "char-builder", "char-archer", "char-knight", "char-merchant", "char-healer", "char-wizard",
+  "mob-goblin", "mob-slime", "mob-windelemental", "mob-bat", "mob-ghost", "mob-mushroomling", "mob-spider", "mob-wolf", "mob-orc",
+];
+
 export class CharLibrary {
   private geoms = new Map<string, { geometry: THREE.BufferGeometry; scale: number }>();
   private failed = new Set<string>();

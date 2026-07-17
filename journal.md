@@ -6,6 +6,28 @@
 
 ---
 
+## 2026-07-17 (10) — Voxel Phase 5 (fin) : monstres voxel + catalogue — FIN du chantier autonome
+
+### Fait
+- **`monster-recipe.mjs`** : 9 silhouettes paramétrées (blob slime + reflet, fantôme à jupe
+  festonnée [harpies], TOURBILLON étagé [élémentaire de vent], champignon à pois [dryade],
+  chauve-souris ailes en éventail, araignée 8 pattes + cristal, quadrupède [loup-garou],
+  gobelinoïde petit/grand [gobelin/orc + défenses]) — `Grid`/`shade` partagés avec le gabarit
+  héros. **`gen-monsters.mjs`** : corps = cluster dominant du PNG, accent = cluster distinct.
+- Map ET Combat : `ALL_CHAR_KEYS` (7 héros + 9 monstres) — **tout le monde passe en modèle
+  voxel** quand le .vox existe, billboard sinon ; vérifié e2e (combat 100 % voxel : Aldric vs
+  3 harpies-fantômes voxel, move serveur OK).
+- **`build-catalog.mjs` énumère `voxels/**`** (95 .vox, catégorie `voxels`, tags voxel/lod/…) —
+  600 assets au catalogue. `CLAUDE.md` §7a-bis à jour (Phases 0→5 documentées).
+
+### État global du chantier voxel (VOXEL-PLAN.md)
+- ✅ Phases 0, 1, 1b, 2, 3, 4, 5 + passe polish/perf. Tout derrière **Settings → « Carte
+  voxel (expérimental) »** ; Phaser reste le défaut et le fallback.
+- ⏳ **Phase 6 (voxel par défaut + retrait Phaser) = décision de Guillaume après test sur
+  téléphone réel** (pinch/pan/rotation à valider au doigt ; le banc 🧊 → « 🌍 Terrain 60×60 »
+  donne les budgets live). Restent aussi (petits) : grilles de ciblage GDD par case en combat,
+  respiration de la brume, test perf automatisé du chemin voxel, onglet persos de l'éditeur.
+
 ## 2026-07-17 (9) — Voxel Phase 5 : personnages voxel (héros, étape 2)
 
 ### Fait

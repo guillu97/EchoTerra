@@ -520,9 +520,18 @@ pinch absolu, banc `#voxel-bench`) ; **Phase 1b** éditeur `#voxeledit` / bouton
 export/import .vox, orbite libre) ; **Phase 2** `VoxelMapView.tsx` — la Map voxel derrière
 **Settings → « Carte voxel (expérimental) »** (`settings.voxelMap`), MÊME contrat bus que MapScene
 (le reste de l'app est agnostique), fog serveur → blocs de brume, billboards persos (étape 1),
-déplacement snap sans animation ; le combat retombe sur Phaser tant que la Phase 3 n'est pas faite.
-Restent : Phase 3 combat, Phase 4 Home (town-map.json = déjà des piles de blocs), Phase 5 persos
-voxel, Phase 6 retrait de Phaser.
+déplacement snap sans animation ; **Phase 3** `VoxelCombatView.tsx` (arène 7×7 blocs 32³, reachable serveur en quads verts
+contrastés, anneaux cibles, barres de PV + étiquettes canvas `labels.ts` [depthTest OFF —
+lisibles derrière un pilier], rotation FFTA2) ; **Phase 4** `VoxelTownView.tsx` (town-map.json
+interprété pile par pile via `buildStacks`, TOUS les matériaux de sol ont leur bloc voxel
+homonyme, bâtiments éditeur en billboards + hotspots raycast + pastilles DOM projetées, héros
+sur l'herbe, LOD 16³ = 426 k tris) ; **Phase 5** personnages voxel (`char-recipe.mjs` gabarit
+chibi paramétré 7 classes + `monster-recipe.mjs` 9 silhouettes de monstres, couleurs
+échantillonnées des PNG par `gen-characters.mjs`/`gen-monsters.mjs` → `voxels/chars/*.vox`,
+`characters.ts` CharLibrary : modèle voxel quand il existe sinon billboard, rotation.y = azimut
+caméra chaque frame). Catalogue : `build-catalog.mjs` énumère `voxels/**` (catégorie `voxels`).
+**Reste : Phase 6** (voxel par défaut + retrait de Phaser, ~−1,2 Mo) = décision utilisateur
+après test sur téléphone réel — tout est derrière `settings.voxelMap` en attendant.
 
 ## 7b. Map editor (dev tool — `frontend/src/editor/`)
 

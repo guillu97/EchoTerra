@@ -9,12 +9,12 @@
 // palette: { skin, hair, outfit, outfit2, accent } — [r,g,b] extraits du PNG
 // de la classe (gen-characters échantillonne des zones du sprite).
 
-function shade([r, g, b], f) {
+export function shade([r, g, b], f) {
   const c = (v) => Math.max(0, Math.min(255, Math.round(v * f)));
   return [c(r), c(g), c(b)];
 }
 
-class Grid {
+export class Grid {
   constructor(sx, sy, sz) {
     this.sx = sx; this.sy = sy; this.sz = sz;
     this.data = new Uint8Array(sx * sy * sz);

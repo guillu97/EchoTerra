@@ -16,7 +16,7 @@ import { VoxelEngine } from "./engine";
 import { VoxelControls } from "./controls";
 import { BlockLibrary, buildTerrain, type TerrainCell } from "./terrain";
 import { makeLabel } from "./labels";
-import { CharLibrary } from "./characters";
+import { ALL_CHAR_KEYS, CharLibrary } from "./characters";
 
 class CombatWorld {
   lib = new BlockLibrary("/voxels"); // 32³ : le combat est vu de près
@@ -45,9 +45,7 @@ class CombatWorld {
       this.terrainKey = "";
       this.draw();
     });
-    void this.chars
-      .load(["char-scout", "char-builder", "char-archer", "char-knight", "char-merchant", "char-healer", "char-wizard"])
-      .then(() => this.draw());
+    void this.chars.load(ALL_CHAR_KEYS).then(() => this.draw());
     engine.onFrame = () => {
       for (const m of this.charMeshes) m.rotation.y = engine.azimuthNow;
     };
@@ -160,8 +158,8 @@ class CombatWorld {
 
       const tex =
         u.side === "hero" ? (u.appearance || heroTexKey(u.kind)) : monsterTexKey(u.kind, u.appearance);
-      // héros : modèle voxel de la classe si disponible (tourne avec la caméra)
-      const mesh = u.side === "hero" && tex ? this.chars.make(tex) : undefined;
+      // modèle voxel (héros ET monstres) si disponible — tourne avec la caméra
+      const mesh = tex ? this.chars.make(tex) : undefined;
       if (mesh) {
         mesh.position.set(u.x, topOf(u.x, u.y), u.y);
         mesh.rotation.y = this.engine.azimuthNow;

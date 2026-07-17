@@ -19,7 +19,7 @@ import { heroTexKey, libUrl, monsterTexKey } from "../assets";
 import { VoxelEngine } from "./engine";
 import { VoxelControls } from "./controls";
 import { BlockLibrary, buildTerrain, type TerrainCell } from "./terrain";
-import { CharLibrary } from "./characters";
+import { ALL_CHAR_KEYS, CharLibrary } from "./characters";
 import { heroTexKey as heroKey } from "../assets";
 
 const GROUND_LEVEL = 3; // même convention que MapScene : plaines = niveau 0
@@ -60,9 +60,7 @@ class MapWorld {
         this.terrainKey = ""; // forcer la construction maintenant que les blocs sont là
         this.draw();
       });
-    void this.chars
-      .load(["char-scout", "char-builder", "char-archer", "char-knight", "char-merchant", "char-healer", "char-wizard"])
-      .then(() => this.draw());
+    void this.chars.load(ALL_CHAR_KEYS).then(() => this.draw());
     // les modèles voxel tournent avec la caméra (rotation animée incluse)
     engine.onFrame = () => {
       for (const m of this.charMeshes) m.rotation.y = engine.azimuthNow;
@@ -220,7 +218,13 @@ class MapWorld {
       const c = new THREE.Color(1, 0.88 - danger * 0.68, 0.2 - danger * 0.2);
       quad(m.x, m.y, topOf(m.x, m.y), c.getHex(), 0.38 + danger * 0.2);
       const tex = monsterTexKey(m.species, m.appearance);
-      if (tex) billboard(libUrl("monsters", tex), m.x, m.y, { size: 0.6 });
+      const mesh = tex ? this.chars.make(tex) : undefined;
+      if (mesh) {
+        mesh.position.set(m.x, topOf(m.x, m.y), m.y);
+        mesh.rotation.y = engine.azimuthNow;
+        this.sprites.add(mesh);
+        this.charMeshes.push(mesh);
+      } else if (tex) billboard(libUrl("monsters", tex), m.x, m.y, { size: 0.6 });
     }
 
     // héros : les miens pleins, les autres translucides ; en ville = masqués
