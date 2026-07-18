@@ -53,7 +53,7 @@ function makeCells(): TerrainCell[] {
   for (let y = 0; y < H; y++) {
     for (let x = 0; x < W; x++) {
       if (Math.max(Math.abs(x - cx), Math.abs(y - cy)) > FOG_RADIUS) {
-        cells.push({ x, y, block: "mist", levels: 1 });
+        cells.push({ x, y, block: "mist", under: "mistbase", levels: 2 });
         continue;
       }
       const t = tileFor(x, y);
@@ -108,8 +108,8 @@ export function VoxelBench() {
       lib = new BlockLibrary("/voxels/16"); // LOD carte : blocs 16³
       const propsLib = new BlockLibrary("/voxels/props");
       await Promise.all([
-        lib.load(["water", "sand", "grass", "forest", "stone", "snow", "mist", "dirt"]),
-        propsLib.load(["tree-green", "tree-pink", "rock"]),
+        lib.load(["water", "sand", "grass", "forest", "stone", "snow", "mist", "mistbase", "dirt"]),
+        propsLib.load(["tree-green", "tree-pink", "rock", "pine", "pine-snow", "grass-tuft", "flowers", "reed"]),
       ]);
       if (disposed) return;
       const smooth = new SmoothTerrain();
@@ -154,11 +154,21 @@ export function VoxelBench() {
               plant("tree-green", 10, 0.62);
               if (h01(x, y, 20) < 0.5) plant("tree-green", 30, 0.5);
               if (h01(x, y, 40) < 0.12) plant("tree-pink", 50, 0.55);
+              if (h01(x, y, 110) < 0.4) plant("grass-tuft", 115, 0.3);
             } else if (t.biome === 2) {
               const r = h01(x, y, 60);
               if (r < 0.06) plant("tree-pink", 70, 0.55);
               else if (r < 0.14) plant("tree-green", 80, 0.5);
-            } else if (t.biome === 4 && h01(x, y, 99) < 0.3) plant("rock", 100, 0.65);
+              if (h01(x, y, 120) < 0.55) plant("grass-tuft", 125, 0.32);
+              if (h01(x, y, 130) < 0.16) plant("flowers", 135, 0.3);
+            } else if (t.biome === 4) {
+              if (h01(x, y, 99) < 0.3) plant("rock", 100, 0.65);
+              if (h01(x, y, 150) < 0.3) plant("pine", 155, 0.62);
+            } else if (t.biome === 5) {
+              if (h01(x, y, 160) < 0.35) plant("pine-snow", 165, 0.6);
+            } else if (t.biome === 1) {
+              if (h01(x, y, 170) < 0.12) plant("reed", 175, 0.38);
+            }
           }
           const group = new THREE.Group();
           instances = 0;

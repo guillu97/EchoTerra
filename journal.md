@@ -6,6 +6,27 @@
 
 ---
 
+## 2026-07-17 (24) — VOXEL PAR DÉFAUT + détails par terrain + nouveau brouillard
+
+### Fait
+- **Phase 6 (décision utilisateur) : `voxelMap: true` par défaut** — le voxel est le rendu de
+  Map/Combat/Home ; « Classique » dans les Réglages rebascule sur Phaser. ⚠ un appareil qui
+  a déjà SAUVÉ des réglages garde sa valeur locale.
+- **Détails par terrain** (gen-props + scatter carte ET banc) : `pine`/`pine-snow` (sapins à
+  4 étages coniques, variante saupoudrée) sur montagne/neige, `grass-tuft` (5-7 brins) +
+  `flowers` (têtes rouge/jaune/blanc par variante) en prairie + sous-bois forêt, `reed`
+  (roseaux à quenouilles) sur les rives de sable. Densités : herbe 55 %, fleurs 16 %,
+  sapins 30-35 %, roseaux 12 %. ~9,3 M tris plein monde au banc (ombres comprises).
+- **Brouillard de guerre refondu** : mur à DEUX niveaux (`mistbase` voile profond
+  indigo→lavande + `mist` sommet) et nouvelle texture — dôme ample par bloc (houle entre
+  voisins), **volutes tourbillonnantes sur le dessus** (v1 plate « papier » corrigée sur
+  capture : le dessus est LA face visible), striures de flanc, motes. Overlays/losanges
+  posés au sommet du mur (topOf non-découvert = 2).
+
+### Fonctionnel (vérifié, captures banc + vraie partie)
+- Sapins sur terrasses, roseaux aux étangs, prairies vivantes ; mur de brume texturé autour
+  de l'île ; move serveur + rotation OK ; `tsc` + build verts.
+
 ## 2026-07-17 (23) — FIX déploiement Vercel (imports hors racine)
 
 ### Fait

@@ -44,7 +44,7 @@ const DEFAULT_SETTINGS: Settings = {
   quality: "Medium",
   language: "Français",
   notif: { loot: true, wave: true, actionPoint: true, communication: false },
-  voxelMap: false,
+  voxelMap: true, // Phase 6 (décision utilisateur 2026-07-17) : le voxel est le rendu par défaut
   voxelSmooth: true,
 };
 

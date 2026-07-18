@@ -61,9 +61,99 @@ function rock(seed) {
 }
 
 // canopées densifiées (retour « moins pâle ») : verts feuillus, rose cerisier franc
+// SAPIN : tronc + 3 étages coniques ; variante enneigée = pourtour des étages
+// saupoudré de blanc (montagne/neige).
+function pine(snowy, seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz);
+  const rnd = makeRng(seed);
+  const cx = SIZE.sx / 2 - 0.5, cy = SIZE.sy / 2 - 0.5;
+  const trunk = [116, 88, 62];
+  const needle = snowy ? [96, 138, 112] : [84, 146, 96];
+  const snowC = [238, 243, 249];
+  g.box(Math.round(cx) - 1, Math.round(cx), Math.round(cy) - 1, Math.round(cy), 0, 5, trunk);
+  const tiers = [
+    { z0: 4, z1: 10, r: 7.2 },
+    { z0: 10, z1: 16, r: 5.4 },
+    { z0: 16, z1: 22, r: 3.6 },
+    { z0: 22, z1: 27, r: 2.0 },
+  ];
+  for (const { z0, z1, r } of tiers) {
+    for (let z = z0; z <= z1; z++) {
+      const t = (z - z0) / (z1 - z0);
+      const rad = r * (1 - t * 0.85);
+      for (let y = Math.floor(cy - rad); y <= cy + rad; y++) {
+        for (let x = Math.floor(cx - rad); x <= cx + rad; x++) {
+          const d2 = ((x - cx) / rad) ** 2 + ((y - cy) / rad) ** 2;
+          if (d2 > 1) continue;
+          const rim = d2 > 0.55; // pourtour de l'étage
+          const j = (((rnd() * 3) | 0) - 1) * 6;
+          let c = [needle[0] + j, needle[1] + j, needle[2] + j];
+          if (snowy && rim && z === z0) c = snowC; // neige posée sur le bord bas de l'étage
+          g.set(x, y, z, c.map((v) => Math.max(0, Math.min(255, Math.round(v)))));
+        }
+      }
+    }
+  }
+  if (snowy) g.set(cx, cy, 27, snowC);
+  return { ...SIZE, size: SIZE.sx, data: g.data, palette: g.palette };
+}
+
+// TOUFFE D'HERBE : 5-7 brins fins de hauteurs variées, vert vif.
+function tuft(seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz);
+  const rnd = makeRng(seed);
+  const cx = SIZE.sx / 2, cy = SIZE.sy / 2;
+  const n = 5 + Math.floor(rnd() * 3);
+  for (let i = 0; i < n; i++) {
+    const bx = Math.round(cx - 4 + rnd() * 8);
+    const by = Math.round(cy - 4 + rnd() * 8);
+    const h = 4 + Math.floor(rnd() * 5);
+    const tone = 0.9 + rnd() * 0.25;
+    const c = [Math.round(118 * tone), Math.round(186 * tone), Math.round(92 * tone)];
+    for (let z = 0; z < h; z++) g.set(bx + (z >= h - 1 && rnd() < 0.5 ? 1 : 0), by, z, c);
+  }
+  return { ...SIZE, size: SIZE.sx, data: g.data, palette: g.palette };
+}
+
+// FLEURS : 3 tiges + têtes colorées (couleur par variante).
+function flowers(head, seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz);
+  const rnd = makeRng(seed);
+  const cx = SIZE.sx / 2, cy = SIZE.sy / 2;
+  const stem = [104, 160, 84];
+  for (let i = 0; i < 3; i++) {
+    const bx = Math.round(cx - 3 + rnd() * 6);
+    const by = Math.round(cy - 3 + rnd() * 6);
+    const h = 3 + Math.floor(rnd() * 3);
+    for (let z = 0; z < h; z++) g.set(bx, by, z, stem);
+    g.box(bx - 1, bx, by - 1, by, h, h + 1, head);
+    g.set(bx, by, h + 1, [246, 232, 160]); // cœur
+  }
+  return { ...SIZE, size: SIZE.sx, data: g.data, palette: g.palette };
+}
+
+// ROSEAUX : tiges hautes et fines, quenouille brune au sommet (bord d'eau).
+function reed(seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz);
+  const rnd = makeRng(seed);
+  const cx = SIZE.sx / 2, cy = SIZE.sy / 2;
+  const n = 4 + Math.floor(rnd() * 2);
+  for (let i = 0; i < n; i++) {
+    const bx = Math.round(cx - 3 + rnd() * 6);
+    const by = Math.round(cy - 3 + rnd() * 6);
+    const h = 12 + Math.floor(rnd() * 6);
+    const tone = 0.92 + rnd() * 0.16;
+    const c = [Math.round(168 * tone), Math.round(178 * tone), Math.round(128 * tone)];
+    for (let z = 0; z < h; z++) g.set(bx, by, z, c);
+    g.box(bx, bx, by, by, h, h + 2, [124, 92, 60]); // quenouille
+  }
+  return { ...SIZE, size: SIZE.sx, data: g.data, palette: g.palette };
+}
+
 const GREEN = [134, 192, 108];
 const PINK = [232, 164, 188];
 const DEEP = [104, 168, 88];
+const FLOWER_HEADS = [[230, 116, 116], [240, 204, 110], [244, 240, 232]]; // rouge/jaune/blanc
 
 async function main() {
   await mkdir(OUT_VOX, { recursive: true });
@@ -72,6 +162,12 @@ async function main() {
     { id: "tree-green", make: (v) => tree(v === 1 ? DEEP : GREEN, 11 + v * 77) },
     { id: "tree-pink", make: (v) => tree(shade(PINK, 1 - v * 0.03), 31 + v * 77) },
     { id: "rock", make: (v) => rock(51 + v * 77) },
+    // détails par terrain (2026-07-17) : montagne/neige/prairie/rives
+    { id: "pine", make: (v) => pine(false, 61 + v * 77) },
+    { id: "pine-snow", make: (v) => pine(true, 71 + v * 77) },
+    { id: "grass-tuft", make: (v) => tuft(81 + v * 77) },
+    { id: "flowers", make: (v) => flowers(FLOWER_HEADS[v % 3], 91 + v * 77) },
+    { id: "reed", make: (v) => reed(101 + v * 77) },
   ];
   for (const d of defs) {
     for (let v = 0; v < 3; v++) {

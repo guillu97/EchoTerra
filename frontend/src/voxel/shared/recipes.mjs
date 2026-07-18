@@ -288,40 +288,52 @@ function planksRecipe(b, pal, rnd, seed) {
   }
 }
 
-// Brume (fog of war) : monticule nuageux — socle cubique plein (les blocs de
-// brume adjacents se raccordent en mer de nuages, comme drawCloudInto) +
-// bosses moutonnées dans la marge. Palette procédurale lavande (MapScene MIST_*).
+// Brume (fog of war), SOMMET — refonte 2026-07-17 : plus un moutonnement de
+// bosses mais un VOILE VELOUTÉ : dôme doux unique par bloc (les blocs voisins
+// dessinent une houle régulière), dégradé vertical lavande→blanc, fines
+// striures diagonales claires sur les flancs, rares motes lumineuses au sommet.
+// S'empile sur `mistbase` (le mur de brume a gagné un niveau de hauteur).
 function mistRecipe(b, pal, rnd, seed) {
   const { size } = b;
-  const bumps = [];
-  // au LOD carte (16³) : moitié moins de bosses, deux fois plus basses — de
-  // loin les moutonnements ressortaient en « débris » gris sous la lumière
-  const lodK = size >= 24 ? 1 : 0.5;
-  const n = Math.round((9 + Math.floor(rnd() * 4)) * lodK);
-  for (let i = 0; i < n; i++) {
-    bumps.push({ x: rnd() * size, y: rnd() * size, r: size * (0.12 + rnd() * 0.14), h: size * (0.04 + rnd() * 0.08) * lodK });
-  }
   const margin = b.sz - size;
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
-      // hauteur de moutonnement au-dessus du cube (torique pour le tuilage)
-      let extra = 0;
-      for (const bp of bumps) {
-        let dx = Math.abs(x - bp.x); dx = Math.min(dx, size - dx);
-        let dy = Math.abs(y - bp.y); dy = Math.min(dy, size - dy);
-        const d2 = (dx * dx + dy * dy) / (bp.r * bp.r);
-        if (d2 < 1) extra = Math.max(extra, bp.h * Math.sqrt(1 - d2));
-      }
-      // houle de base ±1 pour casser le plat entre les bosses
-      const swell = Math.round(noise2(x, y, size, seed + 23, 2) * 1.6 - 0.4);
-      const top = size + Math.max(0, Math.min(margin - 1, Math.round(extra) + swell));
+      // dôme ample + respiration périodique (les blocs voisins font une houle)
+      const dx = (x + 0.5) / size - 0.5;
+      const dy = (y + 0.5) / size - 0.5;
+      const dome = Math.max(0, 1 - (dx * dx + dy * dy) * 2.6);
+      const n = noise2(x, y, size, seed + 5, 2);
+      const extra = Math.round((dome * 0.9 + (n - 0.5) * 0.4) * margin);
+      const top = size + Math.max(0, Math.min(margin - 1, extra));
+      const edge = x === 0 || y === 0 || x === size - 1 || y === size - 1;
+      // VOLUTES : bandes tourbillonnantes qui texturent LE DESSUS (c'est la
+      // face qu'on voit — la v1 plate lisait comme du papier, vu sur capture)
+      const swirl = noise2(x * 2 + y, y * 2 - x, size, seed + 17, 2);
       for (let z = 0; z < top; z++) {
-        const t = clamp01(z / (size + margin * 0.6)); // 0 bas → 1 haut
-        const n2 = noise2(x + z, y - z, size, seed + 11, 2);
-        // voile plus CLAIR au LOD carte (plage limitée à la moitié claire)
-        const range = size >= 24 ? 0.85 : 0.55;
-        let c = ramp(pal.top, clamp01((1 - t) * range + (n2 - 0.5) * 0.2));
-        if (z >= top - 1 && rnd() < 0.05) c = pal.accents[0] ?? c; // mote lumineuse
+        const t = clamp01(z / (size + margin));
+        let c = ramp(pal.top, clamp01((1 - t) * 0.8 + (swirl - 0.5) * 0.55));
+        if (edge && (x + y + z * 2) % 7 < 2) c = shade(c, 1.06); // striures de flanc
+        if (z >= top - 1 && rnd() < 0.03) c = pal.accents[0] ?? c; // mote
+        b.set(x, y, z, c);
+      }
+    }
+  }
+}
+
+// Brume, BASE — le niveau inférieur du mur de brouillard : cube PLEIN au voile
+// plus profond (indigo→lavande), mêmes striures de flanc, aucun décor de
+// sommet (le bloc `mist` se pose dessus).
+function mistBaseRecipe(b, pal, rnd, seed) {
+  const { size } = b;
+  void rnd;
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const n = noise2(x, y, size, seed + 9, 2);
+      const edge = x === 0 || y === 0 || x === size - 1 || y === size - 1;
+      for (let z = 0; z < size; z++) {
+        const t = z / size; // 0 bas → 1 haut
+        let c = ramp(pal.top, clamp01(0.95 - t * 0.42 + (n - 0.5) * 0.1));
+        if (edge && (x + y + z * 2) % 7 < 2) c = shade(c, 1.05);
         b.set(x, y, z, c);
       }
     }
@@ -336,6 +348,7 @@ export const RECIPES = {
   brick: brickRecipe,
   planks: planksRecipe,
   mist: mistRecipe,
+  mistbase: mistBaseRecipe,
 };
 
 // Point d'entrée unique (script CLI et éditeur navigateur).

@@ -65,7 +65,7 @@ class MapWorld {
     engine.scene.add(this.overlays);
     engine.scene.add(this.sprites);
     void this.lib
-      .load([...BIOME_BLOCKS, "mist", "dirt"])
+      .load([...BIOME_BLOCKS, "mist", "mistbase", "dirt"])
       .then(() => {
         this.libReady = true;
         this.terrainKey = ""; // forcer la construction maintenant que les blocs sont là
@@ -77,7 +77,9 @@ class MapWorld {
       .then((r) => (r.ok ? r.json() : null))
       .then((p) => { this.palettes = p; this.terrainKey = ""; this.draw(); })
       .catch(() => undefined);
-    void this.propsLib.load(["tree-green", "tree-pink", "rock"]).then(() => {
+    void this.propsLib
+      .load(["tree-green", "tree-pink", "rock", "pine", "pine-snow", "grass-tuft", "flowers", "reed"])
+      .then(() => {
       this.terrainKey = "";
       this.draw();
     });
@@ -140,17 +142,25 @@ class MapWorld {
           );
           add(id, Math.floor(hash(x, y, k + 4) * 3), m);
         };
-        if (t.biome === 3) { // forêt : bosquet
+        if (t.biome === 3) { // forêt : bosquet + sous-bois
           plant("tree-green", 10, 0.62);
           if (hash(x, y, 20) < 0.5) plant("tree-green", 30, 0.5);
           if (hash(x, y, 40) < 0.12) plant("tree-pink", 50, 0.55);
-        } else if (t.biome === 2) { // prairie : arbre occasionnel
+          if (hash(x, y, 110) < 0.4) plant("grass-tuft", 115, 0.3);
+        } else if (t.biome === 2) { // prairie : herbes folles, fleurs, arbre occasionnel
           const r = hash(x, y, 60);
           if (r < 0.06) plant("tree-pink", 70, 0.55);
           else if (r < 0.14) plant("tree-green", 80, 0.5);
           if (hash(x, y, 90) < 0.05) plant("rock", 95, 0.5);
-        } else if (t.biome === 4 && hash(x, y, 99) < 0.3) {
-          plant("rock", 100, 0.65);
+          if (hash(x, y, 120) < 0.55) plant("grass-tuft", 125, 0.32);
+          if (hash(x, y, 130) < 0.16) plant("flowers", 135, 0.3);
+        } else if (t.biome === 4) { // montagne : sapins et rochers
+          if (hash(x, y, 99) < 0.3) plant("rock", 100, 0.65);
+          if (hash(x, y, 150) < 0.3) plant("pine", 155, 0.62);
+        } else if (t.biome === 5) { // neige : sapins enneigés
+          if (hash(x, y, 160) < 0.35) plant("pine-snow", 165, 0.6);
+        } else if (t.biome === 1) { // rives de sable : roseaux
+          if (hash(x, y, 170) < 0.12) plant("reed", 175, 0.38);
         }
       }
     }
@@ -189,7 +199,7 @@ class MapWorld {
     return this.game?.heroes.find((h) => h.id === this.selectedHeroId);
   }
   private levelsOf(t: { biome: number; height: number; discovered?: boolean }): number {
-    return t.discovered ? renderHeight(t) + 1 : 1;
+    return t.discovered ? renderHeight(t) + 1 : 2; // brume non découverte = mur de 2 blocs
   }
 
   /** logique de clic de MapScene, à l'identique */
@@ -241,7 +251,8 @@ class MapWorld {
         for (let x = 0; x < game.width; x++) {
           const t = game.tiles[y * game.width + x];
           if (!t.discovered) {
-            cells.push({ x, y, block: "mist", levels: 1 });
+            // mur de brume à DEUX niveaux : voile profond (mistbase) sous le dôme (mist)
+            cells.push({ x, y, block: "mist", under: "mistbase", levels: 2 });
             continue;
           }
           if (this.smoothMode) continue; // le sol découvert vient de la surface lissée
@@ -288,7 +299,7 @@ class MapWorld {
     const topOf = (x: number, y: number) => {
       if (this.smoothMode) {
         const t = tileAt(x, y);
-        return t && !t.discovered ? 1 : this.smooth.heightAt(x, y) + 0.04;
+        return t && !t.discovered ? 2 : this.smooth.heightAt(x, y) + 0.04;
       }
       const t = tileAt(x, y);
       return t ? this.levelsOf(t) : 1;
