@@ -166,11 +166,21 @@ export class SmoothTerrain {
     const colColor = (cx: number, cy: number): [number, number, number] => {
       const wx = (cx + 0.5) / R - 0.5, wy = (cy + 0.5) / R - 0.5;
       const tx0 = Math.round(wx), ty0 = Math.round(wy);
-      let r = 0, g = 0, b = 0, cnt = 0;
-      for (const [dx, dy] of [[0, 0], [Math.sign(wx - tx0) || 0, 0], [0, Math.sign(wy - ty0) || 0]]) {
-        const c = tileColor(tx0 + dx, ty0 + dy);
-        r += c[0]; g += c[1]; b += c[2]; cnt++;
-      }
+      // fondu BILINÉAIRE vers les voisins, NUL au cœur de la tuile (le poids ne
+      // monte que sur le dernier tiers vers le bord : cœur net, jointure douce).
+      // ⚠ l'ancien mélange uniforme (1/3 tuile + 1/3 voisin X + 1/3 voisin Y)
+      // basculait de trio d'échantillons au CENTRE des tuiles → les carrés de
+      // couleur étaient décalés d'une demi-tuile, leurs coins tombaient au
+      // centre des cases (l'église semblait posée « au carrefour de 4 cases »).
+      const dxf = wx - tx0, dyf = wy - ty0;
+      const wgt = (d: number) => Math.min(0.5, Math.max(0, (Math.abs(d) - 0.18) / 0.32) * 0.5);
+      const ax = wgt(dxf), ay = wgt(dyf);
+      const sx = Math.sign(dxf) || 1, sy = Math.sign(dyf) || 1;
+      const c00 = tileColor(tx0, ty0), c10 = tileColor(tx0 + sx, ty0);
+      const c01 = tileColor(tx0, ty0 + sy), c11 = tileColor(tx0 + sx, ty0 + sy);
+      const mix = (i: number) =>
+        c00[i] * (1 - ax) * (1 - ay) + c10[i] * ax * (1 - ay) + c01[i] * (1 - ax) * ay + c11[i] * ax * ay;
+      const r = mix(0), g = mix(1), b = mix(2), cnt = 1;
       // pointillés d'herbe plus discrets + grain ADOUCI (l'ancien bruit par
       // colonne lisait comme de la neige de pixels)
       const t = tileAt(tx0, ty0);

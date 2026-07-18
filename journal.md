@@ -6,6 +6,22 @@
 
 ---
 
+## 2026-07-18 (30) — FIX : les couleurs de tuiles étaient décalées d'une demi-case
+
+### Fait
+- Bug signalé : « la ville est positionnée au carrefour de plusieurs cases ». Cause dans
+  `smoothTerrain.colColor` : le mélange uniforme (1/3 tuile + 1/3 voisin X + 1/3 voisin Y)
+  **basculait de trio d'échantillons au CENTRE des tuiles** (le `sign(wx − tx0)` y change) —
+  l'arête visible des carrés de couleur passait donc par les centres, les carrés perçus
+  étaient décalés d'une demi-tuile et leurs COINS tombaient pile sous l'église. La position
+  logique (église, socle, overlays, héros) a toujours été correcte : seule la peinture.
+- Fix : **fondu bilinéaire 4 échantillons, poids NUL au cœur de la tuile** (il ne monte que
+  sur le dernier tiers vers le bord : cœur net, jointure douce, continu partout).
+
+### Fonctionnel (vérifié)
+- Capture zoomée : l'église est centrée dans SON losange, les cases sable/herbe forment
+  des losanges entiers alignés sur la grille logique ; e2e move/rotation OK ; build vert.
+
 ## 2026-07-18 (29) — RÉSOLUTION ×: terrain, props, persos et monstres plus fins
 
 ### Fait (demande : « augmenter le nombre de voxels de tout »)
