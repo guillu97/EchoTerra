@@ -6,6 +6,17 @@
 
 ---
 
+## 2026-07-17 (22) — Personnages encore réduits + blocs de pente 1/8
+
+### Fait
+- `HERO_HEIGHT` 0.72 → **0.6** (héros + monstres) — petites figurines dans un grand monde.
+- **Grille de terrain 1/8** (R 6→8, VS 1/8) : chaque bloc de pente réduit d'un tiers de plus
+  (¼ → 1/6 → 1/8 au fil des retours). Coût quasi inchangé (8,7 M plein monde au banc,
+  le terrain reste marginal face aux arbres).
+
+### Fonctionnel (vérifié, capture + e2e)
+- Proportions figurines/monde agréables, marches fines ; move + rotation OK ; build vert.
+
 ## 2026-07-17 (21) — Personnages réduits (retour utilisateur)
 
 ### Fait

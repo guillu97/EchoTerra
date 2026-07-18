@@ -20,9 +20,10 @@ export type TerrainSource = {
   tiles: { biome: number; height: number; discovered?: boolean }[];
 };
 
-// Retour « trop pixelisé » : grille affinée (marches 1/6 de tuile au lieu de ¼)
-const R = 6; // colonnes voxel par côté de tuile
-const VS = 1 / 6; // pas vertical (= 1/R : voxels cubiques)
+// Grain fin : blocs de pente d'1/8 de tuile (retours successifs « trop
+// pixelisé » puis « réduis chaque bloc » — ¼ → 1/6 → 1/8)
+const R = 8; // colonnes voxel par côté de tuile
+const VS = 1 / 8; // pas vertical (= 1/R : voxels cubiques)
 // micro-relief bas : à la grille 1/6, 0.11 franchissait le pas partout et
 // couvrait les plaines de bosselures (constaté sur capture) — la texture doit
 // venir de la finesse de la grille et de l'ondulation, pas du bruit
