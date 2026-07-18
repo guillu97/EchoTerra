@@ -19,6 +19,7 @@ export const PROP_KEYS = [
   "scarecrow", "snowman", "boat", "menhir", "turtle", "beehive",
   "butterfly", "gull", "firefly", "rabbit", "hare", "crab",
   "web", "snow-motes", "eagle",
+  "ruin-wall", "ruin-column", "ruin-slab", "ruin-arch",
 ];
 
 export type ScatterTile = { biome: number; height: number; discovered?: boolean; monsterId?: string };
@@ -151,6 +152,21 @@ export function scatterProps(src: ScatterSource): PropPlacement[] {
         if (h(300) < 0.02) plant(x, y, "stump", 305, 0.4);
         if (hasFlowers && h(620) < 0.4) plant(x, y, "butterfly", 625, 0.4, "day"); // près des fleurs
         if (!t.monsterId && h(630) < 0.02) plant(x, y, "rabbit", 635, 0.32, "day"); // jamais sur un pack
+        // muret en ruine : rares « anciennes fermes » — segments ALIGNÉS le long
+        // d'une ligne de la cellule 6×6 (rotation posée, pas hachée)
+        const fx = Math.floor(x / 6), fy = Math.floor(y / 6);
+        if (h01(fx, fy, 800) < 0.08) {
+          const horiz = h01(fx, fy, 801) < 0.5;
+          const anchor = 1 + Math.floor(h01(fx, fy, 802) * 4);
+          const on = horiz ? y % 6 === anchor : x % 6 === anchor;
+          if (on && h(803) < 0.75) {
+            out.push({
+              id: "ruin-wall", v: Math.floor(h(804) * 3),
+              x: x + (h(805) - 0.5) * 0.15, y: y + (h(806) - 0.5) * 0.15,
+              rot: horiz ? 0 : Math.PI / 2, scale: 0.5,
+            });
+          }
+        }
       } else if (t.biome === 3) { // forêt : sous-bois dense (lore Dryade)
         plant(x, y, "tree-green", 10, 0.62);
         if (h(20) < 0.5) plant(x, y, "tree-green", 30, 0.5);
@@ -182,6 +198,36 @@ export function scatterProps(src: ScatterSource): PropPlacement[] {
   }
 
   out.push(...landmarks(src, at, flagsOf));
+  out.push(...ruins(src, at));
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// RUINES ÉPARSES (lore Echo Terra) : 2-3 par carte tous biomes terrestres —
+// colonne brisée, dalle gravée, arche à moitié effondrée. Même tirage
+// déterministe que les landmarks (meilleure tuile par score haché).
+// ---------------------------------------------------------------------------
+const RUIN_TYPES = ["ruin-column", "ruin-slab", "ruin-arch"];
+
+function ruins(src: ScatterSource, at: (x: number, y: number) => ScatterTile | undefined): PropPlacement[] {
+  // ⚠ ^ renvoie un int32 SIGNÉ : sans >>> 0, seed % 2 peut valoir −1 (n=1)
+  // et (seed+i) % 3 indexer négativement le tableau des types
+  const seed = (strHash(src.seedStr) ^ 0x2417) >>> 0;
+  const n = 2 + (seed % 2);
+  const out: PropPlacement[] = [];
+  for (let i = 0; i < n; i++) {
+    let best: { x: number; y: number; score: number } | null = null;
+    for (let y = 0; y < src.height; y++) {
+      for (let x = 0; x < src.width; x++) {
+        const t = at(x, y);
+        if (!t?.discovered || t.biome === 0) continue;
+        if (x === src.townX && y === src.townY) continue;
+        const score = h01(x, y, seed ^ (i * 0x9e37));
+        if (!best || score > best.score) best = { x, y, score };
+      }
+    }
+    if (best) out.push(one(RUIN_TYPES[(seed + i) % RUIN_TYPES.length], best.x, best.y, seed + i, 0.5));
+  }
   return out;
 }
 

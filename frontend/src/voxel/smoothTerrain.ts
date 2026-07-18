@@ -176,7 +176,18 @@ export class SmoothTerrain {
       const t = tileAt(tx0, ty0);
       const dot = t?.discovered && (t.biome === 2 || t.biome === 3) && hash01(cx, cy, 13) < 0.035 ? 0.9 : 1;
       const grain = (0.985 + hash01(cx, cy, 3) * 0.03) * dot;
-      return [(r / cnt) * grain, (g / cnt) * grain, (b / cnt) * grain];
+      let out: [number, number, number] = [(r / cnt) * grain, (g / cnt) * grain, (b / cnt) * grain];
+      // algues affleurantes (WORLD-DETAILS) : nappes vert sombre SOUS la surface,
+      // en veines de bruit — c'est la teinte du bloc d'eau, pas un prop
+      if (t?.discovered && t.biome === 0) {
+        const algae = rollNoise(cx * 0.21 + 9, cy * 0.21 - 4);
+        if (algae > 0.63) {
+          const k = Math.min(1, (algae - 0.63) / 0.2) * 0.7;
+          const deep: [number, number, number] = [56, 122, 104];
+          out = [out[0] + (deep[0] - out[0]) * k, out[1] + (deep[1] - out[1]) * k, out[2] + (deep[2] - out[2]) * k];
+        }
+      }
+      return out;
     };
 
     // 3) géométrie : face du DESSUS par colonne + murs vers les voisins plus

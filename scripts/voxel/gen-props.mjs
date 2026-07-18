@@ -687,6 +687,73 @@ function eagleProp(seed) {
   return { ...SIZE, size: SIZE.sx, data: g.data, palette: g.palette };
 }
 
+// ============================================================================
+// RUINES (WORLD-DETAILS « au goût ») — pierre crème patinée, lore Echo Terra
+// ============================================================================
+const RUIN_STONE = [212, 202, 184];
+
+// PRAIRIE — muret en ruine : segment bas ALIGNÉ (le scatter pose la rotation),
+// hauteur irrégulière, brèches, un bloc tombé à côté
+function ruinWall(seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz);
+  const rnd = makeRng(seed);
+  const cy = Math.round(SIZE.sy / 2);
+  for (let x = 2; x < 18; x++) {
+    if (rnd() < 0.16) continue; // brèche
+    const h = 2 + Math.floor(rnd() * 3);
+    for (let z = 0; z < h; z++) g.box(x, x, cy - 1, cy, z, z, shade(RUIN_STONE, 0.9 + rnd() * 0.16));
+  }
+  g.box(5 + Math.floor(rnd() * 8), 6 + Math.floor(rnd() * 8), cy + 2, cy + 3, 0, 0, shade(RUIN_STONE, 0.88)); // bloc tombé
+  return { ...SIZE, size: SIZE.sx, data: g.data, palette: g.palette };
+}
+
+// TOUS BIOMES — colonne brisée sur socle + tambour tombé
+function ruinColumn(seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz);
+  const rnd = makeRng(seed);
+  const cx = SIZE.sx / 2 - 0.5, cy = SIZE.sy / 2 - 0.5;
+  g.box(Math.round(cx) - 2, Math.round(cx) + 2, Math.round(cy) - 2, Math.round(cy) + 2, 0, 0, shade(RUIN_STONE, 0.94)); // socle
+  const brk = rnd() * Math.PI * 2; // direction de la cassure diagonale
+  for (let y = Math.floor(cy) - 1; y <= cy + 1.5; y++) {
+    for (let x = Math.floor(cx) - 1; x <= cx + 1.5; x++) {
+      if (Math.hypot(x - cx, y - cy) > 1.7) continue;
+      const top = 8 + Math.round(2.4 * Math.cos(Math.atan2(y - cy, x - cx) - brk));
+      for (let z = 1; z <= top; z++) g.set(x, y, z, shade(RUIN_STONE, 0.92 + ((z % 3) * 0.04)));
+    }
+  }
+  ellipsoid(g, cx + 4.5, cy + 2, 1, 1.6, 1.4, 1.2, shade(RUIN_STONE, 0.87), rnd, 5); // tambour tombé
+  return { ...SIZE, size: SIZE.sx, data: g.data, palette: g.palette };
+}
+
+// TOUS BIOMES — dalle gravée couchée (glyphes accent, écho du menhir)
+function ruinSlab(seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz);
+  const rnd = makeRng(seed);
+  const cx = Math.round(SIZE.sx / 2), cy = Math.round(SIZE.sy / 2);
+  g.box(cx - 4, cx + 4, cy - 3, cy + 2, 0, 1, RUIN_STONE);
+  for (let x = cx - 3; x <= cx + 3; x++) if ((x + seed) % 2 === 0) g.set(x, cy - 1, 1, shade(RUIN_STONE, 0.8)); // sillons
+  g.set(cx - 2 + Math.floor(rnd() * 4), cy + 1, 1, [122, 186, 202]); // glyphe accent
+  g.set(cx + 1, cy, 1, [122, 186, 202]);
+  g.box(cx + 2, cx + 3, cy - 3, cy - 2, 2, 2, shade(RUIN_STONE, 0.9)); // coin fendu relevé
+  return { ...SIZE, size: SIZE.sx, data: g.data, palette: g.palette };
+}
+
+// TOUS BIOMES — arche à moitié effondrée : pilier + départ d'arc, l'autre en moignon
+function ruinArch(seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz);
+  const rnd = makeRng(seed);
+  const cx = Math.round(SIZE.sx / 2), cy = Math.round(SIZE.sy / 2);
+  const stone = (k) => shade(RUIN_STONE, k);
+  g.box(cx - 5, cx - 3, cy - 1, cy + 1, 0, 10, stone(0.95)); // pilier debout
+  for (let k = 0; k < 4; k++) g.box(cx - 3 + k, cx - 2 + k, cy - 1, cy + 1, 10 + Math.min(k, 2), 11 + Math.min(k, 2), stone(1 + k * 0.02)); // départ d'arc
+  g.box(cx + 3, cx + 5, cy - 1, cy + 1, 0, 3 + Math.floor(rnd() * 2), stone(0.9)); // moignon
+  for (let i = 0; i < 6; i++) { // gravats entre les deux
+    const bx = cx - 2 + Math.floor(rnd() * 5), by = cy - 2 + Math.floor(rnd() * 4);
+    g.box(bx, bx + 1, by, by, 0, 0, stone(0.85 + rnd() * 0.1));
+  }
+  return { ...SIZE, size: SIZE.sx, data: g.data, palette: g.palette };
+}
+
 const GREEN = [134, 192, 108];
 const PINK = [232, 164, 188];
 const DEEP = [104, 168, 88];
@@ -751,6 +818,11 @@ async function main() {
     { id: "web", make: (v) => web(661 + v * 77) },
     { id: "snow-motes", make: (v) => snowMotes(671 + v * 77) },
     { id: "eagle", make: (v) => eagleProp(681 + v * 77) },
+    // RUINES éparses (lore) + muret d'ancienne ferme
+    { id: "ruin-wall", make: (v) => ruinWall(701 + v * 77) },
+    { id: "ruin-column", make: (v) => ruinColumn(711 + v * 77) },
+    { id: "ruin-slab", make: (v) => ruinSlab(721 + v * 77) },
+    { id: "ruin-arch", make: (v) => ruinArch(731 + v * 77) },
   ];
   for (const d of defs) {
     for (let v = 0; v < 3; v++) {

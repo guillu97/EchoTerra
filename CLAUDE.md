@@ -546,8 +546,11 @@ souffle de neige, aigle-landmark qui tournoie au tick solaire (`tickAmbient`), v
 minerai dorées/cuivrées dans les murs de falaise montagne (`smoothTerrain.wall`, par bruit),
 et **cascade** (`cascade.ts` : `findCascadeSite` pur — falaise relief ≥ 2 bordant l'eau,
 1/carte par hash de `game.id` — + rideau `ShaderMaterial` à bandes descendantes couvrant la
-chute COMPLÈTE à travers les terrasses du lissage, écume au pied). Le plan WORLD-DETAILS
-est ✅ complet.
+chute COMPLÈTE à travers les terrasses du lissage, écume au pied), algues affleurantes
+(teinte des colonnes d'eau par bruit dans `colColor`), murets en ruine ALIGNÉS (cellules
+6×6, rotation posée) et ruines éparses 2-3/carte (colonne/dalle/arche, passe `ruins()` —
+⚠ `^` renvoie un int32 signé : toujours `>>> 0` avant `%`/indexation). Le plan
+WORLD-DETAILS est ✅ livré en totalité (50 props ×3 variantes).
 
 ## 7b. Map editor (dev tool — `frontend/src/editor/`)
 

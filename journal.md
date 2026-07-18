@@ -6,6 +6,32 @@
 
 ---
 
+## 2026-07-18 (28) — WORLD-DETAILS : les idées « au goût » — le plan est livré EN TOTALITÉ
+
+### Fait
+- **Algues affleurantes** (eau) : nappes vert sombre SOUS la surface, en veines de bruit —
+  teinte des COLONNES d'eau dans `smoothTerrain.colColor` (rollNoise > 0.63, fondu vers
+  [56,122,104], k ≤ 0.7), pas un prop. Le shader de chatoiement passe par-dessus.
+- **Muret en ruine** (prairie, « ancienne ferme ») : recette `ruin-wall` (segments à
+  hauteur irrégulière, brèches, bloc tombé) posée en LIGNES ALIGNÉES — cellules 6×6
+  hachées (8 %), orientation H/V et rangée d'ancrage par cellule, rotation POSÉE (0 ou
+  π/2, pas hachée), 75 % de présence par tuile = segments avec trous sur 2-5 tuiles.
+- **Ruines éparses** (lore, tous biomes terrestres) : `ruin-column` (colonne brisée en
+  diagonale sur socle + tambour tombé), `ruin-slab` (dalle gravée, sillons + glyphes
+  accent turquoise), `ruin-arch` (pilier + départ d'arc, moignon, gravats) — 2-3 par
+  carte, tirage déterministe par seed (passe `ruins()` dans scatter.ts, même mécanique
+  que les landmarks). ⚠ BUG corrigé : `strHash ^ 0x2417` renvoie un int32 SIGNÉ —
+  sans `>>> 0`, `seed % 2` valait −1 (n=1 au lieu de 2-3) et `(seed+i) % 3` indexait
+  négativement le tableau des types (attrapé par le test node multi-seeds).
+
+### Fonctionnel (vérifié)
+- Captures sur partie synthétique injectée par le bus (prairie 20×30 + eau) : nappes
+  d'algues visibles, ligne de muret alignée + arche, dalle et colonne posées ; couleurs
+  d'algues confirmées DANS la géométrie (scan des vertex `aWater`, ~7 % teintés avant
+  renfort) ; banc 10,23 M tris (+0,01 M) ; e2e partie réelle move/rotation OK (l'échec
+  intermédiaire = backend mort entre les tours, pas une régression) ; `tsc` + build verts.
+- **50 props ×3 variantes** au total ; `WORLD-DETAILS-PLAN.md` ✅ livré en totalité.
+
 ## 2026-07-18 (27) — WORLD-DETAILS : la CASCADE (dernier élément du plan)
 
 ### Fait
