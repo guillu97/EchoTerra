@@ -184,13 +184,13 @@ export function VoxelTownView({
         tex.colorSpace = THREE.NoColorSpace;
         textures.push(tex);
         const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, alphaTest: 0.35, transparent: true }));
-        spr.scale.set(1.35, 1.35, 1); // bien visibles au fit initial
+        spr.scale.set(1.1, 1.1, 1);
         spr.center.set(0.5, 0.02);
         spr.position.set(gpos.x, gpos.lvl, gpos.y);
         heroGroup.add(spr);
         const lbl = makeLabel(h.name, "#fff6d8", 0.3);
         lbl.center.set(0.5, 0);
-        lbl.position.set(gpos.x, gpos.lvl + 1.4, gpos.y);
+        lbl.position.set(gpos.x, gpos.lvl + 1.18, gpos.y);
         heroGroup.add(lbl);
       }
       engine.invalidate();

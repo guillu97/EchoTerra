@@ -6,6 +6,16 @@
 
 ---
 
+## 2026-07-17 (21) — Personnages réduits (retour utilisateur)
+
+### Fait
+- `HERO_HEIGHT` 0.85 → **0.72** (héros ET monstres — constante partagée de CharLibrary),
+  suppression du ×1.25 carte ; étiquettes recalées (carte +0.82, ville +1.18) ; ville :
+  billboards héros 1.35 → 1.1 ; combat : barres de PV abaissées (+0.8), fallback billboard 0.7.
+
+### Fonctionnel (vérifié, capture + combat e2e)
+- Proportions personnages/église/arbres plus justes ; combat OK ; build vert.
+
 ## 2026-07-17 (20) — Plus de détails (retour « trop pixelisé »)
 
 ### Fait

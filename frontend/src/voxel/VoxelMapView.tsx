@@ -373,7 +373,6 @@ class MapWorld {
       if (mesh) {
         mesh.position.set(h.x + ox, topOf(h.x, h.y), h.y + oy);
         mesh.rotation.y = engine.azimuthNow;
-        mesh.scale.multiplyScalar(1.25); // lisibilité carte : héros un peu plus grands
         if (!mine) {
           mesh.material = (mesh.material as THREE.MeshBasicMaterial).clone();
           (mesh.material as THREE.MeshBasicMaterial).transparent = true;
@@ -382,9 +381,9 @@ class MapWorld {
         this.sprites.add(mesh);
         this.charMeshes.push(mesh);
         if (mine) {
-          const lbl = makeLabel(h.name, "#fff6d8", 0.24);
+          const lbl = makeLabel(h.name, "#fff6d8", 0.2);
           lbl.center.set(0.5, 0);
-          lbl.position.set(h.x + ox, topOf(h.x, h.y) + 1.15, h.y + oy);
+          lbl.position.set(h.x + ox, topOf(h.x, h.y) + 0.82, h.y + oy);
           this.sprites.add(lbl);
         }
       } else {

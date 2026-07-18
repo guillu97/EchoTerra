@@ -8,7 +8,7 @@ import * as THREE from "three";
 import { fetchVox } from "./vox";
 import { meshVoxModel } from "./mesher";
 
-export const HERO_HEIGHT = 0.85; // hauteur monde d'un héros (unités tuile)
+export const HERO_HEIGHT = 0.72; // hauteur monde d'un héros (réduite — retour utilisateur)
 
 // Tout ce que le générateur voxel sait produire (chars/ contient héros ET
 // monstres) ; un .vox manquant retombe silencieusement en billboard.

@@ -171,7 +171,7 @@ class CombatWorld {
         const url = libUrl(u.side === "hero" ? "characters" : "monsters", tex || "char-scout");
         const mat = new THREE.SpriteMaterial({ map: this.texture(url), alphaTest: 0.35, transparent: true });
         const s = new THREE.Sprite(mat);
-        s.scale.set(0.78, 0.78, 1);
+        s.scale.set(0.7, 0.7, 1);
         s.center.set(0.5, 0.04);
         s.position.set(u.x, topOf(u.x, u.y), u.y);
         this.sprites.add(s);
@@ -182,13 +182,13 @@ class CombatWorld {
       const ratio = Math.max(0, u.hp / u.maxHp);
       const back = new THREE.Sprite(new THREE.SpriteMaterial({ color: 0x000000, opacity: 0.6, transparent: true }));
       back.scale.set(0.5, 0.06, 1);
-      back.position.set(u.x, topOf(u.x, u.y) + 0.92, u.y);
+      back.position.set(u.x, topOf(u.x, u.y) + 0.8, u.y);
       this.sprites.add(back);
       const fill = new THREE.Sprite(
         new THREE.SpriteMaterial({ color: u.side === "hero" ? 0x4be36e : 0xe24b4b, transparent: true }),
       );
       fill.scale.set(0.5 * ratio, 0.06, 1);
-      fill.position.set(u.x - (0.5 * (1 - ratio)) / 2, topOf(u.x, u.y) + 0.921, u.y);
+      fill.position.set(u.x - (0.5 * (1 - ratio)) / 2, topOf(u.x, u.y) + 0.801, u.y);
       this.sprites.add(fill);
 
       // nom (+ états) sous l'unité, comme CombatScene
