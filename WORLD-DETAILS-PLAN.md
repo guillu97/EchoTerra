@@ -1,5 +1,11 @@
 # Plan — Détails du monde par biome (remplir le monde voxel)
 
+> **✅ IMPLÉMENTÉ (2026-07-18)** — lots D1 à D4 livrés (voir `journal.md` entrées 25-27) :
+> 46 props ×3 variantes, scatter partagé `frontend/src/voxel/scatter.ts` (règles « près
+> de » + repères par seed), vie ambiante jour/crépuscule, veines de minerai murales,
+> cascade shader (`cascade.ts`). Restent au goût : muret en ruine, ruines éparses, algues
+> affleurantes (teinte de bloc).
+>
 > Rédigé le 2026-07-18. Objectif : donner de la VIE et de la matière à chaque biome de la
 > carte voxel. Tout suit le pipeline existant : recette procédurale dans `gen-props.mjs`
 > (3 variantes par prop, palettes pastel), scatter déterministe par hachage dans

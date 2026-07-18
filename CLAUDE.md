@@ -543,8 +543,11 @@ bascule jour/crépuscule sur le cycle solaire (papillons/mouettes/lapins/lièvre
 jour, lucioles self-lit `MeshBasicMaterial` au crépuscule — sous-groupes `dayProps`/
 `nightProps`, `applyPhase(t)` seuil 0.72, `phase` sur `PropPlacement`), toiles d'araignée,
 souffle de neige, aigle-landmark qui tournoie au tick solaire (`tickAmbient`), veines de
-minerai dorées/cuivrées dans les murs de falaise montagne (`smoothTerrain.wall`, par bruit).
-Reste du plan : la cascade (shader sur falaise bord d'eau).
+minerai dorées/cuivrées dans les murs de falaise montagne (`smoothTerrain.wall`, par bruit),
+et **cascade** (`cascade.ts` : `findCascadeSite` pur — falaise relief ≥ 2 bordant l'eau,
+1/carte par hash de `game.id` — + rideau `ShaderMaterial` à bandes descendantes couvrant la
+chute COMPLÈTE à travers les terrasses du lissage, écume au pied). Le plan WORLD-DETAILS
+est ✅ complet.
 
 ## 7b. Map editor (dev tool — `frontend/src/editor/`)
 

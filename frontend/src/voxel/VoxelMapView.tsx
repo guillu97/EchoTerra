@@ -21,6 +21,7 @@ import { VoxelControls } from "./controls";
 import { BlockLibrary, buildTerrain, type TerrainCell } from "./terrain";
 import { SmoothTerrain } from "./smoothTerrain";
 import { PROP_KEYS, scatterProps } from "./scatter";
+import { buildCascade, findCascadeSite, type Cascade } from "./cascade";
 import { ALL_CHAR_KEYS, CharLibrary } from "./characters";
 import { makeLabel } from "./labels";
 import { heroTexKey as heroKey } from "../assets";
@@ -56,6 +57,8 @@ class MapWorld {
   lastDayTime = 0.35;
   // aigle landmark (lot D4) : tournoie au-dessus de son pic à chaque tick solaire
   eagle: { mesh: THREE.InstancedMesh; x: number; z: number; h: number; scale: number; angle: number } | null = null;
+  // cascade (lot D4) : rideau shader sur une falaise bord d'eau, 1/carte si la géo s'y prête
+  cascade: Cascade | null = null;
   lookup = new Map<THREE.Object3D, TerrainCell[]>();
   overlays = new THREE.Group(); // losanges/danger/anneau — reconstruits à chaque render
   sprites = new THREE.Group(); // billboards héros/monstres/ville
@@ -93,6 +96,7 @@ class MapWorld {
     engine.onFrame = () => {
       for (const m of this.charMeshes) m.rotation.y = engine.azimuthNow;
       this.smooth.setTime(performance.now() / 1000);
+      this.cascade?.setTime(performance.now() / 1000);
     };
   }
 
@@ -112,6 +116,7 @@ class MapWorld {
     this.chars.dispose();
     this.smooth.dispose();
     this.propsLib.dispose();
+    this.cascade?.dispose();
     for (const t of this.textures.values()) t.dispose();
   }
 
@@ -281,10 +286,23 @@ class MapWorld {
       this.lookup = built.lookup;
       engine.scene.add(built.group);
       if (this.props) engine.scene.remove(this.props);
+      if (this.cascade) {
+        engine.scene.remove(this.cascade.group);
+        this.cascade.dispose();
+        this.cascade = null;
+      }
       if (this.smoothMode) {
         engine.scene.add(this.smooth.build(game, this.palettes, renderHeight));
         this.props = this.buildProps(game);
         engine.scene.add(this.props);
+        const site = findCascadeSite({
+          width: game.width, height: game.height, tiles: game.tiles,
+          townX: game.town.x, townY: game.town.y, seedStr: game.id,
+        });
+        if (site) {
+          this.cascade = buildCascade(site, (x, y) => this.smooth.heightAt(x, y));
+          engine.scene.add(this.cascade.group);
+        }
       }
       this.terrainKey = key;
     }

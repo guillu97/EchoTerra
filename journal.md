@@ -6,6 +6,27 @@
 
 ---
 
+## 2026-07-18 (27) — WORLD-DETAILS : la CASCADE (dernier élément du plan)
+
+### Fait
+- **`frontend/src/voxel/cascade.ts`** : détection PURE du site (`findCascadeSite` — falaise
+  de relief ≥ 2 bordant une tuile d'eau découverte, 1/carte choisie par hachage de
+  `game.id` comme les landmarks) + `buildCascade` = rideau vertical en `ShaderMaterial`
+  (bandes qui DÉFILENT vers le bas + colonnes, écume brillante au pied, fondu au sommet,
+  transparent/depthWrite off) + disque d'écume plat sur l'eau. ⚠ le lissage étale la
+  falaise en TERRASSES : le rideau échantillonne la traversée falaise→eau (max côté haut,
+  min côté eau) pour couvrir la chute COMPLÈTE, pas la dernière marche (h=0.63 illisible
+  → h=2 sur le cas test).
+- Câblage VoxelMapView : reconstruite avec le terrain (découverte), disposée proprement,
+  `uTime` avancé sur les frames rendues (même politique que le shader d'eau).
+- `WORLD-DETAILS-PLAN.md` marqué ✅ implémenté (D1-D4 complets).
+
+### Fonctionnel (vérifié)
+- E2E dédié : partie synthétique injectée par le bus (plateau montagne h6 bordant l'eau,
+  tout découvert) → `world.cascade` construit, capture zoomée = rideau net à bandes sur
+  les terrasses + écume ; e2e partie réelle inchangé (move/rotation OK, cascade absente
+  si la géo ne s'y prête pas) ; `tsc` + build verts.
+
 ## 2026-07-18 (26) — WORLD-DETAILS lots D3+D4 : vie ambiante jour/nuit + effets
 
 ### Fait
