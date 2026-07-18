@@ -22,7 +22,7 @@ const lsPlayerKey = (gameId: string) => `echoterra:player:${gameId}`;
 type View = "map" | "combat";
 type CombatMode = "move" | "attack" | "skill";
 
-export type AppScreen = "loading" | "title" | "cinematic" | "game" | "editor" | "designer" | "lobby" | "account";
+export type AppScreen = "loading" | "title" | "cinematic" | "game" | "editor" | "designer" | "voxelbench" | "voxeledit" | "lobby" | "account";
 export type Tab = "home" | "map" | "stock" | "structure" | "craft";
 export type SettingsScreen = "menu" | "setting" | "language" | "notifications";
 
@@ -33,6 +33,8 @@ export interface Settings {
   quality: "Normal" | "Medium" | "High" | "Very high";
   language: string;
   notif: { loot: boolean; wave: boolean; actionPoint: boolean; communication: boolean };
+  voxelMap: boolean; // carte monde en voxel 3D (expérimental — VOXEL-PLAN Phase 2)
+  voxelSmooth: boolean; // carte : terrain CONTINU lissé (true) ou blocs discrets (false)
 }
 
 const DEFAULT_SETTINGS: Settings = {
@@ -42,6 +44,8 @@ const DEFAULT_SETTINGS: Settings = {
   quality: "Medium",
   language: "Français",
   notif: { loot: true, wave: true, actionPoint: true, communication: false },
+  voxelMap: false,
+  voxelSmooth: true,
 };
 
 function loadSettings(): Settings {

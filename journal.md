@@ -6,6 +6,511 @@
 
 ---
 
+## 2026-07-17 (22) — Personnages encore réduits + blocs de pente 1/8
+
+### Fait
+- `HERO_HEIGHT` 0.72 → **0.6** (héros + monstres) — petites figurines dans un grand monde.
+- **Grille de terrain 1/8** (R 6→8, VS 1/8) : chaque bloc de pente réduit d'un tiers de plus
+  (¼ → 1/6 → 1/8 au fil des retours). Coût quasi inchangé (8,7 M plein monde au banc,
+  le terrain reste marginal face aux arbres).
+
+### Fonctionnel (vérifié, capture + e2e)
+- Proportions figurines/monde agréables, marches fines ; move + rotation OK ; build vert.
+
+## 2026-07-17 (21) — Personnages réduits (retour utilisateur)
+
+### Fait
+- `HERO_HEIGHT` 0.85 → **0.72** (héros ET monstres — constante partagée de CharLibrary),
+  suppression du ×1.25 carte ; étiquettes recalées (carte +0.82, ville +1.18) ; ville :
+  billboards héros 1.35 → 1.1 ; combat : barres de PV abaissées (+0.8), fallback billboard 0.7.
+
+### Fonctionnel (vérifié, capture + combat e2e)
+- Proportions personnages/église/arbres plus justes ; combat OK ; build vert.
+
+## 2026-07-17 (20) — Plus de détails (retour « trop pixelisé »)
+
+### Fait
+- **Grille de terrain 1/6** (R 4→6, VS ¼→1/6) : marches deux fois plus fines sur les pentes,
+  terrasses de montagnes finement étagées. ⚠ MICRO d'abord gardé à 0.11 → il franchissait le
+  nouveau pas partout et couvrait les plaines de bosselures (constaté sur capture) → 0.045 :
+  plaines propres, la texture vient de la grille et de l'ondulation, pas du bruit.
+- **Fini le « bruit de pixels » couleur** : nuances de biome mélangées par bruit DOUX
+  (rollNoise — grandes nappes fondues, plus de damier par tuile), grain par colonne 0.985±3 %
+  (au lieu de ±6 %), pointillés plus rares et plus doux.
+- **Arbres/rochers 20³** (16³ → 24³ essayé : 13,4 M tris plein monde → 20³ = compromis, avec
+  densité forêt réduite [2e arbre 50 %, cerisier 12 %]) : canopées nettement plus rondes.
+- **Héros sur-échantillonnés ×1.5** (`Grid` : mode `fineScale` — gabarits inchangés en
+  coordonnées grossières, stockage 30×18×45 ; monstres/props gardent fs=1 par défaut).
+- Budget : 8,25 M tris au banc PLEIN MONDE (ombres comprises ; ~2-3 M en jeu réel avec fog).
+
+### Fonctionnel (vérifié, captures banc + vraie partie)
+- Montagnes étagées fines, plaines lisses aux nappes douces, arbres ronds, héros nets et
+  nommés. Move serveur + rotation OK ; `tsc` + build verts.
+
+## 2026-07-17 (19) — Lisibilité des héros sur carte + brume nettoyée
+
+### Fait
+- **Héros plus lisibles sur la carte** (mes 3 conseils appliqués) : (1) modèles voxel ×1.25
+  sur la Map ; (2) `vivid()` dans gen-characters — saturation +45 % / accent +55 % sur
+  cheveux/tenue/accents (PAS la peau), personnages régénérés ; (3) **étiquette de nom**
+  au-dessus de MES héros (makeLabel, comme en ville/combat).
+- **Brume 16³ nettoyée** (recipes.mjs, LOD < 24) : moitié moins de bosses, deux fois plus
+  basses, voile limité à la moitié CLAIRE de la rampe — fini les « débris gris » épars sous
+  la lumière diorama. `voxels/16/mist-*` régénérés.
+
+### Fonctionnel (vérifié, capture)
+- Brisa/Aldric/Cael nets, nommés et colorés au milieu des tornades ; brume propre ;
+  combat re-vérifié (les .vox de personnages ont changé) ; `tsc` + build verts.
+
+## 2026-07-17 (18) — Reliefs rehaussés + sol texturé (retour « trop lisse »)
+
+### Fait
+- **`HEIGHT_SCALE = 1.9`** : les hauteurs du monde sont amplifiées à l'affichage — collines
+  et montagnes ~2× plus hautes, massifs à falaises multi-terrasses.
+- **`rollNoise` + `ROLL_AMP = 1.1`** : ondulation LENTE inter-tuiles (bruit de valeur lisse,
+  2 octaves, périodes ~6.5/2.8 tuiles) ajoutée aux terres — les plaines roulent en buttes de
+  marches au lieu d'un aplat ; le sable près de l'eau ondule à 35 % (plages basses).
+- **`MICRO` 0.06 → 0.13** : bosses voxel isolées éparses dans les plaines (texture de sol).
+- Rendu purement CLIENT (smoothTerrain) : les données serveur/gameplay ne bougent pas ;
+  unités/props/losanges suivent via `heightAt` quantifiée.
+
+### Fonctionnel (vérifié, capture banc + vraie partie)
+- Massifs imposants, plaines texturées ; move serveur + rotation OK ; `tsc` + build verts.
+
+## 2026-07-17 (17) — Couleurs densifiées (retour « moins pâle »)
+
+### Fait
+- **Palette diorama saturée** (`smoothTerrain.DIORAMA`) : herbe verte franche (150,200,118),
+  eau lagon (110,182,214), sable doré, sol forêt profond, falaises plus chaudes (214,199,168).
+- **Canopées d'arbres densifiées** (gen-props : vert feuillu 134,192,108 / profond 104,168,88 /
+  rose cerisier 232,164,188 — props régénérés).
+- **Lumière calibrée en conséquence** : hemi 1.4→1.2, sun 1.75→1.7 (+ rampes du cycle solaire
+  alignées) — la surexposition délavait les teintes.
+
+### Fonctionnel (vérifié, captures midi/crépuscule banc + vraie partie)
+- Verts qui existent, eau vraiment bleue, cerisiers qui ressortent ; crépuscule mauve sur
+  palette dense très lisible. Move serveur + rotation OK, `tsc` + build verts.
+
+## 2026-07-17 (16) — CYCLE SOLAIRE sur le timer de vague + shader d'eau
+
+### Fait
+- **`engine.setDayTime(t)`** (t = progression 0..1 vers la prochaine vague) : le SOLEIL
+  parcourt un arc dans le ciel (azimut −1→+0.9 rad, élévation en cloche qui plonge après
+  t=0.85) et les couleurs suivent des rampes multi-arrêts — **aube dorée-orangée** après la
+  vague → plein jour neutre chaud → heure dorée → **crépuscule MAUVE-INDIGO marqué** quand
+  la vague approche (sun 0.8/0.5/0.62 int. 0.95 ; hemi 0.6/0.56/0.88 int. 1.05). Position
+  soleil calculée dans applyCamera (suit la cible ET le cycle). 1re passe trop subtile —
+  rampes amplifiées sur comparaison de captures banc.
+- **`VoxelMapView.waveProgress()`** : t = 1 − restant/période (période = nextWaveAt −
+  lastWave.at, fallback 600 s) ; tick 5 s (`sunTick`) → setDayTime + temps du shader —
+  compatible rendu on-demand (~12 rendus/min au repos).
+- **SHADER d'eau** (`smoothTerrain`) : attribut `aWater` par vertex + injection
+  `onBeforeCompile` dans le Lambert (uniform `uTime`, deux ondes sinus croisées ±0.06 de
+  luminosité sur les fragments d'eau) — l'eau chatoie sur les frames rendues, immobile au
+  repos (pas de boucle continue, batterie). `setTime` avancé par engine.onFrame + le tick.
+
+### Fonctionnel (vérifié, captures aube/midi/crépuscule sur le banc plein monde)
+- Aube pêche-dorée / midi neutre / crépuscule mauve nettement différenciés ; move serveur
+  + rotation OK en vraie partie ; `tsc` + build verts.
+
+## 2026-07-17 (15) — PENTES VOXEL : le continu rasterisé en marches (choix utilisateur)
+
+### Fait
+- Retour utilisateur : le sol continu ne plaît pas — il veut des pentes EN VOXELS.
+  **`smoothTerrain.ts` réécrit** : le champ de hauteurs lissé + terrassé est RASTERISÉ en
+  colonnes voxel (R=4 par côté de tuile, pas vertical VS=¼ → voxels cubiques) — les pentes
+  sont des ESCALIERS de petits cubes, comme la référence diorama. Face du dessus par
+  colonne + murs vers les voisins plus bas (bord de monde → mur jusqu'à 0, jupe intégrée).
+- Conservé : terrasses organiques, palette diorama fondue, pointillés, eau en creux
+  (AO plafonnée sur l'eau pour rester laiteuse), ombrage voxel par face (mêmes valeurs que
+  le mesher) + **teinte pierre crème ∝ hauteur de la marche** (rebords de terrasse crème),
+  AO par concavité + léger rehaut de rebord. `heightAt` = hauteur QUANTIFIÉE de la marche.
+- ⚠ enroulement des quads choisi par produit (normale géométrique · normale voulue) — pas
+  de dérivation manuelle par face (la leçon de chiralité du mesher).
+- Réglage renommé : « Terrain voxel : Blocs / **Pentes voxel** » (le mode continu lisse
+  n'existe plus). ~124 k colonnes au banc 60×60, coût comparable au lisse.
+
+### Fonctionnel (vérifié e2e, captures)
+- Banc plein monde : collines en escaliers voxel, étangs étagés, arbres/ombres inchangés ;
+  vraie partie : île en plateau à rebords crème étagés, move serveur OK, rotation OK.
+  `tsc` + build verts.
+
+## 2026-07-17 (14) — Diorama itération 2 : rives, pointillés, GRAND MONDE au banc
+
+### Fait
+- **L'eau se creuse** (`tileH` → −0.45 pour biome 0) : rives en pente douce, étangs laiteux
+  aux bords fondus (sable auto par le fondu de biomes). **Pointillés d'herbe** discrets
+  (5 % des vertex herbe/forêt à −14 %). Terrasses resserrées (bande 0.34 → 0.26).
+- **`SmoothTerrain` accepte une source STRUCTURELLE** (`TerrainSource`) → le **banc 60×60
+  a un mode 🌄 Lisse / 🧱 Blocs** (bouton + hook `__vbRebuild`) qui construit le diorama
+  TOUT DÉCOUVERT (2 415 arbres/rochers scatter) — l'outil d'évaluation du style et de la
+  perf pire-cas. Résultat visuel TRÈS proche de la référence (captures).
+- **Jitter des canopées quantifié en 3 teintes** (gen-props) : 7,0 → 5,9 M tris au banc
+  plein monde (ombres comprises) — l'arbre voxel bosselé fusionne mal par nature ; en vraie
+  partie le fog réduit à ~10-20 % de ça. Blocs re-générés.
+- Backend mort pendant une interruption (diagnostic : dernier log 16:12, curl 000) —
+  relancé, e2e re-vérifié.
+
+### Fonctionnel (vérifié e2e, captures)
+- Banc lisse plein monde : collines terrassées crème, forêts de boules + cerisiers, étangs,
+  longues ombres — le style de la référence. Vraie partie : île diorama, move serveur OK,
+  rotation OK. `tsc` + build verts.
+
+## 2026-07-17 (13) — Terrain continu : STYLE DIORAMA (référence image utilisateur)
+
+### Fait
+- **Terrasses organiques** (`smoothTerrain.ts terrace()`) : le champ lissé est re-quantifié en
+  plateaux plats + montée douce centrée sur les demi-niveaux (bande `TERRACE_BAND` 0.34) —
+  les courbes de niveau du champ lissé deviennent des rebords arrondis, PAS les frontières
+  de tuiles.
+- **Falaises pierre crème** : fondu couleur biome → `CLIFF` crème par pente locale (seuil
+  HAUT 1.15 — première passe à 0.55 passait la moitié de l'île en crème, corrigé sur
+  capture) ; jupe périmétrique assortie.
+- **AO cuite** : la concavité locale (moyenne des 4 voisins − h) fonce doucement les creux
+  et pieds de falaises (max −32 %).
+- **Palette DIORAMA par biome** (dans smoothTerrain, remplace palettes.json pour le mode
+  lisse) : herbe menthe, sable crème, eau laiteuse, sol forêt clair (les ARBRES font le
+  vert) — 1re passe trop délavée, re-saturée sur capture.
+- **`gen-props.mjs` + scatter** : arbres-boules (tronc + canopées ellipsoïdes fondues,
+  jitter de teinte) verts ×3 + ROSES cerisier ×3 + rochers ×3 → `voxels/props/` ;
+  `VoxelMapView.buildProps()` : forêt = bosquet (2-3 arbres), prairie = arbre occasionnel
+  (rose 1/3) + caillou rare, roche = rochers — InstancedMesh, positions/échelles/rotations
+  par hachage déterministe, posés sur `smooth.heightAt`, ombres portées.
+
+### Fonctionnel (vérifié e2e, captures)
+- Île diorama : plateaux menthe, bosquets + cerisiers, rebords crème, église, move serveur
+  OK, rotation OK. `tsc` + build verts.
+
+### À faire (suite diorama)
+- Vérifier sur un monde PLUS GRAND (l'île de test 22×22 est petite), rives d'eau claires,
+  pointillés d'herbe discrets (la référence en a), densité d'arbres à goûter, terrasses
+  plus marquées si besoin.
+
+## 2026-07-17 (12) — Carte : terrain CONTINU (lisse) en alternative aux blocs
+
+### Fait
+- **`frontend/src/voxel/smoothTerrain.ts`** : surface lissée construite des MÊMES données
+  serveur — hauteur aux COINS = moyenne des tuiles adjacentes (pentes continues au lieu de
+  marches), sous-division 3×3/tuile + micro-relief (nul sur l'eau), **couleurs par vertex
+  depuis palettes.json** (mêmes teintes pastel que les blocs) FONDUES aux frontières de
+  biomes (plages dégradées automatiques) + grain léger, jupe périmétrique, normales lissées
+  (le Lambert + ombres de la passe beauté font le modelé), `heightAt(x,y)` bilinéaire.
+- **Réglages → « Terrain voxel » : Blocs / Lisse** (`settings.voxelSmooth`, défaut LISSE,
+  visible quand la carte voxel est active, bascule à chaud). CARTE MONDE uniquement —
+  Combat/Home gardent leurs blocs (grille tactique/carte d'auteur).
+- Intégration `VoxelMapView` : en mode lisse le sol découvert vient de la surface (la brume
+  reste en blocs voxel par-dessus les tuiles vierges), overlays/unités posés à
+  `smooth.heightAt+0.04`, **picking = point d'impact arrondi** (plus simple que les blocs),
+  clé de terrain étendue (`:s|:b`) pour reconstruire au changement de mode.
+
+### Fonctionnel (vérifié e2e)
+- Île découverte = colline lisse aux biomes fondus, losanges/danger épousent la pente,
+  move serveur OK, rotation OK (captures). `tsc` + build verts.
+
+### À faire (si le mode lisse plaît)
+- Fondu brume↔surface au bord de la découverte, eau animée, falaises plus marquées
+  (accentuer les fortes pentes), étendre aux 16³ l'idée si on veut du lisse au Home.
+
+## 2026-07-17 (11) — Voxel : passe BEAUTÉ (lumière pastel, ombres, textures adoucies)
+
+### Fait
+- **`engine.enableLighting({shadowSpan})`** : hémisphérique ciel quasi neutre `#f7f5ff` →
+  rebond lavande `#cfc2e8` (1.4) + **soleil directionnel** à peine chaud `#fff2e0` (1.75),
+  FIXE DANS LE MONDE (les ombres tournent avec la caméra — lisible), **ombres portées douces**
+  (PCFSoft 1024, boîte suivant `target` — le pan ne sort jamais de l'ombre ; span par vue :
+  map 45, ville 32, combat 9, éditeur 4). PAS de tone mapping (l'ACES essayé boueusait les
+  pastels) ni de fog (à 300 de caméra ortho, tout était dans le voile — retiré).
+- **Matériaux Lambert** partout (terrain instancié, personnages ; normales émises par le
+  mesher — mapping d'axes voxel→monde [0,2,1]) ; ombrage CUIT réduit (py1/ny.55/px.93/nx.84/
+  pz.97/nz.78) pour laisser la lumière modeler. **La brume reste en Basic auto-éclairé**
+  (éclairée, elle devenait un papier gris sale). castShadow/receiveShadow sur tout le voxel.
+- **Palettes pastelisées** (`pastelize` dans gen-blocks : +14 % vers le blanc, −10 % de
+  saturation) — blocs 32³ ET 16³ régénérés ; les 5 vues (Map/Combat/Home/banc/éditeur)
+  activent la lumière (éditeur = WYSIWYG).
+- ⚠ le comptage renderer double (tris/calls ×2) : c'est la PASSE D'OMBRE — attendu.
+
+### Fonctionnel (vérifié e2e, captures)
+- Map : brume lumineuse, verts adoucis, flancs modelés, move serveur OK. Combat : ombres des
+  piliers visibles, relief net, move OK. Ville : le rempart projette son ombre, héros nommés.
+  Banc 5,36 M tris (2×2,68 M avec ombre), éditeur pose/undo/régénération OK. Build vert.
+
+### À faire (idées beauté suivantes)
+- AO par vertex (fusion greedy consciente de l'AO), eau animée (shader onBeforeCompile),
+  respiration de la brume, ciel dégradé du combat.
+
+## 2026-07-17 (10) — Voxel Phase 5 (fin) : monstres voxel + catalogue — FIN du chantier autonome
+
+### Fait
+- **`monster-recipe.mjs`** : 9 silhouettes paramétrées (blob slime + reflet, fantôme à jupe
+  festonnée [harpies], TOURBILLON étagé [élémentaire de vent], champignon à pois [dryade],
+  chauve-souris ailes en éventail, araignée 8 pattes + cristal, quadrupède [loup-garou],
+  gobelinoïde petit/grand [gobelin/orc + défenses]) — `Grid`/`shade` partagés avec le gabarit
+  héros. **`gen-monsters.mjs`** : corps = cluster dominant du PNG, accent = cluster distinct.
+- Map ET Combat : `ALL_CHAR_KEYS` (7 héros + 9 monstres) — **tout le monde passe en modèle
+  voxel** quand le .vox existe, billboard sinon ; vérifié e2e (combat 100 % voxel : Aldric vs
+  3 harpies-fantômes voxel, move serveur OK).
+- **`build-catalog.mjs` énumère `voxels/**`** (95 .vox, catégorie `voxels`, tags voxel/lod/…) —
+  600 assets au catalogue. `CLAUDE.md` §7a-bis à jour (Phases 0→5 documentées).
+
+### État global du chantier voxel (VOXEL-PLAN.md)
+- ✅ Phases 0, 1, 1b, 2, 3, 4, 5 + passe polish/perf. Tout derrière **Settings → « Carte
+  voxel (expérimental) »** ; Phaser reste le défaut et le fallback.
+- ⏳ **Phase 6 (voxel par défaut + retrait Phaser) = décision de Guillaume après test sur
+  téléphone réel** (pinch/pan/rotation à valider au doigt ; le banc 🧊 → « 🌍 Terrain 60×60 »
+  donne les budgets live). Restent aussi (petits) : grilles de ciblage GDD par case en combat,
+  respiration de la brume, test perf automatisé du chemin voxel, onglet persos de l'éditeur.
+
+## 2026-07-17 (9) — Voxel Phase 5 : personnages voxel (héros, étape 2)
+
+### Fait
+- **`scripts/voxel/char-recipe.mjs`** (JS pur, partageable) : gabarit CHIBI voxel paramétré
+  20×12×30 — grosse tête, yeux + reflet, joues, tunique/ceinture/bottes, et **accessoire par
+  classe** : cape (éclaireur), casque de chantier (bâtisseur), arc + carquois (chasseur),
+  heaume + cimier + épée (chevalier), sac à dos (récupérateur), capuche + bâton à gemme
+  (soigneur), chapeau pointu + bâton (mage). Le personnage FAIT FACE à +y.
+- **`gen-characters.mjs`** : couleurs (peau/cheveux/tenue/accent) **échantillonnées par ZONES**
+  dans les PNG chibi existants (bande haute = cheveux, visage = peau [filtre teinte chair],
+  torse = tenue, accent = cluster le plus saturé) → 7 `.vox` dans `public/voxels/chars/` +
+  previews/SHEET dans `asset-index/voxels/chars/`. Retouche MagicaVoxel possible (re-déposer).
+- **`frontend/src/voxel/characters.ts`** (CharLibrary : fetch+mesh, échelle normalisée
+  HERO_HEIGHT, fallback silencieux si le .vox manque) ; **Map et Combat utilisent le modèle
+  voxel des héros quand il existe** (sinon billboard — bascule progressive) ; le modèle
+  **tourne réellement avec la caméra** (rotation.y = azimut, mis à jour chaque frame via
+  engine.onFrame + getter `azimuthNow` ; l'animation de rotation l'entraîne aussi).
+  Monstres : billboards conservés (gabarits blob/volant = suite).
+
+### Fonctionnel (vérifié e2e)
+- Contact sheet des 7 classes inspectée (accessoires reconnaissables) ; combat réel : Aldric
+  rendu en VOXEL sur l'arène (capture), clic case verte → move serveur OK, rotation OK.
+  `tsc` + build verts.
+
+### À faire
+- Monstres voxel (gabarits blob/volant/quadrupède), catalogue `voxels` dans build-catalog,
+  onglet personnages de l'éditeur voxel, MAJ CLAUDE.md §7a-bis. **Phase 6 (retrait Phaser +
+  flag par défaut) = décision utilisateur après test sur téléphone réel.**
+
+## 2026-07-17 (8) — Voxel : passe polish + perf (Map/Combat/Home)
+
+### Fait
+- **LOD 16³ complet** (26 blocs régénérés dans `voxels/16/`) et **la ville passe au 16³** :
+  6,1 M tris → **426 k** (14×) — lisible de près, style voxel assumé.
+- **`labels.ts`** : étiquettes texte en sprites canvas (cache par contenu, **depthTest OFF** —
+  au bord d'un bloc le test de profondeur les avalait ; bonus FFTA2 : le nom reste lisible
+  quand l'unité est cachée derrière un pilier).
+- **Combat** : cases atteignables en vert franc + liseré sombre (l'ancien vert doux se noyait
+  dans l'herbe), **noms (+ états) sous les unités**.
+- **Home** : pastilles remontées AU-DESSUS des sprites de bâtiments (elles les recouvraient ;
+  recalées sur la hauteur réelle du sprite au chargement de sa texture), héros sur l'herbe
+  agrandis (1.35) + **étiquette de nom**.
+
+### Fonctionnel (vérifié e2e)
+- Ville 426 k tris / 63 draw calls, 7 pastilles, modal Puits OK ; combat re-vérifié (clic case
+  verte → move serveur, labels visibles sur capture). Build vert.
+
+## 2026-07-17 (7) — Voxel Phase 4 : le Home (ville) en voxel
+
+### Fait
+- **15 nouveaux blocs voxel** (32³, `gen-blocks.mjs`) : TOUS les matériaux de sol de
+  `town-map.json` (sandstone, goldblock, coalblock, cactus, mud, limestone, redsand, jungle,
+  ash, fallgrass, dungeon, basalt, darkgrass, copperblock, darkstone) — palettes extraites de
+  leurs isotiles → les couleurs de la carte d'auteur sont préservées. 26 blocs au total.
+- **`terrain.ts` : `buildStacks()`** — instanciation de blocs à niveaux ARBITRAIRES (le format
+  `Cell.blocks[]` de l'éditeur : piles hétérogènes, trous permis).
+- **`frontend/src/voxel/VoxelTownView.tsx`** : le Home voxel, MÊMES props que TownMap
+  (`selected/onBuildingClick/onClear` — HomeTab bascule sur `settings.voxelMap`) :
+  - terrain = town-map.json interprété pile par pile (575 cellules) ;
+  - bâtiments/props de l'éditeur en billboards aux positions d'auteur (inversion des offsets
+    écran dx/dy → monde : du=dx/tileW+dy/tileH, dv=dy/tileH−dx/tileW ; scale·objW/tileW, flipX) ;
+  - **hotspots par raycast** sur les sprites (remplace le hack elementFromPoint) + **pastilles
+    DOM projetées chaque frame** (nom + durabilité, CSS .town-spot réutilisé, MAJ impérative
+    dans engine.onFrame — pas de re-render React au pan) ;
+  - MES héros en ville sur l'herbe (mêmes GRASS_FILES/hachage/stride que TownMap) ;
+  - zoom/pan/pinch du moteur + rotation ↺/↻, fit initial sur la zone occupée.
+
+### Fonctionnel (vérifié e2e — backend réel)
+- Onglet Home flag ON : ville rendue (60 draw calls), **7 pastilles projetées**, clic pastille
+  Puits → **modal réel** (Eau 6/50, durabilité 97/100, « Puiser de l'eau (Aldric) », PA de
+  l'équipe), rotation 180° (la Tour et son sprite passent au premier plan, pastilles suivent).
+  `tsc` vert. Captures inspectées.
+
+### À faire (peaufinage voxel avant Phase 5)
+- Ville : 6,1 M tris (32³ × 575 cellules) — envisager un LOD 16³ ville ou accepter (rendu
+  on-demand) ; sprites bâtiments petits sous les pastilles (offset pastille au-dessus du
+  sprite) ; héros sur l'herbe peu visibles (taille/label).
+- Combat : contraste cases vertes, labels d'unités. Map : test perf dédié.
+- Puis Phase 5 (gabarit chibi voxel) et Phase 6 (retrait Phaser).
+
+## 2026-07-17 (6) — Voxel Phase 3 : combat iso sur le moteur voxel
+
+### Fait
+- **`frontend/src/voxel/VoxelCombatView.tsx`** : le combat 7×7 sur le MÊME moteur (blocs 32³ vus
+  de près — herbe sur terre, piliers = `combat.heights`), contrat bus identique à CombatScene
+  (CombatRender entrant ; **clic unité PRIORITAIRE** puis case, via raycast sprites→terrain →
+  CombatUnitClick/CombatTileClick). Cases atteignables serveur en quads verts, unité courante
+  cerclée jaune, cibles rouge (attaque) / violet (skill), unités en billboards + **barres de PV
+  en sprites face caméra**, fond opaque #161022, **rotation FFTA2 ↺/↻** (cadrage centre de grille).
+- `MapTab` : `settings.voxelMap` couvre maintenant les DEUX vues (Map hors combat, Combat en
+  combat) — Phaser plus monté du tout quand le flag est actif.
+- Pas encore porté : étiquettes nom/états sous les unités (l'UI CombatControls les montre),
+  grilles d'attaque VERTES/ROUGES du ciblage GDD par case (les cibles restent les anneaux) —
+  à faire quand `combatResponse` exposera les grilles par case côté vue.
+
+### Fonctionnel (vérifié e2e — backend réel)
+- Héros marché jusqu'à un pack (2 pas), combat lancé : Aldric vs 2 Harpies de Prairie,
+  13 cases atteignables rendues, **clic RÉEL sur case verte projetée → move serveur
+  (2,6)→(3,6)**, rotation 90° (les harpies masquées par un pilier deviennent visibles —
+  la démo parfaite de l'intérêt du 3D). `tsc` vert. Captures inspectées.
+
+### À faire
+- Phase 4 : Home voxel (town-map.json → piles de blocs + bâtiments billboards + hotspots raycast).
+- Peaufinage combat : contraste des cases vertes, labels, grilles de ciblage par case.
+
+## 2026-07-17 (5) — Voxel Phase 2 : la carte monde en voxel (réglage `voxelMap`)
+
+### Fait
+- **`frontend/src/voxel/VoxelMapView.tsx`** : la Map voxel EXPÉRIMENTALE, derrière **Settings →
+  Réglages → « Carte voxel (expérimental) »** (`settings.voxelMap`, persisté ; défaut = iso
+  classique). Elle parle **le même contrat bus que MapScene** (MapRender entrant ;
+  MapTileClick/MapHeroClick/MapHeroMenu sortants ; MapSceneReady au montage) → menu radial,
+  TopBar, store inchangés. `MapTab` monte VoxelMapView OU PhaserGame ; **un combat repasse sur
+  Phaser** (jusqu'à la Phase 3).
+- Contenu : terrain InstancedMesh (blocs 16³, `under` terre/pierre, ombrage d'altitude par tint),
+  **fog serveur → blocs de brume** (tuiles vierges), re-instanciation quand `discovered` évolue ;
+  losanges de déplacement (mêmes règles : ortho, eau connue, porte scellée), socle + **église
+  billboard** sur la ville, monstres = teinte de danger (jaune→rouge par count) + sprite créature,
+  héros = billboards chibi (miens pleins / autres α0.45 / en ville masqués, ellipse par case),
+  anneau de sélection ; boutons ↺/↻ (rotation 4 orientations) en haut à droite de la vue.
+  Textures en `NoColorSpace` + renderer laissé linéaire → les octets PNG/palettes passent tels
+  quels (pas de dérive sRGB vs les previews).
+- Déplacement **sans animation, case par case** : positions snap sur l'état serveur (consigne).
+
+### Fonctionnel (vérifié e2e — backend Go réel + Chromium headless)
+- Partie créée via `newGame`, flag activé, onglet Map : terrain construit (49 découvertes / 484,
+  reste en brume), **déplacement serveur OK** ((11,11)→(12,11), PA 6→5) via MapTileClick,
+  **rotation 90° OK** (billboards face caméra), 26 draw calls / 409 k tris sur 22×22.
+  `tsc` + build verts. Captures inspectées (shell téléphone complet).
+
+### À faire
+- Phase 3 : combat iso voxel (grilles GDD en quads, mêmes blocs, rotation FFTA2) puis Phase 4
+  (Home voxel depuis town-map.json). Peaufinage Map : pinch réel sur appareil, perf test dédié,
+  hint « pas encore de combat voxel ». Vague/brume animée (respiration) à porter si souhaité.
+
+## 2026-07-17 (4) — Voxel Phase 1b : éditeur voxel (🧊 Voxels / #voxeledit)
+
+### Fait
+- **`frontend/src/voxeledit/`** (écran `voxeledit`, hors shell, bouton titre « 🧊 Voxels » →
+  éditeur ; le banc garde `#voxel-bench` + liens croisés « 🌍 Terrain 60×60 » / « 🧊 Éditeur ») :
+  - `voxeditStore.ts` (zustand séparé, hook DEV `window.__vx`) : modèle mutable + `rev`,
+    undo/redo par snapshots (≤60), autosave localStorage `echoterra:voxeled:doc` (base64) +
+    restore, bibliothèque par `import.meta.glob` sur `public/voxels/**/*.vox` (groupée 32³/16³),
+    **palette tronquée aux couleurs utilisées** au décodage.
+  - `VoxelEditScreen.tsx` + `voxeledit.css` : bibliothèque (gauche), vue moteur (centre —
+    modes **Bloc / 3×3 / Pile** pour vérifier les raccords, GridHelper décalé -0.002 [z-fight]),
+    outils (droite) : ✋ nav, 🧱 poser, ⌫ effacer, 💉 pipette (raycast face → voxel ±normale/2),
+    ⇄ miroir X, palette cliquable + ajout couleur, **recettes LIVE** (sliders params/seed/16³-32³
+    → `regenerate()` via l'IMPORT DIRECT de `scripts/voxel/recipes.mjs` — le module partagé),
+    export .vox (download, à redéposer dans public/voxels/) / import .vox.
+- **Moteur** : `orbitBy` (orbite libre azimut/élévation, éditeur), `elevation` paramétrable,
+  `cameraDir(az, el)` ; `VoxelControls.mode = "pan" | "orbit"`. Une rotation « jeu » (↻/↺)
+  reprend l'angle dimétrique.
+- **`gen-blocks.mjs` écrit `voxels/palettes.json`** (id → palette extraite + recette + params,
+  fusion avec l'existant) : le navigateur ne peut pas faire l'extraction sharp — c'est le pont
+  qui permet la régénération 100 % navigateur.
+
+### Fonctionnel (vérifié)
+- `tsc` + build OK ; vérifié headless : chargement grass-v0, pose de voxel (history 1) → undo (0),
+  panneau recette (sliders + seed), **régénération live OK** (« régénéré grass (seed 777, 32³) »),
+  vue 3×3, orbite libre par drag. Captures inspectées.
+
+### À faire
+- Phase 2 : Map monde réelle branchée sur GameState (fog serveur → blocs mist, sélection/
+  losanges/danger en quads, billboards persos, flag Settings). Éventuel : brosse rectangle,
+  crop de plans, thumbnails bibliothèque.
+
+## 2026-07-17 (3) — Voxel Phase 1 : moteur Three.js + banc d'essai
+
+### Fait
+- **`frontend/src/voxel/`** (dep `three`) : `vox.ts` (décodeur .vox navigateur), `mesher.ts`
+  (greedy meshing → BufferGeometry couleurs par vertex, éclairage CUIT par direction de face —
+  ⚠ l'échange d'axes voxel(z-up)→three(y-up) inverse la chiralité : enroulement OPPOSÉ, vérifié
+  par test de normales sur cube unité), `engine.ts` (WebGL **on-demand** — 0 frame au repos,
+  caméra ORTHO dimétrique élévation 30°, canvas px physiques DPR, frustum en px CSS → zoom = px/unité),
+  `rotation.ts` (4 orientations, azimut 45°+k·90°, animée 240 ms), `controls.ts` (pan « attrape le
+  sol », molette ancrée, **pinch absolu depuis baseline** — même math que MapScene, TAP_SLOP 10px CSS),
+  `terrain.ts` (BlockLibrary par LOD + `buildTerrain` : **InstancedMesh par (bloc,variante)**,
+  bloc `under` sous la surface [terre sous herbe — sinon piliers « rayés »], tint par instance,
+  lookup instance→cellule pour le picking).
+- **Banc `#voxel-bench`** (bouton titre « 🧊 Voxels », écran hors shell `voxelbench`) : monde 60×60
+  simulé (biomes par bruit + anneau de brume), HUD draw calls/tris/instances/meshing/frame,
+  boutons rotation, tap→sélection (quad jaune posé sur la tuile).
+- **LOD 16³** (`gen-blocks --size 16 --out 16` → `voxels/16/`) : à l'échelle carte, 32³ = 21,9 M
+  tris (mesuré) → 16³ + flancs unis + scatter atténué = **2,7 M tris, 24 draw calls, meshing
+  64 ms, chargement ~200 ms** (mesuré headless). Recettes : tons quantifiés en paliers (aide le
+  greedy + style aplats), flancs speckle seulement ≥24³.
+
+### Fonctionnel (vérifié)
+- `tsc -b` + `npm run build` OK ; bench vérifié en Chromium headless GL logiciel (Playwright,
+  poll par evaluate) : terrain rendu (captures), tap → « (33,34) forest ×3 », rotation 90°/180°
+  correcte, zéro erreur console. Budgets HUD ci-dessus.
+
+### À faire
+- Phase 1b : éditeur voxel (`#voxeledit`, bibliothèque, vue 3D, édition, recettes live via
+  `recipes.mjs` partagé) — absorbera le banc. Puis Phase 2 (Map réelle branchée sur GameState),
+  3 (Combat), 4 (Home). Optimisation possible si besoin réel : meshing par chunks avec culling
+  des faces entre piliers voisins (~5-10× de tris en moins). Catalogue `voxels` à ajouter.
+
+## 2026-07-17 (2) — Voxel Phase 0 : générateur de blocs (sans ComfyUI)
+
+### Fait
+- **`scripts/voxel/`** : `recipes.mjs` (recettes procédurales JS PUR — partageable avec le futur
+  éditeur navigateur ; bruit de valeur **périodique** → tuilage sans couture, cube plein + relief
+  ADDITIF dans une marge HEADROOM au-dessus → raccords verticaux garantis), `vox-format.mjs`
+  (encode/décode `.vox` MagicaVoxel), `render-iso.mjs` (rendu logiciel iso 2:1 sans GPU — l'outil
+  de validation en session), `gen-blocks.mjs` (CLI : **palettes extraites des isotiles existants**
+  — face du haut / flancs séparés, quantification 5 bits, accents saturés depuis flowers/mushroom ;
+  `--size` (D1, 32 défaut) `--variants` `--only`).
+- **11 blocs × 3 variantes** dans `frontend/public/voxels/` : water (dégradé de profondeur +
+  vaguelettes), sand, grass (brins + fleurs accent), forest, stone (fissures), snow (étincelles),
+  **mist** (banc de nuages moutonné, palette MIST_* de MapScene), dirt, cobblestone (Voronoï
+  périodique), brick (appareillage 3D), woodfloor (lames + abouts).
+- Previews dans `asset-index/voxels/` : bloc seul, **tuilage 2×2 + empilement** (vérif raccords),
+  `SHEET.png` (contact sheet).
+
+### Fonctionnel (vérifié)
+- Génération complète sans erreur ; contact sheet inspectée visuellement (style storybook OK,
+  raccords 2×2 et vertical sans couture) ; décodage `.vox` round-trip OK (données identiques ;
+  seuls les octets alpha de palette inutilisés diffèrent).
+
+### À faire
+- Phase 1 : moteur Three.js (`frontend/src/voxel/`) — mesher greedy, InstancedMesh, caméra ortho
+  dimétrique, rotation 4 orientations, banc `#voxel-bench`. Puis 1b (éditeur), 2 (Map), 3 (Combat),
+  4 (Home), 5 (persos voxel). Ajouter la catégorie `voxels` à `build-catalog.mjs`.
+
+## 2026-07-17 — Plan « carte voxel » (VOXEL-PLAN.md)
+
+### Fait
+- **`VOXEL-PLAN.md`** (racine) : plan en 7 phases pour passer Home / Map / Combat sur un **moteur
+  voxel 3D unique** (Three.js, caméra ortho dimétrique, rotation 4 orientations). Points clés :
+  blocs voxel **générés localement sans ComfyUI** (recettes procédurales + palette extraite des
+  `isotiles/`, sortie `.vox`, preview par rendu logiciel Node), terrain en `InstancedMesh`
+  (transposition de l'atlas de piliers), personnages en **2 étapes** (billboards PNG puis modèles
+  voxel), **déplacements sans animation, case par case**, transition sous flag avec Phaser en
+  fallback, budgets perf mobiles étendus. Décisions ouvertes : D1 résolution 32³/64³, D2 meshing
+  runtime (recommandé), D3 ordre Combat avant Home (recommandé), D4 flag dans Settings.
+- Ajout **Phase 1b — Éditeur voxel** (dev tool à part, façon éditeur de carte / Studio de
+  données) : bouton 🧊 titre + `#voxeledit`, bibliothèque des `.vox`, vue 3D orbite + 4
+  orientations + tuilage 3×3, édition voxel (poser/effacer/pipette/miroir/palette, undo),
+  **recettes live** via module `recipes.mjs` partagé script↔navigateur, autosave localStorage,
+  export/import `.vox` ; absorbe le banc d'essai `#voxel-bench`.
+
+### Fonctionnel (vérifié)
+- Rien de codé — session de planification uniquement.
+
+### À faire
+- Trancher D1–D4 puis démarrer Phase 0 (`scripts/voxel/gen-blocks.mjs` + contact sheet).
+
+---
+
 ## 2026-07-16 (3) — Design Claude Phase 3 : overlays en parchemin (+ fix crash TownStatus)
 
 ### Fait

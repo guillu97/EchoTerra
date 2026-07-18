@@ -9,7 +9,7 @@
 //
 // Run: node scripts/build-catalog.mjs   (also called automatically at the end of a generation run)
 
-import { writeFileSync, existsSync } from "fs";
+import { writeFileSync, existsSync, readdirSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { ASSETS, STYLE_FAR } from "./asset-manifest.mjs";
@@ -78,6 +78,32 @@ for (const a of ASSETS) {
     tags: [...tagSet].sort(),
     prompt: (a.prompt || "").replace(/\s+/g, " ").trim(),
   });
+}
+
+// Blocs et personnages VOXEL (.vox générés par scripts/voxel/) — énumérés depuis
+// le disque : le pipeline voxel n'a pas de manifest, les fichiers font foi.
+const VOX_KW = ["voxel", "vox", "3d", "block", "cube", "magicavoxel"];
+const voxDirs = [
+  { dir: join(PUBLIC, "voxels"), sub: "", extra: ["terrain", "biome", "32"] },
+  { dir: join(PUBLIC, "voxels", "16"), sub: "16/", extra: ["terrain", "biome", "lod", "16"] },
+  { dir: join(PUBLIC, "voxels", "chars"), sub: "chars/", extra: ["character", "chibi", "hero", "monster"] },
+];
+for (const { dir, sub, extra } of voxDirs) {
+  let files = [];
+  try { files = readdirSync(dir).filter((f) => f.endsWith(".vox")); } catch { continue; }
+  for (const f of files) {
+    const id = f.replace(".vox", "");
+    entries.push({
+      id: `vox-${sub.replace("/", "-")}${id}`,
+      category: "voxels",
+      title: id.replace(/-v\d+$/, "").replace(/-/g, " "),
+      file: `voxels/${sub}${f}`,
+      exists: true,
+      style: null,
+      tags: [...new Set(["voxels", ...VOX_KW, ...extra, ...tokens(id)])].sort(),
+      prompt: "",
+    });
+  }
 }
 
 entries.sort((x, y) =>

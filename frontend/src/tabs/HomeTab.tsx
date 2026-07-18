@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useStore } from "../store";
 import { TOWN_BUILDINGS, type BuildingLayout } from "../data/buildings";
 import { TownMap } from "../components/TownMap";
+import { VoxelTownView } from "../voxel/VoxelTownView";
 import type { TownBuilding } from "../api/types";
 import { HeroChips } from "../components/HeroChips";
 import { TownWorker, useWorkerPA } from "../components/TownWorker";
@@ -148,6 +149,7 @@ function BuildingMenu({ layout, b, onClose }: { layout: BuildingLayout; b: TownB
 export function HomeTab() {
   const game = useStore((s) => s.game);
   const setTab = useStore((s) => s.setTab);
+  const voxelMap = useStore((s) => s.settings.voxelMap);
   const [selected, setSelected] = useState<string | null>(null);
   const buildingState = (id: string) => game?.town.buildings?.find((x) => x.id === id);
   const sel = selected ? TOWN_BUILDINGS.find((b) => b.id === selected) : null;
@@ -170,9 +172,14 @@ export function HomeTab() {
       </div>
 
       <div className={`town ${selected ? "dim" : ""}`}>
-        {/* The town map: authored in the editor (JSON export), rendered by the
-            editor's renderer, with zoom/pan and clickable building hotspots. */}
-        <TownMap selected={selected} onBuildingClick={onBuildingClick} onClear={() => setSelected(null)} />
+        {/* The town map: authored in the editor (JSON export). Rendered by the
+            editor's canvas renderer, or by the voxel engine when the experimental
+            voxel flag is on (VOXEL-PLAN Phase 4) — same props either way. */}
+        {voxelMap ? (
+          <VoxelTownView selected={selected} onBuildingClick={onBuildingClick} onClear={() => setSelected(null)} />
+        ) : (
+          <TownMap selected={selected} onBuildingClick={onBuildingClick} onClear={() => setSelected(null)} />
+        )}
 
         <div className="shinki">
           <div className="face">🦊</div>
