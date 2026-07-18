@@ -6,6 +6,39 @@
 
 ---
 
+## 2026-07-18 (25) — WORLD-DETAILS lots D1+D2 : 29 nouveaux props + scatter partagé + repères par seed
+
+### Fait
+- **Lot D1 (couverture)** — 23 recettes dans `gen-props.mjs` : eau (nénuphar ± fleur, rocher
+  émergé cerclé d'écume, bois flotté), sable (coquillages+étoile de mer, galets, algues
+  échouées, herbes de dune = touffe recolorée sèche), prairie (hautes herbes en nappes,
+  buisson à baies rouge/violet, marguerite géante, souche à champignon), forêt (champignon
+  rouge-à-pois/brun/doré, fougère, tronc tombé moussu, buisson dense), montagne (éboulis,
+  cristaux violets/bleus, cairn, arbre mort), neige (congère, pics de glace, arbre givré,
+  buisson givré). 37 props ×3 variantes générés + previews (`asset-index/voxels/props/`).
+- **Lot D2 (repères)** — 6 recettes landmarks (épouvantail, bonhomme de neige, barque,
+  menhir gravé, tortue, ruche) + **tirage par seed** : 3-5 repères par carte hachés sur
+  `game.id` (la seed est masquée par le fog), chacun sur SA meilleure tuile éligible ;
+  cercle de fées = 8 champignons en anneau, vieil arbre = tree-green ×1.35 (écho au Cœur
+  de chêne ancien). Un repère peut apparaître/se déplacer au fil de la découverte (assumé).
+- **`frontend/src/voxel/scatter.ts`** — module PARTAGÉ carte/banc (le banc dupliquait la
+  table) : pur, sans THREE, sortie = placements {id, v, x, y, rot, scale}. Règles
+  **« près de »** par passe voisinage 8-voisins : bord d'eau, eau CALME (nénuphars),
+  pied de falaise (éboulis ×8), sommet (cairns ×20), prairie ouverte (épouvantail) —
+  ⚠ tout test exige `discovered` (biome caviardé à 0 sinon = faux lac). Nappes de hautes
+  herbes par bruit basse fréquence (cellules 3×3) ; roseaux resserrés sur le bord d'eau.
+
+### Fonctionnel (vérifié)
+- Contact-sheet des 29 previews ✓ ; banc plein monde **10,16 M tris** (ombres comprises,
+  +0,9 M vs 9,3 M — budget ≤ +1,5 M tenu) ; e2e vraie partie : terrain + move serveur +
+  rotation OK, 2,18 M tris avec fog ; scatterProps déterministe, landmarks varient par
+  seed (test node) ; `tsc` + build verts.
+
+### Reste (plan WORLD-DETAILS)
+- Lot D3 : vie ambiante (papillons/mouettes/lucioles/abeilles + bascule jour/nuit sur le
+  tick solaire ; lapins/lièvres/crabes). Lot D4 : toiles d'araignée, veines de minerai,
+  cascade shader, souffle de neige, aigle.
+
 ## 2026-07-17 (24) — VOXEL PAR DÉFAUT + détails par terrain + nouveau brouillard
 
 ### Fait

@@ -99,7 +99,8 @@ function pine(snowy, seed) {
 }
 
 // TOUFFE D'HERBE : 5-7 brins fins de hauteurs variées, vert vif.
-function tuft(seed) {
+// `base` optionnel = teinte des brins (dune-grass la recolore vert-jaune sec).
+function tuft(seed, base = [118, 186, 92]) {
   const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz);
   const rnd = makeRng(seed);
   const cx = SIZE.sx / 2, cy = SIZE.sy / 2;
@@ -109,7 +110,7 @@ function tuft(seed) {
     const by = Math.round(cy - 4 + rnd() * 8);
     const h = 4 + Math.floor(rnd() * 5);
     const tone = 0.9 + rnd() * 0.25;
-    const c = [Math.round(118 * tone), Math.round(186 * tone), Math.round(92 * tone)];
+    const c = [Math.round(base[0] * tone), Math.round(base[1] * tone), Math.round(base[2] * tone)];
     for (let z = 0; z < h; z++) g.set(bx + (z >= h - 1 && rnd() < 0.5 ? 1 : 0), by, z, c);
   }
   return { ...SIZE, size: SIZE.sx, data: g.data, palette: g.palette };
@@ -150,10 +151,412 @@ function reed(seed) {
   return { ...SIZE, size: SIZE.sx, data: g.data, palette: g.palette };
 }
 
+// ============================================================================
+// LOT D1 (WORLD-DETAILS-PLAN) : couverture par biome
+// ============================================================================
+
+// EAU — nénuphar : disque plat avec encoche, fleur rose sur certaines variantes
+function lilypad(withFlower, seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz);
+  const rnd = makeRng(seed);
+  const cx = SIZE.sx / 2 - 0.5, cy = SIZE.sy / 2 - 0.5;
+  const notch = rnd() * Math.PI * 2; // encoche du nénuphar
+  for (let y = 0; y < SIZE.sy; y++) {
+    for (let x = 0; x < SIZE.sx; x++) {
+      const dx = x - cx, dy = y - cy;
+      const d = Math.hypot(dx, dy);
+      if (d > 4.6) continue;
+      const a = Math.atan2(dy, dx);
+      let da = Math.abs(a - notch);
+      if (da > Math.PI) da = Math.PI * 2 - da;
+      if (da < 0.5 && d > 1.5) continue; // l'encoche
+      const tone = 0.95 + ((((x * 7 + y * 13 + seed) >>> 0) % 3) - 1) * 0.05;
+      g.set(x, y, 0, [Math.round(112 * tone), Math.round(176 * tone), Math.round(102 * tone)]);
+    }
+  }
+  if (withFlower) {
+    g.box(Math.round(cx) - 1, Math.round(cx), Math.round(cy) - 1, Math.round(cy), 1, 1, [238, 176, 200]);
+    g.set(cx, cy, 2, [246, 232, 160]);
+  }
+  return { ...SIZE, size: SIZE.sx, data: g.data, palette: g.palette };
+}
+
+// EAU — rocher émergé cerclé d'écume
+function waterRock(seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz);
+  const rnd = makeRng(seed);
+  const cx = SIZE.sx / 2 - 0.5, cy = SIZE.sy / 2 - 0.5;
+  ellipsoid(g, cx, cy, 1.6, 3.4, 2.8, 2.6, [186, 178, 166], rnd, 7);
+  for (let y = 0; y < SIZE.sy; y++) {
+    for (let x = 0; x < SIZE.sx; x++) {
+      const d = Math.hypot(x - cx, y - cy);
+      if (d > 3.4 && d < 4.6 && rnd() < 0.7) g.set(x, y, 0, [226, 240, 248]); // écume
+    }
+  }
+  return { ...SIZE, size: SIZE.sx, data: g.data, palette: g.palette };
+}
+
+// EAU/SABLE — bois flotté : branche couchée fourchue
+function driftwood(seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz);
+  const rnd = makeRng(seed);
+  const cy = SIZE.sy / 2;
+  const wood = [212, 192, 162];
+  for (let x = 3; x < 16; x++) {
+    g.box(x, x, cy - 1, cy, 0, x % 5 === 0 ? 2 : 1, shade(wood, 0.94 + rnd() * 0.1));
+    if (x > 10) g.set(x, cy + (x - 10), 0, shade(wood, 0.9)); // la fourche
+  }
+  return { ...SIZE, size: SIZE.sx, data: g.data, palette: g.palette };
+}
+
+// SABLE — coquillages + étoile de mer
+function shells(seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz);
+  const rnd = makeRng(seed);
+  const cols = [[238, 205, 210], [235, 176, 152], [244, 238, 224]];
+  for (let i = 0; i < 3; i++) {
+    const bx = 4 + Math.floor(rnd() * 12), by = 4 + Math.floor(rnd() * 12);
+    ellipsoid(g, bx, by, 0.6, 1.4, 1.1, 1, cols[i % 3], rnd, 4);
+  }
+  // étoile de mer corail : croix de 5 voxels
+  const sx0 = 4 + Math.floor(rnd() * 12), sy0 = 4 + Math.floor(rnd() * 12);
+  for (const [dx, dy] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) g.set(sx0 + dx, sy0 + dy, 0, [236, 146, 122]);
+  return { ...SIZE, size: SIZE.sx, data: g.data, palette: g.palette };
+}
+
+// SABLE — galets
+function pebbleCluster(seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz);
+  const rnd = makeRng(seed);
+  for (let i = 0; i < 4 + Math.floor(rnd() * 3); i++) {
+    const bx = 4 + rnd() * 12, by = 4 + rnd() * 12, r = 1.2 + rnd() * 1.1;
+    ellipsoid(g, bx, by, 0.7, r, r * 0.85, r * 0.7, [202, 196, 186], rnd, 6);
+  }
+  return { ...SIZE, size: SIZE.sx, data: g.data, palette: g.palette };
+}
+
+// SABLE — algues échouées : cordon serpentant vert sombre
+function kelp(seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz);
+  const rnd = makeRng(seed);
+  let x = 3, y = 6 + Math.floor(rnd() * 8);
+  const c = [96, 138, 92];
+  for (let i = 0; i < 12; i++) {
+    g.set(x, y, 0, shade(c, 0.9 + rnd() * 0.2));
+    if (rnd() < 0.4) g.set(x, y + 1, 0, shade(c, 0.85)); // petites feuilles
+    x += 1;
+    y += rnd() < 0.5 ? (rnd() < 0.5 ? 1 : -1) : 0;
+  }
+  return { ...SIZE, size: SIZE.sx, data: g.data, palette: g.palette };
+}
+
+// PRAIRIE — hautes herbes : patch dense de brins hauts
+function tallgrass(seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz);
+  const rnd = makeRng(seed);
+  for (let i = 0; i < 14 + Math.floor(rnd() * 5); i++) {
+    const bx = Math.round(4 + rnd() * 12), by = Math.round(4 + rnd() * 12);
+    const h = 6 + Math.floor(rnd() * 5);
+    const tone = 0.85 + rnd() * 0.3;
+    const c = [Math.round(122 * tone), Math.round(184 * tone), Math.round(96 * tone)];
+    for (let z = 0; z < h; z++) g.set(bx + (z >= h - 2 && rnd() < 0.5 ? 1 : 0), by, z, z >= h - 1 ? shade(c, 1.15) : c);
+  }
+  return { ...SIZE, size: SIZE.sx, data: g.data, palette: g.palette };
+}
+
+// PRAIRIE — buisson à baies
+function berryBush(berry, seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz);
+  const rnd = makeRng(seed);
+  const cx = SIZE.sx / 2 - 0.5, cy = SIZE.sy / 2 - 0.5;
+  ellipsoid(g, cx, cy, 3.4, 5.2, 5.2, 3.8, [116, 172, 96], rnd, 6);
+  for (let i = 0; i < 7; i++) {
+    const a = rnd() * Math.PI * 2, r = 3 + rnd() * 2;
+    g.set(cx + Math.cos(a) * r, cy + Math.sin(a) * r, 3 + Math.floor(rnd() * 3), berry);
+  }
+  return { ...SIZE, size: SIZE.sx, data: g.data, palette: g.palette };
+}
+
+// PRAIRIE — marguerite géante
+function daisy(seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz);
+  const rnd = makeRng(seed);
+  const cx = Math.round(SIZE.sx / 2), cy = Math.round(SIZE.sy / 2);
+  const h = 7 + Math.floor(rnd() * 3);
+  for (let z = 0; z < h; z++) g.set(cx, cy, z, [104, 160, 84]);
+  g.set(cx - 1, cy, Math.round(h * 0.6), [96, 148, 78]); // feuille
+  for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1]]) {
+    g.set(cx + dx, cy + dy, h, [246, 244, 238]); // pétales
+  }
+  g.set(cx, cy, h, [244, 210, 110]); // cœur
+  g.set(cx, cy, h + 1, [244, 210, 110]);
+  return { ...SIZE, size: SIZE.sx, data: g.data, palette: g.palette };
+}
+
+// PRAIRIE — souche + champignon
+function stump(seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz);
+  const rnd = makeRng(seed);
+  const cx = SIZE.sx / 2 - 0.5, cy = SIZE.sy / 2 - 0.5;
+  for (let z = 0; z < 4; z++) ellipsoid(g, cx, cy, z, 3, 3, 0.6, [138, 106, 76], rnd, 5);
+  ellipsoid(g, cx, cy, 4, 2.6, 2.6, 0.5, [206, 180, 142], rnd, 4); // coupe claire
+  g.set(cx + 2, cy - 2, 4, [226, 120, 110]); // mini champignon
+  g.set(cx + 2, cy - 2, 5, [236, 146, 130]);
+  return { ...SIZE, size: SIZE.sx, data: g.data, palette: g.palette };
+}
+
+// FORÊT — champignon (chapeau coloré, pois optionnels)
+function mushroomProp(cap, dots, seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz);
+  const rnd = makeRng(seed);
+  const cx = SIZE.sx / 2 - 0.5, cy = SIZE.sy / 2 - 0.5;
+  g.box(Math.round(cx) - 1, Math.round(cx), Math.round(cy) - 1, Math.round(cy), 0, 3, [238, 228, 210]);
+  ellipsoid(g, cx, cy, 4.4, 3.6, 3.6, 1.9, cap, rnd, 6);
+  if (dots) for (let i = 0; i < 5; i++) g.set(cx - 2.5 + rnd() * 5, cy - 2.5 + rnd() * 5, 5 + Math.round(rnd()), [246, 244, 238]);
+  return { ...SIZE, size: SIZE.sx, data: g.data, palette: g.palette };
+}
+
+// FORÊT — fougère : arcs retombants
+function fern(seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz);
+  const rnd = makeRng(seed);
+  const cx = Math.round(SIZE.sx / 2), cy = Math.round(SIZE.sy / 2);
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2 + rnd();
+    const ux = Math.cos(a), uy = Math.sin(a);
+    for (let k = 0; k < 6; k++) {
+      const z = k < 3 ? k + 1 : 4 - (k - 3); // monte puis retombe
+      g.set(cx + ux * (1 + k * 0.8), cy + uy * (1 + k * 0.8), Math.max(0, z), [88, 148, 92]);
+    }
+  }
+  return { ...SIZE, size: SIZE.sx, data: g.data, palette: g.palette };
+}
+
+// FORÊT — tronc tombé moussu
+function logFallen(seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz);
+  const rnd = makeRng(seed);
+  const cy = SIZE.sy / 2 - 0.5;
+  for (let x = 3; x < 16; x++) {
+    ellipsoid(g, x, cy, 1.6, 0.6, 2.2, 1.8, [128, 100, 72], rnd, 5);
+  }
+  for (let x = 4; x < 15; x++) if (rnd() < 0.7) g.set(x, cy, 3, [110, 168, 96]); // mousse
+  return { ...SIZE, size: SIZE.sx, data: g.data, palette: g.palette };
+}
+
+// FORÊT — buisson dense
+function bushDense(seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz);
+  const rnd = makeRng(seed);
+  const cx = SIZE.sx / 2 - 0.5, cy = SIZE.sy / 2 - 0.5;
+  ellipsoid(g, cx - 1.5, cy, 2.8, 4.4, 4.2, 3.2, [96, 152, 84], rnd, 6);
+  ellipsoid(g, cx + 2.5, cy + 1, 2.2, 3.2, 3, 2.6, [88, 144, 78], rnd, 6);
+  return { ...SIZE, size: SIZE.sx, data: g.data, palette: g.palette };
+}
+
+// MONTAGNE — éboulis
+function scree(seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz);
+  const rnd = makeRng(seed);
+  for (let i = 0; i < 6; i++) {
+    const bx = 5 + rnd() * 10, by = 5 + rnd() * 10, r = 1 + rnd() * 1.4;
+    ellipsoid(g, bx, by, 0.8, r, r * 0.9, r * 0.8, [196, 188, 176], rnd, 8);
+  }
+  return { ...SIZE, size: SIZE.sx, data: g.data, palette: g.palette };
+}
+
+// MONTAGNE — cristaux inclinés par paire
+function crystals(color, seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz);
+  const rnd = makeRng(seed);
+  const cx = Math.round(SIZE.sx / 2), cy = Math.round(SIZE.sy / 2);
+  const spike = (bx, by, h, lean) => {
+    for (let z = 0; z < h; z++) {
+      const off = Math.round(z * lean);
+      const w = z > h - 3 ? 0 : 1; // pointe fine
+      g.box(bx + off - w, bx + off, by - w, by, z, z, z === h - 1 ? shade(color, 1.25) : color);
+    }
+  };
+  spike(cx - 2, cy, 6 + Math.floor(rnd() * 3), 0.18);
+  spike(cx + 2, cy + 2, 4 + Math.floor(rnd() * 2), -0.22);
+  return { ...SIZE, size: SIZE.sx, data: g.data, palette: g.palette };
+}
+
+// MONTAGNE — cairn : pierres empilées
+function cairn(seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz);
+  const rnd = makeRng(seed);
+  const cx = SIZE.sx / 2 - 0.5, cy = SIZE.sy / 2 - 0.5;
+  const radii = [3, 2.4, 1.9, 1.4, 1];
+  let z = 0;
+  for (const r of radii) {
+    ellipsoid(g, cx + (rnd() - 0.5), cy + (rnd() - 0.5), z + r * 0.5, r, r * 0.9, r * 0.62, [190, 182, 170], rnd, 7);
+    z += Math.max(1, Math.round(r * 0.9));
+  }
+  return { ...SIZE, size: SIZE.sx, data: g.data, palette: g.palette };
+}
+
+// MONTAGNE/NEIGE — arbre mort (givré en variante)
+function deadTree(snowy, seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz);
+  const rnd = makeRng(seed);
+  const cx = Math.round(SIZE.sx / 2), cy = Math.round(SIZE.sy / 2);
+  const wood = [134, 116, 96];
+  for (let z = 0; z < 13; z++) g.box(cx - 1, cx, cy - 1, cy, z, z, wood);
+  for (let i = 0; i < 4; i++) {
+    const a = rnd() * Math.PI * 2, z0 = 5 + Math.floor(rnd() * 6);
+    for (let k = 1; k <= 4; k++) {
+      const bx = cx + Math.round(Math.cos(a) * k), by = cy + Math.round(Math.sin(a) * k);
+      g.set(bx, by, z0 + Math.floor(k / 2), wood);
+      if (snowy) g.set(bx, by, z0 + Math.floor(k / 2) + 1, [238, 243, 249]);
+    }
+  }
+  if (snowy) g.box(cx - 1, cx, cy - 1, cy, 13, 13, [238, 243, 249]);
+  return { ...SIZE, size: SIZE.sx, data: g.data, palette: g.palette };
+}
+
+// NEIGE — congère
+function snowdrift(seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz);
+  const rnd = makeRng(seed);
+  const cx = SIZE.sx / 2 - 0.5, cy = SIZE.sy / 2 - 0.5;
+  ellipsoid(g, cx, cy, 1.2, 5.4, 3.6, 2, [240, 244, 250], rnd, 3);
+  ellipsoid(g, cx + 3, cy + 2, 0.8, 2.6, 2, 1.2, [234, 240, 247], rnd, 3);
+  return { ...SIZE, size: SIZE.sx, data: g.data, palette: g.palette };
+}
+
+// NEIGE — pics de glace
+function iceSpikes(seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz);
+  const rnd = makeRng(seed);
+  const cx = Math.round(SIZE.sx / 2), cy = Math.round(SIZE.sy / 2);
+  const ice = [198, 224, 244];
+  const spike = (bx, by, h, r) => {
+    for (let z = 0; z < h; z++) {
+      const rr = Math.max(0, r * (1 - z / h));
+      g.box(bx - rr, bx + rr, by - rr, by + rr, z, z, z === h - 1 ? [236, 246, 252] : ice);
+    }
+  };
+  spike(cx - 2, cy, 7 + Math.floor(rnd() * 3), 1.6);
+  spike(cx + 2, cy + 2, 5, 1.2);
+  spike(cx + 1, cy - 3, 4, 1);
+  return { ...SIZE, size: SIZE.sx, data: g.data, palette: g.palette };
+}
+
+// NEIGE — buisson givré
+function frostBush(seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz);
+  const rnd = makeRng(seed);
+  const cx = SIZE.sx / 2 - 0.5, cy = SIZE.sy / 2 - 0.5;
+  ellipsoid(g, cx, cy, 2.6, 4, 4, 3, [230, 238, 244], rnd, 4);
+  for (let i = 0; i < 6; i++) g.set(cx - 3 + rnd() * 6, cy - 3 + rnd() * 6, 1 + Math.floor(rnd() * 3), [170, 200, 176]);
+  return { ...SIZE, size: SIZE.sx, data: g.data, palette: g.palette };
+}
+
+// ============================================================================
+// LOT D2 : repères (landmarks) uniques par seed
+// ============================================================================
+
+// PRAIRIE — épouvantail
+function scarecrow(seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz);
+  const rnd = makeRng(seed);
+  void rnd;
+  const cx = Math.round(SIZE.sx / 2), cy = Math.round(SIZE.sy / 2);
+  const wood = [140, 112, 80];
+  for (let z = 0; z < 12; z++) g.set(cx, cy, z, wood); // mât
+  g.box(cx - 5, cx + 5, cy, cy, 8, 8, wood); // bras
+  g.box(cx - 1, cx + 1, cy - 1, cy + 1, 9, 11, [226, 200, 150]); // tête sac
+  g.set(cx - 1, cy - 1, 10, [60, 50, 44]); g.set(cx + 1, cy - 1, 10, [60, 50, 44]); // yeux
+  g.box(cx - 2, cx + 2, cy - 2, cy + 2, 12, 12, [222, 186, 110]); // chapeau paille
+  g.box(cx - 1, cx + 1, cy - 1, cy + 1, 13, 13, [214, 176, 100]);
+  g.box(cx - 3, cx + 3, cy, cy, 5, 7, [186, 118, 96]); // tunique
+  return { ...SIZE, size: SIZE.sx, data: g.data, palette: g.palette };
+}
+
+// NEIGE — bonhomme de neige
+function snowman(seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz);
+  const rnd = makeRng(seed);
+  const cx = SIZE.sx / 2 - 0.5, cy = SIZE.sy / 2 - 0.5;
+  ellipsoid(g, cx, cy, 3, 4.4, 4.4, 3.6, [242, 246, 251], rnd, 2);
+  ellipsoid(g, cx, cy, 8.6, 3.2, 3.2, 2.8, [238, 243, 249], rnd, 2);
+  g.set(cx - 1, cy + 3, 9, [50, 46, 52]); g.set(cx + 1, cy + 3, 9, [50, 46, 52]); // yeux charbon
+  g.set(cx, cy + 3, 8, [232, 140, 70]); g.set(cx, cy + 4, 8, [232, 140, 70]); // carotte
+  g.box(cx - 6, cx - 4, cy, cy, 8, 9, [124, 96, 66]); // bras branches
+  g.box(cx + 4, cx + 6, cy, cy, 8, 9, [124, 96, 66]);
+  g.box(cx - 2, cx + 2, cy - 2, cy + 2, 11, 11, [70, 66, 78]); // chapeau
+  g.box(cx - 1, cx + 1, cy - 1, cy + 1, 12, 13, [70, 66, 78]);
+  return { ...SIZE, size: SIZE.sx, data: g.data, palette: g.palette };
+}
+
+// RIVE — barque échouée
+function boat(seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz);
+  const rnd = makeRng(seed);
+  void rnd;
+  const cy = Math.round(SIZE.sy / 2);
+  const hull = [150, 116, 82];
+  for (let x = 3; x < 17; x++) {
+    const taper = x < 5 ? x - 3 : x > 14 ? 16 - x : 3;
+    g.box(x, x, cy - taper, cy + taper, 0, 1, hull);
+    g.box(x, x, cy - taper, cy - taper, 2, 3, shade(hull, 1.12)); // bordés
+    g.box(x, x, cy + taper, cy + taper, 2, 3, shade(hull, 1.12));
+  }
+  g.box(8, 11, cy - 2, cy + 2, 2, 2, shade(hull, 0.85)); // banc
+  return { ...SIZE, size: SIZE.sx, data: g.data, palette: g.palette };
+}
+
+// MONTAGNE — menhir gravé
+function menhir(seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz);
+  const rnd = makeRng(seed);
+  const cx = SIZE.sx / 2 - 0.5, cy = SIZE.sy / 2 - 0.5;
+  for (let z = 0; z < 14; z++) {
+    const r = 2.6 - z * 0.08;
+    ellipsoid(g, cx + Math.sin(z * 0.4) * 0.4, cy, z + 0.5, r, r * 0.8, 0.7, [178, 170, 158], rnd, 6);
+  }
+  for (let z = 3; z < 11; z += 2) g.set(cx + 2, cy, z, [122, 186, 202]); // gravure accent
+  return { ...SIZE, size: SIZE.sx, data: g.data, palette: g.palette };
+}
+
+// SABLE — tortue
+function turtle(seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz);
+  const rnd = makeRng(seed);
+  const cx = SIZE.sx / 2 - 0.5, cy = SIZE.sy / 2 - 0.5;
+  ellipsoid(g, cx, cy, 1.8, 4, 3.2, 2.2, [110, 152, 102], rnd, 5);
+  for (let i = 0; i < 5; i++) g.set(cx - 2 + rnd() * 4, cy - 1.5 + rnd() * 3, 3, [88, 126, 84]); // écailles
+  ellipsoid(g, cx + 4.4, cy, 1.2, 1.4, 1.2, 1.1, [138, 172, 122], rnd, 3); // tête
+  g.set(cx + 5, cy - 1, 1, [40, 44, 40]);
+  for (const [dx, dy] of [[-3, -3], [-3, 3], [3, -3], [3, 3]]) ellipsoid(g, cx + dx, cy + dy, 0.6, 1.2, 1, 0.7, [126, 160, 112], rnd, 3);
+  return { ...SIZE, size: SIZE.sx, data: g.data, palette: g.palette };
+}
+
+// PRAIRIE — ruche sauvage sur souche
+function beehive(seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz);
+  const rnd = makeRng(seed);
+  const cx = SIZE.sx / 2 - 0.5, cy = SIZE.sy / 2 - 0.5;
+  for (let z = 0; z < 3; z++) ellipsoid(g, cx, cy, z, 2.6, 2.6, 0.6, [138, 106, 76], rnd, 4);
+  for (let z = 0; z < 6; z++) {
+    const r = 3.2 * Math.sin(((z + 1) / 7) * Math.PI) + 0.8;
+    const band = z % 2 === 0 ? [226, 186, 108] : [206, 162, 88];
+    ellipsoid(g, cx, cy, 3.5 + z, r, r, 0.6, band, rnd, 4);
+  }
+  g.set(cx, cy + 3, 5, [70, 58, 44]); // entrée
+  g.set(cx + 3, cy + 2, 8, [240, 206, 90]); // abeilles
+  g.set(cx - 3, cy - 2, 9, [240, 206, 90]);
+  return { ...SIZE, size: SIZE.sx, data: g.data, palette: g.palette };
+}
+
 const GREEN = [134, 192, 108];
 const PINK = [232, 164, 188];
 const DEEP = [104, 168, 88];
 const FLOWER_HEADS = [[230, 116, 116], [240, 204, 110], [244, 240, 232]]; // rouge/jaune/blanc
+const BERRIES = [[214, 88, 96], [150, 108, 196], [214, 88, 96]]; // rouge/violet/rouge
+const MUSH_CAPS = [[226, 110, 100], [178, 136, 96], [232, 186, 100]]; // rouge à pois/brun/doré
+const CRYSTAL_COLS = [[188, 150, 224], [140, 180, 228], [200, 160, 232]]; // violet/bleu/violet
 
 async function main() {
   await mkdir(OUT_VOX, { recursive: true });
@@ -168,6 +571,37 @@ async function main() {
     { id: "grass-tuft", make: (v) => tuft(81 + v * 77) },
     { id: "flowers", make: (v) => flowers(FLOWER_HEADS[v % 3], 91 + v * 77) },
     { id: "reed", make: (v) => reed(101 + v * 77) },
+    // LOT D1 — couverture par biome (WORLD-DETAILS-PLAN 2026-07-18)
+    { id: "lilypad", make: (v) => lilypad(v > 0, 201 + v * 77) },
+    { id: "water-rock", make: (v) => waterRock(211 + v * 77) },
+    { id: "driftwood", make: (v) => driftwood(221 + v * 77) },
+    { id: "shells", make: (v) => shells(231 + v * 77) },
+    { id: "pebbles", make: (v) => pebbleCluster(241 + v * 77) },
+    { id: "kelp", make: (v) => kelp(251 + v * 77) },
+    { id: "dune-grass", make: (v) => tuft(261 + v * 77, [176, 178, 108]) },
+    { id: "tallgrass", make: (v) => tallgrass(271 + v * 77) },
+    { id: "berry-bush", make: (v) => berryBush(BERRIES[v % 3], 281 + v * 77) },
+    { id: "daisy", make: (v) => daisy(291 + v * 77) },
+    { id: "stump", make: (v) => stump(301 + v * 77) },
+    { id: "mushroom", make: (v) => mushroomProp(MUSH_CAPS[v % 3], v === 0, 311 + v * 77) },
+    { id: "fern", make: (v) => fern(321 + v * 77) },
+    { id: "log", make: (v) => logFallen(331 + v * 77) },
+    { id: "bush-dense", make: (v) => bushDense(341 + v * 77) },
+    { id: "scree", make: (v) => scree(351 + v * 77) },
+    { id: "crystal", make: (v) => crystals(CRYSTAL_COLS[v % 3], 361 + v * 77) },
+    { id: "cairn", make: (v) => cairn(371 + v * 77) },
+    { id: "dead-tree", make: (v) => deadTree(false, 381 + v * 77) },
+    { id: "snowdrift", make: (v) => snowdrift(391 + v * 77) },
+    { id: "ice-spike", make: (v) => iceSpikes(401 + v * 77) },
+    { id: "frost-tree", make: (v) => deadTree(true, 411 + v * 77) },
+    { id: "frost-bush", make: (v) => frostBush(421 + v * 77) },
+    // LOT D2 — repères uniques par seed
+    { id: "scarecrow", make: (v) => scarecrow(501 + v * 77) },
+    { id: "snowman", make: (v) => snowman(511 + v * 77) },
+    { id: "boat", make: (v) => boat(521 + v * 77) },
+    { id: "menhir", make: (v) => menhir(531 + v * 77) },
+    { id: "turtle", make: (v) => turtle(541 + v * 77) },
+    { id: "beehive", make: (v) => beehive(551 + v * 77) },
   ];
   for (const d of defs) {
     for (let v = 0; v < 3; v++) {

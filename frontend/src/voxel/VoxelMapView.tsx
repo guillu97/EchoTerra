@@ -20,6 +20,7 @@ import { VoxelEngine } from "./engine";
 import { VoxelControls } from "./controls";
 import { BlockLibrary, buildTerrain, type TerrainCell } from "./terrain";
 import { SmoothTerrain } from "./smoothTerrain";
+import { PROP_KEYS, scatterProps } from "./scatter";
 import { ALL_CHAR_KEYS, CharLibrary } from "./characters";
 import { makeLabel } from "./labels";
 import { heroTexKey as heroKey } from "../assets";
@@ -77,9 +78,7 @@ class MapWorld {
       .then((r) => (r.ok ? r.json() : null))
       .then((p) => { this.palettes = p; this.terrainKey = ""; this.draw(); })
       .catch(() => undefined);
-    void this.propsLib
-      .load(["tree-green", "tree-pink", "rock", "pine", "pine-snow", "grass-tuft", "flowers", "reed"])
-      .then(() => {
+    void this.propsLib.load(PROP_KEYS).then(() => {
       this.terrainKey = "";
       this.draw();
     });
@@ -110,59 +109,25 @@ class MapWorld {
     for (const t of this.textures.values()) t.dispose();
   }
 
-  // Scatter des props (mode lisse) : forêt = bosquets verts, herbe = arbre
-  // occasionnel (rose 1/3 — les cerisiers de la référence), roche = cailloux.
-  // Déterministe par hachage de position, posé sur la surface lissée.
+  // Scatter des props (mode lisse) : tables par biome + règles « près de » et
+  // repères par seed dans le module partagé scatter.ts (miroir au banc). Ici on
+  // ne fait que poser les placements sur la surface lissée et instancier.
   private buildProps(game: GameState): THREE.Group {
     const items = new Map<string, THREE.Matrix4[]>();
-    const add = (id: string, v: number, m: THREE.Matrix4) => {
-      const key = `${id}-v${v}`;
+    const placements = scatterProps({
+      width: game.width, height: game.height, tiles: game.tiles,
+      townX: game.town.x, townY: game.town.y, seedStr: game.id,
+    });
+    for (const p of placements) {
+      const m = new THREE.Matrix4().compose(
+        new THREE.Vector3(p.x, this.smooth.heightAt(p.x, p.y) - 0.02, p.y),
+        new THREE.Quaternion().setFromAxisAngle(UP, p.rot),
+        new THREE.Vector3(p.scale, p.scale, p.scale),
+      );
+      const key = `${p.id}-v${p.v}`;
       let list = items.get(key);
       if (!list) items.set(key, (list = []));
       list.push(m);
-    };
-    const hash = (x: number, y: number, s: number) => {
-      let h = (x * 374761393 + y * 668265263 + s * 2246822519) >>> 0;
-      h = (h ^ (h >> 13)) * 1274126177;
-      return ((h >>> 16) & 0xffff) / 0x10000;
-    };
-    for (let y = 0; y < game.height; y++) {
-      for (let x = 0; x < game.width; x++) {
-        const t = game.tiles[y * game.width + x];
-        if (!t.discovered) continue;
-        if (x === game.town.x && y === game.town.y) continue; // l'église est là
-        const plant = (id: string, k: number, scale: number) => {
-          const px = x + (hash(x, y, k) - 0.5) * 0.7;
-          const py = y + (hash(x, y, k + 1) - 0.5) * 0.7;
-          const s = scale * (0.75 + hash(x, y, k + 2) * 0.4);
-          const m = new THREE.Matrix4().compose(
-            new THREE.Vector3(px, this.smooth.heightAt(px, py) - 0.02, py),
-            new THREE.Quaternion().setFromAxisAngle(UP, hash(x, y, k + 3) * Math.PI * 2),
-            new THREE.Vector3(s, s, s),
-          );
-          add(id, Math.floor(hash(x, y, k + 4) * 3), m);
-        };
-        if (t.biome === 3) { // forêt : bosquet + sous-bois
-          plant("tree-green", 10, 0.62);
-          if (hash(x, y, 20) < 0.5) plant("tree-green", 30, 0.5);
-          if (hash(x, y, 40) < 0.12) plant("tree-pink", 50, 0.55);
-          if (hash(x, y, 110) < 0.4) plant("grass-tuft", 115, 0.3);
-        } else if (t.biome === 2) { // prairie : herbes folles, fleurs, arbre occasionnel
-          const r = hash(x, y, 60);
-          if (r < 0.06) plant("tree-pink", 70, 0.55);
-          else if (r < 0.14) plant("tree-green", 80, 0.5);
-          if (hash(x, y, 90) < 0.05) plant("rock", 95, 0.5);
-          if (hash(x, y, 120) < 0.55) plant("grass-tuft", 125, 0.32);
-          if (hash(x, y, 130) < 0.16) plant("flowers", 135, 0.3);
-        } else if (t.biome === 4) { // montagne : sapins et rochers
-          if (hash(x, y, 99) < 0.3) plant("rock", 100, 0.65);
-          if (hash(x, y, 150) < 0.3) plant("pine", 155, 0.62);
-        } else if (t.biome === 5) { // neige : sapins enneigés
-          if (hash(x, y, 160) < 0.35) plant("pine-snow", 165, 0.6);
-        } else if (t.biome === 1) { // rives de sable : roseaux
-          if (hash(x, y, 170) < 0.12) plant("reed", 175, 0.38);
-        }
-      }
     }
     const group = new THREE.Group();
     for (const [key, mats] of items) {

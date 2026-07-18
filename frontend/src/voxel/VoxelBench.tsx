@@ -13,6 +13,7 @@ import { VoxelEngine } from "./engine";
 import { VoxelControls } from "./controls";
 import { BlockLibrary, buildTerrain, type TerrainCell } from "./terrain";
 import { SmoothTerrain, type TerrainSource } from "./smoothTerrain";
+import { PROP_KEYS, scatterProps } from "./scatter";
 
 const W = 60, H = 60; // mêmes dimensions que worldgen.DefaultSize
 const FOG_RADIUS = 21; // au-delà : brume (simule les tuiles non découvertes)
@@ -109,7 +110,7 @@ export function VoxelBench() {
       const propsLib = new BlockLibrary("/voxels/props");
       await Promise.all([
         lib.load(["water", "sand", "grass", "forest", "stone", "snow", "mist", "mistbase", "dirt"]),
-        propsLib.load(["tree-green", "tree-pink", "rock", "pine", "pine-snow", "grass-tuft", "flowers", "reed"]),
+        propsLib.load(PROP_KEYS),
       ]);
       if (disposed) return;
       const smooth = new SmoothTerrain();
@@ -128,47 +129,21 @@ export function VoxelBench() {
           // GRAND MONDE tout découvert : l'évaluation du style diorama
           const source = makeSource();
           roots.push(smooth.build(source, null, (t) => t.height));
-          // scatter d'arbres/rochers, même logique que la carte (compacte)
-          const h01 = (x: number, y: number, s: number) => {
-            let h = (x * 374761393 + y * 668265263 + s * 2246822519) >>> 0;
-            h = (h ^ (h >> 13)) * 1274126177;
-            return ((h >>> 16) & 0xffff) / 0x10000;
-          };
+          // scatter partagé avec la carte (tables par biome + « près de » + repères)
           const mats = new Map<string, THREE.Matrix4[]>();
           const up = new THREE.Vector3(0, 1, 0);
-          for (const [i, t] of source.tiles.entries()) {
-            const x = i % W, y = Math.floor(i / W);
-            const plant = (id: string, k: number, sc: number) => {
-              const px = x + (h01(x, y, k) - 0.5) * 0.7;
-              const py = y + (h01(x, y, k + 1) - 0.5) * 0.7;
-              const s = sc * (0.75 + h01(x, y, k + 2) * 0.4);
-              const m = new THREE.Matrix4().compose(
-                new THREE.Vector3(px, smooth.heightAt(px, py) - 0.02, py),
-                new THREE.Quaternion().setFromAxisAngle(up, h01(x, y, k + 3) * Math.PI * 2),
-                new THREE.Vector3(s, s, s),
-              );
-              const key = `${id}-v${Math.floor(h01(x, y, k + 4) * 3)}`;
-              (mats.get(key) ?? mats.set(key, []).get(key)!).push(m);
-            };
-            if (t.biome === 3) {
-              plant("tree-green", 10, 0.62);
-              if (h01(x, y, 20) < 0.5) plant("tree-green", 30, 0.5);
-              if (h01(x, y, 40) < 0.12) plant("tree-pink", 50, 0.55);
-              if (h01(x, y, 110) < 0.4) plant("grass-tuft", 115, 0.3);
-            } else if (t.biome === 2) {
-              const r = h01(x, y, 60);
-              if (r < 0.06) plant("tree-pink", 70, 0.55);
-              else if (r < 0.14) plant("tree-green", 80, 0.5);
-              if (h01(x, y, 120) < 0.55) plant("grass-tuft", 125, 0.32);
-              if (h01(x, y, 130) < 0.16) plant("flowers", 135, 0.3);
-            } else if (t.biome === 4) {
-              if (h01(x, y, 99) < 0.3) plant("rock", 100, 0.65);
-              if (h01(x, y, 150) < 0.3) plant("pine", 155, 0.62);
-            } else if (t.biome === 5) {
-              if (h01(x, y, 160) < 0.35) plant("pine-snow", 165, 0.6);
-            } else if (t.biome === 1) {
-              if (h01(x, y, 170) < 0.12) plant("reed", 175, 0.38);
-            }
+          const placements = scatterProps({
+            width: W, height: H, tiles: source.tiles,
+            townX: -1, townY: -1, seedStr: "voxel-bench",
+          });
+          for (const p of placements) {
+            const m = new THREE.Matrix4().compose(
+              new THREE.Vector3(p.x, smooth.heightAt(p.x, p.y) - 0.02, p.y),
+              new THREE.Quaternion().setFromAxisAngle(up, p.rot),
+              new THREE.Vector3(p.scale, p.scale, p.scale),
+            );
+            const key = `${p.id}-v${p.v}`;
+            (mats.get(key) ?? mats.set(key, []).get(key)!).push(m);
           }
           const group = new THREE.Group();
           instances = 0;

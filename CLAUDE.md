@@ -530,8 +530,16 @@ chibi paramétré 7 classes + `monster-recipe.mjs` 9 silhouettes de monstres, co
 échantillonnées des PNG par `gen-characters.mjs`/`gen-monsters.mjs` → `voxels/chars/*.vox`,
 `characters.ts` CharLibrary : modèle voxel quand il existe sinon billboard, rotation.y = azimut
 caméra chaque frame). Catalogue : `build-catalog.mjs` énumère `voxels/**` (catégorie `voxels`).
-**Reste : Phase 6** (voxel par défaut + retrait de Phaser, ~−1,2 Mo) = décision utilisateur
-après test sur téléphone réel — tout est derrière `settings.voxelMap` en attendant.
+**Phase 6 (2026-07-17)** : le voxel est le rendu **PAR DÉFAUT** (`voxelMap: true` dans
+`DEFAULT_SETTINGS` ; « Classique » dans les Réglages rebascule sur Phaser, qui n'est pas
+encore retiré du bundle). **Détails du monde** (`WORLD-DETAILS-PLAN.md`, lots D1+D2 faits
+2026-07-18) : 37 props ×3 variantes (`scripts/voxel/gen-props.mjs` → `voxels/props/`) et
+**`frontend/src/voxel/scatter.ts`** = scatter PARTAGÉ carte/banc, pur (sans THREE) — tables
+par biome, règles « près de » (voisinage 8 : bord d'eau, eau calme, pied de falaise, sommet,
+prairie ouverte ; ⚠ exiger `discovered`, le fog caviarde le biome à 0) et **repères par
+seed** (3-5 landmarks hachés sur `game.id` : menhir, barque, épouvantail, bonhomme de neige,
+tortue, ruche, cercle de fées, vieil arbre). Restent lots D3 (vie ambiante jour/nuit) et D4
+(effets : cascade, veines de minerai, toiles, aigle, souffle de neige).
 
 ## 7b. Map editor (dev tool — `frontend/src/editor/`)
 
