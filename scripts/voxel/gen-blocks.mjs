@@ -36,6 +36,7 @@ const BLOCKS = [
   { id: "stone", src: "stone", recipe: "rock", params: { bump: 2 } },
   { id: "snow", src: "snow", recipe: "ground", params: { sparkle: 0.012, bump: 1, surfaceDepth: 4 } },
   { id: "mist", src: null, recipe: "mist", params: {} },
+  { id: "mistbase", src: null, recipe: "mistbase", params: {} },
   { id: "dirt", src: "dirt", recipe: "ground", params: { pebbles: 0.008, bump: 1, surfaceDepth: 6 } },
   { id: "cobblestone", src: "cobblestone", recipe: "cobble", params: {} },
   { id: "brick", src: "brick", recipe: "brick", params: {} },

@@ -20,6 +20,8 @@ import { VoxelEngine } from "./engine";
 import { VoxelControls } from "./controls";
 import { BlockLibrary, buildTerrain, type TerrainCell } from "./terrain";
 import { SmoothTerrain } from "./smoothTerrain";
+import { PROP_KEYS, scatterProps } from "./scatter";
+import { buildCascade, findCascadeSite, type Cascade } from "./cascade";
 import { ALL_CHAR_KEYS, CharLibrary } from "./characters";
 import { makeLabel } from "./labels";
 import { heroTexKey as heroKey } from "../assets";
@@ -49,6 +51,14 @@ class MapWorld {
   // props diorama (arbres-boules, rochers) scatter sur la surface lissée
   propsLib = new BlockLibrary("/voxels/props");
   props: THREE.Group | null = null;
+  // vie ambiante (lot D3) : sous-groupes bascule jour/crépuscule sur le cycle solaire
+  dayProps: THREE.Group | null = null;
+  nightProps: THREE.Group | null = null;
+  lastDayTime = 0.35;
+  // aigle landmark (lot D4) : tournoie au-dessus de son pic à chaque tick solaire
+  eagle: { mesh: THREE.InstancedMesh; x: number; z: number; h: number; scale: number; angle: number } | null = null;
+  // cascade (lot D4) : rideau shader sur une falaise bord d'eau, 1/carte si la géo s'y prête
+  cascade: Cascade | null = null;
   lookup = new Map<THREE.Object3D, TerrainCell[]>();
   overlays = new THREE.Group(); // losanges/danger/anneau — reconstruits à chaque render
   sprites = new THREE.Group(); // billboards héros/monstres/ville
@@ -65,7 +75,7 @@ class MapWorld {
     engine.scene.add(this.overlays);
     engine.scene.add(this.sprites);
     void this.lib
-      .load([...BIOME_BLOCKS, "mist", "dirt"])
+      .load([...BIOME_BLOCKS, "mist", "mistbase", "dirt"])
       .then(() => {
         this.libReady = true;
         this.terrainKey = ""; // forcer la construction maintenant que les blocs sont là
@@ -77,7 +87,7 @@ class MapWorld {
       .then((r) => (r.ok ? r.json() : null))
       .then((p) => { this.palettes = p; this.terrainKey = ""; this.draw(); })
       .catch(() => undefined);
-    void this.propsLib.load(["tree-green", "tree-pink", "rock"]).then(() => {
+    void this.propsLib.load(PROP_KEYS).then(() => {
       this.terrainKey = "";
       this.draw();
     });
@@ -86,6 +96,7 @@ class MapWorld {
     engine.onFrame = () => {
       for (const m of this.charMeshes) m.rotation.y = engine.azimuthNow;
       this.smooth.setTime(performance.now() / 1000);
+      this.cascade?.setTime(performance.now() / 1000);
     };
   }
 
@@ -105,68 +116,82 @@ class MapWorld {
     this.chars.dispose();
     this.smooth.dispose();
     this.propsLib.dispose();
+    this.cascade?.dispose();
     for (const t of this.textures.values()) t.dispose();
   }
 
-  // Scatter des props (mode lisse) : forêt = bosquets verts, herbe = arbre
-  // occasionnel (rose 1/3 — les cerisiers de la référence), roche = cailloux.
-  // Déterministe par hachage de position, posé sur la surface lissée.
+  // Scatter des props (mode lisse) : tables par biome + règles « près de » et
+  // repères par seed dans le module partagé scatter.ts (miroir au banc). Ici on
+  // ne fait que poser les placements sur la surface lissée et instancier.
   private buildProps(game: GameState): THREE.Group {
-    const items = new Map<string, THREE.Matrix4[]>();
-    const add = (id: string, v: number, m: THREE.Matrix4) => {
-      const key = `${id}-v${v}`;
-      let list = items.get(key);
-      if (!list) items.set(key, (list = []));
-      list.push(m);
-    };
-    const hash = (x: number, y: number, s: number) => {
-      let h = (x * 374761393 + y * 668265263 + s * 2246822519) >>> 0;
-      h = (h ^ (h >> 13)) * 1274126177;
-      return ((h >>> 16) & 0xffff) / 0x10000;
-    };
-    for (let y = 0; y < game.height; y++) {
-      for (let x = 0; x < game.width; x++) {
-        const t = game.tiles[y * game.width + x];
-        if (!t.discovered) continue;
-        if (x === game.town.x && y === game.town.y) continue; // l'église est là
-        const plant = (id: string, k: number, scale: number) => {
-          const px = x + (hash(x, y, k) - 0.5) * 0.7;
-          const py = y + (hash(x, y, k + 1) - 0.5) * 0.7;
-          const s = scale * (0.75 + hash(x, y, k + 2) * 0.4);
-          const m = new THREE.Matrix4().compose(
-            new THREE.Vector3(px, this.smooth.heightAt(px, py) - 0.02, py),
-            new THREE.Quaternion().setFromAxisAngle(UP, hash(x, y, k + 3) * Math.PI * 2),
-            new THREE.Vector3(s, s, s),
-          );
-          add(id, Math.floor(hash(x, y, k + 4) * 3), m);
-        };
-        if (t.biome === 3) { // forêt : bosquet
-          plant("tree-green", 10, 0.62);
-          if (hash(x, y, 20) < 0.5) plant("tree-green", 30, 0.5);
-          if (hash(x, y, 40) < 0.12) plant("tree-pink", 50, 0.55);
-        } else if (t.biome === 2) { // prairie : arbre occasionnel
-          const r = hash(x, y, 60);
-          if (r < 0.06) plant("tree-pink", 70, 0.55);
-          else if (r < 0.14) plant("tree-green", 80, 0.5);
-          if (hash(x, y, 90) < 0.05) plant("rock", 95, 0.5);
-        } else if (t.biome === 4 && hash(x, y, 99) < 0.3) {
-          plant("rock", 100, 0.65);
-        }
-      }
+    const items = new Map<string, { mats: THREE.Matrix4[]; phase?: "day" | "night" }>();
+    const placements = scatterProps({
+      width: game.width, height: game.height, tiles: game.tiles,
+      townX: game.town.x, townY: game.town.y, seedStr: game.id,
+    });
+    for (const p of placements) {
+      const m = new THREE.Matrix4().compose(
+        new THREE.Vector3(p.x, this.smooth.heightAt(p.x, p.y) - 0.02, p.y),
+        new THREE.Quaternion().setFromAxisAngle(UP, p.rot),
+        new THREE.Vector3(p.scale, p.scale, p.scale),
+      );
+      const key = `${p.id}-v${p.v}`;
+      let e = items.get(key);
+      if (!e) items.set(key, (e = { mats: [], phase: p.phase }));
+      e.mats.push(m);
     }
     const group = new THREE.Group();
-    for (const [key, mats] of items) {
+    this.dayProps = new THREE.Group();
+    this.nightProps = new THREE.Group();
+    this.eagle = null;
+    const eagleP = placements.find((p) => p.id === "eagle");
+    for (const [key, { mats, phase }] of items) {
       const dash = key.lastIndexOf("-v");
       const geom = this.propsLib.get(key.slice(0, dash), Number(key.slice(dash + 2)));
       if (!geom) continue;
-      const mesh = new THREE.InstancedMesh(geom, PROP_MAT, mats.length);
+      // lucioles : self-lit (Basic) pour luire au crépuscule, sans ombre portée
+      const glowing = key.startsWith("firefly");
+      const mesh = new THREE.InstancedMesh(geom, glowing ? FIREFLY_MAT : PROP_MAT, mats.length);
       for (let i = 0; i < mats.length; i++) mesh.setMatrixAt(i, mats[i]);
       mesh.instanceMatrix.needsUpdate = true;
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
-      group.add(mesh);
+      mesh.castShadow = !glowing;
+      mesh.receiveShadow = !glowing;
+      if (eagleP && key.startsWith("eagle")) {
+        this.eagle = {
+          mesh, x: eagleP.x, z: eagleP.y,
+          h: this.smooth.heightAt(eagleP.x, eagleP.y), scale: eagleP.scale, angle: 0,
+        };
+      }
+      (phase === "day" ? this.dayProps : phase === "night" ? this.nightProps : group).add(mesh);
     }
+    group.add(this.dayProps, this.nightProps);
+    this.applyPhase(this.lastDayTime);
     return group;
+  }
+
+  /** l'aigle avance d'un cran sur son cercle (appelé par le tick solaire de 5 s) */
+  tickAmbient() {
+    const e = this.eagle;
+    if (!e) return;
+    e.angle += 0.55;
+    const m = new THREE.Matrix4().compose(
+      new THREE.Vector3(e.x + Math.cos(e.angle) * 1.1, e.h, e.z + Math.sin(e.angle) * 1.1),
+      new THREE.Quaternion().setFromAxisAngle(UP, -e.angle),
+      new THREE.Vector3(e.scale, e.scale, e.scale),
+    );
+    e.mesh.setMatrixAt(0, m);
+    e.mesh.instanceMatrix.needsUpdate = true;
+    this.engine.invalidate();
+  }
+
+  /** vie ambiante jour/crépuscule : les props sont déjà instanciés, on toggle `visible` */
+  applyPhase(t: number) {
+    this.lastDayTime = t;
+    const dusk = t >= 0.72; // même seuil que les lucioles du plan (t > ~0.75 du cycle)
+    let changed = false;
+    if (this.dayProps && this.dayProps.visible === dusk) { this.dayProps.visible = !dusk; changed = true; }
+    if (this.nightProps && this.nightProps.visible !== dusk) { this.nightProps.visible = dusk; changed = true; }
+    if (changed) this.engine.invalidate();
   }
 
   texture(url: string): THREE.Texture {
@@ -189,7 +214,7 @@ class MapWorld {
     return this.game?.heroes.find((h) => h.id === this.selectedHeroId);
   }
   private levelsOf(t: { biome: number; height: number; discovered?: boolean }): number {
-    return t.discovered ? renderHeight(t) + 1 : 1;
+    return t.discovered ? renderHeight(t) + 1 : 2; // brume non découverte = mur de 2 blocs
   }
 
   /** logique de clic de MapScene, à l'identique */
@@ -241,7 +266,8 @@ class MapWorld {
         for (let x = 0; x < game.width; x++) {
           const t = game.tiles[y * game.width + x];
           if (!t.discovered) {
-            cells.push({ x, y, block: "mist", levels: 1 });
+            // mur de brume à DEUX niveaux : voile profond (mistbase) sous le dôme (mist)
+            cells.push({ x, y, block: "mist", under: "mistbase", levels: 2 });
             continue;
           }
           if (this.smoothMode) continue; // le sol découvert vient de la surface lissée
@@ -260,10 +286,23 @@ class MapWorld {
       this.lookup = built.lookup;
       engine.scene.add(built.group);
       if (this.props) engine.scene.remove(this.props);
+      if (this.cascade) {
+        engine.scene.remove(this.cascade.group);
+        this.cascade.dispose();
+        this.cascade = null;
+      }
       if (this.smoothMode) {
         engine.scene.add(this.smooth.build(game, this.palettes, renderHeight));
         this.props = this.buildProps(game);
         engine.scene.add(this.props);
+        const site = findCascadeSite({
+          width: game.width, height: game.height, tiles: game.tiles,
+          townX: game.town.x, townY: game.town.y, seedStr: game.id,
+        });
+        if (site) {
+          this.cascade = buildCascade(site, (x, y) => this.smooth.heightAt(x, y));
+          engine.scene.add(this.cascade.group);
+        }
       }
       this.terrainKey = key;
     }
@@ -288,7 +327,7 @@ class MapWorld {
     const topOf = (x: number, y: number) => {
       if (this.smoothMode) {
         const t = tileAt(x, y);
-        return t && !t.discovered ? 1 : this.smooth.heightAt(x, y) + 0.04;
+        return t && !t.discovered ? 2 : this.smooth.heightAt(x, y) + 0.04;
       }
       const t = tileAt(x, y);
       return t ? this.levelsOf(t) : 1;
@@ -449,7 +488,10 @@ export function VoxelMapView({ active = true }: { active?: boolean }) {
     // crépuscule menaçant à l'approche de la suivante. Tick 5 s (rendu
     // on-demand : ~12 rendus/min au repos, négligeable).
     const sunTick = () => {
-      engine.setDayTime(world.waveProgress());
+      const t = world.waveProgress();
+      engine.setDayTime(t);
+      world.applyPhase(t); // vie ambiante : papillons/mouettes le jour, lucioles au crépuscule
+      world.tickAmbient(); // l'aigle tournoie
       world.smooth.setTime(performance.now() / 1000);
     };
     sunTick();
@@ -481,6 +523,7 @@ export function VoxelMapView({ active = true }: { active?: boolean }) {
 
 const UP = new THREE.Vector3(0, 1, 0);
 const PROP_MAT = new THREE.MeshLambertMaterial({ vertexColors: true });
+const FIREFLY_MAT = new THREE.MeshBasicMaterial({ vertexColors: true }); // luit dans la pénombre
 
 const rotBtn: React.CSSProperties = {
   background: "rgba(30,34,46,.78)",

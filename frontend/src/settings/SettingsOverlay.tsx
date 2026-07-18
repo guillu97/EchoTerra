@@ -92,7 +92,7 @@ export function SettingsOverlay() {
           ))}
         </div>
         <span className="hint">
-          Rendu 3D voxel de la carte monde avec rotation de caméra (↻). En cours de développement — l'iso classique reste le défaut.
+          Rendu 3D voxel (Map, Combat, Home) avec rotation de caméra (↻) — le défaut. « Classique » rebascule sur l'ancien rendu iso.
         </span>
       </div>
       {settings.voxelMap && (

@@ -530,8 +530,32 @@ chibi paramétré 7 classes + `monster-recipe.mjs` 9 silhouettes de monstres, co
 échantillonnées des PNG par `gen-characters.mjs`/`gen-monsters.mjs` → `voxels/chars/*.vox`,
 `characters.ts` CharLibrary : modèle voxel quand il existe sinon billboard, rotation.y = azimut
 caméra chaque frame). Catalogue : `build-catalog.mjs` énumère `voxels/**` (catégorie `voxels`).
-**Reste : Phase 6** (voxel par défaut + retrait de Phaser, ~−1,2 Mo) = décision utilisateur
-après test sur téléphone réel — tout est derrière `settings.voxelMap` en attendant.
+**Phase 6 (2026-07-17)** : le voxel est le rendu **PAR DÉFAUT** (`voxelMap: true` dans
+`DEFAULT_SETTINGS` ; « Classique » dans les Réglages rebascule sur Phaser, qui n'est pas
+encore retiré du bundle). **Détails du monde** (`WORLD-DETAILS-PLAN.md`, lots D1+D2 faits
+2026-07-18) : 37 props ×3 variantes (`scripts/voxel/gen-props.mjs` → `voxels/props/`) et
+**`frontend/src/voxel/scatter.ts`** = scatter PARTAGÉ carte/banc, pur (sans THREE) — tables
+par biome, règles « près de » (voisinage 8 : bord d'eau, eau calme, pied de falaise, sommet,
+prairie ouverte ; ⚠ exiger `discovered`, le fog caviarde le biome à 0) et **repères par
+seed** (3-5 landmarks hachés sur `game.id` : menhir, barque, épouvantail, bonhomme de neige,
+tortue, ruche, cercle de fées, vieil arbre). **Lots D3+D4 (2026-07-18)** : vie ambiante à
+bascule jour/crépuscule sur le cycle solaire (papillons/mouettes/lapins/lièvres/crabes le
+jour, lucioles self-lit `MeshBasicMaterial` au crépuscule — sous-groupes `dayProps`/
+`nightProps`, `applyPhase(t)` seuil 0.72, `phase` sur `PropPlacement`), toiles d'araignée,
+souffle de neige, aigle-landmark qui tournoie au tick solaire (`tickAmbient`), veines de
+minerai dorées/cuivrées dans les murs de falaise montagne (`smoothTerrain.wall`, par bruit),
+et **cascade** (`cascade.ts` : `findCascadeSite` pur — falaise relief ≥ 2 bordant l'eau,
+1/carte par hash de `game.id` — + rideau `ShaderMaterial` à bandes descendantes couvrant la
+chute COMPLÈTE à travers les terrasses du lissage, écume au pied), algues affleurantes
+(teinte des colonnes d'eau par bruit dans `colColor`), murets en ruine ALIGNÉS (cellules
+6×6, rotation posée) et ruines éparses 2-3/carte (colonne/dalle/arche, passe `ruins()` —
+⚠ `^` renvoie un int32 signé : toujours `>>> 0` avant `%`/indexation). Le plan
+WORLD-DETAILS est ✅ livré en totalité (50 props ×3 variantes). **Résolution ×
+(2026-07-18)** : props stockés ×1.5 (30×30×45, gabarits inchangés — formes courbes évaluées
+PAR voxel fin via l'`ellipsoid` partagé + cônes sapin + disque nénuphar ; teinte par nappes
+de 2 cellules pour le greedy), monstres ×1.6, persos `CHAR_FINE` 2.5 (chanfrein de coin
+DIAGONAL en voxels fins dans `roundedBox`), terrain lissé R=10/VS=1/10. Le mesher normalise
+par `model.sx` → tailles écran inchangées. Banc pire-cas 16,1 M tris, vraie partie ~2,2 M.
 
 ## 7b. Map editor (dev tool — `frontend/src/editor/`)
 

@@ -6,6 +6,178 @@
 
 ---
 
+## 2026-07-18 (30) — FIX : les couleurs de tuiles étaient décalées d'une demi-case
+
+### Fait
+- Bug signalé : « la ville est positionnée au carrefour de plusieurs cases ». Cause dans
+  `smoothTerrain.colColor` : le mélange uniforme (1/3 tuile + 1/3 voisin X + 1/3 voisin Y)
+  **basculait de trio d'échantillons au CENTRE des tuiles** (le `sign(wx − tx0)` y change) —
+  l'arête visible des carrés de couleur passait donc par les centres, les carrés perçus
+  étaient décalés d'une demi-tuile et leurs COINS tombaient pile sous l'église. La position
+  logique (église, socle, overlays, héros) a toujours été correcte : seule la peinture.
+- Fix : **fondu bilinéaire 4 échantillons, poids NUL au cœur de la tuile** (il ne monte que
+  sur le dernier tiers vers le bord : cœur net, jointure douce, continu partout).
+
+### Fonctionnel (vérifié)
+- Capture zoomée : l'église est centrée dans SON losange, les cases sable/herbe forment
+  des losanges entiers alignés sur la grille logique ; e2e move/rotation OK ; build vert.
+
+## 2026-07-18 (29) — RÉSOLUTION ×: terrain, props, persos et monstres plus fins
+
+### Fait (demande : « augmenter le nombre de voxels de tout »)
+- **Props ×1.5** (`gen-props.mjs`) : gabarits inchangés en coordonnées grossières 20×20×30,
+  STOCKAGE fin 30×30×45 via `Grid.fineScale` (le principe des persos). Les formes COURBES
+  sont évaluées PAR VOXEL FIN → vraies surfaces lisses : `ellipsoid` partagé (canopées,
+  rochers, dômes, congères…), cônes des sapins, disque du nénuphar. Traits/boîtes en
+  remplissage de cellule (proportions intactes). Le mesher normalise par `model.sx` →
+  taille à l'écran INCHANGÉE, définition ×1.5.
+- **Teinte par nappes 2×2×2 cellules** : le jitter 3 teintes est haché par blocs de 2
+  cellules grossières (plus par cellule) → le greedy meshing fusionne mieux : 18,8 M →
+  **16,1 M tris** pire-cas banc (était 10,2 M en 20³), meshing 151 → 78 ms. Même look.
+- **Monstres ×1.6** (`monster-recipe.mjs`) : stockage 35×29×38, `ellipsoid` local évalué
+  fin (slime/fantôme/araignée/loup nettement plus ronds), irrégularité `jitter`
+  échantillonnée en coordonnées grossières (mêmes bosses, plus lisses).
+- **Persos `CHAR_FINE` 1.5 → 2.5** (50×30×75) : cellules irrégulières 2/3 voxels (lecture
+  organique) + **`roundedBox` : chanfrein DIAGONAL en voxels fins** (au lieu de vider la
+  cellule de coin entière) → silhouettes chibi plus rondes, accessoires plus fins.
+- **Terrain lissé R 8 → 10, VS 1/10** (`smoothTerrain.ts`) : marches et colonnes 25 % plus
+  fines (terrasses plus douces), veines de minerai/algues suivent.
+
+### Fonctionnel (vérifié)
+- Previews : canopée sphérique lisse, sapin conique propre, slime/fantôme ronds, persos
+  chanfreinés (SHEET.png) ; en jeu : arbres ronds + héros voxel OK au zoom.
+- Banc **16,1 M tris** pire-cas plein monde (×1.58 vs avant, après optimisation des nappes
+  de teinte) ; **vraie partie ~2,24 M** (le fog borne tout) ; e2e move/rotation OK ;
+  `tsc` + build verts. Si un téléphone réel peine en fin de partie très explorée :
+  descendre `FINE` à 1.25 ou ajouter un LOD props.
+
+## 2026-07-18 (28) — WORLD-DETAILS : les idées « au goût » — le plan est livré EN TOTALITÉ
+
+### Fait
+- **Algues affleurantes** (eau) : nappes vert sombre SOUS la surface, en veines de bruit —
+  teinte des COLONNES d'eau dans `smoothTerrain.colColor` (rollNoise > 0.63, fondu vers
+  [56,122,104], k ≤ 0.7), pas un prop. Le shader de chatoiement passe par-dessus.
+- **Muret en ruine** (prairie, « ancienne ferme ») : recette `ruin-wall` (segments à
+  hauteur irrégulière, brèches, bloc tombé) posée en LIGNES ALIGNÉES — cellules 6×6
+  hachées (8 %), orientation H/V et rangée d'ancrage par cellule, rotation POSÉE (0 ou
+  π/2, pas hachée), 75 % de présence par tuile = segments avec trous sur 2-5 tuiles.
+- **Ruines éparses** (lore, tous biomes terrestres) : `ruin-column` (colonne brisée en
+  diagonale sur socle + tambour tombé), `ruin-slab` (dalle gravée, sillons + glyphes
+  accent turquoise), `ruin-arch` (pilier + départ d'arc, moignon, gravats) — 2-3 par
+  carte, tirage déterministe par seed (passe `ruins()` dans scatter.ts, même mécanique
+  que les landmarks). ⚠ BUG corrigé : `strHash ^ 0x2417` renvoie un int32 SIGNÉ —
+  sans `>>> 0`, `seed % 2` valait −1 (n=1 au lieu de 2-3) et `(seed+i) % 3` indexait
+  négativement le tableau des types (attrapé par le test node multi-seeds).
+
+### Fonctionnel (vérifié)
+- Captures sur partie synthétique injectée par le bus (prairie 20×30 + eau) : nappes
+  d'algues visibles, ligne de muret alignée + arche, dalle et colonne posées ; couleurs
+  d'algues confirmées DANS la géométrie (scan des vertex `aWater`, ~7 % teintés avant
+  renfort) ; banc 10,23 M tris (+0,01 M) ; e2e partie réelle move/rotation OK (l'échec
+  intermédiaire = backend mort entre les tours, pas une régression) ; `tsc` + build verts.
+- **50 props ×3 variantes** au total ; `WORLD-DETAILS-PLAN.md` ✅ livré en totalité.
+
+## 2026-07-18 (27) — WORLD-DETAILS : la CASCADE (dernier élément du plan)
+
+### Fait
+- **`frontend/src/voxel/cascade.ts`** : détection PURE du site (`findCascadeSite` — falaise
+  de relief ≥ 2 bordant une tuile d'eau découverte, 1/carte choisie par hachage de
+  `game.id` comme les landmarks) + `buildCascade` = rideau vertical en `ShaderMaterial`
+  (bandes qui DÉFILENT vers le bas + colonnes, écume brillante au pied, fondu au sommet,
+  transparent/depthWrite off) + disque d'écume plat sur l'eau. ⚠ le lissage étale la
+  falaise en TERRASSES : le rideau échantillonne la traversée falaise→eau (max côté haut,
+  min côté eau) pour couvrir la chute COMPLÈTE, pas la dernière marche (h=0.63 illisible
+  → h=2 sur le cas test).
+- Câblage VoxelMapView : reconstruite avec le terrain (découverte), disposée proprement,
+  `uTime` avancé sur les frames rendues (même politique que le shader d'eau).
+- `WORLD-DETAILS-PLAN.md` marqué ✅ implémenté (D1-D4 complets).
+
+### Fonctionnel (vérifié)
+- E2E dédié : partie synthétique injectée par le bus (plateau montagne h6 bordant l'eau,
+  tout découvert) → `world.cascade` construit, capture zoomée = rideau net à bandes sur
+  les terrasses + écume ; e2e partie réelle inchangé (move/rotation OK, cascade absente
+  si la géo ne s'y prête pas) ; `tsc` + build verts.
+
+## 2026-07-18 (26) — WORLD-DETAILS lots D3+D4 : vie ambiante jour/nuit + effets
+
+### Fait
+- **Lot D3 (vie ambiante)** — 6 recettes : papillons (3 en l'air, ailes blanc/jaune/bleu par
+  variante, altitude cuite dans le .vox), mouettes (« V » blancs au-dessus de l'eau),
+  lucioles (motes jaune-vert), lapin crème / lièvre blanc (même gabarit `bunny` paramétré),
+  crabe. Scatter : papillons PRÈS des fleurs (même tuile), lapins/lièvres JAMAIS sur une
+  tuile à pack (`monsterId` dans `ScatterTile`), mouettes 3 % eau, crabes biaisés bord d'eau.
+- **Bascule jour/crépuscule** : `PropPlacement.phase` ("day"|"night") → sous-groupes
+  `dayProps`/`nightProps` dans VoxelMapView ; `applyPhase(t)` (seuil crépuscule 0.72 du
+  cycle solaire) toggle `visible` au tick de 5 s — props déjà instanciés, coût nul. Les
+  lucioles rendent en `MeshBasicMaterial` (self-lit, sans ombres) pour luire dans la pénombre.
+- **Lot D4 (effets)** — toile d'araignée (voile triangulaire pâle, forêt 2 %, annonce
+  l'Araignée Cristalline), souffle de neige (motes blanches figées, neige 6 %),
+  **aigle-landmark** (silhouette sombre au-dessus d'un pic, éligible sommet/relief ≥ 3) qui
+  **tournoie** : `tickAmbient()` avance sa position sur un cercle à chaque tick solaire ;
+  **veines de minerai** dorées/cuivrées directement dans la couleur des MURS de falaise
+  (`smoothTerrain.wall` : bruit sinusoïdal serpentant, montagne découverte, k > 0.55).
+- Cascade : reportée (analyse de géométrie + shader dédié — seul reste du plan).
+
+### Fonctionnel (vérifié)
+- Banc plein monde **10,22 M tris** (D3+D4 = +0,06 M — budget très tenu) ; veines visibles
+  sur les parois au banc ; e2e vraie partie : move + rotation OK, bascule jour→crépuscule→
+  jour vérifiée sur les groupes (`d3-check.mjs`) ; previews des 9 nouveaux props lisibles ;
+  `tsc` + build verts. 46 props ×3 variantes au total.
+
+## 2026-07-18 (25) — WORLD-DETAILS lots D1+D2 : 29 nouveaux props + scatter partagé + repères par seed
+
+### Fait
+- **Lot D1 (couverture)** — 23 recettes dans `gen-props.mjs` : eau (nénuphar ± fleur, rocher
+  émergé cerclé d'écume, bois flotté), sable (coquillages+étoile de mer, galets, algues
+  échouées, herbes de dune = touffe recolorée sèche), prairie (hautes herbes en nappes,
+  buisson à baies rouge/violet, marguerite géante, souche à champignon), forêt (champignon
+  rouge-à-pois/brun/doré, fougère, tronc tombé moussu, buisson dense), montagne (éboulis,
+  cristaux violets/bleus, cairn, arbre mort), neige (congère, pics de glace, arbre givré,
+  buisson givré). 37 props ×3 variantes générés + previews (`asset-index/voxels/props/`).
+- **Lot D2 (repères)** — 6 recettes landmarks (épouvantail, bonhomme de neige, barque,
+  menhir gravé, tortue, ruche) + **tirage par seed** : 3-5 repères par carte hachés sur
+  `game.id` (la seed est masquée par le fog), chacun sur SA meilleure tuile éligible ;
+  cercle de fées = 8 champignons en anneau, vieil arbre = tree-green ×1.35 (écho au Cœur
+  de chêne ancien). Un repère peut apparaître/se déplacer au fil de la découverte (assumé).
+- **`frontend/src/voxel/scatter.ts`** — module PARTAGÉ carte/banc (le banc dupliquait la
+  table) : pur, sans THREE, sortie = placements {id, v, x, y, rot, scale}. Règles
+  **« près de »** par passe voisinage 8-voisins : bord d'eau, eau CALME (nénuphars),
+  pied de falaise (éboulis ×8), sommet (cairns ×20), prairie ouverte (épouvantail) —
+  ⚠ tout test exige `discovered` (biome caviardé à 0 sinon = faux lac). Nappes de hautes
+  herbes par bruit basse fréquence (cellules 3×3) ; roseaux resserrés sur le bord d'eau.
+
+### Fonctionnel (vérifié)
+- Contact-sheet des 29 previews ✓ ; banc plein monde **10,16 M tris** (ombres comprises,
+  +0,9 M vs 9,3 M — budget ≤ +1,5 M tenu) ; e2e vraie partie : terrain + move serveur +
+  rotation OK, 2,18 M tris avec fog ; scatterProps déterministe, landmarks varient par
+  seed (test node) ; `tsc` + build verts.
+
+### Reste (plan WORLD-DETAILS)
+- Lot D3 : vie ambiante (papillons/mouettes/lucioles/abeilles + bascule jour/nuit sur le
+  tick solaire ; lapins/lièvres/crabes). Lot D4 : toiles d'araignée, veines de minerai,
+  cascade shader, souffle de neige, aigle.
+
+## 2026-07-17 (24) — VOXEL PAR DÉFAUT + détails par terrain + nouveau brouillard
+
+### Fait
+- **Phase 6 (décision utilisateur) : `voxelMap: true` par défaut** — le voxel est le rendu de
+  Map/Combat/Home ; « Classique » dans les Réglages rebascule sur Phaser. ⚠ un appareil qui
+  a déjà SAUVÉ des réglages garde sa valeur locale.
+- **Détails par terrain** (gen-props + scatter carte ET banc) : `pine`/`pine-snow` (sapins à
+  4 étages coniques, variante saupoudrée) sur montagne/neige, `grass-tuft` (5-7 brins) +
+  `flowers` (têtes rouge/jaune/blanc par variante) en prairie + sous-bois forêt, `reed`
+  (roseaux à quenouilles) sur les rives de sable. Densités : herbe 55 %, fleurs 16 %,
+  sapins 30-35 %, roseaux 12 %. ~9,3 M tris plein monde au banc (ombres comprises).
+- **Brouillard de guerre refondu** : mur à DEUX niveaux (`mistbase` voile profond
+  indigo→lavande + `mist` sommet) et nouvelle texture — dôme ample par bloc (houle entre
+  voisins), **volutes tourbillonnantes sur le dessus** (v1 plate « papier » corrigée sur
+  capture : le dessus est LA face visible), striures de flanc, motes. Overlays/losanges
+  posés au sommet du mur (topOf non-découvert = 2).
+
+### Fonctionnel (vérifié, captures banc + vraie partie)
+- Sapins sur terrasses, roseaux aux étangs, prairies vivantes ; mur de brume texturé autour
+  de l'île ; move serveur + rotation OK ; `tsc` + build verts.
+
 ## 2026-07-17 (23) — FIX déploiement Vercel (imports hors racine)
 
 ### Fait

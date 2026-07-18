@@ -22,8 +22,8 @@ export type TerrainSource = {
 
 // Grain fin : blocs de pente d'1/8 de tuile (retours successifs « trop
 // pixelisé » puis « réduis chaque bloc » — ¼ → 1/6 → 1/8)
-const R = 8; // colonnes voxel par côté de tuile
-const VS = 1 / 8; // pas vertical (= 1/R : voxels cubiques)
+const R = 10; // colonnes voxel par côté de tuile (résolution ×1.25, 2026-07-18)
+const VS = 1 / 10; // pas vertical (= 1/R : voxels cubiques)
 // micro-relief bas : à la grille 1/6, 0.11 franchissait le pas partout et
 // couvrait les plaines de bosselures (constaté sur capture) — la texture doit
 // venir de la finesse de la grille et de l'ondulation, pas du bruit
@@ -166,17 +166,38 @@ export class SmoothTerrain {
     const colColor = (cx: number, cy: number): [number, number, number] => {
       const wx = (cx + 0.5) / R - 0.5, wy = (cy + 0.5) / R - 0.5;
       const tx0 = Math.round(wx), ty0 = Math.round(wy);
-      let r = 0, g = 0, b = 0, cnt = 0;
-      for (const [dx, dy] of [[0, 0], [Math.sign(wx - tx0) || 0, 0], [0, Math.sign(wy - ty0) || 0]]) {
-        const c = tileColor(tx0 + dx, ty0 + dy);
-        r += c[0]; g += c[1]; b += c[2]; cnt++;
-      }
+      // fondu BILINÉAIRE vers les voisins, NUL au cœur de la tuile (le poids ne
+      // monte que sur le dernier tiers vers le bord : cœur net, jointure douce).
+      // ⚠ l'ancien mélange uniforme (1/3 tuile + 1/3 voisin X + 1/3 voisin Y)
+      // basculait de trio d'échantillons au CENTRE des tuiles → les carrés de
+      // couleur étaient décalés d'une demi-tuile, leurs coins tombaient au
+      // centre des cases (l'église semblait posée « au carrefour de 4 cases »).
+      const dxf = wx - tx0, dyf = wy - ty0;
+      const wgt = (d: number) => Math.min(0.5, Math.max(0, (Math.abs(d) - 0.18) / 0.32) * 0.5);
+      const ax = wgt(dxf), ay = wgt(dyf);
+      const sx = Math.sign(dxf) || 1, sy = Math.sign(dyf) || 1;
+      const c00 = tileColor(tx0, ty0), c10 = tileColor(tx0 + sx, ty0);
+      const c01 = tileColor(tx0, ty0 + sy), c11 = tileColor(tx0 + sx, ty0 + sy);
+      const mix = (i: number) =>
+        c00[i] * (1 - ax) * (1 - ay) + c10[i] * ax * (1 - ay) + c01[i] * (1 - ax) * ay + c11[i] * ax * ay;
+      const r = mix(0), g = mix(1), b = mix(2), cnt = 1;
       // pointillés d'herbe plus discrets + grain ADOUCI (l'ancien bruit par
       // colonne lisait comme de la neige de pixels)
       const t = tileAt(tx0, ty0);
       const dot = t?.discovered && (t.biome === 2 || t.biome === 3) && hash01(cx, cy, 13) < 0.035 ? 0.9 : 1;
       const grain = (0.985 + hash01(cx, cy, 3) * 0.03) * dot;
-      return [(r / cnt) * grain, (g / cnt) * grain, (b / cnt) * grain];
+      let out: [number, number, number] = [(r / cnt) * grain, (g / cnt) * grain, (b / cnt) * grain];
+      // algues affleurantes (WORLD-DETAILS) : nappes vert sombre SOUS la surface,
+      // en veines de bruit — c'est la teinte du bloc d'eau, pas un prop
+      if (t?.discovered && t.biome === 0) {
+        const algae = rollNoise(cx * 0.21 + 9, cy * 0.21 - 4);
+        if (algae > 0.63) {
+          const k = Math.min(1, (algae - 0.63) / 0.2) * 0.7;
+          const deep: [number, number, number] = [56, 122, 104];
+          out = [out[0] + (deep[0] - out[0]) * k, out[1] + (deep[1] - out[1]) * k, out[2] + (deep[2] - out[2]) * k];
+        }
+      }
+      return out;
     };
 
     // 3) géométrie : face du DESSUS par colonne + murs vers les voisins plus
@@ -247,11 +268,20 @@ export class SmoothTerrain {
           const drop = h - lo;
           if (drop <= 0.0001) return;
           const k = Math.min(1, (drop - VS) / 0.9);
-          const rgb: [number, number, number] = [
+          let rgb: [number, number, number] = [
             base[0] + (CLIFF[0] - base[0]) * Math.max(0, k),
             base[1] + (CLIFF[1] - base[1]) * Math.max(0, k),
             base[2] + (CLIFF[2] - base[2]) * Math.max(0, k),
           ];
+          // veines de minerai (lot D4) : sur les MURS de falaise de montagne,
+          // fins filons dorés/cuivrés serpentant en diagonale (rare, par bruit)
+          if (k > 0.55 && tHere?.discovered && tHere.biome === 4) {
+            const serp = Math.sin(cx * 1.31 + cy * 0.73 + h * 7.1) + Math.sin(cy * 1.07 - cx * 0.41);
+            if (Math.abs(serp) < 0.16) {
+              const gold = ((cx * 7 + cy * 13) & 3) !== 0;
+              rgb = gold ? [212, 176, 96] : [198, 134, 92];
+            }
+          }
           const shade = nx !== 0 ? (nx > 0 ? SHADE_X.p : SHADE_X.n) : nz > 0 ? SHADE_Z.p : SHADE_Z.n;
           pushQuad(pts, [nx, 0, nz], rgb, shade);
         };

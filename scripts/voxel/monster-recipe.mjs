@@ -7,13 +7,19 @@
 import { Grid, shade } from "./char-recipe.mjs";
 
 export const MOB_SIZE = { sx: 22, sy: 18, sz: 24 };
+export const MOB_FINE = 1.6; // stockage fin 35×29×38 — masses ellipsoïdales lisses
 
+// ellipsoïde évalué PAR VOXEL FIN (surfaces rondes) ; l'irrégularité `jitter`
+// reste échantillonnée en coordonnées GROSSIÈRES (mêmes bosses, plus lisses)
 function ellipsoid(g, cx, cy, cz, rx, ry, rz, rgb, jitter = 0) {
-  for (let z = Math.floor(cz - rz); z <= cz + rz; z++) {
-    for (let y = Math.floor(cy - ry); y <= cy + ry; y++) {
-      for (let x = Math.floor(cx - rx); x <= cx + rx; x++) {
-        const d = ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 + ((z - cz) / rz) ** 2;
-        if (d <= 1 + jitter * (Math.sin(x * 3.1 + z * 1.7) * 0.5)) g.set(x, y, z, rgb);
+  const f = g.fs ?? 1;
+  const fcx = (cx + 0.5) * f - 0.5, fcy = (cy + 0.5) * f - 0.5, fcz = (cz + 0.5) * f - 0.5;
+  const frx = rx * f, fry = ry * f, frz = rz * f;
+  for (let z = Math.floor(fcz - frz); z <= fcz + frz; z++) {
+    for (let y = Math.floor(fcy - fry); y <= fcy + fry; y++) {
+      for (let x = Math.floor(fcx - frx); x <= fcx + frx; x++) {
+        const d = ((x - fcx) / frx) ** 2 + ((y - fcy) / fry) ** 2 + ((z - fcz) / frz) ** 2;
+        if (d <= 1 + jitter * (Math.sin((x / f) * 3.1 + (z / f) * 1.7) * 0.5)) g.setFine(x, y, z, rgb);
       }
     }
   }
@@ -169,9 +175,9 @@ export const MONSTER_TEMPLATES = {
 
 export function generateMonster(key, pal) {
   const { sx, sy, sz } = MOB_SIZE;
-  const g = new Grid(sx, sy, sz);
+  const g = new Grid(sx, sy, sz, MOB_FINE);
   const fn = MONSTER_TEMPLATES[key];
   if (!fn) throw new Error(`gabarit inconnu: ${key}`);
   fn(g, pal);
-  return { sx, sy, sz, size: sx, data: g.data, palette: g.palette };
+  return { sx: g.fsx, sy: g.fsy, sz: g.fsz, size: g.fsx, data: g.data, palette: g.palette };
 }
