@@ -9,8 +9,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import sharp from "sharp";
 import { Grid, shade } from "./char-recipe.mjs";
-import { makeRng } from "./recipes.mjs";
-import { encodeVox } from "./vox-format.mjs";
+import { makeRng } from "../../frontend/src/voxel/shared/recipes.mjs";
+import { encodeVox } from "../../frontend/src/voxel/shared/vox-format.mjs";
 import { renderModel } from "./render-iso.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
