@@ -50,6 +50,12 @@ class MapWorld {
   // props diorama (arbres-boules, rochers) scatter sur la surface lissée
   propsLib = new BlockLibrary("/voxels/props");
   props: THREE.Group | null = null;
+  // vie ambiante (lot D3) : sous-groupes bascule jour/crépuscule sur le cycle solaire
+  dayProps: THREE.Group | null = null;
+  nightProps: THREE.Group | null = null;
+  lastDayTime = 0.35;
+  // aigle landmark (lot D4) : tournoie au-dessus de son pic à chaque tick solaire
+  eagle: { mesh: THREE.InstancedMesh; x: number; z: number; h: number; scale: number; angle: number } | null = null;
   lookup = new Map<THREE.Object3D, TerrainCell[]>();
   overlays = new THREE.Group(); // losanges/danger/anneau — reconstruits à chaque render
   sprites = new THREE.Group(); // billboards héros/monstres/ville
@@ -113,7 +119,7 @@ class MapWorld {
   // repères par seed dans le module partagé scatter.ts (miroir au banc). Ici on
   // ne fait que poser les placements sur la surface lissée et instancier.
   private buildProps(game: GameState): THREE.Group {
-    const items = new Map<string, THREE.Matrix4[]>();
+    const items = new Map<string, { mats: THREE.Matrix4[]; phase?: "day" | "night" }>();
     const placements = scatterProps({
       width: game.width, height: game.height, tiles: game.tiles,
       townX: game.town.x, townY: game.town.y, seedStr: game.id,
@@ -125,23 +131,62 @@ class MapWorld {
         new THREE.Vector3(p.scale, p.scale, p.scale),
       );
       const key = `${p.id}-v${p.v}`;
-      let list = items.get(key);
-      if (!list) items.set(key, (list = []));
-      list.push(m);
+      let e = items.get(key);
+      if (!e) items.set(key, (e = { mats: [], phase: p.phase }));
+      e.mats.push(m);
     }
     const group = new THREE.Group();
-    for (const [key, mats] of items) {
+    this.dayProps = new THREE.Group();
+    this.nightProps = new THREE.Group();
+    this.eagle = null;
+    const eagleP = placements.find((p) => p.id === "eagle");
+    for (const [key, { mats, phase }] of items) {
       const dash = key.lastIndexOf("-v");
       const geom = this.propsLib.get(key.slice(0, dash), Number(key.slice(dash + 2)));
       if (!geom) continue;
-      const mesh = new THREE.InstancedMesh(geom, PROP_MAT, mats.length);
+      // lucioles : self-lit (Basic) pour luire au crépuscule, sans ombre portée
+      const glowing = key.startsWith("firefly");
+      const mesh = new THREE.InstancedMesh(geom, glowing ? FIREFLY_MAT : PROP_MAT, mats.length);
       for (let i = 0; i < mats.length; i++) mesh.setMatrixAt(i, mats[i]);
       mesh.instanceMatrix.needsUpdate = true;
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
-      group.add(mesh);
+      mesh.castShadow = !glowing;
+      mesh.receiveShadow = !glowing;
+      if (eagleP && key.startsWith("eagle")) {
+        this.eagle = {
+          mesh, x: eagleP.x, z: eagleP.y,
+          h: this.smooth.heightAt(eagleP.x, eagleP.y), scale: eagleP.scale, angle: 0,
+        };
+      }
+      (phase === "day" ? this.dayProps : phase === "night" ? this.nightProps : group).add(mesh);
     }
+    group.add(this.dayProps, this.nightProps);
+    this.applyPhase(this.lastDayTime);
     return group;
+  }
+
+  /** l'aigle avance d'un cran sur son cercle (appelé par le tick solaire de 5 s) */
+  tickAmbient() {
+    const e = this.eagle;
+    if (!e) return;
+    e.angle += 0.55;
+    const m = new THREE.Matrix4().compose(
+      new THREE.Vector3(e.x + Math.cos(e.angle) * 1.1, e.h, e.z + Math.sin(e.angle) * 1.1),
+      new THREE.Quaternion().setFromAxisAngle(UP, -e.angle),
+      new THREE.Vector3(e.scale, e.scale, e.scale),
+    );
+    e.mesh.setMatrixAt(0, m);
+    e.mesh.instanceMatrix.needsUpdate = true;
+    this.engine.invalidate();
+  }
+
+  /** vie ambiante jour/crépuscule : les props sont déjà instanciés, on toggle `visible` */
+  applyPhase(t: number) {
+    this.lastDayTime = t;
+    const dusk = t >= 0.72; // même seuil que les lucioles du plan (t > ~0.75 du cycle)
+    let changed = false;
+    if (this.dayProps && this.dayProps.visible === dusk) { this.dayProps.visible = !dusk; changed = true; }
+    if (this.nightProps && this.nightProps.visible !== dusk) { this.nightProps.visible = dusk; changed = true; }
+    if (changed) this.engine.invalidate();
   }
 
   texture(url: string): THREE.Texture {
@@ -425,7 +470,10 @@ export function VoxelMapView({ active = true }: { active?: boolean }) {
     // crépuscule menaçant à l'approche de la suivante. Tick 5 s (rendu
     // on-demand : ~12 rendus/min au repos, négligeable).
     const sunTick = () => {
-      engine.setDayTime(world.waveProgress());
+      const t = world.waveProgress();
+      engine.setDayTime(t);
+      world.applyPhase(t); // vie ambiante : papillons/mouettes le jour, lucioles au crépuscule
+      world.tickAmbient(); // l'aigle tournoie
       world.smooth.setTime(performance.now() / 1000);
     };
     sunTick();
@@ -457,6 +505,7 @@ export function VoxelMapView({ active = true }: { active?: boolean }) {
 
 const UP = new THREE.Vector3(0, 1, 0);
 const PROP_MAT = new THREE.MeshLambertMaterial({ vertexColors: true });
+const FIREFLY_MAT = new THREE.MeshBasicMaterial({ vertexColors: true }); // luit dans la pénombre
 
 const rotBtn: React.CSSProperties = {
   background: "rgba(30,34,46,.78)",

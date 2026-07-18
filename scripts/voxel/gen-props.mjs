@@ -550,6 +550,143 @@ function beehive(seed) {
   return { ...SIZE, size: SIZE.sx, data: g.data, palette: g.palette };
 }
 
+// ============================================================================
+// LOT D3 : vie ambiante — décorative, petite et éloignée des monstres.
+// Les volants (papillons/mouettes/lucioles) cuisent leur ALTITUDE dans la
+// recette (voxels en l'air) : un prop = un petit groupe qui flotte au-dessus
+// de la tuile, aucun squelette/animation.
+// ============================================================================
+
+// PRAIRIE (jour) — 3 papillons en l'air, ailes en V + corps sombre
+function butterflies(wing, seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz);
+  const rnd = makeRng(seed);
+  for (let i = 0; i < 3; i++) {
+    const bx = 4 + Math.floor(rnd() * 12), by = 4 + Math.floor(rnd() * 12);
+    const z = 13 + Math.floor(rnd() * 8);
+    const flap = rnd() < 0.5 ? 1 : 0; // battement figé différent par papillon
+    g.set(bx - 1, by, z + flap, wing);
+    g.set(bx + 1, by, z + flap, wing);
+    g.set(bx, by, z, shade(wing, 0.72));
+  }
+  return { ...SIZE, size: SIZE.sx, data: g.data, palette: g.palette };
+}
+
+// EAU (jour) — 2-3 mouettes : « V » blancs au-dessus de l'eau
+function gulls(seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz);
+  const rnd = makeRng(seed);
+  const n = 2 + Math.floor(rnd() * 2);
+  for (let i = 0; i < n; i++) {
+    const bx = 4 + Math.floor(rnd() * 12), by = 4 + Math.floor(rnd() * 12);
+    const z = 18 + Math.floor(rnd() * 6);
+    g.set(bx, by, z, [244, 246, 250]);
+    g.set(bx - 1, by, z + 1, [236, 240, 246]);
+    g.set(bx + 1, by, z + 1, [236, 240, 246]);
+    g.set(bx - 2, by, z + 1, [190, 196, 206]); // bout d'aile gris
+    g.set(bx + 2, by, z + 1, [190, 196, 206]);
+  }
+  return { ...SIZE, size: SIZE.sx, data: g.data, palette: g.palette };
+}
+
+// FORÊT (crépuscule) — lucioles : motes jaune-vert (matériau self-lit côté carte)
+function fireflies(seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz);
+  const rnd = makeRng(seed);
+  for (let i = 0; i < 5 + Math.floor(rnd() * 2); i++) {
+    const bx = 3 + Math.floor(rnd() * 14), by = 3 + Math.floor(rnd() * 14);
+    const z = 5 + Math.floor(rnd() * 11);
+    g.set(bx, by, z, rnd() < 0.5 ? [236, 250, 150] : [214, 240, 130]);
+  }
+  return { ...SIZE, size: SIZE.sx, data: g.data, palette: g.palette };
+}
+
+// PRAIRIE/NEIGE (jour) — lapin assis (fourrure paramétrée : crème ou lièvre blanc)
+function bunny(fur, seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz);
+  const rnd = makeRng(seed);
+  const cx = SIZE.sx / 2 - 0.5, cy = SIZE.sy / 2 - 0.5;
+  ellipsoid(g, cx - 0.5, cy, 1.6, 2.4, 1.8, 1.7, fur, rnd, 4); // corps
+  ellipsoid(g, cx + 2, cy, 3, 1.4, 1.2, 1.2, shade(fur, 1.05), rnd, 3); // tête
+  g.box(cx + 2, cx + 2, cy - 1, cy - 1, 4, 6, shade(fur, 0.96)); // oreilles
+  g.box(cx + 2, cx + 2, cy + 1, cy + 1, 4, 6, shade(fur, 0.96));
+  g.set(cx + 3, cy, 3, [60, 54, 52]); // œil
+  g.set(cx - 3, cy, 2, [248, 248, 250]); // queue pompon
+  return { ...SIZE, size: SIZE.sx, data: g.data, palette: g.palette };
+}
+
+// SABLE (jour) — crabe : corps rouge doux + pinces + yeux
+function crab(seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz);
+  const rnd = makeRng(seed);
+  const cx = SIZE.sx / 2 - 0.5, cy = SIZE.sy / 2 - 0.5;
+  const red = [226, 120, 104];
+  ellipsoid(g, cx, cy, 1.2, 2.4, 1.8, 1.1, red, rnd, 5); // carapace
+  ellipsoid(g, cx + 2.6, cy - 1.6, 1, 1, 0.9, 0.8, shade(red, 1.08), rnd, 3); // pinces
+  ellipsoid(g, cx + 2.6, cy + 1.6, 1, 1, 0.9, 0.8, shade(red, 1.08), rnd, 3);
+  for (const dy of [-2, 2]) for (const dx of [-1.5, 0, 1.5]) g.set(cx + dx, cy + dy, 0, shade(red, 0.85)); // pattes
+  g.set(cx + 1, cy - 1, 3, [50, 46, 48]); // yeux sur la carapace
+  g.set(cx + 1, cy + 1, 3, [50, 46, 48]);
+  return { ...SIZE, size: SIZE.sx, data: g.data, palette: g.palette };
+}
+
+// ============================================================================
+// LOT D4 : effets — toile d'araignée, souffle de neige, aigle (la cascade et
+// les veines de minerai sont côté terrain/shader, pas des props)
+// ============================================================================
+
+// FORÊT — toile d'araignée : voile triangulaire pâle suspendu (annonce
+// l'Araignée Cristalline du GDD). Fils = voxels épars, pas de plein.
+function web(seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz);
+  const rnd = makeRng(seed);
+  void rnd;
+  const cx = Math.round(SIZE.sx / 2), cy = Math.round(SIZE.sy / 2);
+  const pale = [240, 242, 248];
+  const top = 16, bot = 7, half = 5;
+  for (let k = 0; k <= 9; k++) { // les deux fils du bord, de l'apex vers le bas
+    const z = top - k, off = Math.round((k / 9) * half);
+    g.set(cx - off, cy, z, pale);
+    g.set(cx + off, cy, z, pale);
+  }
+  for (let x = -half; x <= half; x++) g.set(cx + x, cy, bot, shade(pale, 0.94)); // fil bas
+  for (let x = -2; x <= 2; x++) g.set(cx + x, cy, Math.round((top + bot) / 2), shade(pale, 0.9)); // anneau
+  g.set(cx, cy, top - 3, pale); // rayon central
+  g.set(cx, cy, bot + 3, pale);
+  g.set(cx + 1, cy, bot + 2, [216, 220, 230]); // l'araignée discrète
+  return { ...SIZE, size: SIZE.sx, data: g.data, palette: g.palette };
+}
+
+// NEIGE — souffle de neige : motes blanches dérivantes (figées, style diorama)
+function snowMotes(seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz);
+  const rnd = makeRng(seed);
+  for (let i = 0; i < 8 + Math.floor(rnd() * 3); i++) {
+    const bx = 3 + Math.floor(rnd() * 14), by = 3 + Math.floor(rnd() * 14);
+    const z = 5 + Math.floor(rnd() * 13);
+    g.set(bx, by, z, rnd() < 0.5 ? [246, 248, 252] : [234, 240, 248]);
+  }
+  return { ...SIZE, size: SIZE.sx, data: g.data, palette: g.palette };
+}
+
+// MONTAGNE — aigle : silhouette sombre en vol (REPÈRE, tournoie au tick solaire)
+function eagleProp(seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz);
+  const rnd = makeRng(seed);
+  void rnd;
+  const cx = Math.round(SIZE.sx / 2), cy = Math.round(SIZE.sy / 2);
+  const dark = [96, 80, 64];
+  const z = 24;
+  g.set(cx, cy, z, dark); // corps
+  g.set(cx + 1, cy, z, shade(dark, 1.15)); // tête claire
+  for (let k = 1; k <= 3; k++) { // ailes en V
+    g.set(cx, cy - k, z + (k > 1 ? 1 : 0), dark);
+    g.set(cx, cy + k, z + (k > 1 ? 1 : 0), dark);
+  }
+  g.set(cx - 1, cy, z, shade(dark, 0.9)); // queue
+  return { ...SIZE, size: SIZE.sx, data: g.data, palette: g.palette };
+}
+
 const GREEN = [134, 192, 108];
 const PINK = [232, 164, 188];
 const DEEP = [104, 168, 88];
@@ -557,6 +694,7 @@ const FLOWER_HEADS = [[230, 116, 116], [240, 204, 110], [244, 240, 232]]; // rou
 const BERRIES = [[214, 88, 96], [150, 108, 196], [214, 88, 96]]; // rouge/violet/rouge
 const MUSH_CAPS = [[226, 110, 100], [178, 136, 96], [232, 186, 100]]; // rouge à pois/brun/doré
 const CRYSTAL_COLS = [[188, 150, 224], [140, 180, 228], [200, 160, 232]]; // violet/bleu/violet
+const WINGS = [[244, 244, 250], [244, 214, 110], [150, 190, 240]]; // blanc/jaune/bleu
 
 async function main() {
   await mkdir(OUT_VOX, { recursive: true });
@@ -602,6 +740,17 @@ async function main() {
     { id: "menhir", make: (v) => menhir(531 + v * 77) },
     { id: "turtle", make: (v) => turtle(541 + v * 77) },
     { id: "beehive", make: (v) => beehive(551 + v * 77) },
+    // LOT D3 — vie ambiante (jour/nuit sur le cycle solaire)
+    { id: "butterfly", make: (v) => butterflies(WINGS[v % 3], 601 + v * 77) },
+    { id: "gull", make: (v) => gulls(611 + v * 77) },
+    { id: "firefly", make: (v) => fireflies(621 + v * 77) },
+    { id: "rabbit", make: (v) => bunny([224, 208, 184], 631 + v * 77) },
+    { id: "hare", make: (v) => bunny([238, 242, 248], 641 + v * 77) },
+    { id: "crab", make: (v) => crab(651 + v * 77) },
+    // LOT D4 — effets
+    { id: "web", make: (v) => web(661 + v * 77) },
+    { id: "snow-motes", make: (v) => snowMotes(671 + v * 77) },
+    { id: "eagle", make: (v) => eagleProp(681 + v * 77) },
   ];
   for (const d of defs) {
     for (let v = 0; v < 3; v++) {

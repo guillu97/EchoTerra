@@ -6,6 +6,32 @@
 
 ---
 
+## 2026-07-18 (26) — WORLD-DETAILS lots D3+D4 : vie ambiante jour/nuit + effets
+
+### Fait
+- **Lot D3 (vie ambiante)** — 6 recettes : papillons (3 en l'air, ailes blanc/jaune/bleu par
+  variante, altitude cuite dans le .vox), mouettes (« V » blancs au-dessus de l'eau),
+  lucioles (motes jaune-vert), lapin crème / lièvre blanc (même gabarit `bunny` paramétré),
+  crabe. Scatter : papillons PRÈS des fleurs (même tuile), lapins/lièvres JAMAIS sur une
+  tuile à pack (`monsterId` dans `ScatterTile`), mouettes 3 % eau, crabes biaisés bord d'eau.
+- **Bascule jour/crépuscule** : `PropPlacement.phase` ("day"|"night") → sous-groupes
+  `dayProps`/`nightProps` dans VoxelMapView ; `applyPhase(t)` (seuil crépuscule 0.72 du
+  cycle solaire) toggle `visible` au tick de 5 s — props déjà instanciés, coût nul. Les
+  lucioles rendent en `MeshBasicMaterial` (self-lit, sans ombres) pour luire dans la pénombre.
+- **Lot D4 (effets)** — toile d'araignée (voile triangulaire pâle, forêt 2 %, annonce
+  l'Araignée Cristalline), souffle de neige (motes blanches figées, neige 6 %),
+  **aigle-landmark** (silhouette sombre au-dessus d'un pic, éligible sommet/relief ≥ 3) qui
+  **tournoie** : `tickAmbient()` avance sa position sur un cercle à chaque tick solaire ;
+  **veines de minerai** dorées/cuivrées directement dans la couleur des MURS de falaise
+  (`smoothTerrain.wall` : bruit sinusoïdal serpentant, montagne découverte, k > 0.55).
+- Cascade : reportée (analyse de géométrie + shader dédié — seul reste du plan).
+
+### Fonctionnel (vérifié)
+- Banc plein monde **10,22 M tris** (D3+D4 = +0,06 M — budget très tenu) ; veines visibles
+  sur les parois au banc ; e2e vraie partie : move + rotation OK, bascule jour→crépuscule→
+  jour vérifiée sur les groupes (`d3-check.mjs`) ; previews des 9 nouveaux props lisibles ;
+  `tsc` + build verts. 46 props ×3 variantes au total.
+
 ## 2026-07-18 (25) — WORLD-DETAILS lots D1+D2 : 29 nouveaux props + scatter partagé + repères par seed
 
 ### Fait

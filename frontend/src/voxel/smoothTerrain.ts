@@ -247,11 +247,20 @@ export class SmoothTerrain {
           const drop = h - lo;
           if (drop <= 0.0001) return;
           const k = Math.min(1, (drop - VS) / 0.9);
-          const rgb: [number, number, number] = [
+          let rgb: [number, number, number] = [
             base[0] + (CLIFF[0] - base[0]) * Math.max(0, k),
             base[1] + (CLIFF[1] - base[1]) * Math.max(0, k),
             base[2] + (CLIFF[2] - base[2]) * Math.max(0, k),
           ];
+          // veines de minerai (lot D4) : sur les MURS de falaise de montagne,
+          // fins filons dorés/cuivrés serpentant en diagonale (rare, par bruit)
+          if (k > 0.55 && tHere?.discovered && tHere.biome === 4) {
+            const serp = Math.sin(cx * 1.31 + cy * 0.73 + h * 7.1) + Math.sin(cy * 1.07 - cx * 0.41);
+            if (Math.abs(serp) < 0.16) {
+              const gold = ((cx * 7 + cy * 13) & 3) !== 0;
+              rgb = gold ? [212, 176, 96] : [198, 134, 92];
+            }
+          }
           const shade = nx !== 0 ? (nx > 0 ? SHADE_X.p : SHADE_X.n) : nz > 0 ? SHADE_Z.p : SHADE_Z.n;
           pushQuad(pts, [nx, 0, nz], rgb, shade);
         };

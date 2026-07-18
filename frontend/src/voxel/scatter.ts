@@ -17,9 +17,11 @@ export const PROP_KEYS = [
   "berry-bush", "daisy", "stump", "mushroom", "fern", "log", "bush-dense", "scree", "crystal",
   "cairn", "dead-tree", "snowdrift", "ice-spike", "frost-tree", "frost-bush",
   "scarecrow", "snowman", "boat", "menhir", "turtle", "beehive",
+  "butterfly", "gull", "firefly", "rabbit", "hare", "crab",
+  "web", "snow-motes", "eagle",
 ];
 
-export type ScatterTile = { biome: number; height: number; discovered?: boolean };
+export type ScatterTile = { biome: number; height: number; discovered?: boolean; monsterId?: string };
 export type ScatterSource = {
   width: number;
   height: number;
@@ -36,6 +38,8 @@ export type PropPlacement = {
   y: number;
   rot: number; // radians autour de l'axe vertical
   scale: number;
+  /** vie ambiante (lot D3) : visible seulement le jour / au crépuscule ; absent = toujours */
+  phase?: "day" | "night";
 };
 
 const GROUND_LEVEL = 3; // même convention que MapScene/VoxelMapView
@@ -99,14 +103,15 @@ export function scatterProps(src: ScatterSource): PropPlacement[] {
   };
 
   const out: PropPlacement[] = [];
-  const plant = (x: number, y: number, id: string, k: number, base: number, spread = 0.7) => {
+  const plant = (x: number, y: number, id: string, k: number, base: number, phase?: "day" | "night") => {
     out.push({
       id,
       v: Math.floor(h01(x, y, k + 4) * 3),
-      x: x + (h01(x, y, k) - 0.5) * spread,
-      y: y + (h01(x, y, k + 1) - 0.5) * spread,
+      x: x + (h01(x, y, k) - 0.5) * 0.7,
+      y: y + (h01(x, y, k + 1) - 0.5) * 0.7,
       rot: h01(x, y, k + 3) * Math.PI * 2,
       scale: base * (0.75 + h01(x, y, k + 2) * 0.4),
+      ...(phase ? { phase } : {}),
     });
   };
 
@@ -124,23 +129,28 @@ export function scatterProps(src: ScatterSource): PropPlacement[] {
         if (f.calmWater && h(200) < 0.09) plant(x, y, "lilypad", 205, 0.4);
         if (h(210) < 0.04) plant(x, y, "water-rock", 215, 0.5);
         if (f.nearSand && h(220) < 0.05) plant(x, y, "driftwood", 225, 0.45);
+        if (h(600) < 0.03) plant(x, y, "gull", 605, 0.45, "day");
       } else if (t.biome === 1) { // sable : ligne d'eau vivante, dunes sèches
         if (h(230) < (f.nearWater ? 0.16 : 0.06)) plant(x, y, "shells", 235, 0.42);
         if (h(240) < 0.07) plant(x, y, "pebbles", 245, 0.45);
         if (f.nearWater && h(250) < 0.06) plant(x, y, "kelp", 255, 0.45);
         if (h(260) < 0.13) plant(x, y, "dune-grass", 265, 0.3);
         if (h(170) < (f.nearWater ? 0.2 : 0.04)) plant(x, y, "reed", 175, 0.38);
+        if (h(610) < (f.nearWater ? 0.05 : 0.02)) plant(x, y, "crab", 615, 0.32, "day");
       } else if (t.biome === 2) { // prairie : nappes d'herbes, baies, ponctuation
         const r = h(60);
         if (r < 0.06) plant(x, y, "tree-pink", 70, 0.55);
         else if (r < 0.14) plant(x, y, "tree-green", 80, 0.5);
         if (h(90) < 0.05) plant(x, y, "rock", 95, 0.5);
         if (h(120) < 0.55) plant(x, y, "grass-tuft", 125, 0.32);
-        if (h(130) < 0.16) plant(x, y, "flowers", 135, 0.3);
+        const hasFlowers = h(130) < 0.16;
+        if (hasFlowers) plant(x, y, "flowers", 135, 0.3);
         if (inPatch && h(270) < 0.45) plant(x, y, "tallgrass", 275, 0.34);
         if (h(280) < 0.06) plant(x, y, "berry-bush", 285, 0.4);
         if (h(290) < (inPatch ? 0.05 : 0.015)) plant(x, y, "daisy", 295, 0.4);
         if (h(300) < 0.02) plant(x, y, "stump", 305, 0.4);
+        if (hasFlowers && h(620) < 0.4) plant(x, y, "butterfly", 625, 0.4, "day"); // près des fleurs
+        if (!t.monsterId && h(630) < 0.02) plant(x, y, "rabbit", 635, 0.32, "day"); // jamais sur un pack
       } else if (t.biome === 3) { // forêt : sous-bois dense (lore Dryade)
         plant(x, y, "tree-green", 10, 0.62);
         if (h(20) < 0.5) plant(x, y, "tree-green", 30, 0.5);
@@ -150,6 +160,8 @@ export function scatterProps(src: ScatterSource): PropPlacement[] {
         if (h(320) < 0.16) plant(x, y, "fern", 325, 0.36);
         if (h(330) < 0.045) plant(x, y, "log", 335, 0.45);
         if (h(340) < 0.09) plant(x, y, "bush-dense", 345, 0.42);
+        if (h(640) < 0.1) plant(x, y, "firefly", 645, 0.45, "night"); // crépuscule seulement
+        if (h(660) < 0.02) plant(x, y, "web", 665, 0.4); // annonce l'Araignée Cristalline
       } else if (t.biome === 4) { // montagne : éboulis au pied des falaises, cristaux, cairns aux sommets
         if (h(99) < 0.3) plant(x, y, "rock", 100, 0.65);
         if (h(150) < 0.3) plant(x, y, "pine", 155, 0.62);
@@ -163,6 +175,8 @@ export function scatterProps(src: ScatterSource): PropPlacement[] {
         if (h(400) < 0.05) plant(x, y, "ice-spike", 405, 0.45);
         if (h(410) < 0.06) plant(x, y, "frost-tree", 415, 0.5);
         if (h(420) < 0.06) plant(x, y, "frost-bush", 425, 0.4);
+        if (!t.monsterId && h(650) < 0.012) plant(x, y, "hare", 655, 0.3, "day"); // lièvre discret
+        if (h(670) < 0.06) plant(x, y, "snow-motes", 675, 0.5); // souffle de neige figé
       }
     }
   }
@@ -218,6 +232,8 @@ const LANDMARKS: LandmarkDef[] = [
   },
   { id: "menhir", eligible: (t, f) => t.biome === 4 && (f.summit || relief(t) >= 2), place: (x, y, s) => [one("menhir", x, y, s, 0.75)] },
   { id: "snowman", eligible: (t) => t.biome === 5, place: (x, y, s) => [one("snowman", x, y, s, 0.55)] },
+  // l'aigle tournoie au-dessus du pic (la carte anime sa position au tick solaire)
+  { id: "eagle", eligible: (t, f) => t.biome === 4 && (f.summit || relief(t) >= 3), place: (x, y, s) => [one("eagle", x, y, s, 0.55)] },
 ];
 
 function landmarks(

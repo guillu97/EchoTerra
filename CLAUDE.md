@@ -538,8 +538,13 @@ encore retiré du bundle). **Détails du monde** (`WORLD-DETAILS-PLAN.md`, lots 
 par biome, règles « près de » (voisinage 8 : bord d'eau, eau calme, pied de falaise, sommet,
 prairie ouverte ; ⚠ exiger `discovered`, le fog caviarde le biome à 0) et **repères par
 seed** (3-5 landmarks hachés sur `game.id` : menhir, barque, épouvantail, bonhomme de neige,
-tortue, ruche, cercle de fées, vieil arbre). Restent lots D3 (vie ambiante jour/nuit) et D4
-(effets : cascade, veines de minerai, toiles, aigle, souffle de neige).
+tortue, ruche, cercle de fées, vieil arbre). **Lots D3+D4 (2026-07-18)** : vie ambiante à
+bascule jour/crépuscule sur le cycle solaire (papillons/mouettes/lapins/lièvres/crabes le
+jour, lucioles self-lit `MeshBasicMaterial` au crépuscule — sous-groupes `dayProps`/
+`nightProps`, `applyPhase(t)` seuil 0.72, `phase` sur `PropPlacement`), toiles d'araignée,
+souffle de neige, aigle-landmark qui tournoie au tick solaire (`tickAmbient`), veines de
+minerai dorées/cuivrées dans les murs de falaise montagne (`smoothTerrain.wall`, par bruit).
+Reste du plan : la cascade (shader sur falaise bord d'eau).
 
 ## 7b. Map editor (dev tool — `frontend/src/editor/`)
 
