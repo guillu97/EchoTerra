@@ -550,7 +550,12 @@ chute COMPLÈTE à travers les terrasses du lissage, écume au pied), algues aff
 (teinte des colonnes d'eau par bruit dans `colColor`), murets en ruine ALIGNÉS (cellules
 6×6, rotation posée) et ruines éparses 2-3/carte (colonne/dalle/arche, passe `ruins()` —
 ⚠ `^` renvoie un int32 signé : toujours `>>> 0` avant `%`/indexation). Le plan
-WORLD-DETAILS est ✅ livré en totalité (50 props ×3 variantes).
+WORLD-DETAILS est ✅ livré en totalité (50 props ×3 variantes). **Résolution ×
+(2026-07-18)** : props stockés ×1.5 (30×30×45, gabarits inchangés — formes courbes évaluées
+PAR voxel fin via l'`ellipsoid` partagé + cônes sapin + disque nénuphar ; teinte par nappes
+de 2 cellules pour le greedy), monstres ×1.6, persos `CHAR_FINE` 2.5 (chanfrein de coin
+DIAGONAL en voxels fins dans `roundedBox`), terrain lissé R=10/VS=1/10. Le mesher normalise
+par `model.sx` → tailles écran inchangées. Banc pire-cas 16,1 M tris, vraie partie ~2,2 M.
 
 ## 7b. Map editor (dev tool — `frontend/src/editor/`)
 

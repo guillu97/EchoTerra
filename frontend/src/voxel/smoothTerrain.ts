@@ -22,8 +22,8 @@ export type TerrainSource = {
 
 // Grain fin : blocs de pente d'1/8 de tuile (retours successifs « trop
 // pixelisé » puis « réduis chaque bloc » — ¼ → 1/6 → 1/8)
-const R = 8; // colonnes voxel par côté de tuile
-const VS = 1 / 8; // pas vertical (= 1/R : voxels cubiques)
+const R = 10; // colonnes voxel par côté de tuile (résolution ×1.25, 2026-07-18)
+const VS = 1 / 10; // pas vertical (= 1/R : voxels cubiques)
 // micro-relief bas : à la grille 1/6, 0.11 franchissait le pas partout et
 // couvrait les plaines de bosselures (constaté sur capture) — la texture doit
 // venir de la finesse de la grille et de l'ondulation, pas du bruit

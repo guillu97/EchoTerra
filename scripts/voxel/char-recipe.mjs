@@ -56,15 +56,20 @@ export class Grid {
     const [z0] = this.cell(bz0), [, z1] = this.cell(bz1);
     for (let z = z0; z <= z1; z++) for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) this.setFine(x, y, z, rgb);
   }
-  // boîte aux coins verticaux rognés (lecture "rondouillarde" chibi)
+  // boîte aux coins verticaux rognés (lecture "rondouillarde" chibi).
+  // Le rognage est un CHANFREIN DIAGONAL en voxels FINS (au lieu de vider la
+  // cellule grossière entière) : plus le fineScale monte, plus le coin est rond.
   roundedBox(x0, x1, y0, y1, z0, z1, rgb) {
     this.box(x0, x1, y0, y1, z0, z1, rgb);
     const [zf0] = this.cell(z0), [, zf1] = this.cell(z1);
-    for (const [cx, cy] of [[x0, y0], [x0, y1], [x1, y0], [x1, y1]]) {
+    for (const [cx, cy, ox, oy] of [[x0, y0, -1, -1], [x0, y1, -1, 1], [x1, y0, 1, -1], [x1, y1, 1, 1]]) {
       const [cx0, cx1] = this.cell(cx), [cy0, cy1] = this.cell(cy);
       for (let z = zf0; z <= zf1; z++) {
         for (let y = cy0; y <= cy1; y++) {
           for (let x = cx0; x <= cx1; x++) {
+            const ix = ox < 0 ? x - cx0 : cx1 - x; // profondeur depuis l'arête EXTERNE
+            const iy = oy < 0 ? y - cy0 : cy1 - y;
+            if (ix + iy >= this.fs) continue; // on ne coupe que le triangle externe
             if (x >= 0 && y >= 0 && z >= 0 && x < this.fsx && y < this.fsy && z < this.fsz) {
               this.data[x + y * this.fsx + z * this.fsx * this.fsy] = 0;
             }
@@ -76,7 +81,8 @@ export class Grid {
 }
 
 export const CHAR_SIZE = { sx: 20, sy: 12, sz: 30 }; // coordonnées des gabarits
-export const CHAR_FINE = 1.5; // sur-échantillonnage (30×18×45 stockés)
+export const CHAR_FINE = 2.5; // sur-échantillonnage (50×30×75 stockés) — cellules
+// irrégulières 2/3 voxels (lecture organique) + chanfreins de coins plus ronds
 
 // accessoires par classe — `key` = fichier char-* du jeu
 const ACCESSORIES = {

@@ -6,6 +6,35 @@
 
 ---
 
+## 2026-07-18 (29) — RÉSOLUTION ×: terrain, props, persos et monstres plus fins
+
+### Fait (demande : « augmenter le nombre de voxels de tout »)
+- **Props ×1.5** (`gen-props.mjs`) : gabarits inchangés en coordonnées grossières 20×20×30,
+  STOCKAGE fin 30×30×45 via `Grid.fineScale` (le principe des persos). Les formes COURBES
+  sont évaluées PAR VOXEL FIN → vraies surfaces lisses : `ellipsoid` partagé (canopées,
+  rochers, dômes, congères…), cônes des sapins, disque du nénuphar. Traits/boîtes en
+  remplissage de cellule (proportions intactes). Le mesher normalise par `model.sx` →
+  taille à l'écran INCHANGÉE, définition ×1.5.
+- **Teinte par nappes 2×2×2 cellules** : le jitter 3 teintes est haché par blocs de 2
+  cellules grossières (plus par cellule) → le greedy meshing fusionne mieux : 18,8 M →
+  **16,1 M tris** pire-cas banc (était 10,2 M en 20³), meshing 151 → 78 ms. Même look.
+- **Monstres ×1.6** (`monster-recipe.mjs`) : stockage 35×29×38, `ellipsoid` local évalué
+  fin (slime/fantôme/araignée/loup nettement plus ronds), irrégularité `jitter`
+  échantillonnée en coordonnées grossières (mêmes bosses, plus lisses).
+- **Persos `CHAR_FINE` 1.5 → 2.5** (50×30×75) : cellules irrégulières 2/3 voxels (lecture
+  organique) + **`roundedBox` : chanfrein DIAGONAL en voxels fins** (au lieu de vider la
+  cellule de coin entière) → silhouettes chibi plus rondes, accessoires plus fins.
+- **Terrain lissé R 8 → 10, VS 1/10** (`smoothTerrain.ts`) : marches et colonnes 25 % plus
+  fines (terrasses plus douces), veines de minerai/algues suivent.
+
+### Fonctionnel (vérifié)
+- Previews : canopée sphérique lisse, sapin conique propre, slime/fantôme ronds, persos
+  chanfreinés (SHEET.png) ; en jeu : arbres ronds + héros voxel OK au zoom.
+- Banc **16,1 M tris** pire-cas plein monde (×1.58 vs avant, après optimisation des nappes
+  de teinte) ; **vraie partie ~2,24 M** (le fog borne tout) ; e2e move/rotation OK ;
+  `tsc` + build verts. Si un téléphone réel peine en fin de partie très explorée :
+  descendre `FINE` à 1.25 ou ajouter un LOD props.
+
 ## 2026-07-18 (28) — WORLD-DETAILS : les idées « au goût » — le plan est livré EN TOTALITÉ
 
 ### Fait
