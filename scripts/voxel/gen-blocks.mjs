@@ -17,8 +17,8 @@ import { readFile, writeFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import sharp from "sharp";
-import { generateBlock } from "./recipes.mjs";
-import { encodeVox } from "./vox-format.mjs";
+import { generateBlock } from "../../frontend/src/voxel/shared/recipes.mjs";
+import { encodeVox } from "../../frontend/src/voxel/shared/vox-format.mjs";
 import { renderModel, renderTiling } from "./render-iso.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");

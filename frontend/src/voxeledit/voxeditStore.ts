@@ -7,8 +7,8 @@ import { create } from "zustand";
 import type { VoxModel } from "../voxel/vox";
 import { decodeVox } from "../voxel/vox";
 // modules JS pur PARTAGÉS avec le CLI (VOXEL-PLAN Phase 1b : recettes live)
-import { generateBlock } from "../../../scripts/voxel/recipes.mjs";
-import { encodeVox } from "../../../scripts/voxel/vox-format.mjs";
+import { generateBlock } from "../voxel/shared/recipes.mjs";
+import { encodeVox } from "../voxel/shared/vox-format.mjs";
 
 export type Tool = "nav" | "place" | "erase" | "pick";
 export type ViewMode = "single" | "tiling" | "stack";
