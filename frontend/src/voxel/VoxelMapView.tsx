@@ -142,8 +142,8 @@ class MapWorld {
         };
         if (t.biome === 3) { // forêt : bosquet
           plant("tree-green", 10, 0.62);
-          if (hash(x, y, 20) < 0.75) plant("tree-green", 30, 0.5);
-          if (hash(x, y, 40) < 0.18) plant("tree-pink", 50, 0.55);
+          if (hash(x, y, 20) < 0.5) plant("tree-green", 30, 0.5);
+          if (hash(x, y, 40) < 0.12) plant("tree-pink", 50, 0.55);
         } else if (t.biome === 2) { // prairie : arbre occasionnel
           const r = hash(x, y, 60);
           if (r < 0.06) plant("tree-pink", 70, 0.55);

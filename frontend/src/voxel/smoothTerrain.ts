@@ -20,9 +20,13 @@ export type TerrainSource = {
   tiles: { biome: number; height: number; discovered?: boolean }[];
 };
 
-const R = 4; // colonnes voxel par côté de tuile
-const VS = 0.25; // pas vertical (= 1/R : voxels cubiques)
-const MICRO = 0.13; // micro-relief (± unités) — bosses voxel isolées dans les plaines
+// Retour « trop pixelisé » : grille affinée (marches 1/6 de tuile au lieu de ¼)
+const R = 6; // colonnes voxel par côté de tuile
+const VS = 1 / 6; // pas vertical (= 1/R : voxels cubiques)
+// micro-relief bas : à la grille 1/6, 0.11 franchissait le pas partout et
+// couvrait les plaines de bosselures (constaté sur capture) — la texture doit
+// venir de la finesse de la grille et de l'ondulation, pas du bruit
+const MICRO = 0.045;
 const TERRACE_BAND = 0.26; // largeur de la transition de terrasse
 // Retour utilisateur (« sol trop lisse, reliefs plus hauts ») :
 const HEIGHT_SCALE = 1.9; // amplification des hauteurs du monde (collines ~2× plus hautes)
@@ -145,11 +149,18 @@ export class SmoothTerrain {
 
     // 2) couleur de base par colonne : palette du biome le plus proche, fondue
     // avec les tuiles voisines selon la position dans la tuile
+    // nuance du biome MÉLANGÉE par un bruit doux (fini le damier par tuile qui
+    // lisait comme du bruit de pixels) : grandes nappes de ton fondues
     const tileColor = (tx: number, ty: number): [number, number, number] => {
       const t = tileAt(tx, ty);
       if (!t?.discovered) return UNDISCOVERED;
       const shades = DIORAMA[t.biome] ?? DIORAMA[2];
-      return shades[hash01(tx, ty) < 0.5 ? 0 : 1];
+      const k = rollNoise(tx * 1.7 + 40, ty * 1.7 + 40);
+      return [
+        shades[0][0] + (shades[1][0] - shades[0][0]) * k,
+        shades[0][1] + (shades[1][1] - shades[0][1]) * k,
+        shades[0][2] + (shades[1][2] - shades[0][2]) * k,
+      ];
     };
     const colColor = (cx: number, cy: number): [number, number, number] => {
       const wx = (cx + 0.5) / R - 0.5, wy = (cy + 0.5) / R - 0.5;
@@ -159,10 +170,11 @@ export class SmoothTerrain {
         const c = tileColor(tx0 + dx, ty0 + dy);
         r += c[0]; g += c[1]; b += c[2]; cnt++;
       }
-      // pointillés d'herbe + grain
+      // pointillés d'herbe plus discrets + grain ADOUCI (l'ancien bruit par
+      // colonne lisait comme de la neige de pixels)
       const t = tileAt(tx0, ty0);
-      const dot = t?.discovered && (t.biome === 2 || t.biome === 3) && hash01(cx, cy, 13) < 0.05 ? 0.86 : 1;
-      const grain = (0.97 + hash01(cx, cy, 3) * 0.06) * dot;
+      const dot = t?.discovered && (t.biome === 2 || t.biome === 3) && hash01(cx, cy, 13) < 0.035 ? 0.9 : 1;
+      const grain = (0.985 + hash01(cx, cy, 3) * 0.03) * dot;
       return [(r / cnt) * grain, (g / cnt) * grain, (b / cnt) * grain];
     };
 

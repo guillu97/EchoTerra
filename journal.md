@@ -6,6 +6,26 @@
 
 ---
 
+## 2026-07-17 (20) — Plus de détails (retour « trop pixelisé »)
+
+### Fait
+- **Grille de terrain 1/6** (R 4→6, VS ¼→1/6) : marches deux fois plus fines sur les pentes,
+  terrasses de montagnes finement étagées. ⚠ MICRO d'abord gardé à 0.11 → il franchissait le
+  nouveau pas partout et couvrait les plaines de bosselures (constaté sur capture) → 0.045 :
+  plaines propres, la texture vient de la grille et de l'ondulation, pas du bruit.
+- **Fini le « bruit de pixels » couleur** : nuances de biome mélangées par bruit DOUX
+  (rollNoise — grandes nappes fondues, plus de damier par tuile), grain par colonne 0.985±3 %
+  (au lieu de ±6 %), pointillés plus rares et plus doux.
+- **Arbres/rochers 20³** (16³ → 24³ essayé : 13,4 M tris plein monde → 20³ = compromis, avec
+  densité forêt réduite [2e arbre 50 %, cerisier 12 %]) : canopées nettement plus rondes.
+- **Héros sur-échantillonnés ×1.5** (`Grid` : mode `fineScale` — gabarits inchangés en
+  coordonnées grossières, stockage 30×18×45 ; monstres/props gardent fs=1 par défaut).
+- Budget : 8,25 M tris au banc PLEIN MONDE (ombres comprises ; ~2-3 M en jeu réel avec fog).
+
+### Fonctionnel (vérifié, captures banc + vraie partie)
+- Montagnes étagées fines, plaines lisses aux nappes douces, arbres ronds, héros nets et
+  nommés. Move serveur + rotation OK ; `tsc` + build verts.
+
 ## 2026-07-17 (19) — Lisibilité des héros sur carte + brume nettoyée
 
 ### Fait

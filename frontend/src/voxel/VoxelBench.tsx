@@ -152,8 +152,8 @@ export function VoxelBench() {
             };
             if (t.biome === 3) {
               plant("tree-green", 10, 0.62);
-              if (h01(x, y, 20) < 0.75) plant("tree-green", 30, 0.5);
-              if (h01(x, y, 40) < 0.18) plant("tree-pink", 50, 0.55);
+              if (h01(x, y, 20) < 0.5) plant("tree-green", 30, 0.5);
+              if (h01(x, y, 40) < 0.12) plant("tree-pink", 50, 0.55);
             } else if (t.biome === 2) {
               const r = h01(x, y, 60);
               if (r < 0.06) plant("tree-pink", 70, 0.55);

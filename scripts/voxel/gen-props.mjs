@@ -17,7 +17,9 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", ".
 const OUT_VOX = path.join(ROOT, "frontend", "public", "voxels", "props");
 const OUT_PREVIEW = path.join(ROOT, "asset-index", "voxels", "props");
 
-const SIZE = { sx: 16, sy: 16, sz: 24 };
+// ×1.25 (retour « trop pixelisé ») : canopées plus fines — 24³ essayé mais
+// 2415 arbres × ~2.7k tris = 13 M au banc plein monde, 20³ est le compromis
+const SIZE = { sx: 20, sy: 20, sz: 30 };
 
 function ellipsoid(g, cx, cy, cz, rx, ry, rz, rgb, rnd, jitterRgb = 8) {
   for (let z = Math.floor(cz - rz); z <= cz + rz; z++) {
@@ -40,11 +42,11 @@ function tree(canopy, seed) {
   const rnd = makeRng(seed);
   const cx = SIZE.sx / 2 - 0.5, cy = SIZE.sy / 2 - 0.5;
   const trunk = [138, 106, 76];
-  g.box(Math.round(cx) - 1, Math.round(cx), Math.round(cy) - 1, Math.round(cy), 0, 7, trunk);
-  ellipsoid(g, cx, cy, 13, 6.2, 6.2, 6.5, canopy, rnd, 6);
+  g.box(Math.round(cx) - 1, Math.round(cx) + 1, Math.round(cy) - 1, Math.round(cy) + 1, 0, 9, trunk);
+  ellipsoid(g, cx, cy, 16.5, 7.8, 7.8, 8.2, canopy, rnd, 6);
   // deux excroissances pour casser la sphère parfaite
-  ellipsoid(g, cx - 3 + rnd() * 6, cy - 3 + rnd() * 6, 16 + rnd() * 2, 3.4, 3.4, 3.2, shade(canopy, 1.06), rnd, 5);
-  ellipsoid(g, cx - 3 + rnd() * 6, cy - 3 + rnd() * 6, 10 + rnd() * 2, 3.2, 3.2, 3, shade(canopy, 0.95), rnd, 5);
+  ellipsoid(g, cx - 3.8 + rnd() * 7.6, cy - 3.8 + rnd() * 7.6, 20 + rnd() * 2.5, 4.3, 4.3, 4, shade(canopy, 1.06), rnd, 5);
+  ellipsoid(g, cx - 3.8 + rnd() * 7.6, cy - 3.8 + rnd() * 7.6, 12.5 + rnd() * 2.5, 4, 4, 3.8, shade(canopy, 0.95), rnd, 5);
   return { ...SIZE, size: SIZE.sx, data: g.data, palette: g.palette };
 }
 
@@ -53,8 +55,8 @@ function rock(seed) {
   const rnd = makeRng(seed);
   const cx = SIZE.sx / 2 - 0.5, cy = SIZE.sy / 2 - 0.5;
   const base = [206, 200, 188];
-  ellipsoid(g, cx, cy, 2.4, 4.6, 3.8, 3.2, base, rnd, 7);
-  ellipsoid(g, cx + 3, cy + 2, 1.6, 2.4, 2, 2, shade(base, 0.93), rnd, 6);
+  ellipsoid(g, cx, cy, 3, 5.8, 4.8, 4, base, rnd, 7);
+  ellipsoid(g, cx + 3.8, cy + 2.5, 2, 3, 2.5, 2.5, shade(base, 0.93), rnd, 6);
   return { ...SIZE, size: SIZE.sx, data: g.data, palette: g.palette };
 }
 

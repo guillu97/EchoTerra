@@ -14,10 +14,19 @@ export function shade([r, g, b], f) {
   return [c(r), c(g), c(b)];
 }
 
+// Grille voxel des gabarits. `fineScale` > 1 = SUR-ÉCHANTILLONNAGE (retour
+// « trop pixelisé ») : les gabarits restent écrits en coordonnées GROSSIÈRES
+// (sx/sy/sz), le stockage se fait en voxels fins (fsx/fsy/fsz = ×fineScale) —
+// chaque cellule grossière remplit son pavé de voxels fins, les proportions ne
+// bougent pas, la définition monte.
 export class Grid {
-  constructor(sx, sy, sz) {
-    this.sx = sx; this.sy = sy; this.sz = sz;
-    this.data = new Uint8Array(sx * sy * sz);
+  constructor(sx, sy, sz, fineScale = 1) {
+    this.fs = fineScale;
+    this.sx = sx; this.sy = sy; this.sz = sz; // dims GROSSIÈRES (pour les gabarits)
+    this.fsx = Math.round(sx * fineScale);
+    this.fsy = Math.round(sy * fineScale);
+    this.fsz = Math.round(sz * fineScale);
+    this.data = new Uint8Array(this.fsx * this.fsy * this.fsz);
     this.palette = [];
     this._keys = new Map();
   }
@@ -27,24 +36,47 @@ export class Grid {
     if (i === undefined) { this.palette.push(rgb); i = this.palette.length; this._keys.set(k, i); }
     return i;
   }
+  /** voxel FIN brut (indexation directe) */
+  setFine(x, y, z, rgb) {
+    if (x < 0 || y < 0 || z < 0 || x >= this.fsx || y >= this.fsy || z >= this.fsz) return;
+    this.data[x + y * this.fsx + z * this.fsx * this.fsy] = this.color(rgb);
+  }
+  /** bornes fines [début, fin] d'une cellule grossière */
+  cell(c) {
+    return [Math.round(c * this.fs), Math.round((c + 1) * this.fs) - 1];
+  }
   set(x, y, z, rgb) {
     x = Math.round(x); y = Math.round(y); z = Math.round(z);
-    if (x < 0 || y < 0 || z < 0 || x >= this.sx || y >= this.sy || z >= this.sz) return;
-    this.data[x + y * this.sx + z * this.sx * this.sy] = this.color(rgb);
+    const [x0, x1] = this.cell(x), [y0, y1] = this.cell(y), [z0, z1] = this.cell(z);
+    for (let zf = z0; zf <= z1; zf++) for (let yf = y0; yf <= y1; yf++) for (let xf = x0; xf <= x1; xf++) this.setFine(xf, yf, zf, rgb);
   }
-  box(x0, x1, y0, y1, z0, z1, rgb) {
-    for (let z = z0; z <= z1; z++) for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) this.set(x, y, z, rgb);
+  box(bx0, bx1, by0, by1, bz0, bz1, rgb) {
+    const [x0] = this.cell(bx0), [, x1] = this.cell(bx1);
+    const [y0] = this.cell(by0), [, y1] = this.cell(by1);
+    const [z0] = this.cell(bz0), [, z1] = this.cell(bz1);
+    for (let z = z0; z <= z1; z++) for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) this.setFine(x, y, z, rgb);
   }
   // boîte aux coins verticaux rognés (lecture "rondouillarde" chibi)
   roundedBox(x0, x1, y0, y1, z0, z1, rgb) {
     this.box(x0, x1, y0, y1, z0, z1, rgb);
+    const [zf0] = this.cell(z0), [, zf1] = this.cell(z1);
     for (const [cx, cy] of [[x0, y0], [x0, y1], [x1, y0], [x1, y1]]) {
-      for (let z = z0; z <= z1; z++) this.data[cx + cy * this.sx + z * this.sx * this.sy] = 0;
+      const [cx0, cx1] = this.cell(cx), [cy0, cy1] = this.cell(cy);
+      for (let z = zf0; z <= zf1; z++) {
+        for (let y = cy0; y <= cy1; y++) {
+          for (let x = cx0; x <= cx1; x++) {
+            if (x >= 0 && y >= 0 && z >= 0 && x < this.fsx && y < this.fsy && z < this.fsz) {
+              this.data[x + y * this.fsx + z * this.fsx * this.fsy] = 0;
+            }
+          }
+        }
+      }
     }
   }
 }
 
-export const CHAR_SIZE = { sx: 20, sy: 12, sz: 30 };
+export const CHAR_SIZE = { sx: 20, sy: 12, sz: 30 }; // coordonnées des gabarits
+export const CHAR_FINE = 1.5; // sur-échantillonnage (30×18×45 stockés)
 
 // accessoires par classe — `key` = fichier char-* du jeu
 const ACCESSORIES = {
@@ -59,7 +91,7 @@ const ACCESSORIES = {
 
 export function generateCharacter(key, pal) {
   const { sx, sy, sz } = CHAR_SIZE;
-  const g = new Grid(sx, sy, sz);
+  const g = new Grid(sx, sy, sz, CHAR_FINE);
   const cx = Math.floor(sx / 2); // 10
   const cy = Math.floor(sy / 2); // 6
   const { skin, hair, outfit, outfit2, accent } = pal;
@@ -136,5 +168,5 @@ export function generateCharacter(key, pal) {
     g.set(cx + 8, cy + 1, 23, [126, 220, 255]); // gemme
   }
 
-  return { sx, sy, sz, size: sx, data: g.data, palette: g.palette };
+  return { sx: g.fsx, sy: g.fsy, sz: g.fsz, size: g.fsx, data: g.data, palette: g.palette };
 }
