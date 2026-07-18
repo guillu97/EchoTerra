@@ -471,7 +471,7 @@ To find an asset in a later session, grep this file or `catalog.json` by title /
 - **Structure tab icon** `nav-structure` — `assets/ui/nav-structure.png` · tags: bottomnav, button, hud, icon, interface, structure, tab, ui
 - **skull (currently 💀 emoji)** `skull` — `assets/ui/skull.png` · tags: button, currently, emoji, gameover, hud, icon, interface, screen, skull, ui
 
-## voxels (172)
+## voxels (178)
 
 - **ash** `vox-16-ash-v0` — `voxels/16/ash-v0.vox` · tags: 16, 3d, ash, biome, block, cube, lod, magicavoxel, terrain, vox, voxel, voxels
 - **ash** `vox-16-ash-v1` — `voxels/16/ash-v1.vox` · tags: 16, 3d, ash, biome, block, cube, lod, magicavoxel, terrain, vox, voxel, voxels
@@ -527,6 +527,9 @@ To find an asset in a later session, grep this file or `catalog.json` by title /
 - **mist** `vox-16-mist-v0` — `voxels/16/mist-v0.vox` · tags: 16, 3d, biome, block, cube, lod, magicavoxel, mist, terrain, vox, voxel, voxels
 - **mist** `vox-16-mist-v1` — `voxels/16/mist-v1.vox` · tags: 16, 3d, biome, block, cube, lod, magicavoxel, mist, terrain, vox, voxel, voxels
 - **mist** `vox-16-mist-v2` — `voxels/16/mist-v2.vox` · tags: 16, 3d, biome, block, cube, lod, magicavoxel, mist, terrain, vox, voxel, voxels
+- **mistbase** `vox-16-mistbase-v0` — `voxels/16/mistbase-v0.vox` · tags: 16, 3d, biome, block, cube, lod, magicavoxel, mistbase, terrain, vox, voxel, voxels
+- **mistbase** `vox-16-mistbase-v1` — `voxels/16/mistbase-v1.vox` · tags: 16, 3d, biome, block, cube, lod, magicavoxel, mistbase, terrain, vox, voxel, voxels
+- **mistbase** `vox-16-mistbase-v2` — `voxels/16/mistbase-v2.vox` · tags: 16, 3d, biome, block, cube, lod, magicavoxel, mistbase, terrain, vox, voxel, voxels
 - **mud** `vox-16-mud-v0` — `voxels/16/mud-v0.vox` · tags: 16, 3d, biome, block, cube, lod, magicavoxel, mud, terrain, vox, voxel, voxels
 - **mud** `vox-16-mud-v1` — `voxels/16/mud-v1.vox` · tags: 16, 3d, biome, block, cube, lod, magicavoxel, mud, terrain, vox, voxel, voxels
 - **mud** `vox-16-mud-v2` — `voxels/16/mud-v2.vox` · tags: 16, 3d, biome, block, cube, lod, magicavoxel, mud, terrain, vox, voxel, voxels
@@ -621,6 +624,9 @@ To find an asset in a later session, grep this file or `catalog.json` by title /
 - **mist** `vox-mist-v0` — `voxels/mist-v0.vox` · tags: 32, 3d, biome, block, cube, magicavoxel, mist, terrain, vox, voxel, voxels
 - **mist** `vox-mist-v1` — `voxels/mist-v1.vox` · tags: 32, 3d, biome, block, cube, magicavoxel, mist, terrain, vox, voxel, voxels
 - **mist** `vox-mist-v2` — `voxels/mist-v2.vox` · tags: 32, 3d, biome, block, cube, magicavoxel, mist, terrain, vox, voxel, voxels
+- **mistbase** `vox-mistbase-v0` — `voxels/mistbase-v0.vox` · tags: 32, 3d, biome, block, cube, magicavoxel, mistbase, terrain, vox, voxel, voxels
+- **mistbase** `vox-mistbase-v1` — `voxels/mistbase-v1.vox` · tags: 32, 3d, biome, block, cube, magicavoxel, mistbase, terrain, vox, voxel, voxels
+- **mistbase** `vox-mistbase-v2` — `voxels/mistbase-v2.vox` · tags: 32, 3d, biome, block, cube, magicavoxel, mistbase, terrain, vox, voxel, voxels
 - **mud** `vox-mud-v0` — `voxels/mud-v0.vox` · tags: 32, 3d, biome, block, cube, magicavoxel, mud, terrain, vox, voxel, voxels
 - **mud** `vox-mud-v1` — `voxels/mud-v1.vox` · tags: 32, 3d, biome, block, cube, magicavoxel, mud, terrain, vox, voxel, voxels
 - **mud** `vox-mud-v2` — `voxels/mud-v2.vox` · tags: 32, 3d, biome, block, cube, magicavoxel, mud, terrain, vox, voxel, voxels
