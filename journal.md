@@ -6,6 +6,19 @@
 
 ---
 
+## 2026-07-17 (23) — FIX déploiement Vercel (imports hors racine)
+
+### Fait
+- PR #14 mergée → build Vercel en échec. Reproduit en local en cachant `scripts/` :
+  `Could not resolve "../../../scripts/voxel/recipes.mjs"` — le service frontend (racine
+  `frontend/`) n'inclut pas les fichiers hors racine.
+- **Fix** : `recipes.mjs` + `vox-format.mjs` déplacés dans **`frontend/src/voxel/shared/`**
+  (le navigateur les bundle) ; les scripts Node (`gen-blocks/characters/monsters/props`)
+  importent `../../frontend/src/voxel/shared/…` — le partage CLI↔navigateur est conservé,
+  la dépendance va maintenant de scripts vers frontend.
+- Vérifié : build AVEC `scripts/` masqué (simulation Vercel) ✓, générateurs Node ✓,
+  tsc + build complets ✓. Branche relancée depuis origin/main (PR mergée) + ce commit.
+
 ## 2026-07-17 (22) — Personnages encore réduits + blocs de pente 1/8
 
 ### Fait
