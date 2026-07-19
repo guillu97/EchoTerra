@@ -20,6 +20,25 @@ export type Clouds = {
 
 const CLOUD_MAT = new THREE.MeshBasicMaterial({ vertexColors: true });
 
+// ombre FACTICE : tache radiale douce posée PILE sous le nuage (l'ombre solaire
+// projetée atterrissait à altitude/tan(élévation) du nuage — trop décalée — et
+// forçait une re-render de la shadow map à chaque frame)
+let blobTex: THREE.Texture | null = null;
+function blobTexture(): THREE.Texture {
+  if (blobTex) return blobTex;
+  const c = document.createElement("canvas");
+  c.width = c.height = 64;
+  const ctx = c.getContext("2d")!;
+  const g = ctx.createRadialGradient(32, 32, 4, 32, 32, 30);
+  g.addColorStop(0, "rgba(40,44,64,0.42)");
+  g.addColorStop(0.7, "rgba(40,44,64,0.2)");
+  g.addColorStop(1, "rgba(40,44,64,0)");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 64, 64);
+  blobTex = new THREE.CanvasTexture(c);
+  return blobTex;
+}
+
 function h01(i: number, s: number): number {
   let h = (i * 374761393 + s * 668265263) >>> 0;
   h = ((h ^ (h >> 13)) * 1274126177) >>> 0;
@@ -37,20 +56,27 @@ export function makeClouds(
     speed: [number, number]; // unités monde / seconde
     scale: [number, number];
     seed: number;
-    shadows?: boolean;
+    /** hauteur du sol sous (x,z) — les ombres factices s'y posent */
+    groundAt?: (x: number, z: number) => number;
   },
 ): Clouds {
   const group = new THREE.Group();
   const wind = h01(1, opts.seed) * Math.PI * 2; // cap général du vent, par partie
-  const items: { mesh: THREE.Mesh; i: number; speed: number; off: number; dirX: number; dirZ: number; perX: number; perZ: number; lap: number }[] = [];
+  const items: { mesh: THREE.Mesh; blob: THREE.Mesh | null; i: number; speed: number; off: number; dirX: number; dirZ: number; perX: number; perZ: number; lap: number }[] = [];
+  const blobMat = new THREE.MeshBasicMaterial({ map: blobTexture(), transparent: true, depthWrite: false });
   for (let i = 0; i < opts.count; i++) {
     const geom = lib.get("cloud", i % 3);
     if (!geom) continue;
     const mesh = new THREE.Mesh(geom, CLOUD_MAT);
-    mesh.castShadow = opts.shadows !== false;
+    mesh.castShadow = false; // l'ombre est la tache factice, pas la passe soleil
     const a = wind + (h01(i, opts.seed + 2) - 0.5) * 0.32; // ±9° par nuage
+    let blob: THREE.Mesh | null = null;
+    if (opts.groundAt) {
+      blob = new THREE.Mesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), blobMat);
+      group.add(blob);
+    }
     items.push({
-      mesh, i,
+      mesh, blob, i,
       speed: opts.speed[0] + h01(i, opts.seed + 3) * (opts.speed[1] - opts.speed[0]),
       off: h01(i, opts.seed + 4), // départ étalé sur toute la traversée
       dirX: Math.cos(a), dirZ: Math.sin(a),
@@ -63,6 +89,7 @@ export function makeClouds(
     it.lap = lap;
     const sc = opts.scale[0] + h01(it.i * 13 + lap, opts.seed + 5) * (opts.scale[1] - opts.scale[0]);
     it.mesh.scale.set(h01(it.i * 17 + lap, opts.seed + 6) < 0.5 ? -sc : sc, sc, sc);
+    it.blob?.scale.set(sc * 0.9, 1, sc * 0.7);
   };
   const setTime = (s: number) => {
     for (const it of items) {
@@ -72,11 +99,10 @@ export function makeClouds(
       const u = travel - lap * opts.span - opts.span / 2; // −span/2 .. +span/2
       const lane = (h01(it.i * 7 + lap, opts.seed + 7) - 0.5) * opts.span * 0.85;
       const alt = opts.altitude[0] + h01(it.i * 11 + lap, opts.seed + 8) * (opts.altitude[1] - opts.altitude[0]);
-      it.mesh.position.set(
-        opts.cx + it.dirX * u + it.perX * lane,
-        alt,
-        opts.cy + it.dirZ * u + it.perZ * lane,
-      );
+      const px = opts.cx + it.dirX * u + it.perX * lane;
+      const pz = opts.cy + it.dirZ * u + it.perZ * lane;
+      it.mesh.position.set(px, alt, pz);
+      if (it.blob && opts.groundAt) it.blob.position.set(px, opts.groundAt(px, pz) + 0.05, pz);
     }
   };
   setTime(performance.now() / 1000);

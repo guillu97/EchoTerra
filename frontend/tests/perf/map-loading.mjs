@@ -182,6 +182,9 @@ async function run() {
   const t0 = Date.now();
   await page.evaluate(async () => {
     const s = window.__eg.store;
+    // cette suite teste le chemin PHASER (mode Classique) — le voxel est le
+    // défaut depuis 2026-07-17 et a sa propre suite (voxel-perf.mjs)
+    s.getState().updateSettings({ voxelMap: false });
     await s.getState().newGame();
     s.setState({ appScreen: "game", tab: "home" });
   });

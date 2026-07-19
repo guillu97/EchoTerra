@@ -6,6 +6,45 @@
 
 ---
 
+## 2026-07-19 (40) — FIX : ombre des nuages décalée + lag au pan de la ville
+
+### Fait (retours : « l'ombre est trop décalée », « la carte de la ville lag un peu »)
+- Les deux avaient la même racine : les nuages passaient par la VRAIE passe d'ombres —
+  (1) l'ombre solaire atterrit à altitude/tan(élévation) du nuage (10-20 unités de
+  décalage), (2) la boucle continue re-rendait la shadow map 2048² À CHAQUE FRAME
+  (toute la scène re-dessinée deux fois, 60×/s) → lag au pan de la ville.
+- **Ombres FACTICES** (`clouds.ts`) : tache radiale douce (CanvasTexture 64², plan
+  transparent) posée PILE sous chaque nuage, à la hauteur du sol (`groundAt` fourni par
+  la vue : surface lissée sur les tuiles connues, sommet du mur de brume sinon ; niveau
+  de la place en ville). `castShadow=false` sur les nuages.
+- **Shadow map FIGÉE** (`engine.ts`) : `shadowMap.autoUpdate=false` — re-rendue seulement
+  quand la CLÉ change (cible/cycle solaire, détectée au rendu) ou sur `refreshShadows()`
+  appelé par les vues à leurs rebuilds (draw() carte ; terrain/bâtiments/héros ville).
+
+### Mesuré (suite test:perf:voxel, 11/11 ✓)
+- Draw calls vraie partie **131 → 65** (la passe d'ombres sort des frames au repos) ;
+  vue ville **865 k → 430 k tris/frame** ; carte 1,18 M tris ; cadence GL logiciel
+  3,3 → 4,0 rendus/s. Taches d'ombre sous les nuages vérifiées en capture (sol + brume).
+
+## 2026-07-19 (39) — SUITE DE PERF VOXEL + fix de la suite Phaser
+
+### Fait (demande : « teste les performances »)
+- La suite historique `test:perf` ÉCHOUAIT (timeout « pillar atlas ») : elle attendait la
+  MapScene Phaser alors que le voxel est le rendu par défaut → elle force maintenant
+  `voxelMap:false` (elle teste le chemin Classique) — **13/13 ✓**.
+- **Nouvelle suite `test:perf:voxel`** (tests/perf/voxel-perf.mjs) — bornes STRUCTURELLES
+  (device-indépendantes), 11 checks : carte prête, tris vraie partie ≤6M, draw calls ≤160,
+  payload /voxels ≤4 MiB, zéro doublon de téléchargement, boucle nuages active + nuages en
+  mouvement, géométries stables (pas de fuite), **rendu STOPPÉ hors de l'onglet Map**
+  (batterie), vue ville ≤2M tris + bâtiments présents — **11/11 ✓**.
+
+### Mesures (2026-07-19)
+- Vraie partie (fog départ) : **1,39 M tris · 131 draw calls · prête en ~1 s** ;
+  payload voxel **1,88 MiB / 98 fichiers** (vs ~8,5 Mo de PNG du vieux chemin Phaser) ;
+  vue ville **0,87 M tris** ; banc pire-cas plein monde **16,1 M tris** (ombres ×2
+  comprises). Boucle continue : 3,3 rendus/s en GL LOGICIEL (CPU) — device-bound,
+  ~60 fps attendus sur GPU réel ; 0 rendu hors onglet.
+
 ## 2026-07-19 (38) — FIX : scintillements noirs du brouillard de guerre
 
 ### Fait (bug signalé : « le fog of war a des soucis de scintillements/noir »)

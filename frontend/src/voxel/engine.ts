@@ -107,6 +107,11 @@ export class VoxelEngine {
     this.sun = sun;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    // la passe d'ombres ne se re-rend QUE quand cible/soleil/contenu changent
+    // (la boucle continue des nuages re-rendait 2048² à CHAQUE frame → lag au
+    // pan de la ville) ; les vues appellent refreshShadows() sur leurs rebuilds
+    this.renderer.shadowMap.autoUpdate = false;
+    this.renderer.shadowMap.needsUpdate = true;
     // pas de tone mapping agressif : il boueusait les pastels — les intensités
     // hémisphérique/soleil sont calibrées pour que les faces du dessus gardent
     // ~la luminosité des palettes d'origine
@@ -230,6 +235,14 @@ export class VoxelEngine {
     this.invalidate();
   }
 
+  private lastShadowKey = "";
+
+  /** force une re-render de la passe d'ombres (contenu statique modifié) */
+  refreshShadows() {
+    this.renderer.shadowMap.needsUpdate = true;
+    this.invalidate();
+  }
+
   /** demande UN rendu (déduplique) ; les animations ré-invalident elles-mêmes */
   invalidate() {
     if (this.raf) return;
@@ -246,6 +259,13 @@ export class VoxelEngine {
         } else this.invalidate();
       }
       this.applyCamera();
+      if (this.sun) {
+        const k = `${this.target.x.toFixed(2)},${this.target.y.toFixed(2)},${this.target.z.toFixed(2)},${this.dayTime.toFixed(3)}`;
+        if (k !== this.lastShadowKey) {
+          this.lastShadowKey = k;
+          this.renderer.shadowMap.needsUpdate = true; // pan/cycle solaire : ombres à jour
+        }
+      }
       this.renderer.render(this.scene, this.camera);
       this.onFrame?.({
         calls: this.renderer.info.render.calls,
