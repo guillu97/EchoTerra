@@ -6,6 +6,25 @@
 
 ---
 
+## 2026-07-19 (39) — SUITE DE PERF VOXEL + fix de la suite Phaser
+
+### Fait (demande : « teste les performances »)
+- La suite historique `test:perf` ÉCHOUAIT (timeout « pillar atlas ») : elle attendait la
+  MapScene Phaser alors que le voxel est le rendu par défaut → elle force maintenant
+  `voxelMap:false` (elle teste le chemin Classique) — **13/13 ✓**.
+- **Nouvelle suite `test:perf:voxel`** (tests/perf/voxel-perf.mjs) — bornes STRUCTURELLES
+  (device-indépendantes), 11 checks : carte prête, tris vraie partie ≤6M, draw calls ≤160,
+  payload /voxels ≤4 MiB, zéro doublon de téléchargement, boucle nuages active + nuages en
+  mouvement, géométries stables (pas de fuite), **rendu STOPPÉ hors de l'onglet Map**
+  (batterie), vue ville ≤2M tris + bâtiments présents — **11/11 ✓**.
+
+### Mesures (2026-07-19)
+- Vraie partie (fog départ) : **1,39 M tris · 131 draw calls · prête en ~1 s** ;
+  payload voxel **1,88 MiB / 98 fichiers** (vs ~8,5 Mo de PNG du vieux chemin Phaser) ;
+  vue ville **0,87 M tris** ; banc pire-cas plein monde **16,1 M tris** (ombres ×2
+  comprises). Boucle continue : 3,3 rendus/s en GL LOGICIEL (CPU) — device-bound,
+  ~60 fps attendus sur GPU réel ; 0 rendu hors onglet.
+
 ## 2026-07-19 (38) — FIX : scintillements noirs du brouillard de guerre
 
 ### Fait (bug signalé : « le fog of war a des soucis de scintillements/noir »)
