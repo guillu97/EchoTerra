@@ -84,6 +84,9 @@ export function VoxelTownView({
     // LOD 16³ aussi pour la ville : 575 cellules × 32³ pesaient 6,1 M tris —
     // en 16³ le style voxel reste lisible de près et le budget retombe ~4×.
     const lib = new BlockLibrary("/voxels/16");
+    // bâtiments VOXEL à états (2026-07-19) : v0 intact / v1 abîmé / v2 ruine
+    // par DURABILITÉ réelle ; échafaudage pour les chantiers
+    const propsLib = new BlockLibrary("/voxels/props");
     const doc = getDoc();
 
     // 1) terrain : toutes les piles de blocs occupées
@@ -110,6 +113,7 @@ export function VoxelTownView({
     const textures: THREE.Texture[] = [];
     const sprites = new THREE.Group();
     const spots: Spot[] = [];
+    const bldPlacements: { bid: string; wx: number; wy: number; lvl: number; w: number }[] = [];
     const occupied = new Set<string>();
     for (const l of doc.layers) {
       if (!l.visible) continue;
@@ -121,15 +125,18 @@ export function VoxelTownView({
         const wy = p.cy + dv;
         const cell = doc.cells[p.cy * doc.gridW + p.cx];
         const lvl = (cell?.height ?? 0) + 1 + (p.lift ?? 0);
+        const bid = ASSET_TO_BUILDING[p.asset.file];
+        if (bid) {
+          // bâtiment de GAMEPLAY → mesh voxel piloté par l'état (groupe dynamique)
+          bldPlacements.push({ bid, wx, wy, lvl, w: ((p.scale ?? 1) * ISO.objW) / ISO.tileW });
+          continue;
+        }
+        // décor éventuel non mappé : billboard comme avant
         const url = `/assets/${p.asset.cat}/${p.asset.file}.png`;
         const tex = texLoader.load(url, (t) => {
-          // taille réelle : largeur = objW·scale en unités tuile, aspect du PNG
           const aspect = t.image ? t.image.height / t.image.width : 1;
           const w = ((p.scale ?? 1) * ISO.objW) / ISO.tileW;
           spr.scale.set(p.flipX ? -w : w, w * aspect, 1);
-          // remonter la pastille AU-DESSUS du sprite (elle recouvrait le bâtiment)
-          const spot = spots.find((s2) => s2.world === spotWorld);
-          if (spot) spot.world.y = lvl + w * aspect + 0.15;
           engine.invalidate();
         });
         tex.colorSpace = THREE.NoColorSpace;
@@ -138,17 +145,52 @@ export function VoxelTownView({
         spr.center.set(0.5, 0.02);
         spr.position.set(wx, lvl, wy);
         sprites.add(spr);
-        const bid = ASSET_TO_BUILDING[p.asset.file];
-        const spotWorld = new THREE.Vector3(wx, lvl + 0.6, wy);
-        if (bid) {
-          spriteBuildingOf.current.set(spr, bid);
-          spots.push({ buildingId: bid, world: spotWorld });
-        }
       }
     }
-    spotsRef.current = spots;
-    setSpotList(spots);
+    void spots;
     engine.scene.add(sprites);
+
+    // --- groupe DYNAMIQUE des bâtiments voxel : reconstruit à chaque état ----
+    const bldGroup = new THREE.Group();
+    engine.scene.add(bldGroup);
+    // SELF-LIT : l'ombrage des faces est déjà CUIT par le mesher — sous le
+    // Lambert les façades cumulaient deux ombrages et viraient au gris
+    const BLD_MAT = new THREE.MeshBasicMaterial({ vertexColors: true });
+    const drawBuildings = () => {
+      bldGroup.clear();
+      spriteBuildingOf.current.clear();
+      const g = useStore.getState().game;
+      const list: Spot[] = [];
+      for (const pl of bldPlacements) {
+        const b = g?.town.buildings?.find((x) => x.id === pl.bid);
+        if (!b || (!b.built && !b.underConstruction)) continue; // site sans plan : herbe nue
+        let geom;
+        if (!b.built) {
+          geom = propsLib.get("bld-chantier", 0); // chantier : échafaudage
+        } else {
+          const ratio = b.maxDurability > 0 ? b.durability / b.maxDurability : 1;
+          geom = propsLib.get(`bld-${pl.bid}`, ratio >= 0.66 ? 0 : ratio >= 0.33 ? 1 : 2);
+        }
+        if (!geom) continue;
+        const mesh = new THREE.Mesh(geom, BLD_MAT);
+        mesh.castShadow = mesh.receiveShadow = true;
+        mesh.position.set(pl.wx, pl.lvl, pl.wy);
+        // ×2.3 : le modèle est normalisé sur sa grille de 20 mais le bâtiment
+        // n'en occupe que ~14 — sans ce facteur il paraît minuscule vs le billboard
+        mesh.scale.setScalar(pl.w * 2.3);
+        mesh.rotation.y = Math.PI; // façades (y bas du modèle) vers la caméra par défaut
+        bldGroup.add(mesh);
+        spriteBuildingOf.current.set(mesh, pl.bid);
+        list.push({ buildingId: pl.bid, world: new THREE.Vector3(pl.wx, pl.lvl + pl.w * 2.6, pl.wy) });
+      }
+      spotsRef.current = list;
+      setSpotList(list);
+      engine.invalidate();
+    };
+    void propsLib
+      .load(["bld-well", "bld-panel", "bld-bank", "bld-workshop", "bld-gate", "bld-tower",
+             "bld-townhall", "bld-kitchen", "bld-wall", "bld-chantier"])
+      .then(drawBuildings);
 
     // 3) MES héros en ville, sur l'herbe (mêmes règles/hachage que TownMap)
     const heroGroup = new THREE.Group();
@@ -237,7 +279,7 @@ export function VoxelTownView({
     });
 
     const unsub = useStore.subscribe((s, prev) => {
-      if (s.game !== prev.game) drawHeroes();
+      if (s.game !== prev.game) { drawHeroes(); drawBuildings(); }
     });
 
     if (import.meta.env.DEV) (window as unknown as { __vt?: unknown }).__vt = { engine };
@@ -245,6 +287,7 @@ export function VoxelTownView({
       unsub();
       controls.dispose();
       lib.dispose();
+      propsLib.dispose();
       for (const t of textures) t.dispose();
       if (terrain) engine.scene.remove(terrain);
       engine.dispose();

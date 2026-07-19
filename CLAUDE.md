@@ -536,8 +536,11 @@ déplacement snap sans animation ; **Phase 3** `VoxelCombatView.tsx` (arène 7×
 contrastés, anneaux cibles, barres de PV + étiquettes canvas `labels.ts` [depthTest OFF —
 lisibles derrière un pilier], rotation FFTA2) ; **Phase 4** `VoxelTownView.tsx` (town-map.json
 interprété pile par pile via `buildStacks`, TOUS les matériaux de sol ont leur bloc voxel
-homonyme, bâtiments éditeur en billboards + hotspots raycast + pastilles DOM projetées, héros
-sur l'herbe, LOD 16³ = 426 k tris) ; **Phase 5** personnages voxel (`char-recipe.mjs` gabarit
+homonyme, hotspots raycast + pastilles DOM projetées, héros sur l'herbe, LOD 16³ = 426 k
+tris ; **2026-07-19 : bâtiments VOXEL à états** — recettes `bld-*` + `bld-chantier`, 3
+variantes par DURABILITÉ (v0 intact / v1 abîmé / v2 ruine, passe `damagePass` : morsures
+visant le toit + carbonisation + gravats), groupe dynamique reconstruit à chaque état,
+site sans plan = herbe nue, matériau SELF-LIT — l'ombrage cuit + Lambert grisait tout) ; **Phase 5** personnages voxel (`char-recipe.mjs` gabarit
 chibi paramétré 7 classes + `monster-recipe.mjs` 9 silhouettes de monstres, couleurs
 échantillonnées des PNG par `gen-characters.mjs`/`gen-monsters.mjs` → `voxels/chars/*.vox`,
 `characters.ts` CharLibrary : modèle voxel quand il existe sinon billboard, rotation.y = azimut
