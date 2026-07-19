@@ -6,6 +6,16 @@
 
 ---
 
+## 2026-07-19 (41) — Nuages RETIRÉS de la carte (lag mobile) — ville seulement
+
+### Fait (retour : « pas besoin des nuages sur la map, ça lag trop »)
+- La carte (scène LOURDE, ~1,4 M tris) repasse en rendu 100 % ON-DEMAND : nuages,
+  boucle rAF continue et `groundAt` retirés de `VoxelMapView`. Les nuages (et leur
+  boucle) ne vivent plus que sur la vue VILLE (~430 k tris, fluide).
+- Suite `test:perf:voxel` recalée sur le nouveau contrat : « carte on-demand (pas de
+  boucle continue) » (1 rendu/3 s au repos ✓), « pas de nuages sur la carte » ✓,
+  « nuages de la ville en mouvement » 5/5 ✓ — 12/12.
+
 ## 2026-07-19 (40) — FIX : ombre des nuages décalée + lag au pan de la ville
 
 ### Fait (retours : « l'ombre est trop décalée », « la carte de la ville lag un peu »)
