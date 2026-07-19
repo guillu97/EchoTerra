@@ -6,6 +6,34 @@
 
 ---
 
+## 2026-07-19 (36) — BÂTIMENTS DE LA VILLE EN VOXEL, dégradés par leur durabilité
+
+### Fait (demande : bâtiments voxel qui évoluent avec la durabilité, jusqu'à la destruction)
+- **9 recettes** dans `gen-props.mjs` (`bld-well/panel/bank/workshop/gate/tower/townhall/
+  kitchen/wall`) + **`bld-chantier`** (échafaudage : poteaux, plateforme, grue à corde et
+  crochet doré). Style temple : pierre crème, colombages, chaume/terracotta, accents or.
+- **3 ÉTATS PAR DURABILITÉ** = les 3 variantes .vox : v0 intact, v1 abîmé (ratio 0.35),
+  v2 en ruine (0.68) — **passe de dégâts procédurale partagée** (`damagePass`) : morsures
+  sphériques dont 70 % visent le HAUT (le toit part d'abord), pourtours carbonisés,
+  gravats au pied. Le même bâtiment s'effondre progressivement.
+- **`VoxelTownView`** : les 7 billboards mappés → **meshes voxel dans un groupe DYNAMIQUE**
+  reconstruit à chaque changement d'état : variante par `durability/maxDurability`
+  (≥66 % intact, ≥33 % abîmé, sinon ruine), `bld-chantier` si `underConstruction`,
+  **site sans plan = herbe nue** (avant, le billboard du site s'affichait toujours).
+  Hotspots raycast + pastilles inchangés (mêmes refs, mesh → buildingId).
+- ⚠ **Matériau SELF-LIT** (`MeshBasicMaterial`) : l'ombrage des faces est déjà CUIT par
+  le mesher — sous le Lambert les façades cumulaient deux ombrages et viraient au gris
+  (même leçon que la brume) ; échelle ×2.3 (modèle normalisé sur sa grille de 20 mais le
+  bâtiment n'en occupe que ~14) ; rotation π (façades vers la caméra par défaut).
+
+### Fonctionnel (vérifié)
+- Rendus logiciels des 10 modèles + états v0/v1/v2 (beffroi troué puis effondré) ;
+  e2e Home : 6 pastilles correctes (tour 🏗️ en chantier, townhall masqué = site sans
+  plan), banque/puits abîmés visibles après écrasement local de la durabilité, barres
+  orange/rouge, **tap sur le mesh → modal Bank** ; `tsc` + build verts.
+- Restent : le mur/kitchen n'ont pas d'emplacement sur la carte de ville (comme avant) ;
+  animer la transition d'état (poussière) un jour.
+
 ## 2026-07-19 (35) — EXPLORATION AU CONTACT : le fog ne se lève qu'en marchant dessus
 
 ### Fait (demande : seule l'Éclaireur voit à l'avance)

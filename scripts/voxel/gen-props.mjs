@@ -1008,6 +1008,226 @@ function siteTour(cleared, seed) {
   return fin(g);
 }
 
+// ============================================================================
+// BÂTIMENTS DE LA VILLE (Home voxel, 2026-07-19) — chaque bâtiment existe en
+// 3 ÉTATS choisis par sa DURABILITÉ réelle : v0 intact, v1 abîmé (~35 % de
+// dégâts), v2 en ruine (~68 %). La dégradation est une PASSE PROCÉDURALE
+// partagée : morsures sphériques qui visent d'abord le toit, bords carbonisés,
+// gravats au pied — le même bâtiment s'effondre progressivement.
+// ============================================================================
+const STONE_W = [222, 212, 196], WOOD_W = [168, 132, 94], ROOF_W = [219, 143, 115];
+const THATCH = [222, 186, 110], DARK_W = [66, 58, 62], CHAR = [116, 106, 98];
+
+// cylindre plein module (fûts, tours rondes) — coords grossières, tracé fin
+function cylAt(g, bx, by, z0, z1, r, rgb) {
+  const f = g.fs, fbx = (bx + 0.5) * f - 0.5, fby = (by + 0.5) * f - 0.5, fr = r * f;
+  for (let z = Math.round(z0 * f); z <= Math.round((z1 + 1) * f) - 1; z++) {
+    for (let y = Math.floor(fby - fr); y <= fby + fr; y++) {
+      for (let x = Math.floor(fbx - fr); x <= fbx + fr; x++) {
+        if (((x - fbx) / fr) ** 2 + ((y - fby) / fr) ** 2 <= 1) g.setFine(x, y, z, rgb);
+      }
+    }
+  }
+}
+
+// toit à deux pentes étagées, arête le long de X (même langage que le temple)
+function prismRoof(g, x0, x1, y0, y1, z0, rgb, over = 1) {
+  for (let y = y0 - over; y <= y1 + over; y++) {
+    const d = Math.min(y - (y0 - over), y1 + over - y);
+    const top = z0 + Math.floor(d * 0.8);
+    for (let z = z0; z <= top; z++) {
+      for (let x = x0 - over; x <= x1 + over; x++) {
+        g.box(x, x, y, y, z, z, z === top ? shade(rgb, 0.94 + ((x | 0) % 2) * 0.08) : shade([236, 228, 210], 0.98));
+      }
+    }
+  }
+}
+
+// PASSE DE DÉGÂTS : ratio 0 = intact ; ~0.35 = abîmé ; ~0.68 = ruine.
+// Morsures sphériques (70 % visent le haut — le toit part d'abord), pourtours
+// carbonisés, gravats au pied. Opère sur les voxels FINS du modèle fini.
+function damagePass(g, ratio, seed) {
+  if (ratio <= 0) return;
+  const rnd = makeRng(seed);
+  const { fsx, fsy, fsz } = g;
+  const at = (x, y, z) => g.data[x + y * fsx + z * fsx * fsy];
+  const clear = (x, y, z) => { g.data[x + y * fsx + z * fsx * fsy] = 0; };
+  const occ = [];
+  let maxZ = 1;
+  for (let z = 0; z < fsz; z++) for (let y = 0; y < fsy; y++) for (let x = 0; x < fsx; x++)
+    if (at(x, y, z)) { occ.push([x, y, z]); if (z > maxZ) maxZ = z; }
+  if (!occ.length) return;
+  const high = occ.filter(([, , z]) => z >= maxZ * 0.45);
+  const bites = Math.round(3 + ratio * 10);
+  for (let i = 0; i < bites; i++) {
+    const pool = rnd() < 0.7 && high.length ? high : occ;
+    const [cx, cy, cz] = pool[(rnd() * pool.length) | 0];
+    const r = (1.6 + rnd() * 2.6) * (0.7 + ratio);
+    for (let z = Math.max(0, Math.floor(cz - r)); z <= Math.min(fsz - 1, cz + r); z++) {
+      for (let y = Math.max(0, Math.floor(cy - r)); y <= Math.min(fsy - 1, cy + r); y++) {
+        for (let x = Math.max(0, Math.floor(cx - r)); x <= Math.min(fsx - 1, cx + r); x++) {
+          const d = Math.hypot(x - cx, y - cy, z - cz);
+          if (d <= r) clear(x, y, z);
+          else if (d <= r + 1.6 && at(x, y, z) && rnd() < 0.3) g.setFine(x, y, z, shade(CHAR, 0.9 + rnd() * 0.2));
+        }
+      }
+    }
+  }
+  // gravats au pied (coords grossières pour l'ellipsoïde partagé)
+  const lumps = Math.round(2 + ratio * 4);
+  for (let i = 0; i < lumps; i++) {
+    const bx = 3 + rnd() * (fsx / g.fs - 6), by = 3 + rnd() * (fsy / g.fs - 6);
+    ellipsoid(g, bx, by, 0.7, 1 + rnd() * 1.2, 0.9 + rnd(), 0.8, shade(RUBBLE, 0.92 + rnd() * 0.16), rnd, 6);
+  }
+}
+
+// --- les 9 bâtiments + le chantier -----------------------------------------
+function bldWell(seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz, FINE);
+  const rnd = makeRng(seed); void rnd;
+  const cx = 9.5, cy = 9.5;
+  const f = g.fs;
+  for (let z = 0; z < Math.round(3 * f); z++) { // margelle en anneau
+    for (let y = 0; y < g.fsy; y++) for (let x = 0; x < g.fsx; x++) {
+      const d = Math.hypot(x - (cx + 0.5) * f + 0.5, y - (cy + 0.5) * f + 0.5) / f;
+      if (d >= 3 && d <= 4.4) g.setFine(x, y, z, shade(STONE_W, 0.92 + (((x + y + z) | 0) % 3) * 0.05));
+      else if (d < 3 && z === Math.round(f)) g.setFine(x, y, z, [92, 182, 214]); // l'eau
+    }
+  }
+  g.box(cx - 4.4, cx - 3.6, cy - 0.5, cy + 0.5, 3, 7, WOOD_W); // montants
+  g.box(cx + 3.6, cx + 4.4, cy - 0.5, cy + 0.5, 3, 7, WOOD_W);
+  prismRoof(g, cx - 4, cx + 4, cy - 1.4, cy + 1.4, 8, ROOF_W, 0);
+  g.set(cx, cy, 5, [212, 176, 96]); // seau doré
+  return g;
+}
+
+function bldPanel(seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz, FINE);
+  const rnd = makeRng(seed); void rnd;
+  g.box(6, 6.8, 9.5, 10.3, 0, 6, WOOD_W);
+  g.box(13.2, 14, 9.5, 10.3, 0, 6, WOOD_W);
+  g.box(5, 15, 9.6, 10.2, 3, 6.5, shade(WOOD_W, 1.12)); // le tableau
+  g.box(6.5, 9, 9.5, 9.5, 4, 5.8, [246, 242, 230]); // affiches
+  g.box(10.5, 13, 9.5, 9.5, 3.6, 5.4, [246, 242, 230]);
+  g.set(7, 9.4, 5.9, [214, 88, 96]); // punaise rouge
+  g.box(4.8, 15.2, 9.5, 10.3, 6.6, 7, shade(ROOF_W, 1.02)); // petit auvent
+  return g;
+}
+
+function bldBank(seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz, FINE);
+  const rnd = makeRng(seed); void rnd;
+  g.box(3, 17, 6, 14, 0, 7, shade(STONE_W, 0.97)); // corps de pierre
+  for (const x of [4.5, 9.5, 14.5]) g.box(x, x + 1, 5.4, 6, 0, 7, shade(STONE_W, 1.06)); // pilastres
+  g.box(8.8, 11.2, 5.4, 6, 0, 5, DARK_W); // porte
+  g.box(2.4, 17.6, 5.2, 14.6, 7, 8.4, shade(STONE_W, 1.04)); // corniche
+  g.box(3.6, 16.4, 6.4, 13.6, 8.4, 9.2, shade(STONE_W, 0.9)); // toit terrasse
+  cylAt(g, 10, 5.2, 8.6, 10.6, 1.3, [240, 202, 112]); // enseigne : pièce d'or
+  g.set(10, 5.2, 9.6, shade([240, 202, 112], 1.15));
+  return g;
+}
+
+function bldWorkshop(seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz, FINE);
+  const rnd = makeRng(seed); void rnd;
+  g.box(3, 16, 7, 14, 0, 6, shade(WOOD_W, 1.02)); // atelier bois
+  for (const x of [3.5, 9.5, 15.5]) g.box(x, x + 0.6, 6.6, 7, 0, 6, shade(DARK_W, 1.6)); // colombages
+  g.box(5.5, 12.5, 6.4, 7, 0, 5, DARK_W); // grande ouverture
+  prismRoof(g, 3.5, 15.5, 7.5, 13.5, 7, THATCH);
+  g.box(13.5, 15, 8.5, 10, 7, 11, shade(STONE_W, 0.88)); // cheminée
+  g.box(17, 18.4, 9, 10.4, 0, 1.2, DARK_W); // enclume dehors
+  g.box(17.3, 18.1, 9.3, 10.1, 1.2, 2, shade(DARK_W, 1.5));
+  return g;
+}
+
+function bldGate(seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz, FINE);
+  const rnd = makeRng(seed); void rnd;
+  for (const x0 of [2, 14]) { // deux tours carrées
+    g.box(x0, x0 + 4, 7.5, 12.5, 0, 10, shade(STONE_W, 0.95 + (x0 % 3) * 0.02));
+    for (let x = x0; x <= x0 + 4; x += 2) g.box(x, x + 1, 7.5, 12.5, 10, 11, STONE_W); // créneaux
+  }
+  g.box(6, 14, 8, 12, 6, 9, shade(STONE_W, 1.02)); // arche
+  g.box(6.5, 9.7, 8.4, 11.6, 0, 6, shade(WOOD_W, 0.95)); // vantaux
+  g.box(10.3, 13.5, 8.4, 11.6, 0, 6, shade(WOOD_W, 0.88));
+  g.set(10, 8.2, 4, [212, 176, 96]); // heurtoir doré
+  g.box(9.4, 10.6, 7.9, 8.1, 9, 10.6, [122, 186, 202]); // bannière
+  return g;
+}
+
+function bldTower(seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz, FINE);
+  const rnd = makeRng(seed); void rnd;
+  cylAt(g, 9.5, 9.5, 0, 13, 3.6, shade(STONE_W, 0.96));
+  cylAt(g, 9.5, 9.5, 13, 14, 4.2, STONE_W); // encorbellement
+  const f = g.fs, fcx = 10 * f - 0.5, fcy = 10 * f - 0.5;
+  for (let a = 0; a < 8; a++) { // créneaux en couronne
+    const ang = (a / 8) * Math.PI * 2;
+    const bx = Math.round(fcx + Math.cos(ang) * 3.9 * f), by = Math.round(fcy + Math.sin(ang) * 3.9 * f);
+    for (let dz = 0; dz < Math.round(1.6 * f); dz++)
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++)
+        g.setFine(bx + dx, by + dy, Math.round(14.2 * f) + dz, STONE_W);
+  }
+  g.box(9, 10.5, 6.2, 6.6, 8, 10, DARK_W); // meurtrière
+  g.box(9, 10.5, 6.2, 6.6, 3, 5, DARK_W);
+  g.set(9.5, 9.5, 16, [214, 88, 96]); // fanion
+  return g;
+}
+
+function bldTownhall(seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz, FINE);
+  const rnd = makeRng(seed); void rnd;
+  g.box(3, 16, 7, 14.5, 0, 8, shade(STONE_W, 1.0)); // corps
+  g.box(8.6, 11.4, 6.5, 7, 0, 5.6, DARK_W); // grande porte
+  g.box(4.5, 6, 6.6, 7, 3, 5, [122, 186, 202]); // vitraux
+  g.box(13, 14.5, 6.6, 7, 3, 5, [122, 186, 202]);
+  prismRoof(g, 3.5, 15.5, 7.5, 14, 9, ROOF_W);
+  g.box(8, 12, 8.5, 12.5, 9, 15, shade(STONE_W, 1.03)); // beffroi
+  prismRoof(g, 8.4, 11.6, 9.2, 11.8, 16, ROOF_W, 0);
+  g.set(10, 10.5, 14, [240, 202, 112]); // cloche dorée
+  g.box(9.6, 10.4, 10.2, 10.8, 12.6, 13.4, DARK_W); // baie de la cloche
+  return g;
+}
+
+function bldKitchen(seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz, FINE);
+  const rnd = makeRng(seed); void rnd;
+  g.box(4, 15, 7.5, 14, 0, 5.6, shade(THATCH, 0.7)); // murs torchis
+  g.box(7.6, 10, 7.1, 7.5, 0, 4.6, DARK_W); // porte
+  g.box(12, 13.6, 7.1, 7.5, 2.4, 4.2, [122, 186, 202]); // fenêtre
+  prismRoof(g, 4.5, 14.5, 8, 13.5, 6.2, ROOF_W);
+  g.box(12.6, 14.6, 11, 13, 6, 11.5, shade(STONE_W, 0.9)); // grosse cheminée
+  g.box(12.9, 14.3, 11.3, 12.7, 11.5, 12, DARK_W);
+  cylAt(g, 4.6, 5.4, 0, 1.4, 1.1, DARK_W); // marmite dehors
+  g.set(4.6, 5.4, 2, [214, 88, 96]); // feu
+  return g;
+}
+
+function bldWall(seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz, FINE);
+  const rnd = makeRng(seed); void rnd;
+  g.box(1, 18.5, 8.5, 11.5, 0, 6, shade(STONE_W, 0.95));
+  for (let x = 1.5; x <= 18; x += 2.4) g.box(x, x + 1.2, 8.5, 11.5, 6, 7.2, STONE_W); // merlons
+  g.box(1, 18.5, 9.2, 10.8, 6, 6.4, shade(STONE_W, 1.05)); // chemin de ronde
+  return g;
+}
+
+function bldChantier(seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz, FINE);
+  const rnd = makeRng(seed);
+  for (const [bx, by] of [[4, 6], [15, 6], [4, 13], [15, 13]]) g.box(bx, bx + 0.8, by, by + 0.8, 0, 9, WOOD_W); // poteaux
+  for (const z of [3, 6, 9]) { // traverses
+    g.box(4, 15.8, 6, 6.6, z, z + 0.5, shade(WOOD_W, 1.1));
+    g.box(4, 15.8, 13, 13.6, z, z + 0.5, shade(WOOD_W, 1.1));
+  }
+  for (let x = 4; x <= 15.5; x += 1.4) g.box(x, x + 1, 6, 13.6, 6, 6.4, shade(WOOD_W, 0.92 + (x % 2) * 0.1)); // plateforme
+  ellipsoid(g, 9.5, 9.5, 1.2, 3.4, 2.8, 1.4, shade(STONE_W, 0.9), rnd, 7); // tas de pierres
+  g.box(17.4, 18.2, 9.5, 10.3, 0, 12, WOOD_W); // mât de grue
+  g.box(11, 18.2, 9.6, 10.2, 12, 12.6, shade(WOOD_W, 1.08)); // flèche
+  for (let z = 8; z < 12; z++) g.set(11.4, 9.9, z, [200, 190, 170]); // corde
+  g.set(11.4, 9.9, 7.4, [212, 176, 96]); // crochet
+  return g;
+}
 const GREEN = [134, 192, 108];
 const PINK = [232, 164, 188];
 const DEEP = [104, 168, 88];
@@ -1075,6 +1295,21 @@ async function main() {
     // RUINES éparses (lore) + muret d'ancienne ferme
     { id: "temple", make: (v) => temple(801 + v * 77) },
     { id: "olive", make: (v) => olive(811 + v * 77) },
+    // bâtiments de la VILLE : v0 intact, v1 abîmé, v2 en ruine — la vue Home
+    // choisit la variante selon la DURABILITÉ réelle du bâtiment
+    ...[
+      ["bld-well", bldWell], ["bld-panel", bldPanel], ["bld-bank", bldBank],
+      ["bld-workshop", bldWorkshop], ["bld-gate", bldGate], ["bld-tower", bldTower],
+      ["bld-townhall", bldTownhall], ["bld-kitchen", bldKitchen], ["bld-wall", bldWall],
+    ].map(([id, mk], bi) => ({
+      id,
+      make: (v) => {
+        const g = mk(1001 + bi * 31);
+        damagePass(g, v === 0 ? 0 : v === 1 ? 0.35 : 0.68, 2001 + bi * 31 + v * 7);
+        return fin(g);
+      },
+    })),
+    { id: "bld-chantier", make: () => fin(bldChantier(1101)) },
     // sites de ruines-donjons : v0 = enseveli, v1-2 = déblayé (choix par ÉTAT serveur)
     { id: "site-ferme", make: (v) => siteFerme(v > 0, 901) },
     { id: "site-epave", make: (v) => siteEpave(v > 0, 911) },
