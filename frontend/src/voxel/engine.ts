@@ -86,10 +86,13 @@ export class VoxelEngine {
     // ciel quasi neutre + rebond lavande : le soleil apporte seulement une
     // pointe de chaleur — un couple trop chaud tirait les verts vers l'olive
     // légèrement moins d'ambiant : la surexposition délavait les couleurs
-    const hemi = new THREE.HemisphereLight(0xf7f5ff, 0xcfc2e8, 1.2);
+    // exposition recalée (2026-07-19 « pas assez coloré ») : l'ancien couple
+    // 1.2 + 1.7 clampait les faces du dessus à blanc et délavait TOUTES les
+    // couleurs — total visé ≈ 1.4 au zénith, mêmes rapports soleil/ciel
+    const hemi = new THREE.HemisphereLight(0xf7f5ff, 0xcfc2e8, 0.75);
     this.scene.add(hemi);
     this.hemi = hemi;
-    const sun = new THREE.DirectionalLight(0xfff2e0, 1.7);
+    const sun = new THREE.DirectionalLight(0xfff2e0, 1.05);
     sun.castShadow = true;
     sun.shadow.mapSize.set(1024, 1024);
     sun.shadow.camera.left = -shadowSpan;
@@ -171,7 +174,7 @@ export class VoxelEngine {
       ],
       this.dayTime,
     );
-    this.sun.intensity = ramp([[0, 1.2], [0.25, 1.7], [0.7, 1.7], [1, 0.92]], this.dayTime);
+    this.sun.intensity = ramp([[0, 0.85], [0.25, 1.05], [0.7, 1.05], [1, 0.6]], this.dayTime);
     this.hemi.color = lerpColor(
       [
         [[0, 1.0], [0.25, 0.97], [0.7, 0.97], [1, 0.6]],
@@ -180,7 +183,7 @@ export class VoxelEngine {
       ],
       this.dayTime,
     ); // ciel : pêche d'aube → neutre → indigo crépusculaire
-    this.hemi.intensity = ramp([[0, 1.1], [0.5, 1.2], [1, 0.92]], this.dayTime);
+    this.hemi.intensity = ramp([[0, 0.7], [0.5, 0.75], [1, 0.58]], this.dayTime);
     this.invalidate();
   }
 

@@ -89,7 +89,8 @@ async function samplePalette(key) {
   let acc = null;
   for (const e of satBuckets.values()) if (!acc || e.n > acc.n) acc = e;
   const accent = acc ? [Math.round(acc.r / acc.n), Math.round(acc.g / acc.n), Math.round(acc.b / acc.n)] : [200, 90, 70];
-  return { skin, hair: vivid(hair), outfit: vivid(outfit), outfit2: vivid(outfit2), accent: vivid(accent, 1.55) };
+  // k relevé 2026-07-19 (« pas assez coloré comme les images iso »)
+  return { skin, hair: vivid(hair, 1.55), outfit: vivid(outfit, 1.6), outfit2: vivid(outfit2, 1.6), accent: vivid(accent, 1.7) };
 }
 
 async function writePng(render, file) {

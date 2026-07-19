@@ -6,6 +6,32 @@
 
 ---
 
+## 2026-07-19 (31) — COULEURS ravivées partout (retour « pas assez coloré comme les images iso »)
+
+### Fait
+- **Diagnostic en deux moitiés** : (1) les palettes voxel étaient plus laiteuses que les
+  isotiles peintes — mesuré en échantillonnant la face du dessus des PNG (herbe RÉELLE
+  167,195,80 vs palette 150,200,118) ; (2) surtout, **l'éclairage SUREXPOSAIT** : hemi 1.2 +
+  soleil 1.7 → jusqu'à ×2,6 sur les faces du dessus, tout canal d'albedo > 0,39 clampait à
+  blanc = délavage général quelles que soient les palettes.
+- **Exposition recalée** (`engine.ts`) : hemi 0.75 / soleil 1.05 (mêmes rapports → même
+  modelé), rampes du cycle ré-étagées (aube 0.85+0.7, zénith ~1.6 avec léger bloom sur les
+  seuls très clairs, crépuscule 0.6+0.58 mauve). Vérifié aux trois moments du cycle.
+- **Terrain** (`smoothTerrain.DIORAMA`) recalé sur les teintes MESURÉES des isotiles :
+  herbe chartreuse 160,199,82, sol forêt 128,163,66, eau lagon 92,182,214, sable doré
+  233,198,130, roche plus profonde, CLIFF plus chaud.
+- **Props** : boost `vividProp` (×1.3 d'écart au gris + lift 1.02) appliqué à la palette de
+  CHAQUE modèle à l'écriture — les quasi-neutres (neige, pierre) bougent à peine.
+- **Blocs** (`gen-blocks.pastelize`) : l'ancien voile blanc 14 % + désaturation 10 %
+  DÉLAVAIT les palettes extraites → voile 6 % + saturation ×1.2. 32³ + LOD 16³ régénérés.
+- **Persos** : `vivid` k 1.45 → 1.55-1.7 selon la zone ; **monstres** : vivid AJOUTÉ
+  (corps ×1.4, accent ×1.5 — ils n'en avaient pas du tout).
+
+### Fonctionnel (vérifié)
+- Plein jour : sable doré, herbe chartreuse, monstres qui claquent ; bande aube/zénith/
+  crépuscule équilibrée (aube dorée douce, crépuscule mauve lisible) ; planche des blocs
+  nettement plus proche des isotiles ; e2e move/rotation OK ; `tsc` + build verts.
+
 ## 2026-07-18 (30) — FIX : les couleurs de tuiles étaient décalées d'une demi-case
 
 ### Fait

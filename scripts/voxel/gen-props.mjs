@@ -28,6 +28,16 @@ const SIZE = { sx: 20, sy: 20, sz: 30 };
 const FINE = 1.5;
 const fin = (g) => ({ sx: g.fsx, sy: g.fsy, sz: g.fsz, size: g.fsx, data: g.data, palette: g.palette });
 
+// Boost de saturation GLOBAL (retour 2026-07-19 « pas assez coloré comme les
+// images iso ») : chaque couleur est écartée de son gris — les quasi-neutres
+// (neige, pierre) bougent à peine, les verts/roses/bleus retrouvent le punch
+// des tuiles peintes. Appliqué à la palette de CHAQUE modèle à l'écriture.
+function vividProp([r, g, b], k = 1.3, lift = 1.02) {
+  const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+  const c = (v) => Math.max(0, Math.min(255, Math.round((gray + (v - gray) * k) * lift)));
+  return [c(r), c(g), c(b)];
+}
+
 function jitter3(x, y, z, salt) {
   let h = (x * 374761393 + y * 668265263 + z * 1274126177 + salt * 2246822519) >>> 0;
   h = ((h ^ (h >> 13)) * 1103515245) >>> 0;
@@ -850,6 +860,7 @@ async function main() {
   for (const d of defs) {
     for (let v = 0; v < 3; v++) {
       const model = d.make(v);
+      model.palette = model.palette.map((c) => vividProp(c));
       await writeFile(path.join(OUT_VOX, `${d.id}-v${v}.vox`), encodeVox(model));
       if (v === 0) {
         const r = renderModel(model, { s: 10 });

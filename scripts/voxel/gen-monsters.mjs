@@ -45,7 +45,13 @@ async function samplePalette(key) {
     .sort((a, b) => b.n - a.n);
   const body = clusters[0]?.col ?? [150, 150, 160];
   const accent = clusters.find((c) => dist2(c.col, body) > 90 * 90)?.col ?? [220, 180, 90];
-  return { body, accent };
+  // boost de saturation (2026-07-19 « pas assez coloré ») — même recette que les héros
+  const vivid = ([r, g, b], k = 1.4, lift = 1.04) => {
+    const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+    const c = (v) => Math.max(0, Math.min(255, Math.round((gray + (v - gray) * k) * lift)));
+    return [c(r), c(g), c(b)];
+  };
+  return { body: vivid(body), accent: vivid(accent, 1.5) };
 }
 
 async function main() {
