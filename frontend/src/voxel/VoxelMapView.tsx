@@ -369,7 +369,7 @@ class MapWorld {
       m.castShadow = true;
       m.receiveShadow = true;
       m.position.set(game.town.x, topOf(game.town.x, game.town.y) - 0.03, game.town.y);
-      m.scale.setScalar(1.35);
+      m.scale.setScalar(1.6); // grille 30 (esplanade incluse) : temple à taille égale
       m.rotation.y = Math.PI; // parvis + porte face à la caméra par défaut
       this.sprites.add(m);
     } else {

@@ -6,6 +6,18 @@
 
 ---
 
+## 2026-07-19 (33b) — Temple v3 : l'esplanade fait le TOUR
+
+### Fait
+- Grille 30×30×24 : **dallage damier sur les 4 côtés** (bordure sombre au pourtour,
+  allée claire du bord avant aux degrés), **colonnes votives dorées aux 4 coins**,
+  temple centré (crépis 5..24 × 7..22). Échelle carte 1.35 → **1.6** (grille plus
+  large, temple à taille égale, l'esplanade s'étale autour).
+
+### Fonctionnel (vérifié)
+- Harnais monde plat : esplanade carrée complète + 4 votives + couronne d'oliviers ;
+  e2e réel move/rotation OK ; `tsc` + build verts.
+
 ## 2026-07-19 (33) — Temple v2 : proportions, PARVIS et couronne d'OLIVIERS
 
 ### Fait

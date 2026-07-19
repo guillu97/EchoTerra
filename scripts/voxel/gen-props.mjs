@@ -795,10 +795,10 @@ function ruinArch(seed) {
 // → le mesher le centre pile sur la case.
 // ============================================================================
 function temple(seed) {
-  // proportions élancées (v2) + PARVIS dallé côté entrée (y bas) : le temple
-  // occupe le fond de la grille, le parvis s'étend devant avec ses colonnes
-  // votives — l'ensemble reste symétrique en X → centré sur la case.
-  const S = { sx: 26, sy: 26, sz: 24 };
+  // v3 : ESPLANADE dallée TOUT AUTOUR du temple (anneau sur les 4 côtés),
+  // allée claire côté entrée, colonnes votives dorées aux 4 coins. Le temple
+  // est centré dans la grille → centré sur la case ville.
+  const S = { sx: 30, sy: 30, sz: 24 };
   const g = new Grid(S.sx, S.sy, S.sz, FINE);
   const rnd = makeRng(seed);
   const marble = [243, 237, 222], shaft = [237, 229, 210];
@@ -815,58 +815,59 @@ function temple(seed) {
       }
     }
   };
-  // PARVIS : dallage en damier doux, allée centrale claire vers les degrés,
-  // bordure plus sombre, deux colonnes votives dorées à l'entrée
-  for (let y = 1; y <= 8; y++) {
-    for (let x = 3; x <= 22; x++) {
-      const border = y === 1 || x === 3 || x === 22;
-      const path = x >= 10.5 && x <= 14.5;
+  // ESPLANADE : dallage damier sur TOUTE la grille, bordure sombre au pourtour,
+  // allée centrale claire du bord avant jusqu'aux degrés
+  for (let y = 1; y <= 28; y++) {
+    for (let x = 1; x <= 28; x++) {
+      const border = y === 1 || y === 28 || x === 1 || x === 28;
+      const path = x >= 13.5 && x <= 16.5 && y <= 8;
       const checker = ((x + y) | 0) % 2 === 0 ? 1 : 0.94;
       const tone = border ? 0.84 : path ? 1.06 : checker;
       g.box(x, x, y, y, 0, 0, shade(paving, tone));
     }
   }
-  for (const bx of [4.5, 20.5]) {
-    cyl(bx, 2.5, 1, 4, 0.7, shaft);
-    g.set(bx, 2.5, 5, gold); // flamme votive
+  // colonnes votives dorées aux 4 coins de l'esplanade
+  for (const [bx, by] of [[3.5, 3.5], [26.5, 3.5], [3.5, 26.5], [26.5, 26.5]]) {
+    cyl(bx, by, 1, 4, 0.7, shaft);
+    g.set(bx, by, 5, gold); // flamme votive
   }
-  // crépis : 3 degrés montant vers le stylobate (face au parvis = escalier)
-  g.box(2, 23, 8, 25, 0, 0, shade(marble, 0.9));
-  g.box(3, 22, 9, 24.5, 1, 1, shade(marble, 0.96));
-  g.box(4, 21, 10, 24, 2, 2, marble);
-  // colonnade élancée : 6 en façades avant (y≈11.4) / arrière (y≈22.6) + flancs
+  // crépis : 3 degrés posés sur l'esplanade (escalier sur tout le pourtour)
+  g.box(5, 24, 7, 22, 0, 0, shade(marble, 0.9));
+  g.box(6, 23, 8, 21, 1, 1, shade(marble, 0.96));
+  g.box(7, 22, 9, 20, 2, 2, marble);
+  // colonnade élancée : 6 en façades avant (y≈10.4) / arrière (y≈18.6) + flancs
   const cols = [];
-  for (const x of [5.5, 8.4, 11.3, 14.2, 17.1, 20]) { cols.push([x, 11.4]); cols.push([x, 22.6]); }
-  cols.push([5.5, 17], [20, 17]);
+  for (const x of [8.3, 10.8, 13.3, 15.7, 18.2, 20.7]) { cols.push([x, 10.4]); cols.push([x, 18.6]); }
+  cols.push([8.3, 14.5], [20.7, 14.5]);
   for (const [bx, by] of cols) {
     g.box(bx - 0.9, bx + 0.9, by - 0.9, by + 0.9, 3, 3, shade(shaft, 0.95)); // base
     cyl(bx, by, 4, 11, 0.95, shaft); // fût rond, 8 unités de haut
     g.box(bx - 0.9, bx + 0.9, by - 0.9, by + 0.9, 12, 12, shade(marble, 1.03)); // chapiteau
   }
-  // cella, porte sombre FACE AU PARVIS
-  g.box(8.5, 16.5, 13.5, 20.5, 3, 12, shade(marble, 0.88));
-  g.box(11.8, 13.2, 13.5, 13.5, 3, 8, dark);
+  // cella, porte sombre FACE À L'ALLÉE (côté y bas)
+  g.box(10.8, 18.2, 12, 17, 3, 12, shade(marble, 0.88));
+  g.box(13.7, 15.3, 12, 12, 3, 8, dark);
   // entablement fin + frise à triglyphes
-  g.box(4.5, 20.5, 10.6, 23.4, 13, 13.8, marble);
-  for (let x = 6; x <= 19.6; x += 2.4) {
-    g.box(x, x + 0.7, 10.6, 10.6, 13, 13.8, shade(marble, 0.82));
-    g.box(x, x + 0.7, 23.4, 23.4, 13, 13.8, shade(marble, 0.82));
+  g.box(7.3, 21.7, 9.6, 19.4, 13, 13.8, marble);
+  for (let x = 8.6, k = 0; x <= 20.4; x += 2.35, k++) {
+    g.box(x, x + 0.7, 9.6, 9.6, 13, 13.8, shade(marble, 0.82));
+    g.box(x, x + 0.7, 19.4, 19.4, 13, 13.8, shade(marble, 0.82));
   }
   // comble : prisme à pentes étagées (arête le long de X), pignons = frontons
-  for (let y = 10; y <= 24; y++) {
-    const d = Math.min(y - 10, 24 - y);
-    const top = 15 + Math.floor(d * 0.75);
+  for (let y = 8.6; y <= 20.4; y++) {
+    const d = Math.min(y - 8.6, 20.4 - y);
+    const top = 15 + Math.floor(d * 0.8);
     for (let z = 15; z <= top; z++) {
-      for (let x = 4.2; x <= 20.8; x++) {
+      for (let x = 6.8, xe = 22.2; x <= xe; x++) {
         g.box(x, x, y, y, z, z, z === top ? shade(roofC, 0.94 + ((x | 0) % 2) * 0.08) : marble);
       }
     }
   }
   // acrotères dorés aux bouts de l'arête + pointe du fronton
-  const ridgeTop = 15 + Math.floor(7 * 0.75);
-  g.set(5, 17, ridgeTop + 1, gold);
-  g.set(20, 17, ridgeTop + 1, gold);
-  g.set(12.5, 17, ridgeTop + 1, shade(gold, 1.08));
+  const ridgeTop = 15 + Math.floor(5.9 * 0.8);
+  g.set(7.5, 14.5, ridgeTop + 1, gold);
+  g.set(21.5, 14.5, ridgeTop + 1, gold);
+  g.set(14.5, 14.5, ridgeTop + 1, shade(gold, 1.08));
   void rnd;
   return fin(g);
 }
