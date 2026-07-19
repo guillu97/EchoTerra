@@ -87,7 +87,7 @@ class MapWorld {
       .then((r) => (r.ok ? r.json() : null))
       .then((p) => { this.palettes = p; this.terrainKey = ""; this.draw(); })
       .catch(() => undefined);
-    void this.propsLib.load([...PROP_KEYS, "temple"]).then(() => {
+    void this.propsLib.load([...PROP_KEYS, "temple", "olive"]).then(() => {
       this.terrainKey = "";
       this.draw();
     });
@@ -370,9 +370,34 @@ class MapWorld {
       m.receiveShadow = true;
       m.position.set(game.town.x, topOf(game.town.x, game.town.y) - 0.03, game.town.y);
       m.scale.setScalar(1.35);
+      m.rotation.y = Math.PI; // parvis + porte face à la caméra par défaut
       this.sprites.add(m);
     } else {
       billboard(libUrl("buildings", "bld-church"), game.town.x, game.town.y, { size: 1.15 });
+    }
+    // couronne d'OLIVIERS autour du temple (déterministe par partie) — posés
+    // sur la surface, jamais sur l'eau connue
+    const oliveGeom = this.propsLib.get("olive", 0);
+    if (oliveGeom) {
+      const hash01 = (s: number) => {
+        let h = 0;
+        for (let i = 0; i < game.id.length; i++) h = ((h * 31 + game.id.charCodeAt(i) + s * 97) & 0xffffff) >>> 0;
+        return (h % 1024) / 1024;
+      };
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * Math.PI * 2 + hash01(1) * Math.PI;
+        const r = 1.05 + hash01(i + 2) * 0.45;
+        const px = game.town.x + Math.cos(a) * r;
+        const py = game.town.y + Math.sin(a) * r;
+        const t = tileAt(Math.round(px), Math.round(py));
+        if (!t || (t.discovered && t.biome === 0)) continue;
+        const o = new THREE.Mesh(this.propsLib.get("olive", i % 3), PROP_MAT);
+        o.castShadow = o.receiveShadow = true;
+        o.position.set(px, this.smoothMode ? this.smooth.heightAt(px, py) - 0.02 : topOf(Math.round(px), Math.round(py)), py);
+        o.rotation.y = hash01(i + 9) * Math.PI * 2;
+        o.scale.setScalar(0.34 + hash01(i + 20) * 0.1);
+        this.sprites.add(o);
+      }
     }
 
     // monstres : teinte de danger sur la case + sprite de créature
@@ -537,7 +562,7 @@ const PROP_MAT = new THREE.MeshLambertMaterial({ vertexColors: true });
 const FIREFLY_MAT = new THREE.MeshBasicMaterial({ vertexColors: true }); // luit dans la pénombre
 // le temple est surtout fait de FACES VERTICALES : ombrage cuit du mesher +
 // Lambert = double peine → petite émissive chaude pour garder le marbre clair
-const TEMPLE_MAT = new THREE.MeshLambertMaterial({ vertexColors: true, emissive: new THREE.Color(0x3c3833) });
+const TEMPLE_MAT = new THREE.MeshLambertMaterial({ vertexColors: true, emissive: new THREE.Color(0x4a453e) });
 
 const rotBtn: React.CSSProperties = {
   background: "rgba(30,34,46,.78)",

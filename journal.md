@@ -6,6 +6,29 @@
 
 ---
 
+## 2026-07-19 (33) — Temple v2 : proportions, PARVIS et couronne d'OLIVIERS
+
+### Fait
+- **Proportions élancées** : grille 26×26×24, colonnes 8 unités (fûts r 0.95),
+  entablement aminci, pente de toit adoucie (0.75).
+- **Parvis dallé** côté entrée : damier de dalles chaudes, allée centrale claire vers les
+  degrés, bordure sombre, **2 colonnes votives à flamme dorée** — la porte de la cella
+  fait face au parvis, et le mesh est tourné (`rotation.y = π`) pour que l'entrée regarde
+  la caméra par défaut.
+- **Olivier** (`olive`, 3 variantes) : tronc noueux en segments décalés, feuillage
+  vert-de-gris en boules aplaties. **Couronne de 6 oliviers** autour de la ville
+  (positions/rotations/échelles hachées sur `game.id`, posés sur la surface, jamais sur
+  l'eau connue).
+- **Enceinte dégagée** : le scatter saute maintenant la case ville ET ses 8 voisines
+  (plus d'arbre de prairie collé au temple — le parvis et les oliviers occupent la place).
+- Émissive du temple relevée (0x4a453e) : façade à l'ombre lisible.
+
+### Fonctionnel (vérifié)
+- Harnais monde plat : parvis + votives face caméra, 6 oliviers en couronne, enceinte
+  propre ; e2e partie réelle move/rotation OK ; `tsc` + build verts.
+- ⚠ harnais : le comptage juste après `bus.emit(MapRender)` précède le re-draw
+  post-chargement de propsLib — compter/capturer APRÈS le wait.
+
 ## 2026-07-19 (32) — La VILLE en voxel : temple grec 3D sur la carte
 
 ### Fait

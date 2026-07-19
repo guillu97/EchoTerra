@@ -795,11 +795,15 @@ function ruinArch(seed) {
 // → le mesher le centre pile sur la case.
 // ============================================================================
 function temple(seed) {
-  const S = { sx: 26, sy: 18, sz: 22 };
+  // proportions élancées (v2) + PARVIS dallé côté entrée (y bas) : le temple
+  // occupe le fond de la grille, le parvis s'étend devant avec ses colonnes
+  // votives — l'ensemble reste symétrique en X → centré sur la case.
+  const S = { sx: 26, sy: 26, sz: 24 };
   const g = new Grid(S.sx, S.sy, S.sz, FINE);
   const rnd = makeRng(seed);
   const marble = [243, 237, 222], shaft = [237, 229, 210];
   const roofC = [219, 143, 115], gold = [240, 202, 112], dark = [96, 84, 88];
+  const paving = [228, 216, 194];
   // cylindre plein évalué PAR VOXEL FIN (fûts de colonnes ronds)
   const cyl = (bx, by, z0, z1, r, rgb) => {
     const f = g.fs, fbx = (bx + 0.5) * f - 0.5, fby = (by + 0.5) * f - 0.5, fr = r * f;
@@ -811,45 +815,84 @@ function temple(seed) {
       }
     }
   };
-  // crépis : 3 degrés
-  g.box(1, 24, 1, 16, 0, 0, shade(marble, 0.9));
-  g.box(2, 23, 2, 15, 1, 1, shade(marble, 0.96));
-  g.box(3, 22, 3, 14, 2, 2, marble);
-  // colonnade : 6 en façade avant/arrière + 1 au milieu de chaque flanc
+  // PARVIS : dallage en damier doux, allée centrale claire vers les degrés,
+  // bordure plus sombre, deux colonnes votives dorées à l'entrée
+  for (let y = 1; y <= 8; y++) {
+    for (let x = 3; x <= 22; x++) {
+      const border = y === 1 || x === 3 || x === 22;
+      const path = x >= 10.5 && x <= 14.5;
+      const checker = ((x + y) | 0) % 2 === 0 ? 1 : 0.94;
+      const tone = border ? 0.84 : path ? 1.06 : checker;
+      g.box(x, x, y, y, 0, 0, shade(paving, tone));
+    }
+  }
+  for (const bx of [4.5, 20.5]) {
+    cyl(bx, 2.5, 1, 4, 0.7, shaft);
+    g.set(bx, 2.5, 5, gold); // flamme votive
+  }
+  // crépis : 3 degrés montant vers le stylobate (face au parvis = escalier)
+  g.box(2, 23, 8, 25, 0, 0, shade(marble, 0.9));
+  g.box(3, 22, 9, 24.5, 1, 1, shade(marble, 0.96));
+  g.box(4, 21, 10, 24, 2, 2, marble);
+  // colonnade élancée : 6 en façades avant (y≈11.4) / arrière (y≈22.6) + flancs
   const cols = [];
-  for (const x of [4.5, 7.9, 11.3, 14.7, 18.1, 21.5]) { cols.push([x, 4.4]); cols.push([x, 12.6]); }
-  cols.push([4.5, 8.5], [21.5, 8.5]);
+  for (const x of [5.5, 8.4, 11.3, 14.2, 17.1, 20]) { cols.push([x, 11.4]); cols.push([x, 22.6]); }
+  cols.push([5.5, 17], [20, 17]);
   for (const [bx, by] of cols) {
-    g.box(bx - 1, bx + 1, by - 1, by + 1, 3, 3, shade(shaft, 0.95)); // base
-    cyl(bx, by, 4, 9, 1.05, shaft); // fût rond
-    g.box(bx - 1, bx + 1, by - 1, by + 1, 10, 10, shade(marble, 1.03)); // chapiteau
+    g.box(bx - 0.9, bx + 0.9, by - 0.9, by + 0.9, 3, 3, shade(shaft, 0.95)); // base
+    cyl(bx, by, 4, 11, 0.95, shaft); // fût rond, 8 unités de haut
+    g.box(bx - 0.9, bx + 0.9, by - 0.9, by + 0.9, 12, 12, shade(marble, 1.03)); // chapiteau
   }
-  // cella (une nuance plus sombre, porte sombre côté fronton avant)
-  g.box(8, 17, 6.5, 10.5, 3, 10, shade(marble, 0.88));
-  g.box(11.7, 13.3, 6.5, 6.5, 3, 7, dark);
-  // entablement + frise à triglyphes
-  g.box(3.5, 22.5, 3.6, 14.4, 11, 12, marble);
-  for (let x = 5; x <= 21; x += 2.6) {
-    g.box(x, x + 0.8, 3.6, 3.6, 11, 12, shade(marble, 0.82));
-    g.box(x, x + 0.8, 14.4, 14.4, 11, 12, shade(marble, 0.82));
+  // cella, porte sombre FACE AU PARVIS
+  g.box(8.5, 16.5, 13.5, 20.5, 3, 12, shade(marble, 0.88));
+  g.box(11.8, 13.2, 13.5, 13.5, 3, 8, dark);
+  // entablement fin + frise à triglyphes
+  g.box(4.5, 20.5, 10.6, 23.4, 13, 13.8, marble);
+  for (let x = 6; x <= 19.6; x += 2.4) {
+    g.box(x, x + 0.7, 10.6, 10.6, 13, 13.8, shade(marble, 0.82));
+    g.box(x, x + 0.7, 23.4, 23.4, 13, 13.8, shade(marble, 0.82));
   }
-  // comble : prisme à pentes étagées (arête le long de X) — les colonnes de
-  // voxels du dessus en tuiles, l'intérieur marbre = pignons/frontons aux bouts
-  for (let y = 3; y <= 14; y++) {
-    const d = Math.min(y - 3, 14 - y);
-    const top = 13 + Math.floor(d * 0.85);
-    for (let z = 13; z <= top; z++) {
-      for (let x = 3.6; x <= 21.6; x++) {
+  // comble : prisme à pentes étagées (arête le long de X), pignons = frontons
+  for (let y = 10; y <= 24; y++) {
+    const d = Math.min(y - 10, 24 - y);
+    const top = 15 + Math.floor(d * 0.75);
+    for (let z = 15; z <= top; z++) {
+      for (let x = 4.2; x <= 20.8; x++) {
         g.box(x, x, y, y, z, z, z === top ? shade(roofC, 0.94 + ((x | 0) % 2) * 0.08) : marble);
       }
     }
   }
-  // acrotères dorés : bouts de l'arête + pointe du fronton avant
-  const ridgeTop = 13 + Math.floor(5 * 0.85);
-  g.set(4, 8.5, ridgeTop + 1, gold);
-  g.set(21, 8.5, ridgeTop + 1, gold);
-  g.set(12.5, 8.5, ridgeTop + 1, shade(gold, 1.08));
+  // acrotères dorés aux bouts de l'arête + pointe du fronton
+  const ridgeTop = 15 + Math.floor(7 * 0.75);
+  g.set(5, 17, ridgeTop + 1, gold);
+  g.set(20, 17, ridgeTop + 1, gold);
+  g.set(12.5, 17, ridgeTop + 1, shade(gold, 1.08));
   void rnd;
+  return fin(g);
+}
+
+// OLIVIER : tronc noueux (segments décalés), feuillage ARGENTÉ en petites
+// boules aplaties — planté en couronne autour du temple (et nulle part ailleurs)
+function olive(seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz, FINE);
+  const rnd = makeRng(seed);
+  const cx = SIZE.sx / 2 - 0.5, cy = SIZE.sy / 2 - 0.5;
+  const bark = [124, 106, 82];
+  const leaf = [152, 172, 128]; // vert-de-gris olivier
+  // tronc noueux : segments empilés avec petits décalages
+  let tx = cx, ty = cy;
+  for (let z = 0; z < 8; z += 2) {
+    g.box(tx - 0.8, tx + 0.8, ty - 0.8, ty + 0.8, z, z + 2, shade(bark, 0.92 + (z % 4) * 0.03));
+    tx += Math.round(rnd() * 2 - 1) * 0.9;
+    ty += Math.round(rnd() * 2 - 1) * 0.9;
+  }
+  // feuillage : 4-5 boules aplaties argentées, jamais une sphère unique
+  ellipsoid(g, cx, cy, 10.5, 4.6, 4.6, 3, leaf, rnd, 7);
+  for (let i = 0; i < 4; i++) {
+    const a = rnd() * Math.PI * 2, r = 2.5 + rnd() * 1.8;
+    ellipsoid(g, cx + Math.cos(a) * r, cy + Math.sin(a) * r, 9 + rnd() * 4, 2.6, 2.6, 1.9,
+      shade(leaf, 0.92 + rnd() * 0.2), rnd, 6);
+  }
   return fin(g);
 }
 
@@ -919,6 +962,7 @@ async function main() {
     { id: "eagle", make: (v) => eagleProp(681 + v * 77) },
     // RUINES éparses (lore) + muret d'ancienne ferme
     { id: "temple", make: (v) => temple(801 + v * 77) },
+    { id: "olive", make: (v) => olive(811 + v * 77) },
     { id: "ruin-wall", make: (v) => ruinWall(701 + v * 77) },
     { id: "ruin-column", make: (v) => ruinColumn(711 + v * 77) },
     { id: "ruin-slab", make: (v) => ruinSlab(721 + v * 77) },
