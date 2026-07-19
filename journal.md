@@ -6,6 +6,25 @@
 
 ---
 
+## 2026-07-19 (32) — La VILLE en voxel : temple grec 3D sur la carte
+
+### Fait
+- Recette `temple` dans `gen-props.mjs` (grille 26×18×22 ×1.5 fin) : crépis à 3 degrés,
+  **colonnade périptère** (6 colonnes en façades avant/arrière + 1 par flanc — fûts RONDS
+  évalués par voxel fin via `cyl`), cella à porte sombre, entablement à triglyphes, comble
+  en prisme à pentes étagées (arête le long de X) dont les pignons dessinent les
+  **frontons**, toit terracotta, **acrotères dorés**. Symétrique dans sa grille → le
+  mesher l'ancre au CENTRE : posé pile sur la case ville.
+- `VoxelMapView` : le billboard `bld-church` est remplacé par un **Mesh 3D** (scale 1.35,
+  ombres) — fallback billboard si la géométrie n'est pas chargée. ⚠ le temple est fait de
+  FACES VERTICALES : ombrage cuit du mesher + Lambert = double peine (il rendait gris
+  boueux) → matériau dédié `TEMPLE_MAT` avec petite émissive chaude (0x3c3833).
+
+### Fonctionnel (vérifié)
+- Harnais déterministe (monde plat injecté par le bus, plein jour) : temple crème/terracotta
+  net, centré sur sa case, socle dessous ; preview `asset-index/voxels/props/temple.png` ;
+  e2e partie réelle move/rotation OK ; `tsc` + build verts.
+
 ## 2026-07-19 (31) — COULEURS ravivées partout (retour « pas assez coloré comme les images iso »)
 
 ### Fait

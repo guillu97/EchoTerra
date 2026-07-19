@@ -87,7 +87,7 @@ class MapWorld {
       .then((r) => (r.ok ? r.json() : null))
       .then((p) => { this.palettes = p; this.terrainKey = ""; this.draw(); })
       .catch(() => undefined);
-    void this.propsLib.load(PROP_KEYS).then(() => {
+    void this.propsLib.load([...PROP_KEYS, "temple"]).then(() => {
       this.terrainKey = "";
       this.draw();
     });
@@ -360,9 +360,20 @@ class MapWorld {
       }
     }
 
-    // ville : socle + bâtiment billboard
+    // ville : socle + TEMPLE VOXEL 3D (2026-07-19 — plus un billboard), centré
+    // sur sa case (modèle symétrique, le mesher ancre le centre du bloc)
     quad(game.town.x, game.town.y, topOf(game.town.x, game.town.y), 0xffffff, 0.25);
-    billboard(libUrl("buildings", "bld-church"), game.town.x, game.town.y, { size: 1.15 });
+    const templeGeom = this.propsLib.get("temple", 0);
+    if (templeGeom) {
+      const m = new THREE.Mesh(templeGeom, TEMPLE_MAT);
+      m.castShadow = true;
+      m.receiveShadow = true;
+      m.position.set(game.town.x, topOf(game.town.x, game.town.y) - 0.03, game.town.y);
+      m.scale.setScalar(1.35);
+      this.sprites.add(m);
+    } else {
+      billboard(libUrl("buildings", "bld-church"), game.town.x, game.town.y, { size: 1.15 });
+    }
 
     // monstres : teinte de danger sur la case + sprite de créature
     for (const id in game.monsters) {
@@ -524,6 +535,9 @@ export function VoxelMapView({ active = true }: { active?: boolean }) {
 const UP = new THREE.Vector3(0, 1, 0);
 const PROP_MAT = new THREE.MeshLambertMaterial({ vertexColors: true });
 const FIREFLY_MAT = new THREE.MeshBasicMaterial({ vertexColors: true }); // luit dans la pénombre
+// le temple est surtout fait de FACES VERTICALES : ombrage cuit du mesher +
+// Lambert = double peine → petite émissive chaude pour garder le marbre clair
+const TEMPLE_MAT = new THREE.MeshLambertMaterial({ vertexColors: true, emissive: new THREE.Color(0x3c3833) });
 
 const rotBtn: React.CSSProperties = {
   background: "rgba(30,34,46,.78)",

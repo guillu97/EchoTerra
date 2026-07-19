@@ -787,6 +787,72 @@ function ruinArch(seed) {
   return fin(g);
 }
 
+// ============================================================================
+// LA VILLE (carte du monde) : temple grec voxel — remplace le billboard PNG.
+// Crépis à 3 degrés, colonnade périptère (6×2 + flancs), cella, entablement à
+// triglyphes, comble en prisme à pentes ÉTAGÉES (arête le long de X) dont les
+// pignons dessinent les frontons ; acrotères dorés. Symétrique dans sa grille
+// → le mesher le centre pile sur la case.
+// ============================================================================
+function temple(seed) {
+  const S = { sx: 26, sy: 18, sz: 22 };
+  const g = new Grid(S.sx, S.sy, S.sz, FINE);
+  const rnd = makeRng(seed);
+  const marble = [243, 237, 222], shaft = [237, 229, 210];
+  const roofC = [219, 143, 115], gold = [240, 202, 112], dark = [96, 84, 88];
+  // cylindre plein évalué PAR VOXEL FIN (fûts de colonnes ronds)
+  const cyl = (bx, by, z0, z1, r, rgb) => {
+    const f = g.fs, fbx = (bx + 0.5) * f - 0.5, fby = (by + 0.5) * f - 0.5, fr = r * f;
+    for (let z = Math.round(z0 * f); z <= Math.round((z1 + 1) * f) - 1; z++) {
+      for (let y = Math.floor(fby - fr); y <= fby + fr; y++) {
+        for (let x = Math.floor(fbx - fr); x <= fbx + fr; x++) {
+          if (((x - fbx) / fr) ** 2 + ((y - fby) / fr) ** 2 <= 1) g.setFine(x, y, z, rgb);
+        }
+      }
+    }
+  };
+  // crépis : 3 degrés
+  g.box(1, 24, 1, 16, 0, 0, shade(marble, 0.9));
+  g.box(2, 23, 2, 15, 1, 1, shade(marble, 0.96));
+  g.box(3, 22, 3, 14, 2, 2, marble);
+  // colonnade : 6 en façade avant/arrière + 1 au milieu de chaque flanc
+  const cols = [];
+  for (const x of [4.5, 7.9, 11.3, 14.7, 18.1, 21.5]) { cols.push([x, 4.4]); cols.push([x, 12.6]); }
+  cols.push([4.5, 8.5], [21.5, 8.5]);
+  for (const [bx, by] of cols) {
+    g.box(bx - 1, bx + 1, by - 1, by + 1, 3, 3, shade(shaft, 0.95)); // base
+    cyl(bx, by, 4, 9, 1.05, shaft); // fût rond
+    g.box(bx - 1, bx + 1, by - 1, by + 1, 10, 10, shade(marble, 1.03)); // chapiteau
+  }
+  // cella (une nuance plus sombre, porte sombre côté fronton avant)
+  g.box(8, 17, 6.5, 10.5, 3, 10, shade(marble, 0.88));
+  g.box(11.7, 13.3, 6.5, 6.5, 3, 7, dark);
+  // entablement + frise à triglyphes
+  g.box(3.5, 22.5, 3.6, 14.4, 11, 12, marble);
+  for (let x = 5; x <= 21; x += 2.6) {
+    g.box(x, x + 0.8, 3.6, 3.6, 11, 12, shade(marble, 0.82));
+    g.box(x, x + 0.8, 14.4, 14.4, 11, 12, shade(marble, 0.82));
+  }
+  // comble : prisme à pentes étagées (arête le long de X) — les colonnes de
+  // voxels du dessus en tuiles, l'intérieur marbre = pignons/frontons aux bouts
+  for (let y = 3; y <= 14; y++) {
+    const d = Math.min(y - 3, 14 - y);
+    const top = 13 + Math.floor(d * 0.85);
+    for (let z = 13; z <= top; z++) {
+      for (let x = 3.6; x <= 21.6; x++) {
+        g.box(x, x, y, y, z, z, z === top ? shade(roofC, 0.94 + ((x | 0) % 2) * 0.08) : marble);
+      }
+    }
+  }
+  // acrotères dorés : bouts de l'arête + pointe du fronton avant
+  const ridgeTop = 13 + Math.floor(5 * 0.85);
+  g.set(4, 8.5, ridgeTop + 1, gold);
+  g.set(21, 8.5, ridgeTop + 1, gold);
+  g.set(12.5, 8.5, ridgeTop + 1, shade(gold, 1.08));
+  void rnd;
+  return fin(g);
+}
+
 const GREEN = [134, 192, 108];
 const PINK = [232, 164, 188];
 const DEEP = [104, 168, 88];
@@ -852,6 +918,7 @@ async function main() {
     { id: "snow-motes", make: (v) => snowMotes(671 + v * 77) },
     { id: "eagle", make: (v) => eagleProp(681 + v * 77) },
     // RUINES éparses (lore) + muret d'ancienne ferme
+    { id: "temple", make: (v) => temple(801 + v * 77) },
     { id: "ruin-wall", make: (v) => ruinWall(701 + v * 77) },
     { id: "ruin-column", make: (v) => ruinColumn(711 + v * 77) },
     { id: "ruin-slab", make: (v) => ruinSlab(721 + v * 77) },
