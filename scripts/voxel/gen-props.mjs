@@ -1228,6 +1228,28 @@ function bldChantier(seed) {
   g.set(11.4, 9.9, 7.4, [212, 176, 96]); // crochet
   return g;
 }
+// NUAGE (ciel de la carte et de la ville) : amas de bulles aplaties, ventre
+// PLAT teinté lavande — solide (pas d'alpha), le style diorama assume.
+function cloudProp(seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz, FINE);
+  const rnd = makeRng(seed);
+  const n = 3 + Math.floor(rnd() * 3);
+  for (let i = 0; i < n; i++) {
+    const bx = 4.5 + rnd() * 11, by = 7 + rnd() * 6, r = 2.6 + rnd() * 2.8;
+    ellipsoid(g, bx, by, 3.4 + rnd() * 0.8, r, r * 0.78, 1.7 + rnd() * 1.3, [248, 250, 255], rnd, 2);
+  }
+  // ventre plat : on rase sous z=2 et on teinte la couche du dessous
+  const zCut = Math.round(2 * g.fs);
+  const under = g.color([224, 230, 244]);
+  for (let y = 0; y < g.fsy; y++) {
+    for (let x = 0; x < g.fsx; x++) {
+      for (let z = 0; z < zCut; z++) g.data[x + y * g.fsx + z * g.fsx * g.fsy] = 0;
+      if (g.data[x + y * g.fsx + zCut * g.fsx * g.fsy]) g.data[x + y * g.fsx + zCut * g.fsx * g.fsy] = under;
+    }
+  }
+  return fin(g);
+}
+
 const GREEN = [134, 192, 108];
 const PINK = [232, 164, 188];
 const DEEP = [104, 168, 88];
@@ -1310,6 +1332,7 @@ async function main() {
       },
     })),
     { id: "bld-chantier", make: () => fin(bldChantier(1101)) },
+    { id: "cloud", make: (v) => cloudProp(1201 + v * 77) },
     // sites de ruines-donjons : v0 = enseveli, v1-2 = déblayé (choix par ÉTAT serveur)
     { id: "site-ferme", make: (v) => siteFerme(v > 0, 901) },
     { id: "site-epave", make: (v) => siteEpave(v > 0, 911) },

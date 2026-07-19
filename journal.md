@@ -6,6 +6,46 @@
 
 ---
 
+## 2026-07-19 (38) — FIX : scintillements noirs du brouillard de guerre
+
+### Fait (bug signalé : « le fog of war a des soucis de scintillements/noir »)
+- Cause principale : le MUR DE BRUME **projetait des ombres** (buildTerrain mettait
+  `castShadow=true` sur tous les meshes, brume comprise) → bandes PCF sombres le long de
+  la frontière du fog, qui rampaient/scintillaient au pan (shadow map 1024 trop juste,
+  pire à DPR 3 mobile). La vapeur ne fait pas d'ombre : `castShadow/receiveShadow=false`
+  pour les meshes `mist*`.
+- Shadow map **1024 → 2048** (fourmillement PCF réduit sur téléphone) ; quads d'overlay
+  (losanges/danger/socle) relevés de +0.02 → +0.045 au-dessus de la face de brume
+  (z-fight potentiel à DPR élevé).
+
+### Fonctionnel (vérifié)
+- Frontière brume/terrain nette en capture ; e2e move/rotation OK ; `tsc` + build verts.
+- Si un scintillement persiste sur appareil réel : demander une capture (les artefacts
+  device-specific ne se reproduisent pas en GL logiciel).
+
+## 2026-07-19 (37) — NUAGES dérivants au-dessus de la carte et de la ville
+
+### Fait
+- **Prop `cloud`** (3 variantes) : amas de bulles aplaties, ventre PLAT teinté lavande,
+  solide self-lit (le diorama assume), **castShadow** — leurs ombres glissent sur le
+  terrain sous le soleil.
+- **`clouds.ts`** (module partagé carte/ville) : champ de nuages dérivants, **anti-pattern
+  par construction** — vitesse/altitude/taille/miroir/cap (vent ±9°) propres à chaque
+  nuage, et surtout **re-tirage du couloir, de l'altitude et de la silhouette à CHAQUE
+  tour de piste** (hachés par numéro de tour) : un nuage qui boucle ne repasse jamais au
+  même endroit avec la même tête. Entrées/sorties aux marges du span.
+- **Animation CONTINUE** (rAF) : la carte anime quand l'onglet Map est actif
+  (`activeRef`) et la page visible ; la ville quand le Home est monté. Le rendu
+  redevient on-demand dès qu'on quitte — c'est la première boucle continue du moteur
+  (eau/lucioles en profitent au passage).
+- Carte : 9 nuages, alt 7.5-10.5, vitesse 0.25-0.55 u/s, seed par partie ; ville :
+  5 nuages plus hauts/gros.
+
+### Fonctionnel (vérifié)
+- Simulation node : 8 combos altitude/échelle distincts sur 1200 s (re-tirage par tour ✓),
+  vitesses toutes différentes ✓ ; e2e : 9/9 nuages déplacés en 3 s, visibles carte
+  dézoomée + ville ; move/rotation OK ; `tsc` + build verts.
+
 ## 2026-07-19 (36) — BÂTIMENTS DE LA VILLE EN VOXEL, dégradés par leur durabilité
 
 ### Fait (demande : bâtiments voxel qui évoluent avec la durabilité, jusqu'à la destruction)

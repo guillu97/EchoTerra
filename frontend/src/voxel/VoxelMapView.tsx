@@ -22,6 +22,7 @@ import { BlockLibrary, buildTerrain, type TerrainCell } from "./terrain";
 import { SmoothTerrain } from "./smoothTerrain";
 import { PROP_KEYS, scatterProps } from "./scatter";
 import { buildCascade, findCascadeSite, type Cascade } from "./cascade";
+import { makeClouds, type Clouds } from "./clouds";
 import { ALL_CHAR_KEYS, CharLibrary } from "./characters";
 import { makeLabel } from "./labels";
 import { heroTexKey as heroKey } from "../assets";
@@ -59,6 +60,9 @@ class MapWorld {
   eagle: { mesh: THREE.InstancedMesh; x: number; z: number; h: number; scale: number; angle: number } | null = null;
   // cascade (lot D4) : rideau shader sur une falaise bord d'eau, 1/carte si la géo s'y prête
   cascade: Cascade | null = null;
+  // nuages dérivants (self-lit, castShadow) — animés en continu par la vue
+  clouds: Clouds | null = null;
+  cloudsFor = "";
   lookup = new Map<THREE.Object3D, TerrainCell[]>();
   overlays = new THREE.Group(); // losanges/danger/anneau — reconstruits à chaque render
   sprites = new THREE.Group(); // billboards héros/monstres/ville
@@ -88,7 +92,7 @@ class MapWorld {
       .then((p) => { this.palettes = p; this.terrainKey = ""; this.draw(); })
       .catch(() => undefined);
     void this.propsLib.load([
-      ...PROP_KEYS, "temple", "olive",
+      ...PROP_KEYS, "temple", "olive", "cloud",
       "site-ferme", "site-epave", "site-sanctuaire", "site-mine", "site-tour",
     ]).then(() => {
       this.terrainKey = "";
@@ -115,6 +119,7 @@ class MapWorld {
   }
 
   dispose() {
+    this.clouds?.dispose();
     this.lib.dispose();
     this.chars.dispose();
     this.smooth.dispose();
@@ -310,6 +315,21 @@ class MapWorld {
       this.terrainKey = key;
     }
 
+    // --- nuages : créés une fois PAR PARTIE (span = carte + marges) -----------
+    if (this.cloudsFor !== game.id && this.propsLib.get("cloud", 0)) {
+      if (this.clouds) { engine.scene.remove(this.clouds.group); this.clouds.dispose(); }
+      let seed = 0;
+      for (let i = 0; i < game.id.length; i++) seed = (seed * 31 + game.id.charCodeAt(i)) >>> 0;
+      this.clouds = makeClouds(this.propsLib, {
+        count: 9, cx: game.width / 2, cy: game.height / 2,
+        span: Math.max(game.width, game.height) + 18,
+        altitude: [7.5, 10.5], speed: [0.25, 0.55], scale: [2.2, 4.2],
+        seed: seed % 100000,
+      });
+      engine.scene.add(this.clouds.group);
+      this.cloudsFor = game.id;
+    }
+
     // --- overlays + billboards (reconstruits à chaque render, ~dizaines) -------
     this.overlays.clear();
     this.sprites.clear();
@@ -319,7 +339,7 @@ class MapWorld {
         new THREE.PlaneGeometry(0.96, 0.96).rotateX(-Math.PI / 2),
         new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false }),
       );
-      m.position.set(x, top + 0.02, y);
+      m.position.set(x, top + 0.045, y); // 0.02 z-fightait avec la face de brume à DPR élevé
       this.overlays.add(m);
     };
     const tileAt = (x: number, y: number) =>
@@ -498,6 +518,8 @@ class MapWorld {
 }
 
 export function VoxelMapView({ active = true }: { active?: boolean }) {
+  const activeRef = useRef(active);
+  activeRef.current = active;
   const hostRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<VoxelEngine | null>(null);
 
@@ -551,10 +573,22 @@ export function VoxelMapView({ active = true }: { active?: boolean }) {
     sunTick();
     const sunTimer = setInterval(sunTick, 5000);
 
+    // NUAGES : animation CONTINUE (rAF) tant que l'onglet Map est actif et la
+    // page visible — le rendu redevient on-demand dès qu'on quitte l'onglet.
+    let raf = 0;
+    const animate = () => {
+      raf = requestAnimationFrame(animate);
+      if (!activeRef.current || document.visibilityState !== "visible" || !world.clouds) return;
+      world.clouds.setTime(performance.now() / 1000);
+      engine.invalidate();
+    };
+    raf = requestAnimationFrame(animate);
+
     if (import.meta.env.DEV) (window as unknown as { __vm?: unknown }).__vm = { engine, world };
     return () => {
       off();
       unsubSettings();
+      cancelAnimationFrame(raf);
       clearInterval(sunTimer);
       controls.dispose();
       world.dispose();

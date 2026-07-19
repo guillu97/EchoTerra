@@ -25,6 +25,7 @@ import { durColor } from "../tabs/HomeTab";
 import { VoxelEngine } from "./engine";
 import { VoxelControls } from "./controls";
 import { BlockLibrary, buildStacks, type StackItem } from "./terrain";
+import { makeClouds, type Clouds } from "./clouds";
 import { makeLabel } from "./labels";
 
 // Mêmes mappings que TownMap.
@@ -187,10 +188,31 @@ export function VoxelTownView({
       setSpotList(list);
       engine.invalidate();
     };
+    let clouds: Clouds | null = null;
     void propsLib
       .load(["bld-well", "bld-panel", "bld-bank", "bld-workshop", "bld-gate", "bld-tower",
-             "bld-townhall", "bld-kitchen", "bld-wall", "bld-chantier"])
-      .then(drawBuildings);
+             "bld-townhall", "bld-kitchen", "bld-wall", "bld-chantier", "cloud"])
+      .then(() => {
+        drawBuildings();
+        // nuages au-dessus de la ville : plus hauts, plus lents que la carte
+        clouds = makeClouds(propsLib, {
+          count: 5, cx: doc.gridW / 2, cy: doc.gridH / 2,
+          span: Math.max(doc.gridW, doc.gridH) + 16,
+          altitude: [14, 18], speed: [0.35, 0.7], scale: [3, 5],
+          seed: 4242,
+        });
+        engine.scene.add(clouds.group);
+      });
+
+    // animation CONTINUE des nuages tant que le Home est monté et la page visible
+    let raf = 0;
+    const animate = () => {
+      raf = requestAnimationFrame(animate);
+      if (!clouds || document.visibilityState !== "visible") return;
+      clouds.setTime(performance.now() / 1000);
+      engine.invalidate();
+    };
+    raf = requestAnimationFrame(animate);
 
     // 3) MES héros en ville, sur l'herbe (mêmes règles/hachage que TownMap)
     const heroGroup = new THREE.Group();
@@ -285,6 +307,8 @@ export function VoxelTownView({
     if (import.meta.env.DEV) (window as unknown as { __vt?: unknown }).__vt = { engine };
     return () => {
       unsub();
+      cancelAnimationFrame(raf);
+      clouds?.dispose();
       controls.dispose();
       lib.dispose();
       propsLib.dispose();

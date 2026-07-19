@@ -94,7 +94,7 @@ export class VoxelEngine {
     this.hemi = hemi;
     const sun = new THREE.DirectionalLight(0xfff2e0, 1.05);
     sun.castShadow = true;
-    sun.shadow.mapSize.set(1024, 1024);
+    sun.shadow.mapSize.set(2048, 2048); // 1024 fourmillait sur mobile (DPR 3)
     sun.shadow.camera.left = -shadowSpan;
     sun.shadow.camera.right = shadowSpan;
     sun.shadow.camera.top = shadowSpan;
