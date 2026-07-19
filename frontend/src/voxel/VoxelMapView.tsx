@@ -22,7 +22,6 @@ import { BlockLibrary, buildTerrain, type TerrainCell } from "./terrain";
 import { SmoothTerrain } from "./smoothTerrain";
 import { PROP_KEYS, scatterProps } from "./scatter";
 import { buildCascade, findCascadeSite, type Cascade } from "./cascade";
-import { makeClouds, type Clouds } from "./clouds";
 import { ALL_CHAR_KEYS, CharLibrary } from "./characters";
 import { makeLabel } from "./labels";
 import { heroTexKey as heroKey } from "../assets";
@@ -60,9 +59,6 @@ class MapWorld {
   eagle: { mesh: THREE.InstancedMesh; x: number; z: number; h: number; scale: number; angle: number } | null = null;
   // cascade (lot D4) : rideau shader sur une falaise bord d'eau, 1/carte si la géo s'y prête
   cascade: Cascade | null = null;
-  // nuages dérivants (self-lit, castShadow) — animés en continu par la vue
-  clouds: Clouds | null = null;
-  cloudsFor = "";
   lookup = new Map<THREE.Object3D, TerrainCell[]>();
   overlays = new THREE.Group(); // losanges/danger/anneau — reconstruits à chaque render
   sprites = new THREE.Group(); // billboards héros/monstres/ville
@@ -119,7 +115,6 @@ class MapWorld {
   }
 
   dispose() {
-    this.clouds?.dispose();
     this.lib.dispose();
     this.chars.dispose();
     this.smooth.dispose();
@@ -315,26 +310,6 @@ class MapWorld {
       this.terrainKey = key;
     }
 
-    // --- nuages : créés une fois PAR PARTIE (span = carte + marges) -----------
-    if (this.cloudsFor !== game.id && this.propsLib.get("cloud", 0)) {
-      if (this.clouds) { engine.scene.remove(this.clouds.group); this.clouds.dispose(); }
-      let seed = 0;
-      for (let i = 0; i < game.id.length; i++) seed = (seed * 31 + game.id.charCodeAt(i)) >>> 0;
-      this.clouds = makeClouds(this.propsLib, {
-        count: 9, cx: game.width / 2, cy: game.height / 2,
-        span: Math.max(game.width, game.height) + 18,
-        altitude: [7.5, 10.5], speed: [0.25, 0.55], scale: [2.2, 4.2],
-        seed: seed % 100000,
-        // ombre factice posée sur le sol connu, sinon sur le mur de brume
-        groundAt: (x, z) => {
-          const t = this.game?.tiles[Math.round(z) * (this.game?.width ?? 1) + Math.round(x)];
-          return t?.discovered ? this.smooth.heightAt(x, z) : 2;
-        },
-      });
-      engine.scene.add(this.clouds.group);
-      this.cloudsFor = game.id;
-    }
-
     // --- overlays + billboards (reconstruits à chaque render, ~dizaines) -------
     this.overlays.clear();
     this.sprites.clear();
@@ -524,9 +499,11 @@ class MapWorld {
   }
 }
 
+// Pas de nuages ici (retour 2026-07-19 : la boucle continue sur la scène LOURDE
+// lagait sur téléphone) — la carte est 100 % on-demand ; les nuages vivent sur
+// la vue VILLE, légère. `active` reste dans la signature (MapTab la passe).
 export function VoxelMapView({ active = true }: { active?: boolean }) {
-  const activeRef = useRef(active);
-  activeRef.current = active;
+  void active;
   const hostRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<VoxelEngine | null>(null);
 
@@ -580,22 +557,10 @@ export function VoxelMapView({ active = true }: { active?: boolean }) {
     sunTick();
     const sunTimer = setInterval(sunTick, 5000);
 
-    // NUAGES : animation CONTINUE (rAF) tant que l'onglet Map est actif et la
-    // page visible — le rendu redevient on-demand dès qu'on quitte l'onglet.
-    let raf = 0;
-    const animate = () => {
-      raf = requestAnimationFrame(animate);
-      if (!activeRef.current || document.visibilityState !== "visible" || !world.clouds) return;
-      world.clouds.setTime(performance.now() / 1000);
-      engine.invalidate();
-    };
-    raf = requestAnimationFrame(animate);
-
     if (import.meta.env.DEV) (window as unknown as { __vm?: unknown }).__vm = { engine, world };
     return () => {
       off();
       unsubSettings();
-      cancelAnimationFrame(raf);
       clearInterval(sunTimer);
       controls.dispose();
       world.dispose();

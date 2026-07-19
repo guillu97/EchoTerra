@@ -66,18 +66,12 @@ const payload = await page.evaluate(() => {
 check("payload voxel ≤4 MiB", payload.bytes <= 4 * 1024 * 1024, `${(payload.bytes / 1048576).toFixed(2)} MiB en ${payload.count} fichiers`);
 check("aucun .vox téléchargé deux fois", payload.dupes === 0, `${payload.dupes} doublons`);
 
-// --- boucle continue des nuages : ça rend, et les nuages BOUGENT -------------
+// --- la carte est 100 % ON-DEMAND (les nuages ne vivent qu'en ville) ---------
 const f0 = await page.evaluate(() => window.__vm.engine.renderer.info.render.frame);
-const p0 = await page.evaluate(() => window.__vm.world.clouds?.group.children.map((m) => m.position.x.toFixed(2)) ?? []);
 await wait(3000);
 const f1 = await page.evaluate(() => window.__vm.engine.renderer.info.render.frame);
-const p1 = await page.evaluate(() => window.__vm.world.clouds?.group.children.map((m) => m.position.x.toFixed(2)) ?? []);
-const fps = (f1 - f0) / 3;
-const moved = p0.filter((x, i) => x !== p1[i]).length;
-// swiftshader rend ~1,4M tris au CPU (~270 ms/frame) : on vérifie que la
-// boucle TOURNE, pas sa cadence absolue (device-bound — 60 fps sur GPU réel)
-check("boucle nuages active (rendu continu)", fps >= 2, `${fps.toFixed(1)} rendus/s (GL logiciel)`);
-check("nuages en mouvement", moved === p0.length && p0.length > 0, `${moved}/${p0.length}`);
+check("carte on-demand (pas de boucle continue)", f1 - f0 <= 2, `${f1 - f0} rendus en 3s au repos`);
+check("pas de nuages sur la carte (retour perf mobile)", await page.evaluate(() => !window.__vm.world.clouds), "clouds absent");
 
 // --- pas de fuite : géométries stables pendant l'animation -------------------
 const g1 = await page.evaluate(() => window.__vm.engine.renderer.info.memory.geometries);
@@ -105,6 +99,21 @@ const town = await page.evaluate(() => {
 });
 check("tris vue ville ≤2M", town.tris <= 2_000_000, `${town.tris.toLocaleString()} tris`);
 check("bâtiments voxel présents en ville", town.meshes >= 6, `${town.meshes} meshes`);
+
+// --- nuages : en VILLE uniquement, et ils passent ----------------------------
+const cp0 = await page.evaluate(() => {
+  const out = [];
+  window.__vt.engine.scene.traverse((o) => { if (o.isMesh && o.material?.vertexColors && o.position.y > 12) out.push(o.position.x.toFixed(2)); });
+  return out;
+});
+await wait(2500);
+const cp1 = await page.evaluate(() => {
+  const out = [];
+  window.__vt.engine.scene.traverse((o) => { if (o.isMesh && o.material?.vertexColors && o.position.y > 12) out.push(o.position.x.toFixed(2)); });
+  return out;
+});
+const cMoved = cp0.filter((x, i) => x !== cp1[i]).length;
+check("nuages de la ville en mouvement", cp0.length > 0 && cMoved === cp0.length, `${cMoved}/${cp0.length}`);
 
 await browser.close();
 const ok = results.filter((r) => r.ok).length;
