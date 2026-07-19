@@ -9,7 +9,7 @@ import { bus, EV } from "../eventBus";
 const FIREBALL_PA = 2; // mirrors backend FireballPACost
 
 function ActionMenu() {
-  const { game, selectedHeroId, search, startCombat, hide, escape, fireball, busy } = useStore();
+  const { game, selectedHeroId, search, startCombat, hide, escape, fireball, ruinClear, ruinExplore, busy } = useStore();
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
 
   useEffect(() => bus.on(EV.MapHeroMenu, ({ sx, sy }: { sx: number; sy: number }) => setPos({ x: sx, y: sy })), []);
@@ -27,6 +27,7 @@ function ActionMenu() {
     onMonster ||
     [[0, -1], [0, 1], [-1, 0], [1, 0]].some(([dx, dy]) => !!tileAt(hero.x + dx, hero.y + dy)?.monsterId);
   const stuck = hero.states.includes("Tétanisé");
+  const ruin = tile?.ruinId ? game.ruins?.[tile.ruinId] : undefined;
   const noPa = busy || hero.pa <= 0;
   const close = () => setPos(null);
   const run = async (fn: () => Promise<void>) => {
@@ -55,6 +56,26 @@ function ActionMenu() {
             onClick={() => run(fireball)}
           >
             🔥 Fire ball <i>-{FIREBALL_PA}</i>
+          </button>
+        )}
+        {/* Ruine-donjon sous le héros : déblayage collectif puis exploration. */}
+        {ruin && !ruin.cleared && (
+          <button
+            className="am-ruin"
+            disabled={noPa || stuck}
+            onClick={() => run(ruinClear)}
+          >
+            ⛏️ Déblayer {ruin.icon} <i>{ruin.paInvested}/{ruin.clearPa}</i>
+          </button>
+        )}
+        {ruin && ruin.cleared && (
+          <button
+            className="am-ruin"
+            disabled={busy || stuck || hero.pa < 2 || ruin.charges <= 0}
+            title={ruin.charges <= 0 ? "Donjon épuisé" : ""}
+            onClick={() => run(ruinExplore)}
+          >
+            🏛️ Explorer {ruin.icon} <i>-2 · {ruin.charges} 💎</i>
           </button>
         )}
         {onTown && <div className="am-note">🏰 En ville — fouille et cachette inutiles ici</div>}

@@ -897,6 +897,117 @@ function olive(seed) {
   return fin(g);
 }
 
+// ============================================================================
+// SITES DE RUINES-DONJONS (gameplay 2026-07-19) : un bâtiment en ruine par
+// biome. Variante 0 = ENSEVELI (gravats devant l'entrée), 1-2 = DÉBLAYÉ
+// (entrée sombre ouverte + lueur dorée du trésor) — la carte choisit la
+// variante selon l'état serveur `ruin.cleared`, pas au hasard.
+// ============================================================================
+const RUBBLE = [172, 164, 152];
+const GLOW = [255, 214, 110];
+const DOORDARK = [52, 46, 54];
+
+// gravats devant/onto l'entrée (état enseveli)
+function buryEntrance(g, rnd, cx, cy, spread = 3) {
+  for (let i = 0; i < 6; i++) {
+    const bx = cx - spread + rnd() * spread * 2, by = cy - spread / 2 + rnd() * spread;
+    ellipsoid(g, bx, by, 0.9, 1.2 + rnd(), 1 + rnd() * 0.8, 0.9 + rnd() * 0.6, shade(RUBBLE, 0.9 + rnd() * 0.2), rnd, 6);
+  }
+}
+// entrée de donjon ouverte : bouche sombre + lueur du trésor
+function openEntrance(g, x0, x1, y, z1) {
+  g.box(x0, x1, y, y, 0, z1, DOORDARK);
+  g.set((x0 + x1) / 2, y, 1, GLOW);
+}
+
+// PRAIRIE — ferme abandonnée : murs en L écroulés + poutres effondrées
+function siteFerme(cleared, seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz, FINE);
+  const rnd = makeRng(seed);
+  const wall = [204, 188, 160], wood = [138, 106, 76];
+  for (let x = 4; x <= 15; x++) if (rnd() < 0.8) g.box(x, x, 14, 14.8, 0, 2 + Math.floor(rnd() * 3), shade(wall, 0.9 + rnd() * 0.15));
+  for (let y = 6; y <= 14; y++) if (rnd() < 0.8) g.box(4, 4.8, y, y, 0, 2 + Math.floor(rnd() * 3), shade(wall, 0.9 + rnd() * 0.15));
+  for (let i = 0; i < 3; i++) { // poutres tombées en travers
+    const x0 = 6 + rnd() * 6, y0 = 7 + rnd() * 5;
+    for (let k = 0; k < 6; k++) g.set(x0 + k, y0 + k * 0.4, Math.max(0, 2 - k * 0.5), wood);
+  }
+  if (cleared) openEntrance(g, 8.6, 10.4, 14, 2); else buryEntrance(g, rnd, 9.5, 12);
+  return fin(g);
+}
+
+// SABLE — épave ensablée : coque inclinée + mât brisé
+function siteEpave(cleared, seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz, FINE);
+  const rnd = makeRng(seed);
+  const hull = [146, 112, 80];
+  for (let x = 3; x <= 16; x++) {
+    const taper = x < 6 ? x - 3 : x > 13 ? 16 - x : 3;
+    const lift = Math.max(0, (x - 8) * 0.5); // proue soulevée (échouée)
+    g.box(x, x, 10 - taper, 10 + taper, Math.floor(lift), Math.floor(lift) + 2, shade(hull, 0.92 + (x % 3) * 0.05));
+    if (taper >= 2) {
+      g.box(x, x, 10 - taper, 10 - taper, Math.floor(lift) + 3, Math.floor(lift) + 4, shade(hull, 1.1)); // bordés
+      g.box(x, x, 10 + taper, 10 + taper, Math.floor(lift) + 3, Math.floor(lift) + 4, shade(hull, 1.1));
+    }
+  }
+  g.box(9, 10, 9.5, 10.5, 4, 9, shade(hull, 0.85)); // mât brisé
+  g.set(10, 10, 10, shade(hull, 0.8));
+  ellipsoid(g, 6, 10, 0.8, 4, 3.4, 1, [226, 196, 138], rnd, 5); // langue de sable
+  if (cleared) openEntrance(g, 11.6, 13.4, 7.4, 3); else buryEntrance(g, rnd, 12.5, 8, 2.5);
+  return fin(g);
+}
+
+// FORÊT — sanctuaire englouti : arche moussue + colonnes + dalle
+function siteSanctuaire(cleared, seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz, FINE);
+  const rnd = makeRng(seed);
+  const stone = [206, 198, 180], moss = [110, 168, 96];
+  g.box(4, 6, 8, 10, 0, 8, shade(stone, 0.95)); // pilier gauche
+  g.box(13, 15, 8, 10, 0, 8, shade(stone, 0.92)); // pilier droit
+  g.box(4, 15, 8, 10, 9, 10.5, stone); // linteau
+  for (let x = 4; x <= 15; x++) if (rnd() < 0.5) g.set(x, 8, 11, moss); // mousse sur le linteau
+  g.box(6, 13, 12, 16, 0, 0.8, shade(stone, 0.85)); // dalle gravée derrière
+  g.set(8, 14, 1, [122, 186, 202]); g.set(11, 13, 1, [122, 186, 202]); // glyphes
+  ellipsoid(g, 16.5, 13, 1.4, 1.6, 1.4, 1.4, shade(stone, 0.88), rnd, 5); // tambour tombé
+  if (cleared) openEntrance(g, 8.6, 10.9, 9, 7); else buryEntrance(g, rnd, 9.7, 7);
+  return fin(g);
+}
+
+// MONTAGNE — mine effondrée : butte rocheuse + portail boisé
+function siteMine(cleared, seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz, FINE);
+  const rnd = makeRng(seed);
+  const rock = [178, 166, 148], wood = [126, 96, 66];
+  ellipsoid(g, 10, 13.8, 3.4, 7, 4.4, 4.6, rock, rnd, 7); // la butte (derrière le portail)
+  g.box(7.6, 8.4, 8, 8.8, 0, 5, wood); // portail : montants + linteau
+  g.box(11.6, 12.4, 8, 8.8, 0, 5, wood);
+  g.box(7.6, 12.4, 8, 8.8, 5, 5.8, shade(wood, 1.08));
+  g.set(6.5, 8.5, 0, [212, 176, 96]); // wagonnet d'or renversé (accroche)
+  if (cleared) openEntrance(g, 8.8, 11.2, 8.4, 4); else buryEntrance(g, rnd, 10, 7);
+  return fin(g);
+}
+
+// NEIGE — tour gelée : fût cylindrique brisé en diagonale, givré
+function siteTour(cleared, seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz, FINE);
+  const rnd = makeRng(seed);
+  const stone = [196, 204, 216], ice = [222, 236, 246];
+  const f = g.fs, fcx = 10 * f, fcy = 11 * f, fr = 4.2 * f;
+  for (let z = 0; z < Math.round(16 * f); z++) {
+    const brk = 10 * f + Math.round(5 * f * Math.sin(z * 0.1)); // cassure diagonale
+    for (let y = Math.floor(fcy - fr); y <= fcy + fr; y++) {
+      for (let x = Math.floor(fcx - fr); x <= fcx + fr; x++) {
+        const d = ((x - fcx) / fr) ** 2 + ((y - fcy) / fr) ** 2;
+        if (d > 1 || d < 0.55) continue; // anneau (tour creuse)
+        if (z > brk && x > fcx) continue; // pan effondré
+        g.setFine(x, y, z, shade(z % 6 < 3 ? stone : ice, 0.94 + ((x + y) % 2) * 0.06));
+      }
+    }
+  }
+  ellipsoid(g, 14.5, 8, 1, 2.6, 2, 1.4, ice, rnd, 4); // blocs effondrés
+  if (cleared) openEntrance(g, 9, 11, 6.9, 4); else buryEntrance(g, rnd, 10, 5.5);
+  return fin(g);
+}
+
 const GREEN = [134, 192, 108];
 const PINK = [232, 164, 188];
 const DEEP = [104, 168, 88];
@@ -964,6 +1075,12 @@ async function main() {
     // RUINES éparses (lore) + muret d'ancienne ferme
     { id: "temple", make: (v) => temple(801 + v * 77) },
     { id: "olive", make: (v) => olive(811 + v * 77) },
+    // sites de ruines-donjons : v0 = enseveli, v1-2 = déblayé (choix par ÉTAT serveur)
+    { id: "site-ferme", make: (v) => siteFerme(v > 0, 901) },
+    { id: "site-epave", make: (v) => siteEpave(v > 0, 911) },
+    { id: "site-sanctuaire", make: (v) => siteSanctuaire(v > 0, 921) },
+    { id: "site-mine", make: (v) => siteMine(v > 0, 931) },
+    { id: "site-tour", make: (v) => siteTour(v > 0, 941) },
     { id: "ruin-wall", make: (v) => ruinWall(701 + v * 77) },
     { id: "ruin-column", make: (v) => ruinColumn(711 + v * 77) },
     { id: "ruin-slab", make: (v) => ruinSlab(721 + v * 77) },

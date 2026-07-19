@@ -36,7 +36,23 @@ export interface Tile {
   height: number;
   resources: number;
   monsterId?: string;
+  ruinId?: string; // ruine-donjon posée sur la case (voir Ruin)
   discovered?: boolean; // fog of war: false until a hero has seen the tile (shared by all players)
+}
+
+// Ruine-donjon : bâtiment en ruine par biome — chantier de déblayage collectif
+// (PA partagés) puis donjon à charges au butin rare.
+export interface Ruin {
+  id: string;
+  type: string; // ferme | epave | sanctuaire | mine | tour
+  name: string;
+  icon: string;
+  x: number;
+  y: number;
+  clearPa: number;
+  paInvested: number;
+  cleared: boolean;
+  charges: number;
 }
 
 export interface Hero {
@@ -240,6 +256,7 @@ export interface GameState {
   };
   activeCombat?: string;
   combats?: Record<string, Combat>;
+  ruins?: Record<string, Ruin>;
 }
 
 export interface CombatUnit {

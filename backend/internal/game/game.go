@@ -45,6 +45,7 @@ type Tile struct {
 	Height     int   `json:"height"`     // cosmetic elevation on the global map
 	Resources  int   `json:"resources"`  // remaining successful searches (0 => depleted)
 	MonsterID  string `json:"monsterId,omitempty"`
+	RuinID     string `json:"ruinId,omitempty"` // ruine-donjon posée sur la case (voir ruins.go)
 	Discovered bool  `json:"discovered"` // fog of war: revealed once a hero has seen it (shared by all players)
 }
 
@@ -182,6 +183,8 @@ type GameState struct {
 	// ActiveCombat is the id of the combat in progress, if any.
 	ActiveCombat string             `json:"activeCombat,omitempty"`
 	Combats      map[string]*Combat `json:"combats,omitempty"`
+	// Ruins are the biome-specific ruined buildings → dungeons (see ruins.go).
+	Ruins map[string]*Ruin `json:"ruins,omitempty"`
 }
 
 // TileAt returns a pointer to the tile at (x,y), or nil if out of bounds.

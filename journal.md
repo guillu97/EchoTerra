@@ -6,6 +6,41 @@
 
 ---
 
+## 2026-07-19 (34) — RUINES-DONJONS : déblayer en PA, puis fouiller le butin rare
+
+### Fait (gameplay demandé : ruines par biome → PA pour déblayer → donjon à items rares)
+- **Serveur** (`ruins.go`) : `Ruin {type, name, icon, x, y, clearPa, paInvested, cleared,
+  charges}` dans `GameState.Ruins` + `Tile.RuinID`. **5 types par biome** : Épave ensablée
+  (sable, 8 PA), Ferme abandonnée (prairie, 8), Sanctuaire englouti (forêt, 10), Mine
+  effondrée (montagne, 12), Tour gelée (neige, 12). Semées au worldgen (`SeedRuins`,
+  déterministe par seed, 1/biome présent, Chebyshev ≥ 3 de la ville, idempotent).
+- **Déblayage COLLECTIF** (`ClearRuin`) : comme les chantiers — chaque héros sur la case
+  investit ses PA (bornés au restant), cumul partagé entre joueurs ; refusé si Tétanisé/
+  combat. **Exploration** (`ExploreRuin`) : donjon déblayé, 2 PA, 4 charges puis « épuisé » ;
+  tirage pondéré PAR TYPE : matériaux rares (Acier, **Cœur de chêne ancien** au sanctuaire !),
+  items rares (Perle nacrée, Grimoire gelé, Relique…), **plans anciens** (phare/moulin/autel/
+  forge/observatoire) ; Récupérateur +1. Routes `POST /heroes/{h}/ruin/clear|explore`
+  (ownership multi ✓). **Fog** : ruines caviardées comme les monstres (ClientView).
+- **Front** : `Ruin` + `game.ruins` + `tile.ruinId`, actions store `ruinClear` (tous les PA
+  du héros) / `ruinExplore` + logs, **menu radial** : « ⛏️ Déblayer <icône> x/y » sur site
+  enseveli, « 🏛️ Explorer -2 · n 💎 » sur donjon ouvert (désactivé si épuisé/Tétanisé).
+- **Voxel** : 5 recettes `site-*` à DEUX ÉTATS — v0 enseveli (gravats devant l'entrée),
+  v1 déblayé (bouche sombre + lueur dorée du trésor) — la carte choisit la variante selon
+  `ruin.cleared` (pas au hasard) ; socle doré discret sur la case (plus vif si trésors
+  restants).
+
+### Fonctionnel (vérifié)
+- Go : `ruins_test.go` (semis déterministe/idempotent, chantier collectif borné, loot/
+  charges/épuisement, fog, Tétanisé) + suite complète verte. E2E HTTP réel : marche vers
+  une ruine, investissement 2/8 PA, refus corrects (0 PA, non déblayée). UI : harnais
+  synthétique — 5 sites rendus avec socles, menus radiaux exacts. `tsc` + build verts.
+- ⚠ e2e : un VIEUX backend tenait le port 8080 (le `curl || start` ne le remplace pas) —
+  tuer le PID via `fuser 8080/tcp` avant de tester du code serveur neuf.
+
+### Reste (idées)
+- Bots : ignorer/participer aux chantiers de déblayage ; MapScene Phaser (classique) ne
+  rend pas les sites ; effets gameplay des « plans anciens » (débloquer des recettes ?).
+
 ## 2026-07-19 (33b) — Temple v3 : l'esplanade fait le TOUR
 
 ### Fait

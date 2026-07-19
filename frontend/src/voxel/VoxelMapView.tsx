@@ -87,7 +87,10 @@ class MapWorld {
       .then((r) => (r.ok ? r.json() : null))
       .then((p) => { this.palettes = p; this.terrainKey = ""; this.draw(); })
       .catch(() => undefined);
-    void this.propsLib.load([...PROP_KEYS, "temple", "olive"]).then(() => {
+    void this.propsLib.load([
+      ...PROP_KEYS, "temple", "olive",
+      "site-ferme", "site-epave", "site-sanctuaire", "site-mine", "site-tour",
+    ]).then(() => {
       this.terrainKey = "";
       this.draw();
     });
@@ -398,6 +401,21 @@ class MapWorld {
         o.scale.setScalar(0.34 + hash01(i + 20) * 0.1);
         this.sprites.add(o);
       }
+    }
+
+    // ruines-donjons : bâtiment en ruine par biome — variante choisie par ÉTAT
+    // serveur (0 = enseveli, 1 = déblayé avec entrée sombre + lueur) ; socle
+    // doré discret pour signaler le point d'intérêt
+    for (const id in game.ruins ?? {}) {
+      const ru = game.ruins![id];
+      const geom = this.propsLib.get(`site-${ru.type}`, ru.cleared ? 1 : 0);
+      if (!geom) continue;
+      const mesh = new THREE.Mesh(geom, PROP_MAT);
+      mesh.castShadow = mesh.receiveShadow = true;
+      mesh.position.set(ru.x, topOf(ru.x, ru.y) - 0.02, ru.y);
+      mesh.scale.setScalar(0.72);
+      this.sprites.add(mesh);
+      quad(ru.x, ru.y, topOf(ru.x, ru.y), ru.cleared && ru.charges > 0 ? 0xffd66e : 0xfff3d0, ru.cleared ? 0.35 : 0.2);
     }
 
     // monstres : teinte de danger sur la case + sprite de créature

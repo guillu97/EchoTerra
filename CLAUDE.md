@@ -315,6 +315,16 @@ Construction sites (Built=false): **townhall (renamed from House — revive), to
 
 **Bank** = `town.storage`: deposit hero loot (`/town/deposit`), craft I/O in town, construction materials.
 
+**Ruines-donjons** (`ruins.go`, 2026-07-19) — 5 bâtiments en ruine PAR BIOME semés au worldgen
+(`SeedRuins`, déterministe, 1/biome, Chebyshev ≥ 3 de la ville) : Épave (sable 8 PA), Ferme
+(prairie 8), Sanctuaire (forêt 10), Mine (montagne 12), Tour gelée (neige 12). `GameState.Ruins`
++ `Tile.RuinID`, caviardés par le fog comme les monstres. **Déblayage COLLECTIF** (`ClearRuin`,
+PA partagés comme les chantiers, refus Tétanisé/combat) puis **donjon** (`ExploreRuin`, 2 PA,
+4 charges) : tirage pondéré par type — matériaux rares (Acier, Cœur de chêne ancien), items
+rares, « plans anciens » ; Récupérateur +1. Front : menu radial ⛏️ Déblayer / 🏛️ Explorer ;
+voxel `site-*` v0 enseveli / v1 déblayé (variante par ÉTAT serveur), socle doré. Tests
+`ruins_test.go`. (Phaser classique ne rend pas les sites ; bots ignorent les ruines.)
+
 **Journal de la ville** (`town.log`, bâtiment Panel) — `TownLogEntry {at, day, text}`, **serveur-side,
 partagé, plus récent en premier, plafonné à 100** (`logTown`). Recense UNIQUEMENT les actions faites en
 ville : porte OUVERTE/FERMÉE, ration puisée au puits, dépôts à la Banque (par héros), chantiers
@@ -369,6 +379,8 @@ POST /api/games/{id}/heroes/{h}/hide
 POST /api/games/{id}/heroes/{h}/escape
 POST /api/games/{id}/heroes/{h}/fireball          Fire ball map skill -> {report, game}
 POST /api/games/{id}/heroes/{h}/snipe             Tir précis du Chasseur (pack ≤5 PV) -> {report, game}
+POST /api/games/{id}/heroes/{h}/ruin/clear        {points} déblaye la ruine sous le héros -> {ruin, game}
+POST /api/games/{id}/heroes/{h}/ruin/explore      fouille le donjon déblayé (2 PA) -> {item, game}
 POST /api/games/{id}/heroes/{h}/evolve            {classId} -> GameState (applies class bonuses)
 GET  /api/classes                                 [] ClassDef catalog (tier 1+2 classes)
 POST /api/games/{id}/heroes/{h}/combat/start

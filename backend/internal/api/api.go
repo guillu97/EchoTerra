@@ -218,6 +218,8 @@ func (s *Server) Router() http.Handler {
 			r.Post("/heroes/{heroID}/escape", s.escapeHero)
 			r.Post("/heroes/{heroID}/fireball", s.fireballHero)
 			r.Post("/heroes/{heroID}/snipe", s.snipeHero)
+			r.Post("/heroes/{heroID}/ruin/clear", s.ruinClear)
+			r.Post("/heroes/{heroID}/ruin/explore", s.ruinExplore)
 			r.Post("/heroes/{heroID}/evolve", s.evolveHero)
 			r.Post("/heroes/{heroID}/combat/start", s.startCombat)
 			r.Get("/combat/{combatID}", s.getCombat)
@@ -841,6 +843,50 @@ func (s *Server) fireballHero(w http.ResponseWriter, r *http.Request) {
 	}
 	s.persist(gs)
 	writeJSON(w, http.StatusOK, map[string]any{"report": rep, "game": gs})
+}
+
+// ruinClear invests the hero's PA into clearing the ruin on their tile (collective).
+func (s *Server) ruinClear(w http.ResponseWriter, r *http.Request) {
+	gs := s.mustGame(w, r)
+	if gs == nil {
+		return
+	}
+	var body struct {
+		Points   int    `json:"points"`
+		PlayerID string `json:"playerId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeErr(w, http.StatusBadRequest, "corps invalide")
+		return
+	}
+	if !s.ownHero(w, gs, body.PlayerID, chi.URLParam(r, "heroID")) {
+		return
+	}
+	ru, err := gs.ClearRuin(chi.URLParam(r, "heroID"), body.Points)
+	if err != nil {
+		writeActionErr(w, err)
+		return
+	}
+	s.persist(gs)
+	writeJSON(w, http.StatusOK, map[string]any{"ruin": ru, "game": gs})
+}
+
+// ruinExplore draws one treasure from the cleared dungeon under the hero (2 PA).
+func (s *Server) ruinExplore(w http.ResponseWriter, r *http.Request) {
+	gs := s.mustGame(w, r)
+	if gs == nil {
+		return
+	}
+	if !s.ownHero(w, gs, decodePlayer(r), chi.URLParam(r, "heroID")) {
+		return
+	}
+	item, err := gs.ExploreRuin(chi.URLParam(r, "heroID"))
+	if err != nil {
+		writeActionErr(w, err)
+		return
+	}
+	s.persist(gs)
+	writeJSON(w, http.StatusOK, map[string]any{"item": item, "game": gs})
 }
 
 // snipeHero fires the Chasseur's "Tir précis" map skill (kills one creature of a
