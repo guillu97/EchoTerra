@@ -62,5 +62,13 @@ func (g *GameState) ClientView() *GameState {
 			cp.Monsters[id] = m
 		}
 	}
+	// ruines : mêmes règles que les monstres — invisibles tant que la tuile est
+	// sous la brume (la tuile vierge a déjà perdu son ruinId)
+	cp.Ruins = make(map[string]*Ruin, len(g.Ruins))
+	for id, ru := range g.Ruins {
+		if t := g.TileAt(ru.X, ru.Y); t != nil && t.Discovered {
+			cp.Ruins[id] = ru
+		}
+	}
 	return &cp
 }

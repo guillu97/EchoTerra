@@ -36,15 +36,18 @@ const ROLL_AMP = 1.1; // ondulation lente des plaines (± unités) — buttes en
 // Palette diorama par biome (désaturée façon maquette), deux nuances par biome.
 // Palette densifiée (retour utilisateur : « moins pâle ») — pastels francs,
 // pas délavés : verts qui existent, eau vraiment bleue, sable doré.
+// Recalée sur les VRAIES teintes des isotiles peintes (échantillon des faces
+// du dessus, 2026-07-19 — retour « pas assez coloré ») : verts chartreuse
+// saturés, eau lagon franche, sable doré, roche plus profonde.
 const DIORAMA: Record<number, [number, number, number][]> = {
-  0: [[110, 182, 214], [96, 170, 205]], // eau lagon
-  1: [[222, 199, 146], [213, 187, 130]], // sable doré
-  2: [[150, 200, 118], [136, 190, 104]], // herbe verte franche
-  3: [[124, 176, 92], [112, 166, 84]], // sol forêt (les arbres font la canopée)
-  4: [[190, 178, 160], [176, 164, 146]], // roche chaude
-  5: [[234, 238, 246], [222, 228, 238]], // neige
+  0: [[92, 182, 214], [76, 168, 204]], // eau lagon franche
+  1: [[233, 198, 130], [222, 185, 114]], // sable doré
+  2: [[160, 199, 82], [146, 188, 70]], // herbe chartreuse (isotile: 167,195,80)
+  3: [[128, 163, 66], [116, 152, 58]], // sol forêt (isotile: 131,153,71)
+  4: [[178, 162, 138], [163, 147, 122]], // roche chaude plus profonde
+  5: [[236, 240, 249], [224, 230, 242]], // neige
 };
-const CLIFF: [number, number, number] = [214, 199, 168]; // pierre des marches, plus chaude
+const CLIFF: [number, number, number] = [212, 192, 152]; // pierre des marches, plus chaude
 const UNDISCOVERED: [number, number, number] = [225, 227, 244]; // sous la brume
 
 // ombrage voxel par face (mêmes valeurs douces que le mesher des blocs)

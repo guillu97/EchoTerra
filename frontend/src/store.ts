@@ -153,6 +153,8 @@ interface StoreState {
   hide: () => Promise<void>;
   escape: () => Promise<void>;
   fireball: () => Promise<void>;
+  ruinClear: () => Promise<void>; // déblayer la ruine sous le héros (tous ses PA)
+  ruinExplore: () => Promise<void>; // fouiller le donjon déblayé (2 PA)
   snipe: () => Promise<void>; // Chasseur : Tir précis (tue 1 créature d'un pack ≤5 PV)
   advance: () => Promise<void>;
   skipDay: () => Promise<void>;
@@ -734,6 +736,34 @@ export const useStore = create<StoreState>((set, get) => {
         } else {
           pushLog(`🔥 ${name} lance une boule de feu sur ${r.species} (-${r.damage} PV).`);
         }
+        renderMap();
+      }),
+
+    ruinClear: () =>
+      withBusy(async () => {
+        const { game, selectedHeroId, playerId } = get();
+        if (!game || !selectedHeroId) return;
+        if (!ownsHero(selectedHeroId)) return;
+        const hero = game.heroes.find((h) => h.id === selectedHeroId);
+        const res = await api.ruinClear(game.id, selectedHeroId, hero?.pa ?? 1, playerId);
+        set({ game: res.game });
+        const ru = res.ruin;
+        pushLog(ru.cleared
+          ? `⛏️ ${ru.icon} ${ru.name} est DÉBLAYÉE — le donjon est ouvert !`
+          : `⛏️ ${hero?.name ?? "Le héros"} déblaie ${ru.name} (${ru.paInvested}/${ru.clearPa} PA).`);
+        renderMap();
+      }),
+
+    ruinExplore: () =>
+      withBusy(async () => {
+        const { game, selectedHeroId, playerId } = get();
+        if (!game || !selectedHeroId) return;
+        if (!ownsHero(selectedHeroId)) return;
+        const name = game.heroes.find((h) => h.id === selectedHeroId)?.name ?? "Le héros";
+        const res = await api.ruinExplore(game.id, selectedHeroId, playerId);
+        set({ game: res.game });
+        const it = res.item;
+        pushLog(`🏛️ ${name} explore le donjon et trouve ${it.qty > 1 ? it.qty + "× " : ""}${it.name} !`);
         renderMap();
       }),
 

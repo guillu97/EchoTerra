@@ -6,6 +6,121 @@
 
 ---
 
+## 2026-07-19 (34) — RUINES-DONJONS : déblayer en PA, puis fouiller le butin rare
+
+### Fait (gameplay demandé : ruines par biome → PA pour déblayer → donjon à items rares)
+- **Serveur** (`ruins.go`) : `Ruin {type, name, icon, x, y, clearPa, paInvested, cleared,
+  charges}` dans `GameState.Ruins` + `Tile.RuinID`. **5 types par biome** : Épave ensablée
+  (sable, 8 PA), Ferme abandonnée (prairie, 8), Sanctuaire englouti (forêt, 10), Mine
+  effondrée (montagne, 12), Tour gelée (neige, 12). Semées au worldgen (`SeedRuins`,
+  déterministe par seed, 1/biome présent, Chebyshev ≥ 3 de la ville, idempotent).
+- **Déblayage COLLECTIF** (`ClearRuin`) : comme les chantiers — chaque héros sur la case
+  investit ses PA (bornés au restant), cumul partagé entre joueurs ; refusé si Tétanisé/
+  combat. **Exploration** (`ExploreRuin`) : donjon déblayé, 2 PA, 4 charges puis « épuisé » ;
+  tirage pondéré PAR TYPE : matériaux rares (Acier, **Cœur de chêne ancien** au sanctuaire !),
+  items rares (Perle nacrée, Grimoire gelé, Relique…), **plans anciens** (phare/moulin/autel/
+  forge/observatoire) ; Récupérateur +1. Routes `POST /heroes/{h}/ruin/clear|explore`
+  (ownership multi ✓). **Fog** : ruines caviardées comme les monstres (ClientView).
+- **Front** : `Ruin` + `game.ruins` + `tile.ruinId`, actions store `ruinClear` (tous les PA
+  du héros) / `ruinExplore` + logs, **menu radial** : « ⛏️ Déblayer <icône> x/y » sur site
+  enseveli, « 🏛️ Explorer -2 · n 💎 » sur donjon ouvert (désactivé si épuisé/Tétanisé).
+- **Voxel** : 5 recettes `site-*` à DEUX ÉTATS — v0 enseveli (gravats devant l'entrée),
+  v1 déblayé (bouche sombre + lueur dorée du trésor) — la carte choisit la variante selon
+  `ruin.cleared` (pas au hasard) ; socle doré discret sur la case (plus vif si trésors
+  restants).
+
+### Fonctionnel (vérifié)
+- Go : `ruins_test.go` (semis déterministe/idempotent, chantier collectif borné, loot/
+  charges/épuisement, fog, Tétanisé) + suite complète verte. E2E HTTP réel : marche vers
+  une ruine, investissement 2/8 PA, refus corrects (0 PA, non déblayée). UI : harnais
+  synthétique — 5 sites rendus avec socles, menus radiaux exacts. `tsc` + build verts.
+- ⚠ e2e : un VIEUX backend tenait le port 8080 (le `curl || start` ne le remplace pas) —
+  tuer le PID via `fuser 8080/tcp` avant de tester du code serveur neuf.
+
+### Reste (idées)
+- Bots : ignorer/participer aux chantiers de déblayage ; MapScene Phaser (classique) ne
+  rend pas les sites ; effets gameplay des « plans anciens » (débloquer des recettes ?).
+
+## 2026-07-19 (33b) — Temple v3 : l'esplanade fait le TOUR
+
+### Fait
+- Grille 30×30×24 : **dallage damier sur les 4 côtés** (bordure sombre au pourtour,
+  allée claire du bord avant aux degrés), **colonnes votives dorées aux 4 coins**,
+  temple centré (crépis 5..24 × 7..22). Échelle carte 1.35 → **1.6** (grille plus
+  large, temple à taille égale, l'esplanade s'étale autour).
+
+### Fonctionnel (vérifié)
+- Harnais monde plat : esplanade carrée complète + 4 votives + couronne d'oliviers ;
+  e2e réel move/rotation OK ; `tsc` + build verts.
+
+## 2026-07-19 (33) — Temple v2 : proportions, PARVIS et couronne d'OLIVIERS
+
+### Fait
+- **Proportions élancées** : grille 26×26×24, colonnes 8 unités (fûts r 0.95),
+  entablement aminci, pente de toit adoucie (0.75).
+- **Parvis dallé** côté entrée : damier de dalles chaudes, allée centrale claire vers les
+  degrés, bordure sombre, **2 colonnes votives à flamme dorée** — la porte de la cella
+  fait face au parvis, et le mesh est tourné (`rotation.y = π`) pour que l'entrée regarde
+  la caméra par défaut.
+- **Olivier** (`olive`, 3 variantes) : tronc noueux en segments décalés, feuillage
+  vert-de-gris en boules aplaties. **Couronne de 6 oliviers** autour de la ville
+  (positions/rotations/échelles hachées sur `game.id`, posés sur la surface, jamais sur
+  l'eau connue).
+- **Enceinte dégagée** : le scatter saute maintenant la case ville ET ses 8 voisines
+  (plus d'arbre de prairie collé au temple — le parvis et les oliviers occupent la place).
+- Émissive du temple relevée (0x4a453e) : façade à l'ombre lisible.
+
+### Fonctionnel (vérifié)
+- Harnais monde plat : parvis + votives face caméra, 6 oliviers en couronne, enceinte
+  propre ; e2e partie réelle move/rotation OK ; `tsc` + build verts.
+- ⚠ harnais : le comptage juste après `bus.emit(MapRender)` précède le re-draw
+  post-chargement de propsLib — compter/capturer APRÈS le wait.
+
+## 2026-07-19 (32) — La VILLE en voxel : temple grec 3D sur la carte
+
+### Fait
+- Recette `temple` dans `gen-props.mjs` (grille 26×18×22 ×1.5 fin) : crépis à 3 degrés,
+  **colonnade périptère** (6 colonnes en façades avant/arrière + 1 par flanc — fûts RONDS
+  évalués par voxel fin via `cyl`), cella à porte sombre, entablement à triglyphes, comble
+  en prisme à pentes étagées (arête le long de X) dont les pignons dessinent les
+  **frontons**, toit terracotta, **acrotères dorés**. Symétrique dans sa grille → le
+  mesher l'ancre au CENTRE : posé pile sur la case ville.
+- `VoxelMapView` : le billboard `bld-church` est remplacé par un **Mesh 3D** (scale 1.35,
+  ombres) — fallback billboard si la géométrie n'est pas chargée. ⚠ le temple est fait de
+  FACES VERTICALES : ombrage cuit du mesher + Lambert = double peine (il rendait gris
+  boueux) → matériau dédié `TEMPLE_MAT` avec petite émissive chaude (0x3c3833).
+
+### Fonctionnel (vérifié)
+- Harnais déterministe (monde plat injecté par le bus, plein jour) : temple crème/terracotta
+  net, centré sur sa case, socle dessous ; preview `asset-index/voxels/props/temple.png` ;
+  e2e partie réelle move/rotation OK ; `tsc` + build verts.
+
+## 2026-07-19 (31) — COULEURS ravivées partout (retour « pas assez coloré comme les images iso »)
+
+### Fait
+- **Diagnostic en deux moitiés** : (1) les palettes voxel étaient plus laiteuses que les
+  isotiles peintes — mesuré en échantillonnant la face du dessus des PNG (herbe RÉELLE
+  167,195,80 vs palette 150,200,118) ; (2) surtout, **l'éclairage SUREXPOSAIT** : hemi 1.2 +
+  soleil 1.7 → jusqu'à ×2,6 sur les faces du dessus, tout canal d'albedo > 0,39 clampait à
+  blanc = délavage général quelles que soient les palettes.
+- **Exposition recalée** (`engine.ts`) : hemi 0.75 / soleil 1.05 (mêmes rapports → même
+  modelé), rampes du cycle ré-étagées (aube 0.85+0.7, zénith ~1.6 avec léger bloom sur les
+  seuls très clairs, crépuscule 0.6+0.58 mauve). Vérifié aux trois moments du cycle.
+- **Terrain** (`smoothTerrain.DIORAMA`) recalé sur les teintes MESURÉES des isotiles :
+  herbe chartreuse 160,199,82, sol forêt 128,163,66, eau lagon 92,182,214, sable doré
+  233,198,130, roche plus profonde, CLIFF plus chaud.
+- **Props** : boost `vividProp` (×1.3 d'écart au gris + lift 1.02) appliqué à la palette de
+  CHAQUE modèle à l'écriture — les quasi-neutres (neige, pierre) bougent à peine.
+- **Blocs** (`gen-blocks.pastelize`) : l'ancien voile blanc 14 % + désaturation 10 %
+  DÉLAVAIT les palettes extraites → voile 6 % + saturation ×1.2. 32³ + LOD 16³ régénérés.
+- **Persos** : `vivid` k 1.45 → 1.55-1.7 selon la zone ; **monstres** : vivid AJOUTÉ
+  (corps ×1.4, accent ×1.5 — ils n'en avaient pas du tout).
+
+### Fonctionnel (vérifié)
+- Plein jour : sable doré, herbe chartreuse, monstres qui claquent ; bande aube/zénith/
+  crépuscule équilibrée (aube dorée douce, crépuscule mauve lisible) ; planche des blocs
+  nettement plus proche des isotiles ; e2e move/rotation OK ; `tsc` + build verts.
+
 ## 2026-07-18 (30) — FIX : les couleurs de tuiles étaient décalées d'une demi-case
 
 ### Fait

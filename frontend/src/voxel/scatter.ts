@@ -120,7 +120,9 @@ export function scatterProps(src: ScatterSource): PropPlacement[] {
     for (let x = 0; x < width; x++) {
       const t = tiles[y * width + x];
       if (!t.discovered) continue;
-      if (x === townX && y === townY) continue; // l'église est là
+      // enceinte de la ville : la case du temple ET son anneau de 8 voisines
+      // restent dégagés (le parvis + la couronne d'oliviers occupent la place)
+      if (Math.max(Math.abs(x - townX), Math.abs(y - townY)) <= 1) continue;
       const f = flagsOf(x, y, t);
       const h = (s: number) => h01(x, y, s);
       // nappes basse fréquence (hautes herbes de prairie) : cellules 3×3

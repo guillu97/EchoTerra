@@ -180,6 +180,9 @@ func newWorld(width, height int, seed int64) *game.GameState {
 	// resources: bots' nearest-resource targeting and the UI would chase a tile
 	// that can never be harvested.
 	gs.Tiles[ty*width+tx].Resources = 0
+	// Ruines-donjons : un bâtiment en ruine par biome présent (déterministe par
+	// seed) — chantier de déblayage collectif puis donjon à butin rare (ruins.go).
+	gs.SeedRuins()
 	return gs
 }
 

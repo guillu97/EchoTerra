@@ -8,6 +8,7 @@ import type {
   MyGameSummary,
   Player,
   Recipe,
+  Ruin,
   User,
 } from "./types";
 
@@ -157,6 +158,19 @@ export const api = {
     req<{ report: FireballReport; game: GameState }>(
       "POST",
       `/api/games/${gameId}/heroes/${heroId}/snipe`,
+      { playerId },
+    ),
+
+  ruinClear: (gameId: string, heroId: string, points: number, playerId?: string) =>
+    req<{ ruin: Ruin; game: GameState }>(
+      "POST",
+      `/api/games/${gameId}/heroes/${heroId}/ruin/clear`,
+      { points, playerId },
+    ),
+  ruinExplore: (gameId: string, heroId: string, playerId?: string) =>
+    req<{ item: Item; game: GameState }>(
+      "POST",
+      `/api/games/${gameId}/heroes/${heroId}/ruin/explore`,
       { playerId },
     ),
 

@@ -69,15 +69,18 @@ const MIST_PALETTE = {
 
 const lum = ([r, g, b]) => 0.299 * r + 0.587 * g + 0.114 * b;
 
-// Lift PASTEL (passe beauté) : léger voile blanc + désaturation douce — les
-// palettes extraites gardent leur identité mais gagnent la douceur storybook
-// (l'éclairage 3D restitue ensuite le modelé sans salir les teintes).
+// Passe beauté RAVIVÉE (2026-07-19, retour « pas assez coloré comme les images
+// iso ») : l'ancien pastelize (voile blanc 14 % + désaturation 10 %) délavait
+// les palettes extraites — remplacé par un léger voile (6 %) + BOOST de
+// saturation ×1.2 : on retrouve le punch des tuiles peintes, l'éclairage 3D
+// garde son rôle de modelé.
 function pastelize([r, g, b]) {
-  const lift = (v) => v + (255 - v) * 0.14;
-  let [pr, pg, pb] = [lift(r), lift(g), lift(b)];
+  const lift = (v) => v + (255 - v) * 0.06;
+  const [pr, pg, pb] = [lift(r), lift(g), lift(b)];
   const gray = 0.299 * pr + 0.587 * pg + 0.114 * pb;
-  const k = 0.1;
-  return [Math.round(pr + (gray - pr) * k), Math.round(pg + (gray - pg) * k), Math.round(pb + (gray - pb) * k)];
+  const k = 1.2; // > 1 : on ÉCARTE du gris au lieu de s'en rapprocher
+  const c = (v) => Math.max(0, Math.min(255, Math.round(gray + (v - gray) * k)));
+  return [c(pr), c(pg), c(pb)];
 }
 const sat = ([r, g, b]) => { const mx = Math.max(r, g, b), mn = Math.min(r, g, b); return mx ? (mx - mn) / mx : 0; };
 const dist2 = (a, b) => (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2;
