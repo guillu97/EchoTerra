@@ -100,7 +100,8 @@ export function buildTerrain(lib: BlockLibrary, cells: TerrainCell[]): {
   let instances = 0;
   const m = new THREE.Matrix4();
   for (const [key, { geom, items }] of buckets.entries()) {
-    const mesh = new THREE.InstancedMesh(geom, key.startsWith("mist") ? mistMat : mat, items.length);
+    const mist = key.startsWith("mist");
+    const mesh = new THREE.InstancedMesh(geom, mist ? mistMat : mat, items.length);
     const cellsOf: TerrainCell[] = [];
     for (let i = 0; i < items.length; i++) {
       const { cell, level } = items[i];
@@ -111,8 +112,10 @@ export function buildTerrain(lib: BlockLibrary, cells: TerrainCell[]): {
     }
     mesh.instanceMatrix.needsUpdate = true;
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
+    // ⚠ la BRUME ne projette ni ne reçoit d'ombre : son mur en projetait des
+    // bandes PCF sombres qui scintillaient le long de la frontière du fog
+    mesh.castShadow = !mist;
+    mesh.receiveShadow = !mist;
     lookup.set(mesh, cellsOf);
     group.add(mesh);
     instances += items.length;

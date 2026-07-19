@@ -6,6 +6,23 @@
 
 ---
 
+## 2026-07-19 (38) — FIX : scintillements noirs du brouillard de guerre
+
+### Fait (bug signalé : « le fog of war a des soucis de scintillements/noir »)
+- Cause principale : le MUR DE BRUME **projetait des ombres** (buildTerrain mettait
+  `castShadow=true` sur tous les meshes, brume comprise) → bandes PCF sombres le long de
+  la frontière du fog, qui rampaient/scintillaient au pan (shadow map 1024 trop juste,
+  pire à DPR 3 mobile). La vapeur ne fait pas d'ombre : `castShadow/receiveShadow=false`
+  pour les meshes `mist*`.
+- Shadow map **1024 → 2048** (fourmillement PCF réduit sur téléphone) ; quads d'overlay
+  (losanges/danger/socle) relevés de +0.02 → +0.045 au-dessus de la face de brume
+  (z-fight potentiel à DPR élevé).
+
+### Fonctionnel (vérifié)
+- Frontière brume/terrain nette en capture ; e2e move/rotation OK ; `tsc` + build verts.
+- Si un scintillement persiste sur appareil réel : demander une capture (les artefacts
+  device-specific ne se reproduisent pas en GL logiciel).
+
 ## 2026-07-19 (37) — NUAGES dérivants au-dessus de la carte et de la ville
 
 ### Fait

@@ -339,7 +339,7 @@ class MapWorld {
         new THREE.PlaneGeometry(0.96, 0.96).rotateX(-Math.PI / 2),
         new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false }),
       );
-      m.position.set(x, top + 0.02, y);
+      m.position.set(x, top + 0.045, y); // 0.02 z-fightait avec la face de brume à DPR élevé
       this.overlays.add(m);
     };
     const tileAt = (x: number, y: number) =>
