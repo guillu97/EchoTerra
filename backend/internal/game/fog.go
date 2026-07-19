@@ -9,8 +9,12 @@ package game
 // action (move, escape, combat retreat) without each action needing to know about fog.
 
 const (
-	heroSightRadius = 2 // Chebyshev radius a hero reveals around itself
-	townSightRadius = 3 // the town reveals a slightly wider ring at the start
+	// Exploration AU CONTACT (2026-07-19) : un héros ne révèle que SA case —
+	// il faut marcher sur le brouillard pour savoir ce qu'il cache. Seul
+	// l'Éclaireur garde une case d'avance (son passif de vision).
+	heroSightRadius      = 0 // rayon Chebyshev révélé par un héros normal
+	eclaireurSightRadius = 1 // passif Éclaireur : voit une case à l'avance
+	townSightRadius      = 3 // the town reveals a slightly wider ring at the start
 )
 
 // revealAround marks every in-bounds tile within Chebyshev radius r of (cx,cy) as discovered.
@@ -31,9 +35,9 @@ func (g *GameState) RevealVision() {
 	for _, h := range g.Heroes {
 		if h.HP > 0 {
 			r := heroSightRadius
-			// Éclaireur "Observation Large": extended vision (+1 tile, passive).
+			// Éclaireur "Observation Large": voit une case à l'avance (passif).
 			if h.ClassID == "eclaireur" {
-				r++
+				r = eclaireurSightRadius
 			}
 			g.revealAround(h.X, h.Y, r)
 		}

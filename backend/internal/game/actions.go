@@ -54,7 +54,23 @@ func (g *GameState) MoveHero(heroID string, dx, dy int) error {
 	}
 	nx, ny := h.X+dx, h.Y+dy
 	t := g.TileAt(nx, ny)
-	if t == nil || !t.Biome.Walkable() {
+	if t == nil {
+		return ActionError{"case inaccessible"}
+	}
+	if !t.Biome.Walkable() {
+		// Eau SOUS LE BROUILLARD (exploration au contact) : le héros s'avance,
+		// paie son PA et DÉCOUVRE l'eau… mais reste sur sa case. Une fois l'eau
+		// connue, le client masque la destination et le serveur refuse gratis.
+		if !t.Discovered {
+			h.PA--
+			h.Bars["athletisme"]++
+			h.RemoveState("Caché") // il a bougé à découvert
+			t.Discovered = true
+			if h.PA == 0 {
+				h.AddState(StateFatigue)
+			}
+			return nil
+		}
 		return ActionError{"case inaccessible"}
 	}
 	// A built, closed gate seals the town in BOTH directions.

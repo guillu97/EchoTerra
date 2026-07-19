@@ -6,6 +6,28 @@
 
 ---
 
+## 2026-07-19 (35) — EXPLORATION AU CONTACT : le fog ne se lève qu'en marchant dessus
+
+### Fait (demande : seule l'Éclaireur voit à l'avance)
+- **`fog.go`** : `heroSightRadius` 2 → **0** (un héros ne révèle que SA case) ;
+  l'**Éclaireur** garde son passif = `eclaireurSightRadius` **1** (une case d'avance).
+  L'anneau de la ville (r=3) est inchangé.
+- **Sonde d'eau cachée** (`MoveHero`) : marcher vers une case NON DÉCOUVERTE qui s'avère
+  être de l'eau → le héros **paie 1 PA, la case est révélée, mais il n'est PAS déplacé**
+  (il rebrousse chemin) ; la cachette est brisée, Fatigue à 0 PA. Une fois l'eau CONNUE,
+  le refus redevient gratuit (et le client masque le losange). Les BOTS ne sondent jamais
+  (ils lisent l'état complet et vérifient `Walkable` avant de bouger).
+- **Front** : les losanges de déplacement couvraient déjà les cases de brume (ils
+  n'excluent que l'« eau connue ») ; ajout du log « 🌊 X découvre de l'eau — rebrousse
+  chemin (-1 PA) » (détection : PA dépensé + position inchangée après un move).
+
+### Fonctionnel (vérifié)
+- Go : `TestContactExplorationVision` (héros normal = sa case seule, Éclaireur = rayon 1),
+  `TestMoveIntoHiddenWaterRevealsWithoutMoving` (PA, révélation, pas de déplacement,
+  cachette brisée, refus gratuit ensuite) + suite complète verte.
+- E2E HTTP réel : 5 pas — 0 nouvelle case dans l'anneau de départ, puis exactement +1
+  case par pas ; move/rotation OK ; `tsc` + build verts.
+
 ## 2026-07-19 (34) — RUINES-DONJONS : déblayer en PA, puis fouiller le butin rare
 
 ### Fait (gameplay demandé : ruines par biome → PA pour déblayer → donjon à items rares)

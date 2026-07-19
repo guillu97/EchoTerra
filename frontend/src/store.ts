@@ -669,8 +669,15 @@ export const useStore = create<StoreState>((set, get) => {
         const { game, selectedHeroId, playerId } = get();
         if (!game || !selectedHeroId) return;
         if (!ownsHero(selectedHeroId)) return;
+        const before = game.heroes.find((h) => h.id === selectedHeroId);
         const next = await api.move(game.id, selectedHeroId, dx, dy, playerId);
         set({ game: next });
+        // Sonde d'exploration : PA dépensé mais position inchangée = le héros a
+        // découvert de l'EAU sous le brouillard et rebroussé chemin (serveur).
+        const after = next.heroes.find((h) => h.id === selectedHeroId);
+        if (before && after && after.x === before.x && after.y === before.y && after.pa < before.pa) {
+          pushLog(`🌊 ${after.name} découvre de l'eau — impossible d'avancer, il rebrousse chemin (-1 PA).`);
+        }
         // If the last hero just left town, leave any town-only tab.
         const inTown = next.heroes.some((h) => h.hp > 0 && h.x === next.town.x && h.y === next.town.y);
         const t = get().tab;
