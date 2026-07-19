@@ -565,7 +565,10 @@ chute COMPLÈTE à travers les terrasses du lissage, écume au pied), algues aff
 (teinte des colonnes d'eau par bruit dans `colColor`), murets en ruine ALIGNÉS (cellules
 6×6, rotation posée) et ruines éparses 2-3/carte (colonne/dalle/arche, passe `ruins()` —
 ⚠ `^` renvoie un int32 signé : toujours `>>> 0` avant `%`/indexation). Le plan
-WORLD-DETAILS est ✅ livré en totalité (50 props ×3 variantes). **Résolution ×
+WORLD-DETAILS est ✅ livré en totalité (50 props ×3 variantes). **Nuages (2026-07-19)** :
+`clouds.ts` partagé carte/ville — dérive CONTINUE (rAF gated par onglet actif + page
+visible, première boucle continue du moteur), anti-pattern par re-tirage du
+couloir/altitude/silhouette à chaque tour de piste, castShadow (ombres mouvantes). **Résolution ×
 (2026-07-18)** : props stockés ×1.5 (30×30×45, gabarits inchangés — formes courbes évaluées
 PAR voxel fin via l'`ellipsoid` partagé + cônes sapin + disque nénuphar ; teinte par nappes
 de 2 cellules pour le greedy), monstres ×1.6, persos `CHAR_FINE` 2.5 (chanfrein de coin
