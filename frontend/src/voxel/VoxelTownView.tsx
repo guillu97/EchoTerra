@@ -186,7 +186,7 @@ export function VoxelTownView({
       }
       spotsRef.current = list;
       setSpotList(list);
-      engine.invalidate();
+      engine.refreshShadows(); // bâtiments changés → passe d'ombres à re-rendre
     };
     let clouds: Clouds | null = null;
     void propsLib
@@ -200,6 +200,7 @@ export function VoxelTownView({
           span: Math.max(doc.gridW, doc.gridH) + 16,
           altitude: [14, 18], speed: [0.35, 0.7], scale: [3, 5],
           seed: 4242,
+          groundAt: () => 1.06, // niveau de la place — la tache glisse sur l'herbe
         });
         engine.scene.add(clouds.group);
       });
@@ -257,7 +258,7 @@ export function VoxelTownView({
         lbl.position.set(gpos.x, gpos.lvl + 1.18, gpos.y);
         heroGroup.add(lbl);
       }
-      engine.invalidate();
+      engine.refreshShadows(); // héros ajoutés/retirés → ombres à jour
     };
 
     // pastilles DOM projetées à chaque frame (imperatif — pas de re-render React)
@@ -291,6 +292,7 @@ export function VoxelTownView({
       const built = buildStacks(lib, items);
       terrain = built.group;
       engine.scene.add(built.group);
+      engine.refreshShadows();
       const cxm = (minX + maxX) / 2;
       const cym = (minY + maxY) / 2;
       engine.target.set(cxm, 0, cym);

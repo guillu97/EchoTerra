@@ -6,6 +6,26 @@
 
 ---
 
+## 2026-07-19 (40) — FIX : ombre des nuages décalée + lag au pan de la ville
+
+### Fait (retours : « l'ombre est trop décalée », « la carte de la ville lag un peu »)
+- Les deux avaient la même racine : les nuages passaient par la VRAIE passe d'ombres —
+  (1) l'ombre solaire atterrit à altitude/tan(élévation) du nuage (10-20 unités de
+  décalage), (2) la boucle continue re-rendait la shadow map 2048² À CHAQUE FRAME
+  (toute la scène re-dessinée deux fois, 60×/s) → lag au pan de la ville.
+- **Ombres FACTICES** (`clouds.ts`) : tache radiale douce (CanvasTexture 64², plan
+  transparent) posée PILE sous chaque nuage, à la hauteur du sol (`groundAt` fourni par
+  la vue : surface lissée sur les tuiles connues, sommet du mur de brume sinon ; niveau
+  de la place en ville). `castShadow=false` sur les nuages.
+- **Shadow map FIGÉE** (`engine.ts`) : `shadowMap.autoUpdate=false` — re-rendue seulement
+  quand la CLÉ change (cible/cycle solaire, détectée au rendu) ou sur `refreshShadows()`
+  appelé par les vues à leurs rebuilds (draw() carte ; terrain/bâtiments/héros ville).
+
+### Mesuré (suite test:perf:voxel, 11/11 ✓)
+- Draw calls vraie partie **131 → 65** (la passe d'ombres sort des frames au repos) ;
+  vue ville **865 k → 430 k tris/frame** ; carte 1,18 M tris ; cadence GL logiciel
+  3,3 → 4,0 rendus/s. Taches d'ombre sous les nuages vérifiées en capture (sol + brume).
+
 ## 2026-07-19 (39) — SUITE DE PERF VOXEL + fix de la suite Phaser
 
 ### Fait (demande : « teste les performances »)

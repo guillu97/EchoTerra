@@ -325,6 +325,11 @@ class MapWorld {
         span: Math.max(game.width, game.height) + 18,
         altitude: [7.5, 10.5], speed: [0.25, 0.55], scale: [2.2, 4.2],
         seed: seed % 100000,
+        // ombre factice posée sur le sol connu, sinon sur le mur de brume
+        groundAt: (x, z) => {
+          const t = this.game?.tiles[Math.round(z) * (this.game?.width ?? 1) + Math.round(x)];
+          return t?.discovered ? this.smooth.heightAt(x, z) : 2;
+        },
       });
       engine.scene.add(this.clouds.group);
       this.cloudsFor = game.id;
@@ -506,6 +511,8 @@ class MapWorld {
         });
       }
     }
+
+    this.engine.refreshShadows(); // le contenu a pu changer (terrain/props/sprites)
 
     // cadrage initial : zoomé sur la ville (comme MapScene)
     if (!this.fitted) {
