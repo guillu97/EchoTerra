@@ -407,7 +407,9 @@ class MapWorld {
       m.castShadow = true;
       m.receiveShadow = true;
       m.position.set(game.town.x, topOf(game.town.x, game.town.y) - 0.03, game.town.y);
-      m.scale.setScalar(2.1); // la ville DOMINE la carte : c'est le repère central
+      // repère central, mais le modèle inclut un PARVIS (grille 30) : trop gros, il
+      // débordait sur les cases voisines (et sous les losanges de déplacement).
+      m.scale.setScalar(1.6);
       m.rotation.y = Math.PI; // parvis + porte face à la caméra par défaut
       this.sprites.add(m);
     } else {
