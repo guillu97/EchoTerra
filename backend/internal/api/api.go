@@ -191,6 +191,10 @@ func (s *Server) Router() http.Handler {
 		writeJSON(w, http.StatusOK, game.Classes)
 	})
 
+	r.Get("/api/mapskills", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, game.MapSkills)
+	})
+
 	r.Route("/api/auth", s.authRoutes)
 
 	r.Route("/api/games", func(r chi.Router) {
@@ -216,8 +220,7 @@ func (s *Server) Router() http.Handler {
 			r.Post("/heroes/{heroID}/search", s.searchTile)
 			r.Post("/heroes/{heroID}/hide", s.hideHero)
 			r.Post("/heroes/{heroID}/escape", s.escapeHero)
-			r.Post("/heroes/{heroID}/fireball", s.fireballHero)
-			r.Post("/heroes/{heroID}/snipe", s.snipeHero)
+			r.Post("/heroes/{heroID}/skill", s.castMapSkill)
 			r.Post("/heroes/{heroID}/ruin/clear", s.ruinClear)
 			r.Post("/heroes/{heroID}/ruin/explore", s.ruinExplore)
 			r.Post("/heroes/{heroID}/evolve", s.evolveHero)
@@ -829,15 +832,25 @@ func (s *Server) escapeHero(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, gs)
 }
 
-func (s *Server) fireballHero(w http.ResponseWriter, r *http.Request) {
+// castMapSkill runs a hero's class map skill (remplace fireball/snipe) — le corps
+// porte l'id de la compétence choisie côté client.
+func (s *Server) castMapSkill(w http.ResponseWriter, r *http.Request) {
 	gs := s.mustGame(w, r)
 	if gs == nil {
 		return
 	}
-	if !s.ownHero(w, gs, decodePlayer(r), chi.URLParam(r, "heroID")) {
+	var body struct {
+		SkillID  string `json:"skillId"`
+		PlayerID string `json:"playerId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeErr(w, http.StatusBadRequest, "corps invalide")
 		return
 	}
-	rep, err := gs.FireballHero(chi.URLParam(r, "heroID"))
+	if !s.ownHero(w, gs, body.PlayerID, chi.URLParam(r, "heroID")) {
+		return
+	}
+	rep, err := gs.CastMapSkill(chi.URLParam(r, "heroID"), body.SkillID)
 	if err != nil {
 		writeActionErr(w, err)
 		return
@@ -888,25 +901,6 @@ func (s *Server) ruinExplore(w http.ResponseWriter, r *http.Request) {
 	}
 	s.persist(gs)
 	writeJSON(w, http.StatusOK, map[string]any{"item": item, "game": gs})
-}
-
-// snipeHero fires the Chasseur's "Tir précis" map skill (kills one creature of a
-// weakened pack on the hero's tile).
-func (s *Server) snipeHero(w http.ResponseWriter, r *http.Request) {
-	gs := s.mustGame(w, r)
-	if gs == nil {
-		return
-	}
-	if !s.ownHero(w, gs, decodePlayer(r), chi.URLParam(r, "heroID")) {
-		return
-	}
-	rep, err := gs.PreciseShotHero(chi.URLParam(r, "heroID"))
-	if err != nil {
-		writeActionErr(w, err)
-		return
-	}
-	s.persist(gs)
-	writeJSON(w, http.StatusOK, map[string]any{"report": rep, "game": gs})
 }
 
 func (s *Server) evolveHero(w http.ResponseWriter, r *http.Request) {
@@ -1100,7 +1094,8 @@ func (s *Server) combatAction(w http.ResponseWriter, r *http.Request) {
 		X        int    `json:"x"`
 		Y        int    `json:"y"`
 		TargetID string `json:"targetId"`
-		Item     string `json:"item"` // action "item" (C3) : nom de l'objet du sac
+		SkillIdx int    `json:"skillIdx"` // action "skill" : quelle compétence iso (défaut 0)
+		Item     string `json:"item"`     // action "item" (C3) : nom de l'objet du sac
 		PlayerID string `json:"playerId"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -1123,7 +1118,7 @@ func (s *Server) combatAction(w http.ResponseWriter, r *http.Request) {
 	if body.Action == "item" {
 		err = c.UseItem(gs, body.UnitID, body.Item) // touche le sac du héros → besoin de gs
 	} else {
-		err = c.PlayerAction(body.UnitID, body.Action, body.X, body.Y, body.TargetID)
+		err = c.PlayerAction(body.UnitID, body.Action, body.X, body.Y, body.TargetID, body.SkillIdx)
 	}
 	if err != nil {
 		writeActionErr(w, err)
@@ -1182,6 +1177,21 @@ func combatResponse(gs *game.GameState, c *game.Combat) map[string]any {
 			}
 			atkTargets := c.TargetsFor(cur, &base)
 			skTargets := c.TargetsFor(cur, &sk)
+			// Liste COMPLÈTE des compétences iso du héros (une par bouton) — chacune
+			// avec ses cibles et fourchettes prêtes à afficher.
+			isoSkills := c.HeroSkills(cur)
+			skills := make([]map[string]any, 0, len(isoSkills))
+			for i := range isoSkills {
+				s := isoSkills[i]
+				tgts := c.TargetsFor(cur, &s)
+				skills = append(skills, map[string]any{
+					"idx":       i,
+					"skill":     s,
+					"targets":   idsOf(tgts),
+					"estimates": estimatesOf(c, cur, &s, tgts),
+					"selfCast":  s.SelfShield || s.BuffAllies,
+				})
+			}
 			resp["current"] = map[string]any{
 				"unitId":        cur.ID,
 				"reachable":     reach,
@@ -1191,6 +1201,8 @@ func combatResponse(gs *game.GameState, c *game.Combat) map[string]any {
 				// Fourchettes de dégâts prévisualisées (lot C2) — calcul serveur.
 				"attackEstimates": estimatesOf(c, cur, &base, atkTargets),
 				"skillEstimates":  estimatesOf(c, cur, &sk, skTargets),
+				// Compétences iso multiples (une par bouton).
+				"skills": skills,
 				// Lot C3 : cibles de Poussée + objets du sac utilisables en combat.
 				"pushTargets": idsOf(c.PushTargets(cur)),
 				"items":       usableItemsOf(gs, cur),

@@ -1,10 +1,11 @@
 import type {
   ClassDef,
   CombatResponse,
-  FireballReport,
   GameState,
   GameSummary,
   Item,
+  MapSkillDef,
+  MapSkillReport,
   MyGameSummary,
   Player,
   Recipe,
@@ -148,17 +149,12 @@ export const api = {
   escape: (gameId: string, heroId: string, playerId?: string) =>
     req<GameState>("POST", `/api/games/${gameId}/heroes/${heroId}/escape`, { playerId }),
 
-  fireball: (gameId: string, heroId: string, playerId?: string) =>
-    req<{ report: FireballReport; game: GameState }>(
+  // Compétence de carte par classe (remplace fireball/snipe) — skillId du catalogue.
+  castSkill: (gameId: string, heroId: string, skillId: string, playerId?: string) =>
+    req<{ report: MapSkillReport; game: GameState }>(
       "POST",
-      `/api/games/${gameId}/heroes/${heroId}/fireball`,
-      { playerId },
-    ),
-  snipe: (gameId: string, heroId: string, playerId?: string) =>
-    req<{ report: FireballReport; game: GameState }>(
-      "POST",
-      `/api/games/${gameId}/heroes/${heroId}/snipe`,
-      { playerId },
+      `/api/games/${gameId}/heroes/${heroId}/skill`,
+      { skillId, playerId },
     ),
 
   ruinClear: (gameId: string, heroId: string, points: number, playerId?: string) =>
@@ -179,6 +175,8 @@ export const api = {
   recipes: () => req<Recipe[]>("GET", "/api/recipes"),
 
   classes: () => req<ClassDef[]>("GET", "/api/classes"),
+
+  mapSkills: () => req<MapSkillDef[]>("GET", "/api/mapskills"),
 
   evolve: (gameId: string, heroId: string, classId: string, playerId?: string) =>
     req<GameState>("POST", `/api/games/${gameId}/heroes/${heroId}/evolve`, { classId, playerId }),
@@ -223,6 +221,7 @@ export const api = {
       x?: number;
       y?: number;
       targetId?: string;
+      skillIdx?: number; // action "skill" : quelle compétence iso
       item?: string; // action "item" (C3) : nom de l'objet du sac
       playerId?: string;
     },

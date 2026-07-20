@@ -6,12 +6,12 @@ import { VoxelCombatView } from "../voxel/VoxelCombatView";
 import { bus, EV } from "../eventBus";
 import { heroTexKey, libUrl, monsterTexKey } from "../assets";
 import { MapHeroBar } from "../components/MapHeroBar";
+import { CombatHeroBar } from "../components/CombatHeroBar";
+import { mapSkillsForHero } from "../skills";
 
 // Radial action menu (Hordes-style) that pops at the selected hero when tapped on the map.
-const FIREBALL_PA = 2; // mirrors backend FireballPACost
-
 function ActionMenu() {
-  const { game, selectedHeroId, search, startCombat, hide, escape, fireball, ruinClear, ruinExplore, busy } = useStore();
+  const { game, selectedHeroId, mapSkills, search, startCombat, hide, escape, castSkill, ruinClear, ruinExplore, busy } = useStore();
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
 
   useEffect(() => bus.on(EV.MapHeroMenu, ({ sx, sy }: { sx: number; sy: number }) => setPos({ x: sx, y: sy })), []);
@@ -24,13 +24,16 @@ function ActionMenu() {
   const tile = tileAt(hero.x, hero.y);
   const onTown = hero.x === game.town.x && hero.y === game.town.y;
   const onMonster = !!tile?.monsterId;
-  // Fire ball reaches the hero's tile or any orthogonally adjacent pack.
-  const monsterInRange =
+  // Un pack sur la case du héros ou orthogonalement adjacent (portée des sorts blast).
+  const monsterAdjacent =
     onMonster ||
     [[0, -1], [0, 1], [-1, 0], [1, 0]].some(([dx, dy]) => !!tileAt(hero.x + dx, hero.y + dy)?.monsterId);
   const stuck = hero.states.includes("Tétanisé");
   const ruin = tile?.ruinId ? game.ruins?.[tile.ruinId] : undefined;
   const noPa = busy || hero.pa <= 0;
+  // Compétences de carte de la classe du héros disponibles ICI (une cible à portée).
+  const heroSkills = mapSkillsForHero(mapSkills, hero.classId);
+  const usableSkills = heroSkills.filter((sk) => (sk.kind === "snipe" ? onMonster : monsterAdjacent));
   const close = () => setPos(null);
   const run = async (fn: () => Promise<void>) => {
     close();
@@ -50,16 +53,18 @@ function ActionMenu() {
             ⚔️ Fight
           </button>
         )}
-        {/* Fire ball (map skill, mockup page 3): ranged blast on a pack on/next to the hero. */}
-        {monsterInRange && (
+        {/* Compétences de carte PAR CLASSE (remplacent la boule de feu universelle). */}
+        {usableSkills.map((sk) => (
           <button
-            className="am-fireball"
-            disabled={busy || hero.pa < FIREBALL_PA}
-            onClick={() => run(fireball)}
+            key={sk.id}
+            className="am-skill"
+            disabled={busy || hero.pa < sk.pa}
+            title={sk.desc}
+            onClick={() => run(() => castSkill(sk.id))}
           >
-            🔥 Fire ball <i>-{FIREBALL_PA}</i>
+            {sk.icon} {sk.name} <i>-{sk.pa}</i>
           </button>
-        )}
+        ))}
         {/* Ruine-donjon sous le héros : déblayage collectif puis exploration. */}
         {ruin && !ruin.cleared && (
           <button
@@ -246,7 +251,7 @@ function CombatEndScreen() {
 
 function CombatControls() {
   const {
-    combat, current, combatMode, setCombatMode, combatUnitClick,
+    combat, current, combatMode, combatSkillIdx, setCombatMode, selectCombatSkill, combatUnitClick,
     combatDefend, combatFlee, combatUseItem, endTurn, busy, game, playerId,
   } = useStore();
   if (!combat) return null;
@@ -256,14 +261,15 @@ function CombatControls() {
   // présent s'affiche en attente (les absents sont joués par l'IA côté serveur).
   const legacy = (game?.players?.length ?? 0) === 0;
   const myTurn = !!curUnit && curUnit.side === "hero" && (legacy || !curUnit.ownerId || curUnit.ownerId === playerId);
+  const skills = current?.skills ?? [];
+  const activeSkill = combatMode === "skill" ? skills[combatSkillIdx] : undefined;
   const targetList =
-    current &&
-    (combatMode === "skill"
-      ? current.skillTargets
+    combatMode === "skill"
+      ? activeSkill?.targets ?? []
       : combatMode === "push"
-        ? current.pushTargets ?? []
-        : current.attackTargets);
-  const estimates = current && (combatMode === "skill" ? current.skillEstimates : current.attackEstimates);
+        ? current?.pushTargets ?? []
+        : current?.attackTargets ?? [];
+  const estimates = combatMode === "skill" ? activeSkill?.estimates : current?.attackEstimates;
   const onBottomEdge = !!curUnit && curUnit.y === combat.gridH - 1;
 
   return (
@@ -293,10 +299,7 @@ function CombatControls() {
           </div>
           <div className="line">
             <button className={`small ${combatMode === "attack" ? "red" : ""}`} disabled={busy} onClick={() => setCombatMode("attack")}>
-              Attaque
-            </button>
-            <button className={`small ${combatMode === "skill" ? "red" : ""}`} disabled={busy} onClick={() => setCombatMode("skill")}>
-              {current?.skill?.name || "Compétence"}
+              ⚔️ Attaque
             </button>
             <button
               className={`small ${combatMode === "push" ? "red" : ""}`}
@@ -307,9 +310,26 @@ function CombatControls() {
               👐 Pousser
             </button>
             <button className="small" disabled={busy} onClick={() => endTurn()}>
-              Fin du tour
+              ⏭ Fin du tour
             </button>
           </div>
+          {/* Compétences iso de la CLASSE (une par bouton) — la capacité sur soi
+              (Posture défensive…) part immédiatement, les autres arment le ciblage. */}
+          {skills.length > 0 && (
+            <div className="line">
+              {skills.map((sk) => (
+                <button
+                  key={sk.idx}
+                  className={`small skill ${combatMode === "skill" && combatSkillIdx === sk.idx ? "red" : ""}`}
+                  disabled={busy}
+                  title={sk.skill.desc || sk.skill.name}
+                  onClick={() => selectCombatSkill(sk.idx)}
+                >
+                  ✨ {sk.skill.name}
+                </button>
+              ))}
+            </div>
+          )}
           {/* Actions C3 : Défendre (termine le tour), objets du sac, fuite au bord bas. */}
           <div className="line">
             <button
@@ -427,7 +447,10 @@ export function MapTab({ active = true }: { active?: boolean }) {
         <>
           <InitiativeBar />
           <CombatEndScreen />
-          <CombatControls />
+          <div className="map-bottom">
+            <CombatHeroBar />
+            <CombatControls />
+          </div>
         </>
       ) : (
         <div className="map-bottom">

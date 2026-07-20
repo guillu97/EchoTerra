@@ -6,6 +6,39 @@
 
 ---
 
+## 2026-07-20 (52) — Compétences PAR CLASSE (carte + iso), barre de héros en combat
+
+### Fait (retour utilisateur : « retire le fireball, ajoute les sorts/compétences par classe ; en combat réutilise la barre de sélection et ajoute les compétences iso »)
+- **Compétences de CARTE par classe** (`mapskills.go`) — la boule de feu UNIVERSELLE est
+  RETIRÉE (`FireballHero`/`PreciseShotHero` + routes `/fireball`/`/snipe` supprimés).
+  Catalogue data `MapSkills` servi par `GET /api/mapskills` ; chaque classe a sa/ses
+  compétence(s) (blast ou snipe), le héros sans classe garde « Jet de pierre ». Route
+  générique `POST /heroes/{h}/skill {skillId}` → `CastMapSkill` (valide classe + PA,
+  applique blast [souffle traversant, échelle par stat] ou snipe [achève ≤5 PV], loot
+  pour le Récupérateur). Front : boutons dynamiques (menu radial + dropdown 🙂) filtrés
+  par classe + portée (`skills.ts mapSkillsForHero`, `store.mapSkills`, `store.castSkill`).
+  Les bots lancent leur 1re compétence blast. `newGame` (test rapide) charge désormais
+  les catalogues.
+- **Compétences ISO multiples par classe** — `heroSkillFor` (1) → `heroIsoSkillsFor`
+  (liste) : pionnier/chasseur/gardien ont 2 skills, les autres 1. `combatResponse` sert
+  `current.skills[{idx, skill, targets, estimates, selfCast}]` ; l'action combat porte
+  `skillIdx` (`PlayerAction` variadic). Front : un bouton ✨ par compétence (CombatControls),
+  `store.selectCombatSkill(idx)` (les capacités sur soi partent aussitôt, les autres arment
+  le ciblage), surbrillance des bonnes cibles côté voxel.
+- **Barre de héros EN COMBAT** (`components/CombatHeroBar.tsx`) — réutilise le langage
+  visuel de MapHeroBar : une pastille par unité héros de MON équipe (portrait, nom, PV,
+  badge ▶ tour / 🏃 fuyard / 💀). Taper recentre la caméra de combat sur l'unité
+  (`EV.CombatFocusUnit`, `engine.target` — utile en arène 9×9 de boss).
+
+### Fonctionnel (vérifié)
+- Go : `mapskills_test.go` (catalogue par classe, blast dégât/kill/adjacent, snipe ≤5,
+  gating de classe, loot Récupérateur, PA), tests fireball/snipe migrés vers `CastMapSkill` ;
+  suite complète verte. E2E réel `skills-check.mjs` (catalogue chargé, fireball retiré,
+  bouton de compétence de carte dans le menu, cast qui abîme le pack ; en combat :
+  `current.skills` servi, boutons iso rendus, barre de héros de combat, compétence iso
+  jouée) ; captures skills-map-menu / skills-combat / skills-multi (chasseur 2 boutons) ;
+  tsc + build ; perf voxel 12/12.
+
 ## 2026-07-20 (51) — UI : barre de sélection des héros sur la carte (sortir de ville / déplacer)
 
 ### Fait (retour utilisateur : « sur la map je dois facilement sélectionner qui sort de la ville et qui je déplace »)

@@ -7,6 +7,7 @@ import type {
   Combat,
   GameState,
   GameSummary,
+  MapSkillDef,
   MyGameSummary,
   Recipe,
   User,
@@ -72,6 +73,7 @@ interface StoreState {
   townHeroId?: string; // preferred hero paying for town work
   recipes: Recipe[];
   classes: ClassDef[];
+  mapSkills: MapSkillDef[]; // catalogue des compétences de carte par classe
 
   // --- lobby / multiplayer ---
   playerId?: string; // my player id in the current game (undefined in legacy solo games)
@@ -92,6 +94,7 @@ interface StoreState {
   threatUnitId?: string; // ennemi dont on affiche la menace (tap sur l'unité)
   view: View;
   combatMode: CombatMode;
+  combatSkillIdx: number; // compétence iso armée quand combatMode === "skill"
   selectedHeroId?: string;
   log: string[];
   busy: boolean;
@@ -156,14 +159,14 @@ interface StoreState {
   search: () => Promise<void>;
   hide: () => Promise<void>;
   escape: () => Promise<void>;
-  fireball: () => Promise<void>;
+  castSkill: (skillId: string) => Promise<void>; // compétence de carte par classe
   ruinClear: () => Promise<void>; // déblayer la ruine sous le héros (tous ses PA)
   ruinExplore: () => Promise<void>; // fouiller le donjon déblayé (2 PA)
-  snipe: () => Promise<void>; // Chasseur : Tir précis (tue 1 créature d'un pack ≤5 PV)
   advance: () => Promise<void>;
   skipDay: () => Promise<void>;
   startCombat: () => Promise<void>;
   setCombatMode: (m: CombatMode) => void;
+  selectCombatSkill: (idx: number) => void; // arme (ou lance si sur soi) une compétence iso
   combatTileClick: (x: number, y: number) => Promise<void>;
   combatUnitClick: (unitId: string) => Promise<void>;
   toggleThreat: (unitId: string) => void; // afficher/masquer les cases menacées d'un ennemi
@@ -188,12 +191,13 @@ export const useStore = create<StoreState>((set, get) => {
   };
 
   const renderCombat = () => {
-    const { combat, current, combatMode, combatThreats, threatUnitId } = get();
+    const { combat, current, combatMode, combatSkillIdx, combatThreats, threatUnitId } = get();
     bus.emit(EV.ShowScene, "combat");
     bus.emit(EV.CombatRender, {
       combat,
       current,
       mode: combatMode,
+      skillIdx: combatSkillIdx,
       threats: combatThreats,
       threatUnitId,
     });
@@ -244,6 +248,7 @@ export const useStore = create<StoreState>((set, get) => {
   const loadCatalogs = async () => {
     if (get().recipes.length === 0) try { set({ recipes: await api.recipes() }); } catch { /* non-critical */ }
     if (get().classes.length === 0) try { set({ classes: await api.classes() }); } catch { /* non-critical */ }
+    if (get().mapSkills.length === 0) try { set({ mapSkills: await api.mapSkills() }); } catch { /* non-critical */ }
   };
 
   // Adopt a (re)loaded game: remember it + my player identity, select my own hero.
@@ -300,6 +305,7 @@ export const useStore = create<StoreState>((set, get) => {
     cheatOpen: false,
     recipes: [],
     classes: [],
+    mapSkills: [],
     playerName: localStorage.getItem(LS_PLAYER_NAME) ?? "",
     lobbies: [],
     lobbyMode: "public" as const,
@@ -308,6 +314,7 @@ export const useStore = create<StoreState>((set, get) => {
 
     view: "map",
     combatMode: "move",
+    combatSkillIdx: 0,
     combatThreats: [],
     log: [],
     busy: false,
@@ -684,6 +691,7 @@ export const useStore = create<StoreState>((set, get) => {
           current: undefined,
           playerId: undefined,
         });
+        void loadCatalogs(); // recettes / classes / compétences de carte
         pushLog(`Nouvelle partie — jour ${game.day}. La ville est à (${game.town.x}, ${game.town.y}).`);
       }),
 
@@ -779,22 +787,25 @@ export const useStore = create<StoreState>((set, get) => {
         renderMap();
       }),
 
-    fireball: () =>
+    castSkill: (skillId) =>
       withBusy(async () => {
-        const { game, selectedHeroId, playerId } = get();
+        const { game, selectedHeroId, playerId, mapSkills } = get();
         if (!game || !selectedHeroId) return;
         if (!ownsHero(selectedHeroId)) return;
         const name = game.heroes.find((h) => h.id === selectedHeroId)?.name ?? "Le héros";
-        const res = await api.fireball(game.id, selectedHeroId, playerId);
+        const sk = mapSkills.find((s) => s.id === skillId);
+        const icon = sk?.icon ?? "✨";
+        const res = await api.castSkill(game.id, selectedHeroId, skillId, playerId);
         set({ game: res.game });
         const r = res.report;
         if (r.killed) {
-          pushLog(`🔥 ${name} carbonise le pack de ${r.species} (-${r.damage} PV) !`);
+          pushLog(`${icon} ${name} anéantit le pack de ${r.species} avec ${r.name} (-${r.damage} PV) !`);
         } else if (r.slain > 0) {
-          pushLog(`🔥 ${name} brûle ${r.species} : ${r.slain} abattu(s) (-${r.damage} PV).`);
+          pushLog(`${icon} ${name} — ${r.name} sur ${r.species} : ${r.slain} abattu(s) (-${r.damage} PV).`);
         } else {
-          pushLog(`🔥 ${name} lance une boule de feu sur ${r.species} (-${r.damage} PV).`);
+          pushLog(`${icon} ${name} lance ${r.name} sur ${r.species} (-${r.damage} PV).`);
         }
+        if (r.loot) pushLog(`💰 ${name} rafle ${r.loot} au passage !`);
         renderMap();
       }),
 
@@ -823,21 +834,6 @@ export const useStore = create<StoreState>((set, get) => {
         set({ game: res.game });
         const it = res.item;
         pushLog(`🏛️ ${name} explore le donjon et trouve ${it.qty > 1 ? it.qty + "× " : ""}${it.name} !`);
-        renderMap();
-      }),
-
-    snipe: () =>
-      withBusy(async () => {
-        const { game, selectedHeroId, playerId } = get();
-        if (!game || !selectedHeroId) return;
-        if (!ownsHero(selectedHeroId)) return;
-        const name = game.heroes.find((h) => h.id === selectedHeroId)?.name ?? "Le héros";
-        const res = await api.snipe(game.id, selectedHeroId, playerId);
-        set({ game: res.game });
-        const r = res.report;
-        pushLog(r.killed
-          ? `🎯 ${name} achève le pack de ${r.species} d'un Tir précis !`
-          : `🎯 ${name} abat une créature du pack de ${r.species} (Tir précis).`);
         renderMap();
       }),
 
@@ -901,23 +897,32 @@ export const useStore = create<StoreState>((set, get) => {
       }),
 
     setCombatMode: (m) => {
+      set({ combatMode: m });
+      renderCombat();
+    },
+
+    // Arme une compétence iso par index (bouton) : une capacité sur soi (Posture
+    // défensive, Hurlement…) part IMMÉDIATEMENT ; sinon on passe en mode ciblage
+    // "skill" en mémorisant l'index — le tap sur une cible verte la déclenche.
+    selectCombatSkill: (idx) => {
       const { game, combat, current, playerId } = get();
-      // Self skills (Posture défensive) need no target: pressing the skill button
-      // fires the ability immediately instead of arming a target mode.
-      if (m === "skill" && current?.skill?.selfShield && game && combat) {
+      const sk = current?.skills?.[idx];
+      if (!sk) return;
+      if (sk.selfCast && game && combat) {
         void withBusy(async () => {
           const resp = await api.combatAction(game.id, combat.id, {
-            unitId: current.unitId,
+            unitId: current!.unitId,
             action: "skill",
-            targetId: current.unitId,
+            skillIdx: idx,
+            targetId: current!.unitId,
             playerId,
           });
-          set({ combatMode: "move" });
+          set({ combatMode: "move", combatSkillIdx: 0 });
           applyCombat(resp);
         });
         return;
       }
-      set({ combatMode: m });
+      set({ combatMode: "skill", combatSkillIdx: idx });
       renderCombat();
     },
 
@@ -938,11 +943,11 @@ export const useStore = create<StoreState>((set, get) => {
 
     combatUnitClick: (unitId) =>
       withBusy(async () => {
-        const { game, combat, current, combatMode, playerId } = get();
+        const { game, combat, current, combatMode, combatSkillIdx, playerId } = get();
         if (!game || !combat || !current) return;
         const list =
           combatMode === "skill"
-            ? current.skillTargets
+            ? current.skills?.[combatSkillIdx]?.targets ?? []
             : combatMode === "push"
               ? current.pushTargets ?? []
               : current.attackTargets;
@@ -956,10 +961,11 @@ export const useStore = create<StoreState>((set, get) => {
         const resp = await api.combatAction(game.id, combat.id, {
           unitId: current.unitId,
           action: combatMode === "skill" ? "skill" : combatMode === "push" ? "push" : "attack",
+          skillIdx: combatMode === "skill" ? combatSkillIdx : undefined,
           targetId: unitId,
           playerId,
         });
-        set({ combatMode: "move" });
+        set({ combatMode: "move", combatSkillIdx: 0 });
         applyCombat(resp);
       }),
 

@@ -2671,12 +2671,13 @@ body {
   border: none;
   justify-content: center;
 }
-.action-menu .am-fireball {
-  background: linear-gradient(180deg, #ff8a3d, #d8421a);
+.action-menu .am-skill {
+  background: linear-gradient(180deg, #8a6bff, #5a3fd8);
   border: none;
+  color: #fff;
 }
-.action-menu .am-fireball i {
-  color: #fff0e6;
+.action-menu .am-skill i {
+  color: #e8e0ff;
 }
 .map-hint {
   font-size: 11px;

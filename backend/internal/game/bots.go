@@ -114,11 +114,17 @@ func (g *GameState) botHeroAct(h *Hero) bool {
 			}
 		}
 	}
-	if h.PA >= FireballPACost {
+	// Un pack sur/à côté du bot (ou Tétanisé) : il lance sa 1re compétence de
+	// carte offensive abordable (remplace l'ancienne boule de feu universelle).
+	{
 		t := g.TileAt(h.X, h.Y)
 		if (t != nil && t.MonsterID != "") || h.HasState(StateTetanise) {
-			if _, err := g.FireballHero(h.ID); err == nil {
-				return true
+			for _, sk := range MapSkillsForClass(h.ClassID) {
+				if sk.Kind == "blast" && h.PA >= sk.PA {
+					if _, err := g.CastMapSkill(h.ID, sk.ID); err == nil {
+						return true
+					}
+				}
 			}
 		}
 	}

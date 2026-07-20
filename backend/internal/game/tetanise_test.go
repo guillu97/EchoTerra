@@ -87,8 +87,8 @@ func TestTetaniseBlocksAndAllowsTheRightActions(t *testing.T) {
 	if h.PA != 6 {
 		t.Fatalf("refused actions must not spend PA, hero has %d", h.PA)
 	}
-	if _, err := g.FireballHero("h1"); err != nil {
-		t.Fatalf("a pinned hero may cast Fire ball to thin the pack: %v", err)
+	if _, err := g.CastMapSkill("h1", "stone-throw"); err != nil {
+		t.Fatalf("a pinned hero may cast a map skill to thin the pack: %v", err)
 	}
 	if err := g.EscapeHero("h1"); err != nil {
 		t.Fatalf("a pinned hero may attempt an Escape: %v", err)

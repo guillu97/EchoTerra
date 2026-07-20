@@ -62,6 +62,7 @@ class CombatWorld {
   combat: Combat | null = null;
   current?: CombatCurrent;
   mode = "move";
+  skillIdx = 0; // compétence iso armée (surbrillance des bonnes cibles)
   threats: CombatThreat[] = []; // cases menacées par ennemi (télégraphie C2)
   threatUnitId?: string;
   lastSeq = -1; // dernier combat.seq animé (diff → dégâts flottants)
@@ -273,7 +274,7 @@ class CombatWorld {
     // unités : billboards + barre de PV (sprites face caméra)
     const targets = new Set(
       this.mode === "skill"
-        ? this.current?.skillTargets ?? []
+        ? this.current?.skills?.[this.skillIdx]?.targets ?? []
         : this.mode === "push"
           ? this.current?.pushTargets ?? []
           : this.current?.attackTargets ?? [],
@@ -390,6 +391,7 @@ export function VoxelCombatView() {
         combat: Combat;
         current?: CombatCurrent;
         mode: string;
+        skillIdx?: number;
         threats?: CombatThreat[];
         threatUnitId?: string;
       }) => {
@@ -397,6 +399,7 @@ export function VoxelCombatView() {
         world.combat = p.combat;
         world.current = p.current;
         world.mode = p.mode;
+        world.skillIdx = p.skillIdx ?? 0;
         world.threats = p.threats ?? [];
         world.threatUnitId = p.threatUnitId;
         if (changed) {
@@ -409,12 +412,19 @@ export function VoxelCombatView() {
         world.draw();
       },
     );
+    // recentrage caméra sur une unité (barre des héros de combat) : glisse la
+    // cible vers la case de l'unité, le zoom courant est conservé.
+    const offFocus = bus.on(EV.CombatFocusUnit, (p: { x: number; y: number }) => {
+      engine.target.set(p.x, engine.target.y, p.y);
+      engine.invalidate();
+    });
     // au montage (le view vient de passer en combat) : demander l'état courant
     useStore.getState().syncScene();
 
     if (import.meta.env.DEV) (window as unknown as { __vc?: unknown }).__vc = { engine, world };
     return () => {
       off();
+      offFocus();
       controls.dispose();
       world.dispose();
       engine.dispose();
