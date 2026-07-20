@@ -14418,19 +14418,18 @@
       "blocks": [
         {
           "cat": "isotiles",
-          "file": "dirt"
-        }
-      ],
-      "height": 0
-    },
-    {
-      "blocks": [
+          "file": "basalt"
+        },
         {
           "cat": "isotiles",
-          "file": "dungeon"
+          "file": "stone"
+        },
+        {
+          "cat": "isotiles",
+          "file": "stone"
         }
       ],
-      "height": 0
+      "height": 2
     },
     {
       "blocks": [
@@ -14441,9 +14440,30 @@
         {
           "cat": "isotiles",
           "file": "stone"
+        },
+        {
+          "cat": "isotiles",
+          "file": "stone"
         }
       ],
-      "height": 1
+      "height": 2
+    },
+    {
+      "blocks": [
+        {
+          "cat": "isotiles",
+          "file": "basalt"
+        },
+        {
+          "cat": "isotiles",
+          "file": "stone"
+        },
+        {
+          "cat": "isotiles",
+          "file": "stone"
+        }
+      ],
+      "height": 2
     },
     {
       "blocks": [],
@@ -14821,19 +14841,35 @@
       "blocks": [
         {
           "cat": "isotiles",
-          "file": "dirt"
+          "file": "basalt"
+        },
+        {
+          "cat": "isotiles",
+          "file": "stone"
+        },
+        {
+          "cat": "isotiles",
+          "file": "stone"
         }
       ],
-      "height": 0
+      "height": 2
     },
     {
       "blocks": [
         {
           "cat": "isotiles",
-          "file": "dungeon"
+          "file": "basalt"
+        },
+        {
+          "cat": "isotiles",
+          "file": "stone"
+        },
+        {
+          "cat": "isotiles",
+          "file": "stone"
         }
       ],
-      "height": 0
+      "height": 2
     },
     {
       "blocks": [
@@ -15200,19 +15236,18 @@
       "blocks": [
         {
           "cat": "isotiles",
-          "file": "dirt"
-        }
-      ],
-      "height": 0
-    },
-    {
-      "blocks": [
+          "file": "basalt"
+        },
         {
           "cat": "isotiles",
-          "file": "dungeon"
+          "file": "stone"
+        },
+        {
+          "cat": "isotiles",
+          "file": "stone"
         }
       ],
-      "height": 0
+      "height": 2
     },
     {
       "blocks": [
@@ -15223,9 +15258,30 @@
         {
           "cat": "isotiles",
           "file": "stone"
+        },
+        {
+          "cat": "isotiles",
+          "file": "stone"
         }
       ],
-      "height": 1
+      "height": 2
+    },
+    {
+      "blocks": [
+        {
+          "cat": "isotiles",
+          "file": "basalt"
+        },
+        {
+          "cat": "isotiles",
+          "file": "stone"
+        },
+        {
+          "cat": "isotiles",
+          "file": "stone"
+        }
+      ],
+      "height": 2
     },
     {
       "blocks": [],

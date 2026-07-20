@@ -221,8 +221,15 @@ func TestStartingMonstersScaleWithPlayers(t *testing.T) {
 	if err := solo.StartGame(p.ID, now); err != nil {
 		t.Fatal(err)
 	}
-	if len(solo.Monsters) != 6 { // design mapgen: 6 packs solo
-		t.Fatalf("solo launch should seed 6 packs, got %d", len(solo.Monsters))
+	// Peu de packs au lancement (≈3 solo) et AUCUN dans l'anneau de sécurité autour
+	// de la ville — « presque pas de monstres autour de la ville » au début.
+	if n := len(solo.Monsters); n < 1 || n > 3 {
+		t.Fatalf("solo launch should seed ~3 packs, got %d", n)
+	}
+	for _, m := range solo.Monsters {
+		if cheb(m.X-solo.Town.X, m.Y-solo.Town.Y) <= spawnSafeRadius {
+			t.Fatalf("no pack may spawn within the town safe radius, found one at (%d,%d)", m.X, m.Y)
+		}
 	}
 
 	quad := grassLobby(1, 4)
@@ -235,8 +242,13 @@ func TestStartingMonstersScaleWithPlayers(t *testing.T) {
 	if err := quad.StartGame(host.ID, now); err != nil {
 		t.Fatal(err)
 	}
-	if len(quad.Monsters) != 12 { // 6 + 2*(4-1)
-		t.Fatalf("4-player launch should seed 12 packs, got %d", len(quad.Monsters))
+	// Plus de joueurs = plus de packs (cible 3+(players-1) = 6 à quatre) : le total
+	// scale avec l'effectif tout en restant modeste.
+	if n := len(quad.Monsters); n < 4 || n > 6 {
+		t.Fatalf("4-player launch should seed ~6 packs (>solo), got %d", n)
+	}
+	if len(quad.Monsters) <= len(solo.Monsters) {
+		t.Fatalf("more players must seed more packs: solo=%d quad=%d", len(solo.Monsters), len(quad.Monsters))
 	}
 	if len(quad.Heroes) != 4*HeroesPerPlayer {
 		t.Fatalf("4 players must field %d heroes, got %d", 4*HeroesPerPlayer, len(quad.Heroes))

@@ -36,10 +36,34 @@ const OTHER_ALPHA = 0.45;
 // géométries GPU par poll de 20 s (voir clearOwned dans engine.ts).
 const QUAD_GEOM = new THREE.PlaneGeometry(0.96, 0.96).rotateX(-Math.PI / 2);
 const SEL_RING_GEOM = new THREE.RingGeometry(0.2, 0.27, 24).rotateX(-Math.PI / 2);
+// Props « arbres » : montés d'un cran sur la carte pour dépasser les personnages.
+const TREE_IDS = new Set(["tree-green", "tree-pink", "pine", "pine-snow", "dead-tree"]);
+// Échelle relative des monstres par apparence (× la taille de base d'un perso) :
+// une limace est petite, un élémentaire/loup imposant, un boss massif.
+const MONSTER_SCALE: Record<string, number> = {
+  "mob-slime": 0.8,
+  "mob-bat": 0.75,
+  "mob-mushroomling": 0.8,
+  "mob-ghost": 0.9,
+  "mob-goblin": 0.95,
+  "mob-spider": 0.95,
+  "mob-windelemental": 1.2,
+  "mob-wolf": 1.15,
+  "mob-orc": 1.25,
+};
+const bossAppearance = (species: string) => /roi gobelin|arbre vivant|ancien/i.test(species);
 
 function renderHeight(t: { biome: number; height: number }): number {
   if (t.biome <= 2) return 0; // eau/sable/herbe plates
   return Math.max(0, t.height - GROUND_LEVEL);
+}
+
+// Couleur du badge de danger : jaune (#ffe066, pack minuscule) → rouge (#ff3b30,
+// gros pack). `t` ∈ [0,1].
+function dangerColor(t: number): string {
+  const g = Math.round(0xe0 * (1 - t) + 0x3b * t);
+  const b = Math.round(0x66 * (1 - t) + 0x30 * t);
+  return `#ff${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
 }
 
 class MapWorld {
@@ -138,10 +162,13 @@ class MapWorld {
       townX: game.town.x, townY: game.town.y, seedStr: game.id,
     });
     for (const p of placements) {
+      // Les ARBRES sont montés d'un cran pour dominer les personnages (échelle
+      // naturelle : un arbre dépasse un chibi) sans écraser la ville.
+      const s = p.scale * (TREE_IDS.has(p.id) ? 1.3 : 1);
       const m = new THREE.Matrix4().compose(
         new THREE.Vector3(p.x, this.smooth.heightAt(p.x, p.y) - 0.02, p.y),
         new THREE.Quaternion().setFromAxisAngle(UP, p.rot),
-        new THREE.Vector3(p.scale, p.scale, p.scale),
+        new THREE.Vector3(s, s, s),
       );
       const key = `${p.id}-v${p.v}`;
       let e = items.get(key);
@@ -380,7 +407,7 @@ class MapWorld {
       m.castShadow = true;
       m.receiveShadow = true;
       m.position.set(game.town.x, topOf(game.town.x, game.town.y) - 0.03, game.town.y);
-      m.scale.setScalar(1.6); // grille 30 (esplanade incluse) : temple à taille égale
+      m.scale.setScalar(2.1); // la ville DOMINE la carte : c'est le repère central
       m.rotation.y = Math.PI; // parvis + porte face à la caméra par défaut
       this.sprites.add(m);
     } else {
@@ -439,22 +466,31 @@ class MapWorld {
       this.sprites.add(lbl);
     }
 
-    // monstres : teinte de danger sur la case + sprite de créature
+    // monstres : sprite de créature + BADGE de dangerosité flottant AU-DESSUS
+    // (jaune→rouge selon la taille du pack). Plus de teinte sur la case : le
+    // losange coloré est désormais RÉSERVÉ aux cases où le héros sélectionné peut
+    // aller — mélanger les deux rendait la lecture ambiguë.
     for (const id in game.monsters) {
       const m = game.monsters[id];
       const t = tileAt(m.x, m.y);
       if (!t?.discovered) continue; // cachés dans la brume
-      const danger = Math.min(Math.max((m.count - 1) / 5, 0), 1);
-      const c = new THREE.Color(1, 0.88 - danger * 0.68, 0.2 - danger * 0.2);
-      quad(m.x, m.y, topOf(m.x, m.y), c.getHex(), 0.38 + danger * 0.2);
+      const top = topOf(m.x, m.y);
       const tex = monsterTexKey(m.species, m.appearance);
       const mesh = tex ? this.chars.make(tex) : undefined;
+      const mScale = bossAppearance(m.species) ? 1.8 : MONSTER_SCALE[tex ?? ""] ?? 1;
       if (mesh) {
-        mesh.position.set(m.x, topOf(m.x, m.y), m.y);
+        mesh.scale.multiplyScalar(mScale); // taille par espèce (limace ≪ boss)
+        mesh.position.set(m.x, top, m.y);
         mesh.rotation.y = engine.azimuthNow;
         this.sprites.add(mesh);
         this.charMeshes.push(mesh);
-      } else if (tex) billboard(libUrl("monsters", tex), m.x, m.y, { size: 0.6 });
+      } else if (tex) billboard(libUrl("monsters", tex), m.x, m.y, { size: 0.6 * mScale });
+      // badge de danger : icône + taille du pack, teinte jaune (peu) → rouge (beaucoup)
+      const danger = Math.min(Math.max((m.count - 1) / 5, 0), 1);
+      const badge = makeLabel(`☠ ${m.count}`, dangerColor(danger), 0.24 + danger * 0.08);
+      badge.center.set(0.5, 0);
+      badge.position.set(m.x, top + 0.62, m.y);
+      this.sprites.add(badge);
     }
 
     // héros : les miens pleins, les autres translucides ; en ville = masqués

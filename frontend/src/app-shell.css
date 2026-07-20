@@ -476,6 +476,15 @@ body {
   color: #9a6a12;
   cursor: default;
 }
+/* Compte à rebours de la prochaine vague, intégré au header (plus de bandeau
+   secondaire) — rouge pour rester lisible comme un signal d'urgence. */
+.chip.wave {
+  background: linear-gradient(180deg, var(--red-hi), var(--red));
+  border-color: #a02818;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
 .iconbtn {
   width: 30px;
   height: 30px;
@@ -487,49 +496,6 @@ body {
   place-items: center;
   cursor: pointer;
   font-size: 14px;
-}
-
-/* "PROCHAINE VAGUE" — bouton rouge central, dans le flux sous la TopBar
-   (comme le design ; en overlay il masquait les contrôles des onglets). */
-.wave-row {
-  position: relative;
-  z-index: 19;
-  display: flex;
-  justify-content: center;
-  padding: 10px 0 8px;
-  pointer-events: none;
-}
-.wave-banner {
-  pointer-events: auto;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background: linear-gradient(180deg, var(--red-hi), var(--red));
-  color: #fff;
-  border: none;
-  border-radius: 13px;
-  padding: 8px 16px;
-  text-align: left;
-  cursor: pointer;
-  box-shadow: 0 8px 18px -4px rgba(192, 57, 43, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.3);
-}
-.wave-banner .wb-ico {
-  font-size: 18px;
-  flex: 0 0 auto;
-}
-.wave-banner .wb-kicker {
-  display: block;
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  opacity: 0.85;
-}
-.wave-banner .wb-time {
-  display: block;
-  font-size: 18px;
-  font-weight: 800;
-  letter-spacing: 0.05em;
-  font-variant-numeric: tabular-nums;
 }
 
 .chat-bubble {
@@ -1297,10 +1263,14 @@ body {
   flex-direction: column;
 }
 .settings .panel-card {
+  box-sizing: border-box; /* padding compté DANS width/max-height : sinon width:100%
+                             + 18px de padding débordait horizontalement du viewport */
   margin: auto;
   width: 86%;
-  max-height: 78%;
+  max-height: 88dvh;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
   background: linear-gradient(180deg, var(--parch-0), #f0e4c9);
   border: 1px solid rgba(120, 86, 40, 0.22);
   border-radius: 22px;
@@ -1321,7 +1291,7 @@ body {
 .settings.sheet .panel-card {
   margin: 0;
   width: 100%;
-  max-height: 82%;
+  max-height: 86dvh;
   border-radius: 26px 26px 0 0;
   border: none;
   border-top: 3px solid var(--gold);
@@ -2124,17 +2094,6 @@ body {
 }
 
 /* =========================  wave / town status / game over  ============== */
-.wave-banner {
-  font: inherit;
-  color: #fff;
-  cursor: pointer;
-}
-.wave-banner .wb-hp {
-  display: block;
-  margin-top: 2px;
-  font-size: 12px;
-  color: #ffd166;
-}
 .chip.warn {
   background: #b5851f;
   color: #fff;
