@@ -276,6 +276,9 @@ export class SmoothTerrain {
             base[1] + (CLIFF[1] - base[1]) * Math.max(0, k),
             base[2] + (CLIFF[2] - base[2]) * Math.max(0, k),
           ];
+          // sous la NAPPE de brume basse, la jupe des zones non découvertes
+          // reste lavande (le socle gris jurait au bord du monde)
+          if (tHere && !tHere.discovered) rgb = [206, 209, 232];
           // veines de minerai (lot D4) : sur les MURS de falaise de montagne,
           // fins filons dorés/cuivrés serpentant en diagonale (rare, par bruit)
           if (k > 0.55 && tHere?.discovered && tHere.biome === 4) {

@@ -75,7 +75,7 @@ class MapWorld {
     engine.scene.add(this.overlays);
     engine.scene.add(this.sprites);
     void this.lib
-      .load([...BIOME_BLOCKS, "mist", "mistbase", "dirt"])
+      .load([...BIOME_BLOCKS, "mist", "dirt"])
       .then(() => {
         this.libReady = true;
         this.terrainKey = ""; // forcer la construction maintenant que les blocs sont là
@@ -217,7 +217,7 @@ class MapWorld {
     return this.game?.heroes.find((h) => h.id === this.selectedHeroId);
   }
   private levelsOf(t: { biome: number; height: number; discovered?: boolean }): number {
-    return t.discovered ? renderHeight(t) + 1 : 2; // brume non découverte = mur de 2 blocs
+    return t.discovered ? renderHeight(t) + 1 : 1.5; // brume = nappe basse (sommet à 1.5)
   }
 
   /** logique de clic de MapScene, à l'identique */
@@ -269,8 +269,9 @@ class MapWorld {
         for (let x = 0; x < game.width; x++) {
           const t = game.tiles[y * game.width + x];
           if (!t.discovered) {
-            // mur de brume à DEUX niveaux : voile profond (mistbase) sous le dôme (mist)
-            cells.push({ x, y, block: "mist", under: "mistbase", levels: 2 });
+            // NAPPE BASSE (2026-07-19, −3/4 de hauteur) : un seul bloc de brume
+            // écrasé à 0.5, posé sur le niveau 1 — le sommet affleure à 1.5
+            cells.push({ x, y, block: "mist", levels: 1, baseY: 1, scaleY: 0.5 });
             continue;
           }
           if (this.smoothMode) continue; // le sol découvert vient de la surface lissée
@@ -330,7 +331,7 @@ class MapWorld {
     const topOf = (x: number, y: number) => {
       if (this.smoothMode) {
         const t = tileAt(x, y);
-        return t && !t.discovered ? 2 : this.smooth.heightAt(x, y) + 0.04;
+        return t && !t.discovered ? 1.5 : this.smooth.heightAt(x, y) + 0.04;
       }
       const t = tileAt(x, y);
       return t ? this.levelsOf(t) : 1;
