@@ -6,6 +6,44 @@
 
 ---
 
+## 2026-07-20 (45) — COMBAT C2 : lisibilité & juice (+ fuite GPU des redraws corrigée)
+
+### Fait (lot C2 du COMBAT-PLAN — /loop « implémente tout »)
+- **Serveur** : `Combat.Seq` (s'incrémente à chaque action) + `Combat.LastHits
+  []CombatHit {unitId, amount, kind: dmg|heal|hazard}` remplis par `performAttack`
+  (dégâts + soin Absorbe) et les ronces d'`enterCell` — reset à chaque `PlayerAction`,
+  plafonné à 64 (combats auto-résolus des bots). `Combat.Rewards []CombatReward`
+  consigné par `FinishCombat` à la victoire (butin par héros). `EstimateDamage`
+  (miroir SANS aléa de `damageWith`, Bouclier/hauteur inclus) et `ThreatCells`
+  (union grilles de ciblage + zones de dégâts, clippée à l'arène). `combatResponse`
+  sert `attackEstimates`/`skillEstimates` ({min,max} par cible) + `threats`
+  (cases menacées par ennemi vivant) — le client ne calcule RIEN.
+- **Client** : **timeline d'initiative** (`InitiativeBar`, portraits dans l'ordre du
+  tour, actif surligné, morts grisés — taper un ennemi bascule sa télégraphie) ;
+  **dégâts flottants** (« −7 » monte et s'estompe ~900 ms, décalés si coups
+  multiples, groupe `fx` séparé des redraws) ; **fourchette de dégâts** sur les
+  boutons cibles (« −4…6 ») ; **télégraphie orange** (quads sur les cases menacées
+  de l'ennemi sélectionné + anneau orange) ; **écran de fin** (`CombatEndScreen` :
+  victoire/défaite, tours joués, PV par héros, butin par héros en chips).
+- **Fuite GPU corrigée (pré-existante)** : chaque redraw de la carte (poll 20 s)
+  fuyait ~11 géométries + matériaux (`quad`/`ring` recréés, `.clear()` sans
+  dispose) → `clearOwned()` dans engine.ts (libère géométrie/matériau marqués
+  `userData.ownGeom/ownMat`, jamais les ressources partagées), géométries
+  STATIQUES partagées (QUAD/RING/EDGE), cache de textures héros de la vue ville.
+  Drift mesuré : 29→90 sur 72 s AVANT, plat à 50 APRÈS. Le check perf re-baseline
+  après les chargements asynchrones et force 5 redraws.
+
+### Fonctionnel (vérifié)
+- `combat_juice_test.go` (Seq/LastHits, fourchette encadrant 50 tirages réels ±
+  Bouclier, +1 hauteur, ThreatCells, Rewards) + suite Go verte ; e2e réel 12/12
+  (fourchette affichée ET respectée par le coup réel, timeline DOM, télégraphie au
+  tap, seq/lastHits, écran de fin) ; captures c2-threat/c2-floating/c2-victory ;
+  `tsc` + build ; perf voxel 12/12 (dont le nouveau check anti-fuite).
+
+### Reste (COMBAT-PLAN) : C3 actions (Defend, Poussée, objets, fuite), C4
+couverture/visée/dos, C5 boss & IA. FX d'impact (flash/recul mesh) non retenus
+pour l'instant — les dégâts flottants + tint portent la lisibilité.
+
 ## 2026-07-19 (44) — COMBAT C1 : l'arène par biome (obstacles, eau, glace, ronces)
 
 ### Fait (lot C1 du COMBAT-PLAN — /loop « implémente tout »)

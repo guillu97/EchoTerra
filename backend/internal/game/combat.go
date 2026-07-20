@@ -99,6 +99,21 @@ type CombatCell struct {
 	Hazard  string `json:"hazard,omitempty"`
 }
 
+// CombatHit est un événement de dégâts/soin structuré (lot C2) : le client
+// affiche des étiquettes flottantes sans avoir à parser le log texte.
+type CombatHit struct {
+	UnitID string `json:"unitId"`
+	Amount int    `json:"amount"` // toujours > 0
+	Kind   string `json:"kind"`   // "dmg" | "heal" | "hazard"
+}
+
+// CombatReward est le butin d'un héros à la victoire (écran de victoire C2).
+type CombatReward struct {
+	HeroID   string `json:"heroId"`
+	HeroName string `json:"heroName"`
+	Items    []Item `json:"items"`
+}
+
 type Combat struct {
 	ID      string        `json:"id"`
 	GameID  string        `json:"gameId"`
@@ -115,6 +130,22 @@ type Combat struct {
 	Round   int           `json:"round"`
 	Status  string        `json:"status"` // "active" | "won" | "lost"
 	Log     []string      `json:"log"`
+	// Lot C2 (lisibilité) : Seq s'incrémente à chaque action jouée et LastHits
+	// liste les coups de CE lot d'actions (action du héros + tours IA qui suivent)
+	// — le client diffe Seq pour faire flotter les dégâts. Rewards est rempli à
+	// la victoire (FinishCombat) pour l'écran de fin.
+	Seq      int            `json:"seq"`
+	LastHits []CombatHit    `json:"lastHits,omitempty"`
+	Rewards  []CombatReward `json:"rewards,omitempty"`
+}
+
+// addHit enregistre un coup pour l'affichage client (plafonné : les combats
+// auto-résolus des bots accumuleraient sinon des centaines d'entrées).
+func (c *Combat) addHit(unitID string, amount int, kind string) {
+	if amount <= 0 || len(c.LastHits) >= 64 {
+		return
+	}
+	c.LastHits = append(c.LastHits, CombatHit{UnitID: unitID, Amount: amount, Kind: kind})
 }
 
 // buildArena génère l'arène C1 depuis le biome de la case du monde : sol et
@@ -431,6 +462,7 @@ func (c *Combat) enterCell(u *CombatUnit, tx, ty int) {
 	}
 	if cell := c.cellAt(u.X, u.Y); cell != nil && cell.Hazard == "brambles" && u.HP > 1 {
 		u.HP--
+		c.addHit(u.ID, 1, "hazard")
 		c.logf("%s s'écorche dans les ronces (-1 PV).", u.Name)
 	}
 }
@@ -549,6 +581,74 @@ func (c *Combat) damageWith(att, def *CombatUnit, atk *AttackDef) int {
 	return d
 }
 
+// EstimateDamage renvoie la fourchette [min,max] des dégâts de atk sur def —
+// le miroir EXACT de damageWith sans le tirage aléatoire (rand.Intn(3) ∈ 0..2).
+// Servie par combatResponse pour la prévisualisation d'attaque (lot C2) : le
+// serveur calcule, le client ne fait qu'afficher.
+func (c *Combat) EstimateDamage(att, def *CombatUnit, atk *AttackDef) (int, int) {
+	var stat int
+	switch atk.DmgStat {
+	case "dexterite":
+		stat = att.Stats.Dexterite
+	case "precision":
+		stat = att.Stats.Precision
+	default:
+		stat = att.Stats.Force
+	}
+	if atk.DmgDiv > 1 {
+		stat /= atk.DmgDiv
+	}
+	bonus := atk.Bonus
+	if c.heightAt(att.X, att.Y) > c.heightAt(def.X, def.Y) {
+		bonus++
+	}
+	base := stat + bonus - def.Stats.Endurance/2
+	clamp := func(d int) int {
+		if d < 1 {
+			d = 1
+		}
+		if def.hasState("Bouclier") {
+			d /= 2
+			if d < 1 {
+				d = 1
+			}
+		}
+		return d
+	}
+	return clamp(base), clamp(base + 2)
+}
+
+// ThreatCells renvoie les cases que l'unité peut frapper depuis sa position
+// (union des grilles de ciblage de ses attaques, hors capacités sur soi) —
+// la télégraphie ORANGE du lot C2 côté client.
+func (c *Combat) ThreatCells(u *CombatUnit) [][2]int {
+	attacks := append([]AttackDef{c.baseAttackFor(u)}, c.specialsFor(u)...)
+	seen := map[[2]int]bool{}
+	var out [][2]int
+	for i := range attacks {
+		a := &attacks[i]
+		if a.SelfShield || a.BuffAllies || a.DmgStat == "" {
+			continue
+		}
+		for _, t := range a.Targets {
+			// la zone de dégâts ROUGE autour de chaque case visée est toujours incluse
+			zone := append([]GridCell{{0, 0}}, a.Damage...)
+			for _, z := range zone {
+				x, y := u.X+t.DX+z.DX, u.Y+t.DY+z.DY
+				if x < 0 || y < 0 || x >= c.GridW || y >= c.GridH {
+					continue
+				}
+				key := [2]int{x, y}
+				if !seen[key] {
+					seen[key] = true
+					out = append(out, key)
+				}
+			}
+		}
+	}
+	return out
+}
+
 // performAttack executes an AttackDef from att onto the struck cell (tx,ty): every
 // enemy in the damage zone (struck cell + the attack's red grid) takes damage and
 // effects. Self-targeted abilities (SelfShield/BuffAllies) ignore the target.
@@ -580,6 +680,7 @@ func (c *Combat) performAttack(att *CombatUnit, atk *AttackDef, tx, ty int) {
 		if atk.DmgStat != "" {
 			dmg := c.damageWith(att, def, atk)
 			def.HP -= dmg
+			c.addHit(def.ID, dmg, "dmg")
 			c.logf("%s utilise %s sur %s (-%d PV).", att.Name, atk.Name, def.Name, dmg)
 			if atk.Absorb && att.Alive() {
 				heal := dmg / 2
@@ -588,6 +689,7 @@ func (c *Combat) performAttack(att *CombatUnit, atk *AttackDef, tx, ty int) {
 					if att.HP > att.MaxHP {
 						att.HP = att.MaxHP
 					}
+					c.addHit(att.ID, heal, "heal")
 					c.logf("%s absorbe %d PV.", att.Name, heal)
 				}
 			}
@@ -632,6 +734,10 @@ func (c *Combat) PlayerAction(unitID, action string, tx, ty int, targetID string
 	if cur.Side != "hero" {
 		return ErrInvalidAction{"cette unité n'est pas contrôlable"}
 	}
+	// Nouveau lot d'action (C2) : le client diffe Seq et fait flotter les coups de
+	// LastHits — l'action du héros ET les tours IA qui s'enchaînent derrière.
+	c.Seq++
+	c.LastHits = nil
 
 	switch action {
 	case "move":

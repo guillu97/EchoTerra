@@ -12,6 +12,21 @@ import * as THREE from "three";
 import { DPR } from "../game/dpr";
 import { azimuthFor, cameraDir, ELEVATION, nextOrientation, type Orientation } from "./rotation";
 
+// Vide un groupe d'overlays reconstruit à chaque draw en LIBÉRANT ce que les
+// enfants possèdent : géométrie si `userData.ownGeom`, matériau si
+// `userData.ownMat`. Les ressources PARTAGÉES (géométries des bibliothèques de
+// blocs/persos, textures en cache) ne sont jamais touchées. Sans ça, chaque
+// redraw (poll 20 s de la carte, action de combat) fuyait ses géométries et
+// matériaux — renderer.info.memory.geometries grimpait de ~11 par poll.
+export function clearOwned(group: THREE.Group) {
+  group.traverse((child) => {
+    const c = child as THREE.Mesh;
+    if (c.userData.ownGeom) c.geometry?.dispose();
+    if (c.userData.ownMat) (c.material as THREE.Material)?.dispose();
+  });
+  group.clear();
+}
+
 const CAM_DIST = 300; // recul arbitraire (ortho : seule la direction compte)
 const ROT_MS = 240; // durée de l'animation de rotation
 

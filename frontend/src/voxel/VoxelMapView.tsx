@@ -16,7 +16,7 @@ import * as THREE from "three";
 import { bus, EV } from "../eventBus";
 import type { GameState, Hero } from "../api/types";
 import { heroTexKey, libUrl, monsterTexKey } from "../assets";
-import { VoxelEngine } from "./engine";
+import { clearOwned, VoxelEngine } from "./engine";
 import { VoxelControls } from "./controls";
 import { BlockLibrary, buildTerrain, type TerrainCell } from "./terrain";
 import { SmoothTerrain } from "./smoothTerrain";
@@ -31,6 +31,11 @@ const GROUND_LEVEL = 3; // même convention que MapScene : plaines = niveau 0
 const BIOME_BLOCKS = ["water", "sand", "grass", "forest", "stone", "snow"];
 const UNDER_BLOCKS: Record<string, string | undefined> = { forest: "dirt", snow: "stone" };
 const OTHER_ALPHA = 0.45;
+// Géométries PARTAGÉES des overlays reconstruits à chaque draw (quads de
+// surbrillance, anneau de sélection) — en créer une par quad fuyait ~11
+// géométries GPU par poll de 20 s (voir clearOwned dans engine.ts).
+const QUAD_GEOM = new THREE.PlaneGeometry(0.96, 0.96).rotateX(-Math.PI / 2);
+const SEL_RING_GEOM = new THREE.RingGeometry(0.2, 0.27, 24).rotateX(-Math.PI / 2);
 
 function renderHeight(t: { biome: number; height: number }): number {
   if (t.biome <= 2) return 0; // eau/sable/herbe plates
@@ -312,14 +317,15 @@ class MapWorld {
     }
 
     // --- overlays + billboards (reconstruits à chaque render, ~dizaines) -------
-    this.overlays.clear();
-    this.sprites.clear();
+    clearOwned(this.overlays);
+    clearOwned(this.sprites);
     this.charMeshes = [];
     const quad = (x: number, y: number, top: number, color: number, opacity: number) => {
       const m = new THREE.Mesh(
-        new THREE.PlaneGeometry(0.96, 0.96).rotateX(-Math.PI / 2),
+        QUAD_GEOM,
         new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false }),
       );
+      m.userData.ownMat = true;
       m.position.set(x, top + 0.045, y); // 0.02 z-fightait avec la face de brume à DPR élevé
       this.overlays.add(m);
     };
@@ -340,6 +346,7 @@ class MapWorld {
       const tex = this.texture(url);
       const mat = new THREE.SpriteMaterial({ map: tex, alphaTest: 0.35, transparent: true, opacity: opts.alpha ?? 1 });
       const s = new THREE.Sprite(mat);
+      s.userData.ownMat = true; // matériau du billboard (la texture reste en cache)
       const size = opts.size ?? 0.62;
       s.scale.set(size, size, 1);
       s.center.set(0.5, 0.04); // pieds posés sur la face du dessus
@@ -455,9 +462,10 @@ class MapWorld {
       const mine = this.isMine(h.id);
       if (mine && h.id === this.selectedHeroId) {
         const ring = new THREE.Mesh(
-          new THREE.RingGeometry(0.2, 0.27, 24).rotateX(-Math.PI / 2),
+          SEL_RING_GEOM,
           new THREE.MeshBasicMaterial({ color: 0xffe066, transparent: true, opacity: 0.95, depthWrite: false }),
         );
+        ring.userData.ownMat = true;
         ring.position.set(h.x + ox, topOf(h.x, h.y) + 0.03, h.y + oy);
         this.overlays.add(ring);
       }
@@ -471,6 +479,7 @@ class MapWorld {
           mesh.material = (mesh.material as THREE.MeshBasicMaterial).clone();
           (mesh.material as THREE.MeshBasicMaterial).transparent = true;
           (mesh.material as THREE.MeshBasicMaterial).opacity = OTHER_ALPHA;
+          mesh.userData.ownMat = true; // le clone translucide nous appartient
         }
         this.sprites.add(mesh);
         this.charMeshes.push(mesh);

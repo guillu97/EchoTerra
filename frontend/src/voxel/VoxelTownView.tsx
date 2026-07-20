@@ -22,7 +22,7 @@ import { heroAssetUrl, libUrl } from "../assets";
 import { myTeamHeroes } from "../townUtils";
 import { useStore } from "../store";
 import { durColor } from "../tabs/HomeTab";
-import { VoxelEngine } from "./engine";
+import { clearOwned, VoxelEngine } from "./engine";
 import { VoxelControls } from "./controls";
 import { BlockLibrary, buildStacks, type StackItem } from "./terrain";
 import { makeClouds, type Clouds } from "./clouds";
@@ -231,8 +231,11 @@ export function VoxelTownView({
         grass.push({ x: cx, y: cy, lvl: topLvl });
       }
     }
+    // cache par URL : drawHeroes tourne à chaque changement d'état — recharger
+    // la texture et recréer le matériau à chaque passe fuyait GPU-side
+    const heroTexCache = new Map<string, THREE.Texture>();
     const drawHeroes = () => {
-      heroGroup.clear();
+      clearOwned(heroGroup);
       const g = useStore.getState().game;
       const pid = useStore.getState().playerId;
       if (!g || !grass.length) return;
@@ -245,10 +248,15 @@ export function VoxelTownView({
         usedIdx.add(idx);
         const gpos = grass[idx];
         const url = heroAssetUrl(h.class);
-        const tex = texLoader.load(url, () => engine.invalidate());
-        tex.colorSpace = THREE.NoColorSpace;
-        textures.push(tex);
+        let tex = heroTexCache.get(url);
+        if (!tex) {
+          tex = texLoader.load(url, () => engine.invalidate());
+          tex.colorSpace = THREE.NoColorSpace;
+          heroTexCache.set(url, tex);
+          textures.push(tex);
+        }
         const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, alphaTest: 0.35, transparent: true }));
+        spr.userData.ownMat = true;
         spr.scale.set(1.1, 1.1, 1);
         spr.center.set(0.5, 0.02);
         spr.position.set(gpos.x, gpos.lvl, gpos.y);

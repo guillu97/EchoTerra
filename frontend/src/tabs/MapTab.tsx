@@ -4,6 +4,7 @@ import { PhaserGame } from "../game/PhaserGame";
 import { VoxelMapView } from "../voxel/VoxelMapView";
 import { VoxelCombatView } from "../voxel/VoxelCombatView";
 import { bus, EV } from "../eventBus";
+import { heroTexKey, libUrl, monsterTexKey } from "../assets";
 
 // Radial action menu (Hordes-style) that pops at the selected hero when tapped on the map.
 const FIREBALL_PA = 2; // mirrors backend FireballPACost
@@ -145,23 +146,100 @@ function MapControls() {
   );
 }
 
+// Timeline d'initiative (lot C2) : les portraits dans l'ordre du tour, actif
+// surligné, morts grisés. Taper un ennemi affiche ses cases menacées (orange).
+function InitiativeBar() {
+  const { combat, current, toggleThreat, threatUnitId } = useStore();
+  if (!combat || combat.status !== "active") return null;
+  return (
+    <div className="init-bar">
+      {combat.order.map((id, i) => {
+        const u = combat.units.find((x) => x.id === id);
+        if (!u) return null;
+        const key =
+          u.side === "hero" ? u.appearance || heroTexKey(u.kind) : monsterTexKey(u.kind, u.appearance);
+        const url = key ? libUrl(u.side === "hero" ? "characters" : "monsters", key) : undefined;
+        const cls = [
+          "init-chip",
+          u.side === "hero" ? "ally" : "enemy",
+          i === combat.turnIdx ? "active" : "",
+          u.hp <= 0 ? "dead" : "",
+          u.id === threatUnitId ? "threat" : "",
+        ].join(" ");
+        return (
+          <button
+            key={`${id}-${i}`}
+            className={cls}
+            title={`${u.name} · ${u.hp}/${u.maxHp} PV${u.side === "monster" ? " — menaces" : ""}`}
+            onClick={() => u.side === "monster" && u.hp > 0 && toggleThreat(u.id)}
+          >
+            {url ? <img src={url} alt={u.name} /> : <span>{u.side === "hero" ? "🧑" : "👹"}</span>}
+            {u.id === current?.unitId && <i className="init-now">▶</i>}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// Écran de fin (lot C2) : récapitulatif — butin par héros, PV restants, tours
+// joués — au lieu du retour sec à la carte.
+function CombatEndScreen() {
+  const { combat, returnToMap } = useStore();
+  if (!combat || combat.status === "active") return null;
+  const won = combat.status === "won";
+  const heroes = combat.units.filter((u) => u.side === "hero");
+  return (
+    <div className="combat-end">
+      <div className="combat-end-card">
+        <h2 className={won ? "win" : "loss"}>{won ? "🏆 Victoire !" : "💀 Défaite…"}</h2>
+        <div className="combat-end-sub">
+          {combat.round} tour{combat.round > 1 ? "s" : ""} · {heroes.filter((u) => u.hp > 0).length}/
+          {heroes.length} héros debout
+        </div>
+        <div className="combat-end-heroes">
+          {heroes.map((u) => (
+            <div key={u.id} className={`ce-hero ${u.hp <= 0 ? "dead" : ""}`}>
+              <span className="ce-name">{u.hp <= 0 ? "☠️ " : ""}{u.name}</span>
+              <span className="ce-hp">{Math.max(0, u.hp)}/{u.maxHp} PV</span>
+            </div>
+          ))}
+        </div>
+        {won && (combat.rewards?.length ?? 0) > 0 && (
+          <div className="combat-end-loot">
+            <div className="ce-loot-title">Butin</div>
+            {combat.rewards!.map((r) => (
+              <div key={r.heroId} className="ce-loot-row">
+                <span className="ce-name">{r.heroName}</span>
+                <span className="ce-items">
+                  {r.items.map((it, i) => (
+                    <em key={i}>{it.name}{it.qty > 1 ? ` ×${it.qty}` : ""}</em>
+                  ))}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+        {!won && <div className="combat-end-sub">Les survivants battent en retraite vers la ville…</div>}
+        <button className="small green" onClick={() => returnToMap()}>↩ Retour à la carte</button>
+      </div>
+    </div>
+  );
+}
+
 function CombatControls() {
-  const { combat, current, combatMode, setCombatMode, combatUnitClick, endTurn, returnToMap, busy } =
+  const { combat, current, combatMode, setCombatMode, combatUnitClick, endTurn, busy } =
     useStore();
   if (!combat) return null;
   const curUnit = combat.units.find((u) => u.id === current?.unitId);
   const ended = combat.status !== "active";
   const targetList = current && (combatMode === "skill" ? current.skillTargets : current.attackTargets);
+  const estimates = current && (combatMode === "skill" ? current.skillEstimates : current.attackEstimates);
 
   return (
     <div className="map-controls">
       <div className="line">
         <strong>Combat · round {combat.round}</strong>
-        {ended && (
-          <span style={{ color: combat.status === "won" ? "#4be36e" : "#e24b4b" }}>
-            {combat.status === "won" ? "VICTOIRE" : "DÉFAITE"}
-          </span>
-        )}
       </div>
 
       {!ended && curUnit && curUnit.side === "hero" && (
@@ -185,9 +263,15 @@ function CombatControls() {
               {targetList && targetList.length > 0 ? (
                 targetList.map((id) => {
                   const u = combat.units.find((x) => x.id === id);
+                  const est = estimates?.[id];
                   return (
                     <button key={id} className="small red" disabled={busy} onClick={() => combatUnitClick(id)}>
                       🎯 {u?.name}
+                      {est && (
+                        <i className="dmg-est">
+                          {est.min === est.max ? `−${est.min}` : `−${est.min}…${est.max}`}
+                        </i>
+                      )}
                     </button>
                   );
                 })
@@ -201,12 +285,6 @@ function CombatControls() {
 
       {!ended && curUnit && curUnit.side !== "hero" && (
         <div className="line" style={{ color: "#9fb2c9" }}>L'ennemi agit…</div>
-      )}
-
-      {ended && (
-        <div className="line">
-          <button className="small green" onClick={() => returnToMap()}>↩ Retour à la carte</button>
-        </div>
       )}
     </div>
   );
@@ -244,6 +322,8 @@ export function MapTab({ active = true }: { active?: boolean }) {
         <PhaserGame active={active} />
       )}
       {view !== "combat" && <ActionMenu />}
+      {view === "combat" && <InitiativeBar />}
+      {view === "combat" && <CombatEndScreen />}
       {view === "combat" ? <CombatControls /> : <MapControls />}
     </div>
   );

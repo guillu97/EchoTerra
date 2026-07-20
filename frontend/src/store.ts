@@ -3,6 +3,7 @@ import { api, getAuthToken, setAuthToken } from "./api/client";
 import type {
   ClassDef,
   CombatCurrent,
+  CombatThreat,
   Combat,
   GameState,
   GameSummary,
@@ -87,6 +88,8 @@ interface StoreState {
   game?: GameState;
   combat?: Combat;
   current?: CombatCurrent;
+  combatThreats: CombatThreat[]; // cases menacées par ennemi (télégraphie C2)
+  threatUnitId?: string; // ennemi dont on affiche la menace (tap sur l'unité)
   view: View;
   combatMode: CombatMode;
   selectedHeroId?: string;
@@ -162,6 +165,7 @@ interface StoreState {
   setCombatMode: (m: CombatMode) => void;
   combatTileClick: (x: number, y: number) => Promise<void>;
   combatUnitClick: (unitId: string) => Promise<void>;
+  toggleThreat: (unitId: string) => void; // afficher/masquer les cases menacées d'un ennemi
   endTurn: () => Promise<void>;
   returnToMap: () => void;
   pushLog: (msg: string) => void;
@@ -178,13 +182,33 @@ export const useStore = create<StoreState>((set, get) => {
   };
 
   const renderCombat = () => {
-    const { combat, current, combatMode } = get();
+    const { combat, current, combatMode, combatThreats, threatUnitId } = get();
     bus.emit(EV.ShowScene, "combat");
-    bus.emit(EV.CombatRender, { combat, current, mode: combatMode });
+    bus.emit(EV.CombatRender, {
+      combat,
+      current,
+      mode: combatMode,
+      threats: combatThreats,
+      threatUnitId,
+    });
   };
 
-  const applyCombat = (resp: { combat: Combat; game: GameState; current?: CombatCurrent }) => {
-    set({ combat: resp.combat, current: resp.current, game: resp.game });
+  const applyCombat = (resp: {
+    combat: Combat;
+    game: GameState;
+    current?: CombatCurrent;
+    threats?: CombatThreat[];
+  }) => {
+    // L'ennemi télégraphié peut être mort après ce lot d'actions — on nettoie.
+    const threats = resp.threats ?? [];
+    const keepThreat = threats.some((t) => t.unitId === get().threatUnitId);
+    set({
+      combat: resp.combat,
+      current: resp.current,
+      game: resp.game,
+      combatThreats: threats,
+      threatUnitId: keepThreat ? get().threatUnitId : undefined,
+    });
     resp.combat.log.slice(-3).forEach((l) => pushLog(l));
     if (resp.combat.status !== "active") {
       pushLog(resp.combat.status === "won" ? "🏆 Victoire !" : "💀 Défaite…");
@@ -272,6 +296,7 @@ export const useStore = create<StoreState>((set, get) => {
 
     view: "map",
     combatMode: "move",
+    combatThreats: [],
     log: [],
     busy: false,
 
@@ -889,7 +914,13 @@ export const useStore = create<StoreState>((set, get) => {
         const { game, combat, current, combatMode, playerId } = get();
         if (!game || !combat || !current) return;
         const list = combatMode === "skill" ? current.skillTargets : current.attackTargets;
-        if (!list.includes(unitId)) return;
+        if (!list.includes(unitId)) {
+          // Pas une cible valide : taper un ennemi montre/masque ses cases
+          // menacées (télégraphie C2) au lieu de ne rien faire.
+          const u = combat.units.find((x) => x.id === unitId);
+          if (u && u.side === "monster" && u.hp > 0) get().toggleThreat(unitId);
+          return;
+        }
         const resp = await api.combatAction(game.id, combat.id, {
           unitId: current.unitId,
           action: combatMode === "skill" ? "skill" : "attack",
@@ -913,8 +944,13 @@ export const useStore = create<StoreState>((set, get) => {
         applyCombat(resp);
       }),
 
+    toggleThreat: (unitId) => {
+      set({ threatUnitId: get().threatUnitId === unitId ? undefined : unitId });
+      renderCombat();
+    },
+
     returnToMap: () => {
-      set({ view: "map", combat: undefined, current: undefined });
+      set({ view: "map", combat: undefined, current: undefined, combatThreats: [], threatUnitId: undefined });
       renderMap();
     },
   };

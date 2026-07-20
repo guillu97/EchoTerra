@@ -300,6 +300,20 @@ export interface CombatCell {
   hazard?: string; // "water" | "ice" | "brambles"
 }
 
+// Un coup structuré du dernier lot d'actions (lot C2 — dégâts flottants).
+export interface CombatHit {
+  unitId: string;
+  amount: number; // toujours > 0
+  kind: "dmg" | "heal" | "hazard";
+}
+
+// Butin d'un héros à la victoire (écran de victoire C2).
+export interface CombatReward {
+  heroId: string;
+  heroName: string;
+  items: Item[];
+}
+
 export interface Combat {
   id: string;
   gameId: string;
@@ -316,6 +330,15 @@ export interface Combat {
   round: number;
   status: "active" | "won" | "lost";
   log: string[];
+  seq: number; // s'incrémente à chaque action — le client diffe pour animer lastHits
+  lastHits?: CombatHit[];
+  rewards?: CombatReward[];
+}
+
+// Fourchette de dégâts prévisualisée, calculée par le serveur (lot C2).
+export interface DamageEstimate {
+  min: number;
+  max: number;
 }
 
 export interface CombatCurrent {
@@ -324,10 +347,19 @@ export interface CombatCurrent {
   attackTargets: string[];
   skillTargets: string[];
   skill: Skill;
+  attackEstimates?: Record<string, DamageEstimate>;
+  skillEstimates?: Record<string, DamageEstimate>;
+}
+
+// Cases menacées par un ennemi depuis sa position (télégraphie orange, lot C2).
+export interface CombatThreat {
+  unitId: string;
+  cells: [number, number][];
 }
 
 export interface CombatResponse {
   combat: Combat;
   game: GameState;
   current?: CombatCurrent;
+  threats?: CombatThreat[];
 }

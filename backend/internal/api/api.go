@@ -1145,16 +1145,47 @@ func combatResponse(gs *game.GameState, c *game.Combat) map[string]any {
 			if reach == nil {
 				reach = [][2]int{}
 			}
+			atkTargets := c.TargetsFor(cur, &base)
+			skTargets := c.TargetsFor(cur, &sk)
 			resp["current"] = map[string]any{
 				"unitId":        cur.ID,
 				"reachable":     reach,
-				"attackTargets": idsOf(c.TargetsFor(cur, &base)),
-				"skillTargets":  idsOf(c.TargetsFor(cur, &sk)),
+				"attackTargets": idsOf(atkTargets),
+				"skillTargets":  idsOf(skTargets),
 				"skill":         sk,
+				// Fourchettes de dégâts prévisualisées (lot C2) — calcul serveur.
+				"attackEstimates": estimatesOf(c, cur, &base, atkTargets),
+				"skillEstimates":  estimatesOf(c, cur, &sk, skTargets),
 			}
 		}
+		// Télégraphie (lot C2) : cases menacées par chaque ennemi vivant depuis sa
+		// position — le client les teinte en orange quand on tape l'ennemi.
+		threats := []map[string]any{}
+		for _, u := range c.Units {
+			if u.Alive() && u.Side == "monster" {
+				cells := c.ThreatCells(u)
+				if cells == nil {
+					cells = [][2]int{}
+				}
+				threats = append(threats, map[string]any{"unitId": u.ID, "cells": cells})
+			}
+		}
+		resp["threats"] = threats
 	}
 	return resp
+}
+
+// estimatesOf maps target unit id -> {min,max} predicted damage of atk.
+func estimatesOf(c *game.Combat, att *game.CombatUnit, atk *game.AttackDef, targets []*game.CombatUnit) map[string]map[string]int {
+	out := map[string]map[string]int{}
+	if atk.DmgStat == "" {
+		return out
+	}
+	for _, t := range targets {
+		lo, hi := c.EstimateDamage(att, t, atk)
+		out[t.ID] = map[string]int{"min": lo, "max": hi}
+	}
+	return out
 }
 
 func idsOf(units []*game.CombatUnit) []string {

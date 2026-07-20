@@ -458,9 +458,15 @@ func (g *GameState) FinishCombat(c *Combat) {
 						}
 					}
 					h.AddLoot(loot)
+					items := []Item{loot}
 					if h.ClassID == "recuperateur" {
-						h.AddLoot(Item{Type: "animal", Name: "Trophée de monstre", Qty: 1})
+						extra := Item{Type: "animal", Name: "Trophée de monstre", Qty: 1}
+						h.AddLoot(extra)
+						items = append(items, extra)
 					}
+					// Écran de victoire (lot C2) : le butin par héros est mémorisé
+					// sur le combat pour que le client fasse un récapitulatif.
+					c.Rewards = append(c.Rewards, CombatReward{HeroID: h.ID, HeroName: h.Name, Items: items})
 				}
 			}
 		}

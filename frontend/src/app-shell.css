@@ -2530,6 +2530,159 @@ body {
   font-weight: 700;
 }
 
+/* =====================  COMBAT — lisibilité (lot C2)  ====================== */
+/* Timeline d'initiative : portraits dans l'ordre du tour, en haut de l'arène. */
+.init-bar {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 4px;
+  padding: 4px 6px;
+  background: rgba(16, 14, 28, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  z-index: 5;
+  max-width: calc(100% - 120px);
+  overflow-x: auto;
+}
+.init-chip {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  padding: 0;
+  border-radius: 9px;
+  border: 2px solid rgba(255, 255, 255, 0.22);
+  background: rgba(40, 44, 62, 0.9);
+  cursor: pointer;
+  overflow: hidden;
+}
+.init-chip img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.init-chip.ally {
+  border-color: rgba(75, 227, 110, 0.55);
+}
+.init-chip.enemy {
+  border-color: rgba(226, 75, 75, 0.55);
+}
+.init-chip.active {
+  border-color: #ffe066;
+  box-shadow: 0 0 8px rgba(255, 224, 102, 0.6);
+}
+.init-chip.threat {
+  border-color: #ff8c3b;
+  box-shadow: 0 0 8px rgba(255, 140, 59, 0.7);
+}
+.init-chip.dead {
+  filter: grayscale(1);
+  opacity: 0.35;
+}
+.init-chip .init-now {
+  position: absolute;
+  left: 50%;
+  bottom: -1px;
+  transform: translateX(-50%);
+  font-size: 8px;
+  color: #ffe066;
+  font-style: normal;
+}
+/* Fourchette de dégâts prévisualisée sur les boutons cibles. */
+.dmg-est {
+  font-style: normal;
+  font-weight: 800;
+  color: #ffd9b0;
+  margin-left: 5px;
+  font-size: 11px;
+}
+/* Écran de fin de combat : récap butin / PV / tours. */
+.combat-end {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10, 8, 20, 0.55);
+  z-index: 8;
+}
+.combat-end-card {
+  width: min(340px, calc(100% - 32px));
+  background: linear-gradient(180deg, #232738, #191c2a);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 16px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: center;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+}
+.combat-end-card h2 {
+  margin: 0;
+  font-size: 22px;
+}
+.combat-end-card h2.win {
+  color: #4be36e;
+}
+.combat-end-card h2.loss {
+  color: #e24b4b;
+}
+.combat-end-sub {
+  font-size: 12px;
+  color: #9fb2c9;
+}
+.combat-end-heroes,
+.combat-end-loot {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: left;
+  font-size: 13px;
+}
+.ce-hero,
+.ce-loot-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+}
+.ce-hero.dead {
+  opacity: 0.55;
+}
+.ce-hp {
+  color: #9fe3b0;
+  font-weight: 700;
+}
+.ce-loot-title {
+  font-weight: 800;
+  color: #ffd166;
+  margin-top: 2px;
+}
+.ce-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  justify-content: flex-end;
+}
+.ce-items em {
+  font-style: normal;
+  background: rgba(255, 209, 102, 0.14);
+  border: 1px solid rgba(255, 209, 102, 0.3);
+  border-radius: 6px;
+  padding: 1px 6px;
+  font-size: 11px;
+}
+.combat-end-card .small.green {
+  align-self: center;
+  min-width: 180px;
+}
+
 /* =====================  LOBBY (multiplayer waiting room)  ================== */
 .lobby-screen {
   overflow-y: auto;
