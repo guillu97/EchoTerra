@@ -6,6 +6,65 @@
 
 ---
 
+## 2026-07-20 (55) — Lot d'ajustements : header, danger, échelle, créneaux de reprise, apparition des monstres, tour sur la montagne
+
+### Fait (retours utilisateur groupés)
+- **Prochaine vague dans le header** : le compte à rebours 🌊 est désormais un
+  *chip* de la `TopBar` (à côté de 🏰%). Le bandeau secondaire `.wave-row` /
+  `WaveBanner` (sous la barre) est SUPPRIMÉ. Le bouton « 🌊 Forcer vague » de la
+  carte est retiré (déjà présent dans le panneau 🔧 Triche) ; `MapControls` ne
+  garde que « Rejoindre le combat » + « 👥 Autres » (et disparaît si rien à
+  afficher).
+- **Dangerosité des monstres ≠ losanges de déplacement** : plus de teinte de danger
+  posée SUR la case (elle entrait en conflit avec le losange jaune des cases
+  atteignables). Le losange coloré est désormais RÉSERVÉ aux déplacements du héros
+  sélectionné ; la dangerosité passe par un **badge flottant `☠ N` au-dessus du
+  monstre**, teinté jaune (petit pack) → rouge (gros pack).
+- **Échelle carte** (monstres/persos/arbres/ville) : la **ville** (temple) domine
+  (scale 1.6 → 2.1) ; les **arbres** montés d'un cran sur la carte (×1.3) pour
+  dépasser les personnages ; les **monstres** ont une taille PAR ESPÈCE
+  (`MONSTER_SCALE` : limace/chauve-souris ~0.8× ≪ élémentaire/loup/orc ~1.2× ≪
+  boss 1.8×). `HERO_HEIGHT` (partagé avec le combat) inchangé.
+- **Menu : deux créneaux de reprise indépendants** (`GameSlot` = `solo` | `mp`) :
+  un joueur peut être dans UNE partie solo ET UNE publique/privée en même temps,
+  mais pas deux publiques/privées. Le menu masque le bouton d'entrée d'un créneau
+  occupé et affiche « ▶ Reprendre — SOLO » / « ▶ Reprendre — PARTIE » à la place
+  (`localStorage echoterra:game:{solo,mp}`, `slotForGame`, `resumeSlot`,
+  `forgetGameSlots` au départ/expulsion/gameover).
+- **Apparition des monstres repensée** (`monsters.go` `spawnChance` +
+  `spawnWeightedPack`, `wave.go` `migrateMonstersTowardTown`) : probabilité qui
+  **croît avec la distance à la ville** (quadratique ; anneau de sécurité de rayon
+  2 = zéro), **autour des ruines** (+0.6 dans un rayon 3), et **à chaque vague**
+  (+20 %/vague). Les packs **non tués se rapprochent d'un pas de la ville à chaque
+  vague** (jamais sur la case ville, jamais en plein combat). Seeding initial
+  RÉDUIT (3 + joueurs) et repoussé au loin → **presque pas de monstres autour de
+  la ville au début**.
+- **Tour SUR la montagne** (`town-map.json`) : la cellule (44,44) de la tour était
+  à plat (h0) au pied de la crête ; un **plateau de pierre h=2** (basalte+pierre,
+  3×3) est posé sous son emprise → chantier ET tour construite se posent au sommet
+  (`cell.height+1 = 3`, même chemin de code pour les deux états).
+- **Débordement des modales** (`.settings .panel-card`) : `box-sizing: border-box`
+  (la `width:100%` + `padding:18px` débordait horizontalement du viewport), et
+  `max-height` en `dvh`. État de la ville + Journal tiennent maintenant dans
+  l'écran (scroll interne).
+
+### Fonctionnel (vérifié)
+- Backend : `go test ./...` OK (nouveau `spawn_test.go` : distance/ruines/vague
+  croissantes, migration vers la ville, jamais sur la ville, saut si en combat ;
+  `lobby_test.go` mis à jour : seeding réduit + anneau de sécurité vide).
+- Frontend : `tsc` + `npm run build` OK ; perf voxel **12/12** (tris/draw-calls/
+  géométries stables malgré arbres ×1.3 + badges) ; e2e menu `improve-check` :
+  reprise cachée sans compte, publiques verrouillées → écran connexion,
+  déverrouillées connecté ; ration +6 PA OK.
+- Rendus vérifiés : `render-town`/`render-map` (header 🌊, ville dominante,
+  arbres > persos), `scale-scene` (héros+monstre+arbres+ville), `tower-final`
+  (mesh tour à y=3 sur le plateau vs bâtiments à plat y≈1), `modal-townstatus`
+  (panneau `right=vw`, `bottom=vh`, aucun débordement).
+
+### Reste à faire
+- Échelle/tailles des monstres AUSSI en combat iso (pour l'instant carte seulement).
+- Vérifier le badge de danger sur des packs boss (rendu réel à venir en jeu).
+
 ## 2026-07-20 (54) — Combat : les unités s'orientent selon leur Facing (plus de billboard permanent)
 
 ### Fait (retour utilisateur : « les persos ne devraient-ils pas avoir un sens au début du combat puis tourner selon le déplacement ? »)

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useStore } from "../store";
 import { HeroActionsMenu } from "./HeroActionsMenu";
 import { heroesInTown } from "../townUtils";
+import { useWaveRemaining, formatHMS } from "../useWave";
 import { assetUrl, type AssetKey } from "../assets";
 
 // Portrait key for a hero class (same mapping as HeroOverlay).
@@ -32,6 +33,7 @@ export function TopBar() {
   const hpPct = game ? Math.round((game.town.hp / game.town.maxHp) * 100) : 100;
   const hpClass = hpPct > 60 ? "" : hpPct > 30 ? "warn" : "alert";
   const inTown = heroesInTown(game, playerId).length > 0;
+  const waveRemaining = useWaveRemaining(game);
 
   // My team's cumulated PA (all heroes in a multi game, every hero in legacy solo).
   const myIds = game?.players?.find((p) => p.id === playerId)?.heroIds;
@@ -53,6 +55,11 @@ export function TopBar() {
       <button className={`chip ${hpClass}`} onClick={() => toggleTownStatus(true)} title="État de la ville">
         🏰 {hpPct}%
       </button>
+      {game?.status === "active" && (
+        <button className="chip wave" onClick={() => toggleTownStatus(true)} title="Prochaine vague — état de la ville">
+          🌊 {formatHMS(waveRemaining)}
+        </button>
+      )}
       <span className="chip pa" title="PA cumulés de ton équipe">
         ⚡ {totalPA} PA
       </span>

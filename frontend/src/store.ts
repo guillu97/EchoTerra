@@ -16,11 +16,56 @@ import { bus, EV } from "./eventBus";
 import { effectiveTownHeroId } from "./townUtils";
 import { myActiveCombat } from "./combatUtils";
 
-const LS_GAME = "echoterra:gameId";
+const LS_GAME = "echoterra:gameId"; // dernière partie active (pointeur générique)
 const LS_SETTINGS = "echoterra:settings";
 const LS_PLAYER_NAME = "echoterra:playerName";
 // Per-game player identity: which player *I* am in that game (multiplayer lobby flow).
 const lsPlayerKey = (gameId: string) => `echoterra:player:${gameId}`;
+
+// Deux « créneaux » de partie en cours, indépendants : le joueur peut être dans
+// UNE partie solo ET UNE partie publique/privée en même temps (mais pas deux
+// publiques/privées). Le menu affiche un bouton « Reprendre » par créneau occupé.
+export type GameSlot = "solo" | "mp";
+const LS_SLOT: Record<GameSlot, string> = {
+  solo: "echoterra:game:solo",
+  mp: "echoterra:game:mp",
+};
+function rememberSlot(gameId: string, slot: GameSlot) {
+  try {
+    localStorage.setItem(LS_SLOT[slot], gameId);
+    const other: GameSlot = slot === "solo" ? "mp" : "solo";
+    if (localStorage.getItem(LS_SLOT[other]) === gameId) localStorage.removeItem(LS_SLOT[other]);
+  } catch {
+    /* ignore */
+  }
+}
+// Id de la partie mémorisée dans un créneau (le menu lit ça pour décider quels
+// boutons « Reprendre » afficher). Null si le créneau est vide.
+export function slotGameId(slot: GameSlot): string | null {
+  try {
+    return localStorage.getItem(LS_SLOT[slot]);
+  } catch {
+    return null;
+  }
+}
+// Oublie une partie de TOUS les créneaux (quittée, expulsée, terminée).
+function forgetGameSlots(gameId: string) {
+  try {
+    (Object.keys(LS_SLOT) as GameSlot[]).forEach((s) => {
+      if (localStorage.getItem(LS_SLOT[s]) === gameId) localStorage.removeItem(LS_SLOT[s]);
+    });
+    if (localStorage.getItem(LS_GAME) === gameId) localStorage.removeItem(LS_GAME);
+  } catch {
+    /* ignore */
+  }
+}
+// Catégorise une partie : publique OU privée avec ≥2 humains = créneau « mp » ;
+// sinon (solo, test rapide, privée pas encore rejointe) = créneau « solo ».
+function slotForGame(g: { visibility?: string; players?: { bot: boolean }[] }): GameSlot {
+  if (g.visibility === "public") return "mp";
+  const humans = (g.players ?? []).filter((p) => !p.bot).length;
+  return humans >= 2 ? "mp" : "solo";
+}
 
 type View = "map" | "combat";
 type CombatMode = "move" | "attack" | "skill" | "push";
@@ -126,6 +171,7 @@ interface StoreState {
   logoutAccount: () => Promise<void>;
   fetchMyGames: () => Promise<void>;
   resumeGame: (g: MyGameSummary) => Promise<void>;
+  resumeSlot: (slot: GameSlot) => Promise<void>; // menu: reprendre la partie d'un créneau
   setPlayerName: (name: string) => void;
   fetchLobbies: () => Promise<void>;
   createLobby: (opts: { name?: string; minPlayers: number; maxPlayers: number }) => Promise<void>;
@@ -254,8 +300,9 @@ export const useStore = create<StoreState>((set, get) => {
   };
 
   // Adopt a (re)loaded game: remember it + my player identity, select my own hero.
-  const adoptGame = (game: GameState, playerId?: string) => {
+  const adoptGame = (game: GameState, playerId?: string, slot?: GameSlot) => {
     localStorage.setItem(LS_GAME, game.id);
+    rememberSlot(game.id, slot ?? slotForGame(game));
     if (playerId) localStorage.setItem(lsPlayerKey(game.id), playerId);
     const pid = playerId ?? localStorage.getItem(lsPlayerKey(game.id)) ?? undefined;
     const myFirstHero = game.players?.find((p) => p.id === pid)?.heroIds?.[0];
@@ -349,6 +396,7 @@ export const useStore = create<StoreState>((set, get) => {
       withBusy(async () => {
         const game = await api.createGame({ width: 22, height: 22 });
         localStorage.setItem(LS_GAME, game.id);
+        rememberSlot(game.id, "solo");
         set({ game, view: "map", selectedHeroId: game.heroes[0]?.id, combat: undefined, current: undefined, playerId: undefined });
         pushLog(`Nouvelle partie — jour ${game.day}. La ville est à (${game.town.x}, ${game.town.y}).`);
         await enterActiveGame();
@@ -378,6 +426,7 @@ export const useStore = create<StoreState>((set, get) => {
         } else {
           const game = await api.createGame({ width: 22, height: 22 });
           localStorage.setItem(LS_GAME, game.id);
+          rememberSlot(game.id, "solo");
           set({ game, view: "map", selectedHeroId: game.heroes[0]?.id, combat: undefined, current: undefined, playerId: undefined });
           pushLog("Aucune partie sauvegardée — nouvelle partie créée.");
         }
@@ -463,6 +512,34 @@ export const useStore = create<StoreState>((set, get) => {
         await enterActiveGame();
       }),
 
+    // Reprend la partie mémorisée dans un créneau (solo ou publique/privée). Le
+    // menu n'affiche le bouton que si le créneau pointe une partie vivante.
+    resumeSlot: (slot) =>
+      withBusy(async () => {
+        const id = localStorage.getItem(LS_SLOT[slot]);
+        if (!id) return;
+        try {
+          const game = await api.getGame(id);
+          if (game.status === "gameover") {
+            localStorage.removeItem(LS_SLOT[slot]);
+            pushLog("🪦 Cette partie est terminée.");
+            return;
+          }
+          const pid = localStorage.getItem(lsPlayerKey(id)) ?? undefined;
+          adoptGame(game, pid, slot);
+          if (game.status === "lobby") {
+            set({ appScreen: "lobby" });
+            pushLog(`🎪 Retour au salon "${game.name}"${game.joinCode ? ` (code ${game.joinCode})` : ""}.`);
+            return;
+          }
+          pushLog(`▶ Partie "${game.name || "Expédition"}" reprise — jour ${game.day}.`);
+          await enterActiveGame();
+        } catch {
+          localStorage.removeItem(LS_SLOT[slot]);
+          pushLog("⚠️ Partie introuvable — le créneau a été vidé.");
+        }
+      }),
+
     setPlayerName: (name) => {
       try {
         localStorage.setItem(LS_PLAYER_NAME, name);
@@ -484,7 +561,7 @@ export const useStore = create<StoreState>((set, get) => {
       withBusy(async () => {
         const playerName = get().playerName.trim() || "Aventurier";
         const res = await api.createLobby({ ...opts, playerName, width: 22, height: 22 });
-        adoptGame(res.game, res.player.id);
+        adoptGame(res.game, res.player.id, "mp");
         pushLog(`🎪 Partie "${res.game.name}" créée — code ${res.game.joinCode}.`);
       }),
 
@@ -492,7 +569,7 @@ export const useStore = create<StoreState>((set, get) => {
       withBusy(async () => {
         const playerName = get().playerName.trim() || "Aventurier";
         const res = await api.joinByCode(code, playerName);
-        adoptGame(res.game, res.player.id);
+        adoptGame(res.game, res.player.id, "mp");
         pushLog(`🤝 Partie "${res.game.name}" rejointe (${res.game.players.length}/${res.game.maxPlayers} joueurs).`);
         // Joining a public game as its Nth player can trigger the auto-start:
         // in that case skip the waiting room entirely.
@@ -520,7 +597,7 @@ export const useStore = create<StoreState>((set, get) => {
         // Kicked (or identity lost) while waiting: back to the title screen.
         if (playerId && next.players?.length && !next.players.some((p) => p.id === playerId)) {
           localStorage.removeItem(lsPlayerKey(game.id));
-          if (localStorage.getItem(LS_GAME) === game.id) localStorage.removeItem(LS_GAME);
+          forgetGameSlots(game.id);
           set({ appScreen: "title", game: undefined, playerId: undefined });
           pushLog("🚪 Tu as été retiré du salon.");
           return;
@@ -552,7 +629,7 @@ export const useStore = create<StoreState>((set, get) => {
       withBusy(async () => {
         const playerName = get().playerName.trim() || "Aventurier";
         const res = await api.soloGame(playerName);
-        adoptGame(res.game, res.player.id);
+        adoptGame(res.game, res.player.id, "solo");
         pushLog(`🤖 Partie solo lancée : toi + 4 bots (${res.game.heroes.length} héros).`);
         await enterActiveGame();
       }),
@@ -574,7 +651,7 @@ export const useStore = create<StoreState>((set, get) => {
           try {
             await api.leaveGame(game.id, playerId);
             localStorage.removeItem(lsPlayerKey(game.id));
-            if (localStorage.getItem(LS_GAME) === game.id) localStorage.removeItem(LS_GAME);
+            forgetGameSlots(game.id);
             pushLog("👋 Salon quitté.");
           } catch {
             /* leaving is best-effort — still return to the title screen */

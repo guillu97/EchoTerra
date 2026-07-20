@@ -1,15 +1,13 @@
 import { useEffect, useState } from "react";
-import { useStore } from "../store";
+import { useStore, slotGameId, type GameSlot } from "../store";
 import { Logo } from "../components/Logo";
 import { assetUrl, libUrl } from "../assets";
 import { api } from "../api/client";
 import type { GameState } from "../api/types";
 import { formatHMS } from "../useWave";
 
-const LS_GAME = "echoterra:gameId";
-
-// "Ecran de titre" — main menu: resume card, the three ways to play (solo,
-// public, private), ranking + settings, and a debug section (dev/test flows).
+// "Ecran de titre" — main menu: resume cards (deux créneaux : solo + publique/
+// privée), the ways to play, ranking + settings, and a debug section.
 export function TitleScreen() {
   const {
     openSettings,
@@ -17,6 +15,7 @@ export function TitleScreen() {
     openAccount,
     startAdventure,
     startSoloBots,
+    resumeSlot,
     pushLog,
     startTestGame,
     continueTestGame,
@@ -24,6 +23,11 @@ export function TitleScreen() {
     setScreen,
     user,
   } = useStore();
+
+  // Parties en cours dans chaque créneau (null = créneau vide). Un joueur peut
+  // avoir UNE partie solo ET UNE partie publique/privée simultanément.
+  const soloGame = useSlotGame("solo");
+  const mpGame = useSlotGame("mp");
 
   return (
     <div className="screen parchment">
@@ -38,32 +42,44 @@ export function TitleScreen() {
       </div>
       <Logo />
 
-      {/* La reprise n'apparaît QUE si le joueur est connecté : sans compte on ne
-          sait pas quel joueur reprendre (identité ambiguë en multijoueur). */}
-      {user && <ResumeCard onResume={() => continueTestGame()} busy={busy} />}
+      {/* Quand une partie tourne dans un créneau, on ne montre QUE « Reprendre »
+          pour ce créneau (le bouton d'entrée correspondant est masqué). */}
+      {soloGame && (
+        <ResumeCard game={soloGame} kicker="REPRENDRE — SOLO" busy={busy} onResume={() => resumeSlot("solo")} />
+      )}
+      {mpGame && (
+        <ResumeCard game={mpGame} kicker="REPRENDRE — PARTIE" busy={busy} onResume={() => resumeSlot("mp")} />
+      )}
 
       <div className="menu">
-        <button className="pill red pulse" disabled={busy} onClick={() => startSoloBots()}>
-          ⚔️ Solo <small>(avec 4 bots)</small>
-        </button>
-        {/* Une partie publique exige un compte (identité stable du joueur). Sans
-            connexion, le bouton mène à l'écran de connexion. */}
-        <button
-          className="pill"
-          onClick={() => {
-            if (user) {
-              openLobby("public");
-            } else {
-              pushLog("🔒 Connecte-toi pour rejoindre une partie publique.");
-              openAccount();
-            }
-          }}
-        >
-          🌍 Parties publiques {!user && <small>🔒 connexion requise</small>}
-        </button>
-        <button className="pill" onClick={() => openLobby("private")}>
-          🎪 Parties privées
-        </button>
+        {/* Solo : masqué si une partie solo est déjà en cours (on la reprend). */}
+        {!soloGame && (
+          <button className="pill red pulse" disabled={busy} onClick={() => startSoloBots()}>
+            ⚔️ Solo <small>(avec 4 bots)</small>
+          </button>
+        )}
+        {/* Publiques/privées : un seul créneau « mp ». Masqués tant qu'une partie
+            publique/privée est en cours (impossible d'être dans deux à la fois). */}
+        {!mpGame && (
+          <>
+            <button
+              className="pill"
+              onClick={() => {
+                if (user) {
+                  openLobby("public");
+                } else {
+                  pushLog("🔒 Connecte-toi pour rejoindre une partie publique.");
+                  openAccount();
+                }
+              }}
+            >
+              🌍 Parties publiques {!user && <small>🔒 connexion requise</small>}
+            </button>
+            <button className="pill" onClick={() => openLobby("private")}>
+              🎪 Parties privées
+            </button>
+          </>
+        )}
         <div className="menu-row">
           <button className="pill cream" onClick={() => pushLog("Classement — bientôt")}>
             🏆 Classement
@@ -106,27 +122,44 @@ export function TitleScreen() {
   );
 }
 
-// "Reprendre ta partie" — shown when the last played game still exists server-side.
-function ResumeCard({ onResume, busy }: { onResume: () => void; busy: boolean }) {
+// Charge la partie mémorisée dans un créneau (ou undefined si vide / terminée /
+// introuvable). Best-effort : un échec réseau laisse simplement le bouton caché.
+function useSlotGame(slot: GameSlot): GameState | undefined {
   const [game, setGame] = useState<GameState | undefined>();
-
   useEffect(() => {
-    const id = localStorage.getItem(LS_GAME);
-    if (!id) return;
+    const id = slotGameId(slot);
+    if (!id) {
+      setGame(undefined);
+      return;
+    }
     let alive = true;
     api
       .getGame(id)
       .then((g) => {
-        if (alive && g.status !== "gameover") setGame(g);
+        if (alive) setGame(g.status === "gameover" ? undefined : g);
       })
-      .catch(() => {});
+      .catch(() => {
+        if (alive) setGame(undefined);
+      });
     return () => {
       alive = false;
     };
-  }, []);
+  }, [slot]);
+  return game;
+}
 
-  if (!game) return null;
-
+// "Reprendre ta partie" — carte de reprise d'un créneau.
+function ResumeCard({
+  game,
+  kicker,
+  onResume,
+  busy,
+}: {
+  game: GameState;
+  kicker: string;
+  onResume: () => void;
+  busy: boolean;
+}) {
   const townPct = Math.round((game.town.hp / game.town.maxHp) * 100);
   const waveSec = Math.max(0, Math.floor((new Date(game.nextWaveAt).getTime() - Date.now()) / 1000));
   const meta =
@@ -140,7 +173,7 @@ function ResumeCard({ onResume, busy }: { onResume: () => void; busy: boolean })
         <img src={libUrl("islands", "core-built")} alt="" />
       </span>
       <span className="body">
-        <span className="kicker">REPRENDRE TA PARTIE</span>
+        <span className="kicker">{kicker}</span>
         <span className="title">{game.name || "Expédition"}</span>
         <span className="meta">{meta}</span>
       </span>

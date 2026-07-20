@@ -134,13 +134,16 @@ function ActionMenu() {
 // the TopBar (HeroActionsMenu). Movement is unchanged: select a hero, tap the
 // yellow diamonds on the map. Only map-wide tools remain here.
 function MapControls() {
-  const { game, advance, busy, showOthers, toggleOthers, playerId, joinCombat } = useStore();
+  const { game, showOthers, toggleOthers, playerId, joinCombat, busy } = useStore();
   if (!game) return null;
   const multiplayer = (game.players?.length ?? 0) > 1;
   // Un combat actif (parmi TOUS ceux en cours — ils peuvent être plusieurs) où
   // figurent MES héros, que je n'ai pas encore rejoint → « Rejoindre le combat ».
   const mine = myActiveCombat(game, playerId);
   const canJoin = !!mine && !!playerId && !mine.participants?.includes(playerId);
+  // « Forcer la vague » a déménagé dans le panneau de triche (🔧). Cette barre ne
+  // garde que les actions de terrain (rejoindre un combat, masquer les autres).
+  if (!canJoin && !multiplayer) return null;
 
   return (
     <div className="map-controls">
@@ -151,11 +154,8 @@ function MapControls() {
           </button>
         </div>
       )}
-      <div className="line">
-        <button className="small" disabled={busy} onClick={() => advance()} title="Déclencher la prochaine vague maintenant">
-          🌊 Forcer vague
-        </button>
-        {multiplayer && (
+      {multiplayer && (
+        <div className="line">
           <button
             className={`small ${showOthers ? "red" : ""}`}
             title="Afficher/masquer les héros des autres joueurs (sprites translucides)"
@@ -163,8 +163,8 @@ function MapControls() {
           >
             👥 Autres
           </button>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -206,7 +206,10 @@ func (g *GameState) ProcessWave(now time.Time) {
 		}
 	}
 
-	// The horde grows: new monsters appear on the map.
+	// Surviving packs close in on the town by one step before the fresh horde spawns.
+	g.migrateMonstersTowardTown()
+
+	// The horde grows: new monsters appear on the map (far out, then they migrate in).
 	r.MonstersSpawned = g.spawnWaveMonsters(g.WaveNumber)
 
 	if g.Town.HP <= 0 {
@@ -333,32 +336,55 @@ func (g *GameState) spawnWaveMonsters(waveNumber int) int {
 		count = 8
 	}
 	includeBosses := waveNumber >= bossWaveThreshold
+	// Apparition PONDÉRÉE (loin de la ville / près des ruines / croissant par vague) —
+	// voir spawnChance/spawnWeightedPack. Les nouveaux packs naissent au loin puis
+	// se rapprochent vague après vague (migrateMonstersTowardTown).
 	spawned := 0
-	for tries := 0; tries < count*30 && spawned < count; tries++ {
-		x, y := rand.Intn(g.Width), rand.Intn(g.Height)
-		if x == g.Town.X && y == g.Town.Y {
-			continue
+	for i := 0; i < count; i++ {
+		if g.spawnWeightedPack(waveNumber, includeBosses) {
+			spawned++
 		}
-		t := g.TileAt(x, y)
-		if t == nil || !t.Biome.Walkable() || t.MonsterID != "" {
-			continue
-		}
-		// Species allowed on this tile's biome (per the 👹 Monstres spawn terrains).
-		sp := g.spawnableSpeciesAt(x, y, includeBosses)
-		if sp == nil {
-			continue
-		}
-		m := NewMonster(sp.Name, x, y)
-		// The horde packs lean bigger as waves pass, within the species' pack range.
-		if grow := waveNumber / 2; grow > 0 && !sp.Boss {
-			m.Count += grow
-			if m.Count > sp.PackMax {
-				m.Count = sp.PackMax
-			}
-		}
-		g.Monsters[m.ID] = m
-		t.MonsterID = m.ID
-		spawned++
 	}
 	return spawned
+}
+
+// migrateMonstersTowardTown fait AVANCER chaque pack survivant d'un pas vers la
+// ville à chaque vague (règle : les monstres non tués se rapprochent). Un pack en
+// plein combat, ou sans case libre plus proche, reste sur place. Les monstres
+// n'occupent jamais la case ville elle-même — ils encerclent ses abords.
+func (g *GameState) migrateMonstersTowardTown() {
+	busy := map[[2]int]bool{} // cases d'un combat actif : ne pas téléporter leurs monstres
+	for _, c := range g.Combats {
+		if c.Status == "active" {
+			busy[[2]int{c.TileX, c.TileY}] = true
+		}
+	}
+	for _, m := range g.Monsters {
+		if busy[[2]int{m.X, m.Y}] {
+			continue
+		}
+		dx, dy := signI(g.Town.X-m.X), signI(g.Town.Y-m.Y)
+		if dx == 0 && dy == 0 {
+			continue
+		}
+		for _, step := range [][2]int{{dx, dy}, {dx, 0}, {0, dy}} {
+			if step[0] == 0 && step[1] == 0 {
+				continue
+			}
+			nx, ny := m.X+step[0], m.Y+step[1]
+			if nx == g.Town.X && ny == g.Town.Y {
+				continue // s'agglutiner autour, pas SUR la ville
+			}
+			t := g.TileAt(nx, ny)
+			if t == nil || !t.Biome.Walkable() || t.MonsterID != "" {
+				continue
+			}
+			if old := g.TileAt(m.X, m.Y); old != nil && old.MonsterID == m.ID {
+				old.MonsterID = ""
+			}
+			m.X, m.Y = nx, ny
+			t.MonsterID = m.ID
+			break
+		}
+	}
 }
