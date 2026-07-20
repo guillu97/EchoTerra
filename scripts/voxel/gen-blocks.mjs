@@ -58,6 +58,7 @@ const BLOCKS = [
   { id: "darkgrass", src: "darkgrass", recipe: "ground", params: { blades: 0.04, bump: 1 } },
   { id: "copperblock", src: "copperblock", recipe: "rock", params: { bump: 0 } },
   { id: "darkstone", src: "darkstone", recipe: "rock", params: { bump: 1 } },
+  { id: "ice", src: "ice", recipe: "ground" }, // plaques de glace des arènes de combat (C1)
 ];
 
 // Palette procédurale de la brume — les constantes MIST_* de MapScene.

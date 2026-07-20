@@ -47,5 +47,6 @@ export function makeLabel(text: string, color = "#e8e8f0", height = 0.16): THREE
     new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, depthTest: false }),
   );
   s.scale.set(height / aspect, height, 1);
+  s.userData.ownMat = true; // matériau propre à l'étiquette (la texture reste en cache)
   return s;
 }

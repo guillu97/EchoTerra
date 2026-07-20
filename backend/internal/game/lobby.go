@@ -228,6 +228,17 @@ func (g *GameState) MaybeAutoStart(now time.Time) bool {
 	return true
 }
 
+// OwnerOfHero returns the id of the player owning the hero ("" if none — legacy
+// games, or a hero not attached to any player).
+func (g *GameState) OwnerOfHero(heroID string) string {
+	for _, p := range g.Players {
+		if p.OwnsHero(heroID) {
+			return p.ID
+		}
+	}
+	return ""
+}
+
 // CheckHeroOwnership validates that the player may control the hero. Games without
 // players (legacy solo / dev "Test rapide") are unrestricted; multiplayer games
 // require the caller to identify as the player owning that hero.

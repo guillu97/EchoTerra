@@ -73,9 +73,18 @@ const f1 = await page.evaluate(() => window.__vm.engine.renderer.info.render.fra
 check("carte on-demand (pas de boucle continue)", f1 - f0 <= 2, `${f1 - f0} rendus en 3s au repos`);
 check("pas de nuages sur la carte (retour perf mobile)", await page.evaluate(() => !window.__vm.world.clouds), "clouds absent");
 
-// --- pas de fuite : géométries stables pendant l'animation -------------------
+// --- pas de fuite : géométries stables à travers les redraws -----------------
+// Baseline prise ICI (après ~6s de vie) : les bibliothèques de persos/props
+// chargent en asynchrone après terrain-prêt — mesurer depuis `info.geoms`
+// comptait leur arrivée comme une fuite. On force ensuite plusieurs redraws
+// (le chemin du poll 20 s) et on vérifie que RIEN ne s'accumule.
+const g0 = await page.evaluate(() => window.__vm.engine.renderer.info.memory.geometries);
+await page.evaluate(() => {
+  for (let i = 0; i < 5; i++) window.__vm.world.draw();
+});
+await wait(1000);
 const g1 = await page.evaluate(() => window.__vm.engine.renderer.info.memory.geometries);
-check("géométries stables (pas de fuite d'animation)", Math.abs(g1 - info.geoms) <= 4, `${info.geoms} → ${g1}`);
+check("géométries stables (pas de fuite au redraw)", Math.abs(g1 - g0) <= 4, `${g0} → ${g1} (5 redraws forcés)`);
 
 // --- quitter l'onglet Map : la boucle continue s'arrête ----------------------
 await page.evaluate(() => window.__eg.store.setState({ tab: "stock" }));

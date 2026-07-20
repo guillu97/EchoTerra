@@ -27,7 +27,7 @@ func TestCombatHeroCanWin(t *testing.T) {
 	gs.Heroes = []*Hero{hero}
 	hero.X, hero.Y = m.X, m.Y
 
-	c := NewCombat(gs, []*Hero{hero}, m)
+	c := NewCombat(gs, []*Hero{hero}, m, "")
 
 	// Drive hero turns until the combat ends; move adjacent then attack.
 	for i := 0; i < 100 && c.Status == "active"; i++ {

@@ -210,6 +210,10 @@ export const api = {
   getCombat: (gameId: string, combatId: string) =>
     req<CombatResponse>("GET", `/api/games/${gameId}/combat/${combatId}`),
 
+  // Multijoueur : rejoindre un combat où figurent MES héros (jusqu'ici joués par l'IA).
+  joinCombat: (gameId: string, combatId: string, playerId?: string) =>
+    req<CombatResponse>("POST", `/api/games/${gameId}/combat/${combatId}/join`, { playerId }),
+
   combatAction: (
     gameId: string,
     combatId: string,
@@ -219,6 +223,7 @@ export const api = {
       x?: number;
       y?: number;
       targetId?: string;
+      item?: string; // action "item" (C3) : nom de l'objet du sac
       playerId?: string;
     },
   ) => req<CombatResponse>("POST", `/api/games/${gameId}/combat/${combatId}/action`, payload),

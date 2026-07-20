@@ -6,6 +6,220 @@
 
 ---
 
+## 2026-07-20 (50) — BOSS révisé : plus d'annonce, il attaque chaque tour (base ou spéciale)
+
+### Fait (retour utilisateur : « les attaques prévues à l'avance, c'est trop simple »)
+- **L'annonce des patterns un tour à l'avance est RETIRÉE** (le tour d'annonce était
+  un tour GRATUIT pour les joueurs et la zone s'esquivait à l'infini) : `bossTurn`
+  attaque désormais À CHAQUE TOUR — ~40 % sa spéciale offensive (immédiate, zone GDD
+  appliquée autour de la cible : Piétinement du Croc, Racines Sinistres…), sinon son
+  attaque de base. `Combat.Telegraph`/`CombatTelegraph` supprimés (serveur + types +
+  rendu des cases annoncées + bannière).
+- La LECTURE du danger reste possible via la télégraphie C2 (taper le boss → cases
+  menacées en orange) — `ThreatCells` corrigé pour évaluer depuis CHAQUE case de
+  l'empreinte 2×2 (l'ancre seule sous-estimait sa portée).
+- Harnais c4-check : le héros AVANCE vers l'ennemi (les espèces à portée ne viennent
+  plus au contact depuis la C4 — le harnais qui ne bougeait pas n'avait jamais de
+  cible en mêlée).
+
+### Fonctionnel (vérifié)
+- `TestBossAttacksEveryTurnBaseOrSpecial` (au contact, le boss frappe à CHAQUE tour
+  et mélange base/spéciale sur 60 tours) remplace le test d'annonce ; suite Go
+  verte ; e2e combat réel vert ; tsc + build.
+
+## 2026-07-20 (49) — COMBAT C5 : boss 2×2, patterns télégraphiés, IA de meute, renforts — COMBAT-PLAN ✅ COMPLET
+
+### Fait (lot C5, dernier du COMBAT-PLAN)
+- **Boss 2×2 en 9×9** : espèce `Boss` du design (Roi Gobelin, Arbre Vivant Ancien) →
+  arène 9×9, UNE unité `Size=2` (ancre coin haut-gauche, empreinte aplanie au spawn).
+  Fondations multi-cases : `span/occupies/footprint/distTo`, `unitAt`/`passable`
+  (empreinte complète), `canTarget` évalué entre CHAQUE case attaquant × cible (le
+  boss frappe depuis toute son empreinte, on l'atteint par n'importe quelle case),
+  zone de dégâts dédupliquée (`hitOnce`), pas de dos ni de poussée sur un boss,
+  insensible glace/ronces, lent (Move 2).
+- **Patterns télégraphiés** : `Combat.Telegraph {unitId, attack, cells}` — le boss
+  ANNONCE sa spéciale de zone (~50 %) centrée sur sa cible, la frappe à son tour
+  SUIVANT sur les cases ANNONCÉES (quiconque y reste prend le coup, esquive = zéro
+  dégât). Client : cases orange vif + ⚠ + bannière « X prépare Y — évacue ! ».
+- **IA de meute** (tous les monstres) : focus-fire (`packTarget` : l'ennemi le plus
+  BLESSÉ, le plus proche à égalité), retraite d'un pas sous 25 % PV (`stepAway`),
+  le BUFFEUR (Hurlement de Meute) reste en retrait tant qu'un allié est plus avancé.
+- **Renforts vague 4+** : `ReinforceAt=3` (pack >1, hors boss) — annoncés au round 2
+  (log + bannière), 1-2 créatures surgissent par le bord nord au round 3
+  (`roundTick` dans advanceTurn, unités ajoutées à l'ordre du tour).
+- **Client** : boss rendu au centre de l'empreinte (modèle/anneaux/barre de PV ×2),
+  cases télégraphiées, bannières boss + renforts.
+
+### Fonctionnel (vérifié)
+- `combat_c5_test.go` (arène/empreinte, mêlée depuis toute case de l'empreinte +
+  poussée refusée, annonce→frappe sur cases marquées ET esquive indemne, focus-fire
+  sur le blessé, retraite, renforts annoncés puis arrivés vague 5 / absents tôt) ;
+  suite Go verte ; e2e réel de non-régression (combat normal C4) ; capture c5-boss
+  (injection synthétique) ; tsc + build ; perf voxel 12/12.
+
+### Le COMBAT-PLAN (C1-C5) est ✅ INTÉGRALEMENT LIVRÉ, plus le combat multijoueur.
+Prolongements possibles : boss en vraie partie longue (vague 4+ organique), FX
+d'impact (flash/recul), notification quand son tour arrive en multi.
+
+## 2026-07-20 (48) — COMBAT C4 : ligne de vue, couverture, hauteur formalisée, attaque de dos
+
+### Fait (lot C4 du COMBAT-PLAN)
+- **Ligne de vue** : `hasLOS` (Bresenham, extrémités exclues) — un obstacle C1 sur le
+  trajet coupe les attaques à distance (>1). `canTarget` centralise case verte + LOS
+  et est utilisé PARTOUT : ciblage servi (`TargetsFor`), validation des actions
+  joueur, IA monstre ET héros auto (qui continuent d'AVANCER tant que le tir est
+  bloqué, au lieu de s'arrêter à portée).
+- **Hauteur formalisée** : +1 dégât par niveau d'avantage (max +3), −1 en
+  contre-plongée — remplace l'ancien « +1 si plus haut », dans `dmgMods` PARTAGÉ par
+  `damageWith` et `EstimateDamage` (la fourchette C2 reste exacte).
+- **Attaque de dos** : `CombatUnit.FX/FY` (Facing) mis à jour au déplacement
+  (`enterCell`) et à l'attaque ; attaquant dans l'arc arrière (produit scalaire < 0)
+  = **+25 %** et ignore la couverture. `stepToward` préfère à distance égale la case
+  dans le dos de la cible (contournement IA).
+- **Couverture** : cible orth-adjacente à un obstacle CÔTÉ attaquant = **−25 %** sur
+  les attaques à distance (annulée par le dos). Télégraphie servie dans les
+  fourchettes (`rear`/`cover`) → icônes 🗡/🛡 sur les boutons cibles.
+- **Client** : flèches d'orientation (triangle au bord de la case, teinte
+  héros/monstre) dans l'arène voxel ; icônes + tooltips sur les cibles.
+
+### Fonctionnel (vérifié)
+- `combat_c4_test.go` (LOS bloquée/dégagée + refus serveur, mêlée exemptée,
+  contre-plongée −1, plafond +3, dos +25 % encadré par la fourchette sur 50 tirages,
+  Facing mis à jour move/attaque, couverture −25 % hors trajectoire + ignorée de
+  dos + mêlée exempte) ; suite Go verte ; e2e réel (fx/fy servis, fourchette C4
+  respectée par le coup réel) ; capture c4-facing ; tsc + build ; perf 12/12.
+
+### Reste : C5 boss & IA (arène 9×9, boss 2×2, patterns télégraphiés, renforts).
+
+## 2026-07-20 (47) — COMBAT MULTIJOUEUR : équipes, IA des absents, « Rejoindre le combat »
+
+### Fait (directive /loop du 2026-07-20)
+- **Serveur** : `CombatUnit.OwnerID` (joueur propriétaire, posé par `NewCombat` via
+  `OwnerOfHero`) + `Combat.Participants` (joueurs PRÉSENTS ; l'initiateur passé par
+  `StartCombat(heroID, starterID)`). `advanceUntilHeroOrEnd` ne s'arrête que sur les
+  unités d'un participant : **les héros des joueurs absents (autre joueur pas encore
+  entré, bots) sont joués par l'IA** (`heroAutoAct`, refactor de heroAutoTurn sans le
+  endTurn — sinon récursion). `JoinCombat(combatID, playerID)` (+ route
+  `POST /combat/{c}/join`) : valide joueur + héros vivant dans le combat, idempotent,
+  et agir dans le combat (re)inscrit défensivement comme participant. Spawn héros :
+  rangée du bas remplie du CENTRE vers les bords (`spawnX`), plafonnée à 7 — plusieurs
+  équipes tiennent dans l'arène. Parties legacy sans joueurs : tout reste manuel.
+- **Client** : bouton **« ⚔️ Rejoindre le combat (x,y) — tes héros y sont ! »** dans la
+  barre Map quand un combat actif contient MES héros et que je n'y suis pas ;
+  **marqueur ⚔ rouge sur la case** du combat (carte voxel) ; en combat, **je ne pilote
+  que MES unités** (« ⏳ Tour de X (autre joueur)… » sinon) ; **poll 3 s du combat**
+  (`refreshCombat`, n'applique que les vrais changements seq/statut/tour, désamorcé en
+  solo) pour voir les tours adverses et son propre tour arriver.
+
+### Fonctionnel (vérifié)
+- `combat_multi_test.go` (IA des absents — le tour n'est JAMAIS rendu à l'unité de
+  l'absent et son héros AGIT au log ; join → ses tours se mettent en pause ;
+  validations ; spawns sans doublon ni hors-grille) + suite Go verte ; **e2e à DEUX
+  navigateurs** (lobby par code, marche coordonnée vers le même pack, engage par A,
+  ownerId/participants vérifiés, IA joue Bob, bouton Rejoindre chez B, B participant,
+  tour de Bob rendu à B qui agit) ; captures mp-join-button/mp-bob-turn ; tsc + build ;
+  perf voxel 12/12.
+
+### Reste : C4 couverture/visée/dos, C5 boss & IA (COMBAT-PLAN). Multi : pas de
+notification push quand son tour arrive (le poll 3 s suffit en séance).
+
+## 2026-07-20 (46) — COMBAT C3 : actions tactiques (Defend, Poussée, objets, fuite)
+
+### Fait (lot C3 du COMBAT-PLAN — /loop « implémente tout »)
+- **Serveur** : `defend` (Bouclier -50 % jusqu'au prochain tour, termine le tour) ;
+  `push` (0 dégât, déplace d'1 case dans l'axe : collision bord/obstacle/mur ≥2/unité
+  = 2 dégâts [aux DEUX si télescopage], poussée dans l'eau = Root « piégé un tour »,
+  chute ≥2 niveaux = +2, glace/ronces s'appliquent via enterCell ; portée 1, **2 pour
+  le Pionnier — « Poussée du Survivant »** ; `PushTargets` servi) ; `item` (=
+  `UseItem(gs,…)` : consomme du SAC — `combatConsumables` : Potion de soin +5, Baume
+  de gelée +3, Ration d'eau +2, Baies +2 — soigne l'unité, termine le tour) ; `flee`
+  (bord bas uniquement, `CombatUnit.Fled`, plus jamais le tour [`inBattle`], dernier
+  vivant → statut **"fled"** : `FinishCombat` SANS butin, héros restent sur la case,
+  **pack conservé avec ses pertes** [Count − tués, PV de tête persistés]).
+- **Client** : boutons 🛡️ Défendre / 👐 Pousser (mode ciblage, anneaux cyan) /
+  🧪 objets servis par `current.items` / 🏃 Fuir (bord bas) ; écran de fin « 🏃 Repli ! ».
+
+### Fonctionnel (vérifié)
+- `combat_c3_test.go` (mécaniques de poussée pures + validations, item, fuite,
+  fuyard sauté dans l'ordre du tour) ; e2e réel (defend loggé, poussée jouée,
+  fuite → fled + écran + pack conservé) ; captures c3-push/c3-flee ; tsc + build ;
+  perf 12/12.
+
+## 2026-07-20 (45) — COMBAT C2 : lisibilité & juice (+ fuite GPU des redraws corrigée)
+
+### Fait (lot C2 du COMBAT-PLAN — /loop « implémente tout »)
+- **Serveur** : `Combat.Seq` (s'incrémente à chaque action) + `Combat.LastHits
+  []CombatHit {unitId, amount, kind: dmg|heal|hazard}` remplis par `performAttack`
+  (dégâts + soin Absorbe) et les ronces d'`enterCell` — reset à chaque `PlayerAction`,
+  plafonné à 64 (combats auto-résolus des bots). `Combat.Rewards []CombatReward`
+  consigné par `FinishCombat` à la victoire (butin par héros). `EstimateDamage`
+  (miroir SANS aléa de `damageWith`, Bouclier/hauteur inclus) et `ThreatCells`
+  (union grilles de ciblage + zones de dégâts, clippée à l'arène). `combatResponse`
+  sert `attackEstimates`/`skillEstimates` ({min,max} par cible) + `threats`
+  (cases menacées par ennemi vivant) — le client ne calcule RIEN.
+- **Client** : **timeline d'initiative** (`InitiativeBar`, portraits dans l'ordre du
+  tour, actif surligné, morts grisés — taper un ennemi bascule sa télégraphie) ;
+  **dégâts flottants** (« −7 » monte et s'estompe ~900 ms, décalés si coups
+  multiples, groupe `fx` séparé des redraws) ; **fourchette de dégâts** sur les
+  boutons cibles (« −4…6 ») ; **télégraphie orange** (quads sur les cases menacées
+  de l'ennemi sélectionné + anneau orange) ; **écran de fin** (`CombatEndScreen` :
+  victoire/défaite, tours joués, PV par héros, butin par héros en chips).
+- **Fuite GPU corrigée (pré-existante)** : chaque redraw de la carte (poll 20 s)
+  fuyait ~11 géométries + matériaux (`quad`/`ring` recréés, `.clear()` sans
+  dispose) → `clearOwned()` dans engine.ts (libère géométrie/matériau marqués
+  `userData.ownGeom/ownMat`, jamais les ressources partagées), géométries
+  STATIQUES partagées (QUAD/RING/EDGE), cache de textures héros de la vue ville.
+  Drift mesuré : 29→90 sur 72 s AVANT, plat à 50 APRÈS. Le check perf re-baseline
+  après les chargements asynchrones et force 5 redraws.
+
+### Fonctionnel (vérifié)
+- `combat_juice_test.go` (Seq/LastHits, fourchette encadrant 50 tirages réels ±
+  Bouclier, +1 hauteur, ThreatCells, Rewards) + suite Go verte ; e2e réel 12/12
+  (fourchette affichée ET respectée par le coup réel, timeline DOM, télégraphie au
+  tap, seq/lastHits, écran de fin) ; captures c2-threat/c2-floating/c2-victory ;
+  `tsc` + build ; perf voxel 12/12 (dont le nouveau check anti-fuite).
+
+### Reste (COMBAT-PLAN) : C3 actions (Defend, Poussée, objets, fuite), C4
+couverture/visée/dos, C5 boss & IA. FX d'impact (flash/recul mesh) non retenus
+pour l'instant — les dégâts flottants + tint portent la lisibilité.
+
+## 2026-07-19 (44) — COMBAT C1 : l'arène par biome (obstacles, eau, glace, ronces)
+
+### Fait (lot C1 du COMBAT-PLAN — /loop « implémente tout »)
+- **Serveur** : `CombatCell {height, blocked, hazard}` + `Combat.Biome/Cells` (Heights
+  reste le miroir des hauteurs pour la CombatScene classique). `buildArena(biome)` :
+  prairie douce, forêt vallonnée (+4 arbres), montagne en terrasses diagonales 0..3,
+  sable plat + langues d'eau en bord, neige + 4-6 plaques de glace ; ronces ×2 en
+  prairie/forêt ; obstacles jamais adjacents entre eux ; rangées de spawn toujours
+  dégagées. `passable` refuse bloqué + eau (Reachable suit). **`enterCell` partagé
+  joueur/IA** : la glace prolonge le pas dans la direction du déplacement (chaîne
+  bornée à 3), les ronces piquent (−1 PV, ne tuent jamais).
+- **Assets** : bloc `ice` (32³ + LOD 16³), prop `brambles` ×3.
+- **Client** (`VoxelCombatView`) : sol du biome, colonnes d'eau, plaques de glace,
+  obstacles en props (arbre/rocher/pic selon biome) + ronces posés sur les cases.
+
+### Fonctionnel (vérifié)
+- `combat_arena_test.go` + suite Go verte ; e2e combat réel (reachable sans obstacles,
+  clic projeté, rotation) ; captures des 5 arènes ; `tsc` + build + perf 12/12.
+
+### Reste (COMBAT-PLAN) : C2 lisibilité, C3 actions, C4 couverture/visée, C5 boss & IA.
+
+## 2026-07-19 (43) — PLAN d'amélioration du combat isométrique (COMBAT-PLAN.md)
+
+### Fait
+- État des lieux : arène 7×7 aléatoire quasi plate SANS lien avec le biome, pas
+  d'obstacles ; actions move/attaque/skill/end ; IA simple ; bonus hauteur implicite.
+- **`COMBAT-PLAN.md`** : 5 lots — **C1** arène PAR BIOME (sol/hauteurs thématiques,
+  obstacles bloquants, eau/glace/ronces, `Combat.Cells`), **C2** lisibilité & juice
+  (timeline d'initiative, dégâts flottants, fourchette prévisualisée, télégraphie,
+  écran de victoire), **C3** actions tactiques (Defend générique — pending §9.3 —,
+  Poussée avec collisions/chutes, objets en combat, fuite), **C4** couverture/ligne de
+  vue/hauteur formalisée/attaque de dos, **C5** boss 2×2 en 9×9 à patterns télégraphiés
+  + IA de meute + renforts. Chaque lot mergeable seul, tests Go + e2e voxel.
+
+### À faire
+- Attendre le GO de Guillaume sur l'ordre (C1+C2 conseillés en premier) puis implémenter.
+
 ## 2026-07-19 (42) — BROUILLARD abaissé aux 3/4 : nappe basse sur le niveau 1
 
 ### Fait (demande : « réduire la hauteur du brouillard de 3/4, 1/4 de hauteur sur le niveau 1 »)

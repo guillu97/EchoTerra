@@ -275,6 +275,11 @@ export interface CombatUnit {
   states: string[];
   move: number;
   initiative: number;
+  fled?: boolean; // a quitté l'arène par le bord bas (lot C3)
+  ownerId?: string; // joueur propriétaire du héros ("" / absent = partie legacy)
+  fx: number; // Facing (lot C4) : direction regardée — l'arc arrière prend +25 %
+  fy: number;
+  size?: number; // lot C5 : 2 = boss 2×2 (ancre = coin haut-gauche)
 }
 
 // A combat ability with its GDD grids (mirrors backend AttackDef).
@@ -293,20 +298,67 @@ export interface Skill {
   buffAllies?: boolean;
 }
 
+// Case d'arène (lot C1) : hauteur + terrain tactique.
+export interface CombatCell {
+  height: number;
+  blocked?: boolean; // rocher/arbre : infranchissable
+  hazard?: string; // "water" | "ice" | "brambles"
+}
+
+// Un coup structuré du dernier lot d'actions (lot C2 — dégâts flottants).
+export interface CombatHit {
+  unitId: string;
+  amount: number; // toujours > 0
+  kind: "dmg" | "heal" | "hazard";
+}
+
+// Butin d'un héros à la victoire (écran de victoire C2).
+export interface CombatReward {
+  heroId: string;
+  heroName: string;
+  items: Item[];
+}
+
 export interface Combat {
   id: string;
   gameId: string;
   tileX: number;
   tileY: number;
+  biome: Biome;
   gridW: number;
   gridH: number;
   heights: number[];
+  cells?: CombatCell[];
   units: CombatUnit[];
   order: string[];
   turnIdx: number;
   round: number;
-  status: "active" | "won" | "lost";
+  status: "active" | "won" | "lost" | "fled";
   log: string[];
+  seq: number; // s'incrémente à chaque action — le client diffe pour animer lastHits
+  lastHits?: CombatHit[];
+  rewards?: CombatReward[];
+  participants?: string[]; // joueurs présents — les héros des absents sont joués par l'IA
+  // Lot C5 : fenêtre de renforts (vague 4+). (Le boss n'annonce plus ses
+  // patterns — il attaque chaque tour, base ou spéciale.)
+  wave?: number;
+  reinforceAt?: number;
+  reinforceDone?: boolean;
+}
+
+// Objet du sac utilisable en combat (lot C3) — servi par combatResponse.
+export interface CombatItem {
+  name: string;
+  qty: number;
+  heal: number;
+}
+
+// Fourchette de dégâts prévisualisée, calculée par le serveur (lot C2).
+export interface DamageEstimate {
+  min: number;
+  max: number;
+  rear?: number; // 1 = attaque de dos (+25 %, ignore la couverture) — lot C4
+  cover?: number; // 1 = cible à couvert (−25 % à distance) — lot C4
 }
 
 export interface CombatCurrent {
@@ -315,10 +367,21 @@ export interface CombatCurrent {
   attackTargets: string[];
   skillTargets: string[];
   skill: Skill;
+  attackEstimates?: Record<string, DamageEstimate>;
+  skillEstimates?: Record<string, DamageEstimate>;
+  pushTargets?: string[]; // Poussée (C3) : ennemis alignés à portée
+  items?: CombatItem[]; // objets consommables du sac du héros actif (C3)
+}
+
+// Cases menacées par un ennemi depuis sa position (télégraphie orange, lot C2).
+export interface CombatThreat {
+  unitId: string;
+  cells: [number, number][];
 }
 
 export interface CombatResponse {
   combat: Combat;
   game: GameState;
   current?: CombatCurrent;
+  threats?: CombatThreat[];
 }
