@@ -575,7 +575,10 @@ site sans plan = herbe nue, matériau SELF-LIT — l'ombrage cuit + Lambert gris
 chibi paramétré 7 classes + `monster-recipe.mjs` 9 silhouettes de monstres, couleurs
 échantillonnées des PNG par `gen-characters.mjs`/`gen-monsters.mjs` → `voxels/chars/*.vox`,
 `characters.ts` CharLibrary : modèle voxel quand il existe sinon billboard, rotation.y = azimut
-caméra chaque frame). Catalogue : `build-catalog.mjs` énumère `voxels/**` (catégorie `voxels`).
+caméra chaque frame SUR LA CARTE ; **en COMBAT (2026-07-20) les modèles ne billboardent PLUS** : ils
+s'orientent selon leur Facing monde `rotation.y = atan2(fx, fy)` — les unités se font face au début puis
+pivotent au déplacement/attaque (FFTA2), stable quand la caméra tourne). Catalogue : `build-catalog.mjs`
+énumère `voxels/**` (catégorie `voxels`).
 **Phase 6 (2026-07-17)** : le voxel est le rendu **PAR DÉFAUT** (`voxelMap: true` dans
 `DEFAULT_SETTINGS` ; « Classique » dans les Réglages rebascule sur Phaser, qui n'est pas
 encore retiré du bundle). **Détails du monde** (`WORLD-DETAILS-PLAN.md`, lots D1+D2 faits

@@ -6,6 +6,27 @@
 
 ---
 
+## 2026-07-20 (54) — Combat : les unités s'orientent selon leur Facing (plus de billboard permanent)
+
+### Fait (retour utilisateur : « les persos ne devraient-ils pas avoir un sens au début du combat puis tourner selon le déplacement ? »)
+- **VoxelCombatView** : les modèles de perso/monstre ne font PLUS de billboard
+  (ils ne fixaient plus la caméra en permanence). Ils sont orientés selon leur
+  **Facing MONDE** (`fx/fy`, déjà servi depuis le lot C4) : `rotation.y =
+  atan2(fx, fy)` (le modèle regarde +Z au repos). Au DÉBUT du combat les unités se
+  font face (héros `fy=-1`, monstres `fy=+1`), puis pivotent au déplacement/à
+  l'attaque (`enterCell`/`performAttack` mettent déjà `fx/fy` à jour côté serveur).
+  Le cap étant en espace-monde, il reste correct quand la caméra tourne (on peut
+  voir un dos — comportement FFTA2). Le callback `engine.onFrame` de billboard et
+  le tableau `charMeshes` sont retirés (le cap est statique). La carte du monde
+  garde le billboard (les unités n'y ont pas de sens de combat). Fallback sprite
+  (sans modèle voxel) : toujours face caméra (un sprite 2D ne tourne pas).
+
+### Fonctionnel (vérifié)
+- E2E réel `facing-check.mjs` : héros `fy=-1` → cap π, monstre `fy=+1` → cap 0
+  (ils se font face, écart π) ; après un pas vers l'est `fx=+1` → cap π/2 conservé
+  malgré une rotation caméra ; captures facing-start/facing-moved. Combat C4 e2e
+  non régressé ; tsc + build ; perf voxel 12/12.
+
 ## 2026-07-20 (53) — 4 améliorations : combat non bloquant, gating connexion, vue de dessus, ration +6 PA
 
 ### Fait (retours utilisateur)
