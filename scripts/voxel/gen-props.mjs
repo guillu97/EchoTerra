@@ -1250,6 +1250,23 @@ function cloudProp(seed) {
   return fin(g);
 }
 
+// COMBAT (C1) — ronces : touffe d'épines sombre, traversable mais piquante
+function brambles(seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz, FINE);
+  const rnd = makeRng(seed);
+  const dark = [74, 88, 62];
+  for (let i = 0; i < 8; i++) {
+    const bx = 5 + rnd() * 10, by = 5 + rnd() * 10;
+    const h = 3 + Math.floor(rnd() * 3);
+    for (let z = 0; z < h; z++) {
+      g.set(bx + Math.round(Math.sin(z * 1.7 + i) * 1.2), by + Math.round(Math.cos(z * 1.3 + i)), z, shade(dark, 0.9 + rnd() * 0.2));
+    }
+    if (rnd() < 0.7) g.set(bx, by, h, [150, 70, 80]); // pointe épineuse
+  }
+  ellipsoid(g, 9.5, 9.5, 1.2, 4.5, 4, 1.4, shade(dark, 0.85), rnd, 7);
+  return fin(g);
+}
+
 const GREEN = [134, 192, 108];
 const PINK = [232, 164, 188];
 const DEEP = [104, 168, 88];
@@ -1333,6 +1350,7 @@ async function main() {
     })),
     { id: "bld-chantier", make: () => fin(bldChantier(1101)) },
     { id: "cloud", make: (v) => cloudProp(1201 + v * 77) },
+    { id: "brambles", make: (v) => brambles(1301 + v * 77) },
     // sites de ruines-donjons : v0 = enseveli, v1-2 = déblayé (choix par ÉTAT serveur)
     { id: "site-ferme", make: (v) => siteFerme(v > 0, 901) },
     { id: "site-epave", make: (v) => siteEpave(v > 0, 911) },

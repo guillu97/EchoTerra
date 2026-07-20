@@ -293,14 +293,23 @@ export interface Skill {
   buffAllies?: boolean;
 }
 
+// Case d'arène (lot C1) : hauteur + terrain tactique.
+export interface CombatCell {
+  height: number;
+  blocked?: boolean; // rocher/arbre : infranchissable
+  hazard?: string; // "water" | "ice" | "brambles"
+}
+
 export interface Combat {
   id: string;
   gameId: string;
   tileX: number;
   tileY: number;
+  biome: Biome;
   gridW: number;
   gridH: number;
   heights: number[];
+  cells?: CombatCell[];
   units: CombatUnit[];
   order: string[];
   turnIdx: number;

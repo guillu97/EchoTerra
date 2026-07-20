@@ -89,14 +89,26 @@ func monsterAttacks(kind string) []AttackDef {
 }
 
 // Combat is one isometric battle instance, fully server-authoritative.
+// CombatCell est une case de l'arène (lot C1 du COMBAT-PLAN) : hauteur + terrain
+// tactique. Blocked = rocher/arbre infranchissable (et coupe-ligne-de-vue, C4) ;
+// Hazard = "water" (infranchissable), "ice" (le pas glisse d'une case) ou
+// "brambles" (−1 PV en entrant, ne tue jamais).
+type CombatCell struct {
+	Height  int    `json:"height"`
+	Blocked bool   `json:"blocked,omitempty"`
+	Hazard  string `json:"hazard,omitempty"`
+}
+
 type Combat struct {
 	ID      string        `json:"id"`
 	GameID  string        `json:"gameId"`
 	TileX   int           `json:"tileX"`
 	TileY   int           `json:"tileY"`
+	Biome   Biome         `json:"biome"` // biome de la case du monde (thème d'arène)
 	GridW   int           `json:"gridW"`
 	GridH   int           `json:"gridH"`
-	Heights []int         `json:"heights"` // row-major iso elevations
+	Heights []int         `json:"heights"` // row-major (compat CombatScene classique)
+	Cells   []CombatCell  `json:"cells"`   // l'arène C1 (Heights = miroir des hauteurs)
 	Units   []*CombatUnit `json:"units"`
 	Order   []string      `json:"order"` // unit ids, by initiative desc
 	TurnIdx int           `json:"turnIdx"`
@@ -105,21 +117,124 @@ type Combat struct {
 	Log     []string      `json:"log"`
 }
 
+// buildArena génère l'arène C1 depuis le biome de la case du monde : sol et
+// hauteurs thématiques, obstacles bloquants, dangers (eau/glace/ronces). Les
+// rangées de spawn (y=0 monstres, y=gh-1 héros) restent toujours dégagées.
+func buildArena(biome Biome, gw, gh int) []CombatCell {
+	cells := make([]CombatCell, gw*gh)
+	at := func(x, y int) *CombatCell { return &cells[y*gw+x] }
+	// hauteurs par biome
+	for y := 0; y < gh; y++ {
+		for x := 0; x < gw; x++ {
+			r := rand.Intn(10)
+			h := 0
+			switch biome {
+			case 3: // forêt vallonnée
+				if r >= 5 {
+					h = 1
+				}
+				if r >= 8 {
+					h = 2
+				}
+			case 4: // montagne : terrasses diagonales marquées
+				h = (x + y + rand.Intn(2)) / 4
+				if h > 3 {
+					h = 3
+				}
+			case 1: // sable : plat
+				if r >= 9 {
+					h = 1
+				}
+			case 5: // neige : plaques douces
+				if r >= 8 {
+					h = 1
+				}
+			default: // prairie : douce (l'ancien tirage)
+				if r >= 7 {
+					h = 1
+				}
+				if r >= 9 {
+					h = 2
+				}
+			}
+			at(x, y).Height = h
+		}
+	}
+	// dangers par biome
+	switch biome {
+	case 1: // langues d'eau dans un coin
+		cx, cy := 0, 2+rand.Intn(gh-4)
+		if rand.Intn(2) == 0 {
+			cx = gw - 1
+		}
+		for i := 0; i < 3+rand.Intn(2); i++ {
+			x, y := cx, cy+rand.Intn(2)-i%2
+			if x >= 0 && x < gw && y >= 1 && y < gh-1 {
+				at(x, y).Hazard = "water"
+				at(x, y).Height = 0
+			}
+		}
+	case 5: // plaques de glace
+		for i := 0; i < 4+rand.Intn(3); i++ {
+			x, y := rand.Intn(gw), 1+rand.Intn(gh-2)
+			at(x, y).Hazard = "ice"
+		}
+	case 2, 3: // ronces
+		for i := 0; i < 2; i++ {
+			x, y := rand.Intn(gw), 2+rand.Intn(gh-4)
+			at(x, y).Hazard = "brambles"
+		}
+	}
+	// obstacles bloquants (jamais adjacents entre eux : la 7×7 reste traversante)
+	nObs := 2
+	if biome == 3 {
+		nObs = 4
+	} else if biome == 4 {
+		nObs = 3
+	}
+	placed := [][2]int{}
+	for tries := 0; tries < 40 && len(placed) < nObs; tries++ {
+		x, y := rand.Intn(gw), 1+rand.Intn(gh-2)
+		if at(x, y).Hazard != "" || at(x, y).Blocked {
+			continue
+		}
+		ok := true
+		for _, p := range placed {
+			if absI(p[0]-x) <= 1 && absI(p[1]-y) <= 1 {
+				ok = false
+				break
+			}
+		}
+		if !ok {
+			continue
+		}
+		at(x, y).Blocked = true
+		placed = append(placed, [2]int{x, y})
+	}
+	// rangées de spawn dégagées
+	for x := 0; x < gw; x++ {
+		for _, y := range []int{0, gh - 1} {
+			at(x, y).Blocked = false
+			at(x, y).Hazard = ""
+			if at(x, y).Height > 1 {
+				at(x, y).Height = 1
+			}
+		}
+	}
+	return cells
+}
+
 // NewCombat builds a battle from the heroes on a tile versus the tile's monster.
 func NewCombat(gs *GameState, heroes []*Hero, monster *Monster) *Combat {
 	const gw, gh = 7, 7
+	biome := Biome(2)
+	if t := gs.TileAt(monster.X, monster.Y); t != nil {
+		biome = t.Biome
+	}
+	cells := buildArena(biome, gw, gh)
 	heights := make([]int, gw*gh)
-	for i := range heights {
-		// Gentle, mostly-flat terrain with a few raised cells (FFTA2 vibe).
-		r := rand.Intn(10)
-		switch {
-		case r < 7:
-			heights[i] = 0
-		case r < 9:
-			heights[i] = 1
-		default:
-			heights[i] = 2
-		}
+	for i := range cells {
+		heights[i] = cells[i].Height
 	}
 
 	c := &Combat{
@@ -127,9 +242,11 @@ func NewCombat(gs *GameState, heroes []*Hero, monster *Monster) *Combat {
 		GameID:  gs.ID,
 		TileX:   monster.X,
 		TileY:   monster.Y,
+		Biome:   biome,
 		GridW:   gw,
 		GridH:   gh,
 		Heights: heights,
+		Cells:   cells,
 		Status:  "active",
 		Log:     []string{},
 	}
@@ -262,8 +379,19 @@ func (c *Combat) logf(format string, a ...any) {
 
 // passable reports whether unit u may stand on (x,y): in-bounds, unoccupied, and
 // not too steep a climb (height difference up to 2, an FFTA2-style limit).
+func (c *Combat) cellAt(x, y int) *CombatCell {
+	if x < 0 || y < 0 || x >= c.GridW || y >= c.GridH || len(c.Cells) == 0 {
+		return nil
+	}
+	return &c.Cells[y*c.GridW+x]
+}
+
 func (c *Combat) passable(x, y int, u *CombatUnit) bool {
 	if x < 0 || y < 0 || x >= c.GridW || y >= c.GridH {
+		return false
+	}
+	// arène C1 : rochers/arbres et eau sont infranchissables
+	if cell := c.cellAt(x, y); cell != nil && (cell.Blocked || cell.Hazard == "water") {
 		return false
 	}
 	if o := c.unitAt(x, y); o != nil && o != u {
@@ -273,6 +401,48 @@ func (c *Combat) passable(x, y int, u *CombatUnit) bool {
 		return false
 	}
 	return true
+}
+
+// enterCell pose u sur (tx,ty) et applique le TERRAIN (lot C1) : la glace
+// prolonge le pas d'une case dans la direction du déplacement (jusqu'à 3
+// glissades si la glace s'enchaîne), les ronces piquent (−1 PV, ne tuent
+// jamais). Partagé par le move joueur ET les pas de l'IA.
+func (c *Combat) enterCell(u *CombatUnit, tx, ty int) {
+	fromX, fromY := u.X, u.Y
+	u.X, u.Y = tx, ty
+	// direction dominante du déplacement (pour la glissade)
+	dx, dy := 0, 0
+	if absI(tx-fromX) >= absI(ty-fromY) {
+		dx = signI(tx - fromX)
+	} else {
+		dy = signI(ty - fromY)
+	}
+	for slides := 0; slides < 3 && (dx != 0 || dy != 0); slides++ {
+		cell := c.cellAt(u.X, u.Y)
+		if cell == nil || cell.Hazard != "ice" {
+			break
+		}
+		nx, ny := u.X+dx, u.Y+dy
+		if !c.passable(nx, ny, u) {
+			break
+		}
+		u.X, u.Y = nx, ny
+		c.logf("%s glisse sur la glace !", u.Name)
+	}
+	if cell := c.cellAt(u.X, u.Y); cell != nil && cell.Hazard == "brambles" && u.HP > 1 {
+		u.HP--
+		c.logf("%s s'écorche dans les ronces (-1 PV).", u.Name)
+	}
+}
+
+func signI(v int) int {
+	if v > 0 {
+		return 1
+	}
+	if v < 0 {
+		return -1
+	}
+	return 0
 }
 
 // Reachable returns the tiles unit u can reach this turn (BFS up to its Move range).
@@ -481,9 +651,9 @@ func (c *Combat) PlayerAction(unitID, action string, tx, ty int, targetID string
 		if !ok {
 			return ErrInvalidAction{"case hors de portée"}
 		}
-		cur.X, cur.Y = tx, ty
-		cur.Moved = true
 		c.logf("%s se déplace.", cur.Name)
+		c.enterCell(cur, tx, ty)
+		cur.Moved = true
 		return nil // moving does not end the turn, but acting/ending does
 
 	case "attack", "skill":
@@ -645,8 +815,7 @@ func (c *Combat) stepToward(u, target *CombatUnit) bool {
 		}
 	}
 	if moved {
-		u.X += bestDX
-		u.Y += bestDY
+		c.enterCell(u, u.X+bestDX, u.Y+bestDY) // l'IA subit aussi glace et ronces
 	}
 	return moved
 }

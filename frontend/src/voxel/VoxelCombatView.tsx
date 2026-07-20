@@ -15,11 +15,22 @@ import { useStore } from "../store";
 import { VoxelEngine } from "./engine";
 import { VoxelControls } from "./controls";
 import { BlockLibrary, buildTerrain, type TerrainCell } from "./terrain";
+
+// sol d'arène par biome (lot C1) — mêmes blocs que la carte du monde
+const COMBAT_FLOOR: Record<number, { block: string; under?: string }> = {
+  1: { block: "sand" },
+  2: { block: "grass", under: "dirt" },
+  3: { block: "forest", under: "dirt" },
+  4: { block: "stone" },
+  5: { block: "snow", under: "stone" },
+};
+const ARENA_PROP_MAT = new THREE.MeshLambertMaterial({ vertexColors: true });
 import { makeLabel } from "./labels";
 import { ALL_CHAR_KEYS, CharLibrary } from "./characters";
 
 class CombatWorld {
   lib = new BlockLibrary("/voxels"); // 32³ : le combat est vu de près
+  propsLib = new BlockLibrary("/voxels/props"); // obstacles/ronces de l'arène (C1)
   chars = new CharLibrary();
   charMeshes: THREE.Mesh[] = [];
   libReady = false;
@@ -41,7 +52,10 @@ class CombatWorld {
     engine.scene.background = new THREE.Color(0x161022); // fond opaque (comme CombatScene)
     engine.scene.add(this.overlays);
     engine.scene.add(this.sprites);
-    void this.lib.load(["grass", "dirt"]).then(() => {
+    void this.propsLib
+      .load(["rock", "tree-green", "ice-spike", "brambles"])
+      .then(() => { this.terrainKey = ""; this.draw(); });
+    void this.lib.load(["grass", "dirt", "sand", "forest", "stone", "snow", "water", "ice"]).then(() => {
       this.libReady = true;
       this.terrainKey = "";
       this.draw();
@@ -95,18 +109,42 @@ class CombatWorld {
     const engine = this.engine;
     if (!c || !this.libReady) return;
 
-    // terrain : reconstruit par combat (les hauteurs ne bougent pas en cours)
+    // terrain : reconstruit par combat — ARÈNE PAR BIOME (lot C1) : sol du
+    // biome, colonnes d'eau, plaques de glace ; obstacles/ronces en props
     if (this.terrainKey !== c.id) {
       if (this.terrain) engine.scene.remove(this.terrain);
+      const floor = COMBAT_FLOOR[c.biome] ?? COMBAT_FLOOR[2];
+      const cellAt = (x: number, y: number) => c.cells?.[y * c.gridW + x];
       const cells: TerrainCell[] = [];
       for (let y = 0; y < c.gridH; y++) {
         for (let x = 0; x < c.gridW; x++) {
-          cells.push({ x, y, block: "grass", under: "dirt", levels: this.heightAt(x, y) + 1 });
+          const cc = cellAt(x, y);
+          let block = floor.block;
+          if (cc?.hazard === "water") block = "water";
+          else if (cc?.hazard === "ice") block = "ice";
+          cells.push({ x, y, block, under: floor.under, levels: this.heightAt(x, y) + 1 });
         }
       }
       const built = buildTerrain(this.lib, cells);
       this.terrain = built.group;
       this.lookup = built.lookup;
+      // obstacles (rocher/arbre/pic selon biome) et ronces posés SUR les cases
+      const obstacleId = c.biome === 3 || c.biome === 2 ? "tree-green" : c.biome === 5 ? "ice-spike" : "rock";
+      for (let y = 0; y < c.gridH; y++) {
+        for (let x = 0; x < c.gridW; x++) {
+          const cc = cellAt(x, y);
+          const propId = cc?.blocked ? obstacleId : cc?.hazard === "brambles" ? "brambles" : null;
+          if (!propId) continue;
+          const geom = this.propsLib.get(propId, (x * 7 + y * 13) % 3);
+          if (!geom) continue;
+          const mesh = new THREE.Mesh(geom, ARENA_PROP_MAT);
+          mesh.castShadow = mesh.receiveShadow = true;
+          mesh.position.set(x, this.heightAt(x, y) + 1 - 0.02, y);
+          mesh.rotation.y = ((x * 31 + y * 17) % 4) * (Math.PI / 2);
+          mesh.scale.setScalar(cc?.blocked ? 0.95 : 0.8);
+          built.group.add(mesh);
+        }
+      }
       engine.scene.add(built.group);
       this.terrainKey = c.id;
     }
