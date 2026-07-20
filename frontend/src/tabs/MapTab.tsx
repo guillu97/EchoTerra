@@ -8,10 +8,11 @@ import { heroTexKey, libUrl, monsterTexKey } from "../assets";
 import { MapHeroBar } from "../components/MapHeroBar";
 import { CombatHeroBar } from "../components/CombatHeroBar";
 import { mapSkillsForHero } from "../skills";
+import { myActiveCombat } from "../combatUtils";
 
 // Radial action menu (Hordes-style) that pops at the selected hero when tapped on the map.
 function ActionMenu() {
-  const { game, selectedHeroId, mapSkills, search, startCombat, hide, escape, castSkill, ruinClear, ruinExplore, busy } = useStore();
+  const { game, selectedHeroId, mapSkills, search, startCombat, hide, escape, castSkill, drinkRation, ruinClear, ruinExplore, busy } = useStore();
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
 
   useEffect(() => bus.on(EV.MapHeroMenu, ({ sx, sy }: { sx: number; sy: number }) => setPos({ x: sx, y: sy })), []);
@@ -34,6 +35,9 @@ function ActionMenu() {
   // Compétences de carte de la classe du héros disponibles ICI (une cible à portée).
   const heroSkills = mapSkillsForHero(mapSkills, hero.classId);
   const usableSkills = heroSkills.filter((sk) => (sk.kind === "snipe" ? onMonster : monsterAdjacent));
+  // Boire une ration : possible si le héros en a une ET n'est pas déjà au max de PA.
+  const rations = hero.inventory.find((it) => it.name === "Ration d'eau")?.qty ?? 0;
+  const canDrink = rations > 0 && hero.pa < hero.maxPa;
   const close = () => setPos(null);
   const run = async (fn: () => Promise<void>) => {
     close();
@@ -65,6 +69,17 @@ function ActionMenu() {
             {sk.icon} {sk.name} <i>-{sk.pa}</i>
           </button>
         ))}
+        {/* Boire une ration d'eau du sac : +6 PA (repartir explorer une fois à sec). */}
+        {canDrink && (
+          <button
+            className="am-drink"
+            disabled={busy}
+            title="Restaure 6 PA (consomme une ration d'eau du sac)"
+            onClick={() => run(drinkRation)}
+          >
+            💧 Boire une ration <i>+6 PA · {rations}</i>
+          </button>
+        )}
         {/* Ruine-donjon sous le héros : déblayage collectif puis exploration. */}
         {ruin && !ruin.cleared && (
           <button
@@ -122,23 +137,17 @@ function MapControls() {
   const { game, advance, busy, showOthers, toggleOthers, playerId, joinCombat } = useStore();
   if (!game) return null;
   const multiplayer = (game.players?.length ?? 0) > 1;
-  // Combat en cours où figurent MES héros (joués par l'IA tant que je n'ai pas
-  // rejoint) : proposer « Rejoindre le combat ».
-  const activeCombat = game.activeCombat ? game.combats?.[game.activeCombat] : undefined;
-  const myHeroIds = game.players?.find((p) => p.id === playerId)?.heroIds ?? [];
-  const canJoin =
-    !!activeCombat &&
-    activeCombat.status === "active" &&
-    !!playerId &&
-    !activeCombat.participants?.includes(playerId) &&
-    activeCombat.units.some((u) => u.side === "hero" && u.hp > 0 && !u.fled && myHeroIds.includes(u.refId));
+  // Un combat actif (parmi TOUS ceux en cours — ils peuvent être plusieurs) où
+  // figurent MES héros, que je n'ai pas encore rejoint → « Rejoindre le combat ».
+  const mine = myActiveCombat(game, playerId);
+  const canJoin = !!mine && !!playerId && !mine.participants?.includes(playerId);
 
   return (
     <div className="map-controls">
       {canJoin && (
         <div className="line">
           <button className="small red" disabled={busy} onClick={() => joinCombat()}>
-            ⚔️ Rejoindre le combat ({activeCombat!.tileX},{activeCombat!.tileY}) — tes héros y sont !
+            ⚔️ Rejoindre le combat ({mine!.tileX},{mine!.tileY}) — tes héros y sont !
           </button>
         </div>
       )}

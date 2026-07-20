@@ -66,7 +66,7 @@ func (g *GameState) BotCatchUp(now time.Time) bool {
 // BotAct runs one action for every bot-owned hero able to act. Returns true if any
 // state changed. No-op while a combat is open (map actions are blocked then).
 func (g *GameState) BotAct() bool {
-	if g.Status != StatusActive || g.ActiveCombat != "" {
+	if g.Status != StatusActive {
 		return false
 	}
 	changed := false
@@ -77,6 +77,11 @@ func (g *GameState) BotAct() bool {
 		for _, id := range p.HeroIDs {
 			h := g.HeroByID(id)
 			if h == nil || h.HP <= 0 || h.PA <= 0 {
+				continue
+			}
+			// Un héros bot engagé dans un combat (humain) est joué par l'IA de
+			// combat — il n'agit pas sur la carte en parallèle (combats concurrents).
+			if g.heroInCombat(id) != nil {
 				continue
 			}
 			if g.botHeroAct(h) {

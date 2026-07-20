@@ -15,6 +15,23 @@ type ActionError struct{ Msg string }
 
 func (e ActionError) Error() string { return e.Msg }
 
+// heroInCombat returns the ACTIVE combat this hero is fighting in (a hero unit
+// still in battle), or nil. Map actions are blocked only for heroes actually in
+// a combat — a combat NO LONGER freezes every other player (2026-07-20).
+func (g *GameState) heroInCombat(heroID string) *Combat {
+	for _, c := range g.Combats {
+		if c.Status != "active" {
+			continue
+		}
+		for _, u := range c.Units {
+			if u.Side == "hero" && u.RefID == heroID && u.inBattle() {
+				return c
+			}
+		}
+	}
+	return nil
+}
+
 // GateClosed reports whether the town gate blocks passage: a BUILT, closed gate
 // seals the town — nobody walks in or out (Hordes-style: opening it is a town
 // action, and an open gate contributes zero defense). No gate / unbuilt gate =
@@ -30,8 +47,8 @@ func (g *GameState) GateClosed() bool {
 
 // MoveHero moves a hero by one orthogonal step, spending 1 PA.
 func (g *GameState) MoveHero(heroID string, dx, dy int) error {
-	if g.ActiveCombat != "" {
-		return ActionError{"un combat est en cours"}
+	if g.heroInCombat(heroID) != nil {
+		return ActionError{"ce héros est en plein combat"}
 	}
 	h := g.HeroByID(heroID)
 	if h == nil {
@@ -89,8 +106,8 @@ func (g *GameState) MoveHero(heroID string, dx, dy int) error {
 // HideHero conceals a hero on their current tile. A hidden hero is skipped by the next
 // wave's attack (concealment is then consumed). Costs 1 PA.
 func (g *GameState) HideHero(heroID string) error {
-	if g.ActiveCombat != "" {
-		return ActionError{"un combat est en cours"}
+	if g.heroInCombat(heroID) != nil {
+		return ActionError{"ce héros est en plein combat"}
 	}
 	h := g.HeroByID(heroID)
 	if h == nil {
@@ -121,8 +138,8 @@ func (g *GameState) HideHero(heroID string) error {
 // EscapeHero retreats one step toward town; 25% chance to stumble (Blessé) and stay
 // put. Costs 1 PA.
 func (g *GameState) EscapeHero(heroID string) error {
-	if g.ActiveCombat != "" {
-		return ActionError{"un combat est en cours"}
+	if g.heroInCombat(heroID) != nil {
+		return ActionError{"ce héros est en plein combat"}
 	}
 	h := g.HeroByID(heroID)
 	if h == nil {
@@ -176,8 +193,8 @@ func (g *GameState) EscapeHero(heroID string) error {
 // SearchTile performs a fouille on the hero's current tile, spending 1 PA and
 // possibly yielding loot whose type depends on the biome.
 func (g *GameState) SearchTile(heroID string) (*Item, error) {
-	if g.ActiveCombat != "" {
-		return nil, ActionError{"un combat est en cours"}
+	if g.heroInCombat(heroID) != nil {
+		return nil, ActionError{"ce héros est en plein combat"}
 	}
 	h := g.HeroByID(heroID)
 	if h == nil {
@@ -230,6 +247,36 @@ func (g *GameState) SearchTile(heroID string) (*Item, error) {
 }
 
 
+// RationPA is the action points a Ration d'eau restores when drunk on the map.
+const RationPA = 6
+
+// DrinkRation lets a hero drink a Ration d'eau FROM THEIR OWN BAG on the map to
+// restore RationPA action points (capped at MaxPA), clearing Fatigue and Soif.
+// It does not cost PA — it's the way to keep exploring once out of moves.
+func (g *GameState) DrinkRation(heroID string) (*Hero, error) {
+	if g.heroInCombat(heroID) != nil {
+		return nil, ActionError{"ce héros est en plein combat"}
+	}
+	h := g.HeroByID(heroID)
+	if h == nil {
+		return nil, ActionError{"héros introuvable"}
+	}
+	if heroItemQty(h, "Ration d'eau") < 1 {
+		return nil, ActionError{h.Name + " n'a pas de ration d'eau dans son sac"}
+	}
+	if h.PA >= h.MaxPA {
+		return nil, ActionError{h.Name + " a déjà tous ses points d'action"}
+	}
+	removeHeroItem(h, "Ration d'eau", 1)
+	h.PA += RationPA
+	if h.PA > h.MaxPA {
+		h.PA = h.MaxPA
+	}
+	h.RemoveState(StateFatigue)
+	h.RemoveState(StateSoif)
+	return h, nil
+}
+
 // Advance moves the game forward half a day: regenerate PA and clear fatigue.
 // (In the real game this is driven by the wave scheduler at 13h/1h.)
 func (g *GameState) Advance() {
@@ -249,8 +296,10 @@ func (g *GameState) Advance() {
 // that tile joins the fight — those of OTHER players are AI-driven until their
 // owner joins the combat (starterID = the engaging player, "" in legacy games).
 func (g *GameState) StartCombat(heroID, starterID string) (*Combat, error) {
-	if g.ActiveCombat != "" {
-		return nil, ActionError{"un combat est déjà en cours"}
+	// Plusieurs combats peuvent tourner EN PARALLÈLE (chaque joueur engage le
+	// sien) — on refuse seulement d'engager un héros DÉJÀ au combat.
+	if g.heroInCombat(heroID) != nil {
+		return nil, ActionError{"ce héros est déjà en plein combat"}
 	}
 	h := g.HeroByID(heroID)
 	if h == nil {
@@ -404,5 +453,10 @@ func (g *GameState) FinishCombat(c *Combat) {
 			}
 		}
 	}
-	g.ActiveCombat = ""
+	// Combats concurrents : ne nettoyer QUE ce combat. Il est retiré de la carte
+	// (le client garde l'objet via la réponse d'action pour l'écran de fin).
+	if g.ActiveCombat == c.ID {
+		g.ActiveCombat = ""
+	}
+	delete(g.Combats, c.ID)
 }

@@ -221,6 +221,7 @@ func (s *Server) Router() http.Handler {
 			r.Post("/heroes/{heroID}/hide", s.hideHero)
 			r.Post("/heroes/{heroID}/escape", s.escapeHero)
 			r.Post("/heroes/{heroID}/skill", s.castMapSkill)
+			r.Post("/heroes/{heroID}/drink", s.drinkRation)
 			r.Post("/heroes/{heroID}/ruin/clear", s.ruinClear)
 			r.Post("/heroes/{heroID}/ruin/explore", s.ruinExplore)
 			r.Post("/heroes/{heroID}/evolve", s.evolveHero)
@@ -577,6 +578,13 @@ func (s *Server) join(w http.ResponseWriter, r *http.Request, gameID, playerName
 	}
 	now := time.Now()
 	user := s.userFromReq(r)
+	// Une partie PUBLIQUE exige un compte : sans identité stable on ne saurait pas
+	// à quel joueur rendre la partie (reprise multi-appareils). Les parties privées
+	// (join par code) restent ouvertes aux anonymes.
+	if gs.IsPublic() && user == nil {
+		writeErr(w, http.StatusUnauthorized, "connecte-toi pour rejoindre une partie publique")
+		return
+	}
 	if user != nil {
 		// Already in this game under my account (other device / lost localStorage):
 		// hand back my player instead of adding a duplicate.
@@ -857,6 +865,23 @@ func (s *Server) castMapSkill(w http.ResponseWriter, r *http.Request) {
 	}
 	s.persist(gs)
 	writeJSON(w, http.StatusOK, map[string]any{"report": rep, "game": gs})
+}
+
+// drinkRation consumes a Ration d'eau from the hero's bag to restore action points.
+func (s *Server) drinkRation(w http.ResponseWriter, r *http.Request) {
+	gs := s.mustGame(w, r)
+	if gs == nil {
+		return
+	}
+	if !s.ownHero(w, gs, decodePlayer(r), chi.URLParam(r, "heroID")) {
+		return
+	}
+	if _, err := gs.DrinkRation(chi.URLParam(r, "heroID")); err != nil {
+		writeActionErr(w, err)
+		return
+	}
+	s.persist(gs)
+	writeJSON(w, http.StatusOK, gs)
 }
 
 // ruinClear invests the hero's PA into clearing the ruin on their tile (collective).

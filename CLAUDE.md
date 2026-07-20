@@ -276,6 +276,12 @@ classe (`heroSkillFor`) ; `combatResponse` sert `attackTargets`/`skillTargets` c
 def complète du skill. Heights give a small bonus. Win → pack retiré + **chaque héros tire un loot pondéré de
 la table de l'espèce** (Récupérateur +1 trophée). Lose → survivors retreat to town at 1 HP + `Tétanisé`.
 Combat unit count is capped at 4 ; `CombatUnit` porte `classId` + `appearance` (sprites côté client).
+**Combats CONCURRENTS (2026-07-20)** : un combat ne fige plus les autres joueurs — les actions de carte sont
+bloquées seulement pour les héros ENGAGÉS (`g.heroInCombat(heroID)`), plusieurs combats tournent en parallèle
+(`StartCombat` refuse juste un héros déjà au combat, `FinishCombat` ne nettoie que le sien). Client :
+`combatUtils.myActiveCombat` scanne tous les combats actifs (bouton « Rejoindre » + marqueur ⚔ par case).
+Vue de DESSUS en combat : `engine.setTopDown` (bouton 🔼/🎥 de VoxelCombatView) plonge la caméra (~78°) pour
+voir les monstres masqués par les reliefs.
 
 **Waves / horde (Hordes-like)** — `nextWaveAt` is **server-driven**; the client only shows the countdown
 (`useWaveRemaining`). Resolved lazily on access (`tick`) AND by a 15s scheduler goroutine.
@@ -318,6 +324,8 @@ Construction sites (Built=false): **townhall (renamed from House — revive), to
 - `water` (Well) → **FREE**, draws **one Ration d'eau per in-town hero per `game.day`**: charged to the selected
   town worker (`heroID`), decrements Well `capacity`, clears that hero's `Soif`, and drops the ration into **that
   hero's bag** (not the Bank). Tracked via `Hero.DrewWaterDay`; derived `town.waterDrawnToday` lists who drank today.
+  **Sur la CARTE**, un héros peut BOIRE une Ration d'eau de son sac (`DrinkRation`, route `/drink`, boutons 💧) :
+  +6 PA (`RationPA`, plafonné à MaxPA), purge Fatigue/Soif, refusé sans ration ou à PA plein — sans coûter de PA.
 - `toggle` (Gate) → 1 PA, flips `open` (open = 0 defense; matches Neko's "qui a laissé la porte ouverte" chat).
   **Une porte CONSTRUITE et FERMÉE scelle la ville** : personne n'entre NI ne sort (`GateClosed()` dans
   `MoveHero` — deux sens — et le pas de retraite d'`EscapeHero` ne peut pas finir sur la ville ; les losanges
@@ -391,6 +399,7 @@ POST /api/games/{id}/heroes/{h}/search
 POST /api/games/{id}/heroes/{h}/hide
 POST /api/games/{id}/heroes/{h}/escape
 POST /api/games/{id}/heroes/{h}/skill             {skillId} compétence de carte par classe -> {report, game}
+POST /api/games/{id}/heroes/{h}/drink             boit une Ration d'eau du sac (+6 PA) -> GameState
 POST /api/games/{id}/heroes/{h}/ruin/clear        {points} déblaye la ruine sous le héros -> {ruin, game}
 POST /api/games/{id}/heroes/{h}/ruin/explore      fouille le donjon déblayé (2 PA) -> {item, game}
 POST /api/games/{id}/heroes/{h}/evolve            {classId} -> GameState (applies class bonuses)

@@ -191,14 +191,16 @@ func TestBotEngagesAndAutoResolvesCombat(t *testing.T) {
 	if g.TileAt(3, 3).MonsterID != "" {
 		t.Fatal("the pack should be defeated and removed from the map")
 	}
-	won := false
-	for _, c := range g.Combats {
-		if c.Status == "won" {
-			won = true
+	// Le combat gagné est nettoyé de g.Combats (combats concurrents) ; la victoire
+	// se lit à ses effets : le pack a disparu (ci-dessus) et les héros ont combattu.
+	fought := false
+	for _, id := range bot.HeroIDs {
+		if h := g.HeroByID(id); h != nil && h.Bars["combat"] > 0 {
+			fought = true
 		}
 	}
-	if !won {
-		t.Fatal("a won combat should be recorded")
+	if !fought {
+		t.Fatal("the bot team should have fought (combat bar incremented)")
 	}
 }
 

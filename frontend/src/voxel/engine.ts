@@ -29,6 +29,7 @@ export function clearOwned(group: THREE.Group) {
 
 const CAM_DIST = 300; // recul arbitraire (ortho : seule la direction compte)
 const ROT_MS = 240; // durée de l'animation de rotation
+const TOP_DOWN_ELEVATION = 1.36; // ~78° : vue de dessus du combat (non dégénérée)
 
 export class VoxelEngine {
   readonly renderer: THREE.WebGLRenderer;
@@ -42,6 +43,9 @@ export class VoxelEngine {
   maxZoom = 220;
   /** élévation caméra (rad) — ELEVATION dimétrique par défaut, modifiable en orbite libre */
   elevation = ELEVATION;
+  /** vue de DESSUS (combat) : bascule l'élévation quasi verticale pour voir les
+   *  monstres masqués par les piliers/reliefs, sans changer l'azimut. */
+  topDown = false;
   onFrame: ((info: { calls: number; triangles: number; ms: number }) => void) | null = null;
 
   private azimuth = azimuthFor(0);
@@ -136,7 +140,10 @@ export class VoxelEngine {
   /** applique zoom + azimut + cible à la caméra (avant chaque rendu) */
   private applyCamera() {
     this.camera.zoom = this.zoom;
-    const [dx, dy, dz] = cameraDir(this.azimuth, this.elevation);
+    // vue de dessus (combat) : élévation ~78° — presque plongeant mais pas
+    // strictement vertical (évite un lookAt dégénéré) ; l'azimut est conservé.
+    const el = this.topDown ? TOP_DOWN_ELEVATION : this.elevation;
+    const [dx, dy, dz] = cameraDir(this.azimuth, el);
     this.camera.position.set(
       this.target.x + dx * CAM_DIST,
       this.target.y + dy * CAM_DIST,
@@ -225,6 +232,14 @@ export class VoxelEngine {
     const ray = new THREE.Raycaster();
     ray.setFromCamera(ndc, this.camera);
     return ray.intersectObjects(this.scene.children, true);
+  }
+
+  /** bascule la vue de dessus (combat) ; conserve l'azimut courant */
+  setTopDown(v: boolean) {
+    if (this.topDown === v) return;
+    this.topDown = v;
+    this.refreshShadows(); // l'angle change → passe d'ombres à re-rendre
+    this.invalidate();
   }
 
   setOrientation(o: Orientation) {

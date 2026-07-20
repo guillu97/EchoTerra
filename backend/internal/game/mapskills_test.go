@@ -150,3 +150,35 @@ func TestLootingShotGrantsTrophy(t *testing.T) {
 		t.Fatalf("the hero's bag should hold the looted trophy")
 	}
 }
+
+func TestDrinkRationRestoresPA(t *testing.T) {
+	g, h := newSkillTestGame()
+	h.MaxPA = 6
+	h.PA = 1
+	h.AddState(StateFatigue)
+	h.AddState(StateSoif)
+	h.AddLoot(Item{Type: "eau", Name: "Ration d'eau", Qty: 2})
+
+	if _, err := g.DrinkRation("h1"); err != nil {
+		t.Fatalf("drink: %v", err)
+	}
+	if h.PA != 6 { // 1 + 6 capped at MaxPA 6
+		t.Fatalf("ration should restore up to MaxPA, got %d", h.PA)
+	}
+	if h.HasState(StateFatigue) || h.HasState(StateSoif) {
+		t.Fatalf("drinking should clear Fatigue and Soif")
+	}
+	if heroItemQty(h, "Ration d'eau") != 1 {
+		t.Fatalf("one ration should be consumed, got %d", heroItemQty(h, "Ration d'eau"))
+	}
+	// no ration → refused
+	removeHeroItem(h, "Ration d'eau", 1)
+	if _, err := g.DrinkRation("h1"); err == nil {
+		t.Fatalf("drinking without a ration must be refused")
+	}
+	// full PA → refused (don't waste a ration)
+	h.AddLoot(Item{Type: "eau", Name: "Ration d'eau", Qty: 1})
+	if _, err := g.DrinkRation("h1"); err == nil {
+		t.Fatalf("drinking at full PA must be refused")
+	}
+}

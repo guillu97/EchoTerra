@@ -6,7 +6,7 @@
 // unités en billboards + barre de PV. Rotation caméra 4 orientations (FFTA2) —
 // la vraie valeur du passage 3D : lire les hauteurs sous tous les angles.
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { bus, EV } from "../eventBus";
 import type { Combat, CombatCurrent, CombatHit, CombatThreat, CombatUnit } from "../api/types";
@@ -373,6 +373,7 @@ class CombatWorld {
 export function VoxelCombatView() {
   const hostRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<VoxelEngine | null>(null);
+  const [topDown, setTopDown] = useState(false);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -436,6 +437,18 @@ export function VoxelCombatView() {
     <>
       <div ref={hostRef} style={{ position: "absolute", inset: 0 }} />
       <div style={{ position: "absolute", top: 8, right: 8, display: "flex", gap: 6 }}>
+        <button
+          className="small"
+          style={{ ...rotBtn, ...(topDown ? rotBtnActive : null) }}
+          title={topDown ? "Vue inclinée" : "Vue de dessus (voir les monstres masqués)"}
+          onClick={() => {
+            const v = !topDown;
+            setTopDown(v);
+            engineRef.current?.setTopDown(v);
+          }}
+        >
+          {topDown ? "🎥" : "🔼"}
+        </button>
         <button className="small" style={rotBtn} onClick={() => engineRef.current?.rotate(-1)}>↺</button>
         <button className="small" style={rotBtn} onClick={() => engineRef.current?.rotate(1)}>↻</button>
       </div>
@@ -452,4 +465,9 @@ const rotBtn: React.CSSProperties = {
   height: 40,
   fontSize: 19,
   cursor: "pointer",
+};
+const rotBtnActive: React.CSSProperties = {
+  background: "rgba(255,224,102,.85)",
+  color: "#1a1400",
+  border: "1px solid rgba(255,224,102,.9)",
 };

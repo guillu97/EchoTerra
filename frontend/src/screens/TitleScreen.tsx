@@ -38,14 +38,28 @@ export function TitleScreen() {
       </div>
       <Logo />
 
-      <ResumeCard onResume={() => continueTestGame()} busy={busy} />
+      {/* La reprise n'apparaît QUE si le joueur est connecté : sans compte on ne
+          sait pas quel joueur reprendre (identité ambiguë en multijoueur). */}
+      {user && <ResumeCard onResume={() => continueTestGame()} busy={busy} />}
 
       <div className="menu">
         <button className="pill red pulse" disabled={busy} onClick={() => startSoloBots()}>
           ⚔️ Solo <small>(avec 4 bots)</small>
         </button>
-        <button className="pill" onClick={() => openLobby("public")}>
-          🌍 Parties publiques
+        {/* Une partie publique exige un compte (identité stable du joueur). Sans
+            connexion, le bouton mène à l'écran de connexion. */}
+        <button
+          className="pill"
+          onClick={() => {
+            if (user) {
+              openLobby("public");
+            } else {
+              pushLog("🔒 Connecte-toi pour rejoindre une partie publique.");
+              openAccount();
+            }
+          }}
+        >
+          🌍 Parties publiques {!user && <small>🔒 connexion requise</small>}
         </button>
         <button className="pill" onClick={() => openLobby("private")}>
           🎪 Parties privées

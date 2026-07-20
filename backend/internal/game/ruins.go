@@ -136,8 +136,8 @@ func (g *GameState) SeedRuins() {
 // ruinUnderHero validates the shared preconditions of both ruin actions and
 // returns the hero + the ruin standing on their tile.
 func (g *GameState) ruinUnderHero(heroID string) (*Hero, *Ruin, error) {
-	if g.ActiveCombat != "" {
-		return nil, nil, ActionError{"un combat est en cours"}
+	if g.heroInCombat(heroID) != nil {
+		return nil, nil, ActionError{"ce héros est en plein combat"}
 	}
 	h := g.HeroByID(heroID)
 	if h == nil {

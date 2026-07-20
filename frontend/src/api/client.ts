@@ -149,6 +149,10 @@ export const api = {
   escape: (gameId: string, heroId: string, playerId?: string) =>
     req<GameState>("POST", `/api/games/${gameId}/heroes/${heroId}/escape`, { playerId }),
 
+  // Boire une ration d'eau du sac pour restaurer des PA (carte).
+  drinkRation: (gameId: string, heroId: string, playerId?: string) =>
+    req<GameState>("POST", `/api/games/${gameId}/heroes/${heroId}/drink`, { playerId }),
+
   // Compétence de carte par classe (remplace fireball/snipe) — skillId du catalogue.
   castSkill: (gameId: string, heroId: string, skillId: string, playerId?: string) =>
     req<{ report: MapSkillReport; game: GameState }>(

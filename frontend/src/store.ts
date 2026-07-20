@@ -14,6 +14,7 @@ import type {
 } from "./api/types";
 import { bus, EV } from "./eventBus";
 import { effectiveTownHeroId } from "./townUtils";
+import { myActiveCombat } from "./combatUtils";
 
 const LS_GAME = "echoterra:gameId";
 const LS_SETTINGS = "echoterra:settings";
@@ -160,6 +161,7 @@ interface StoreState {
   hide: () => Promise<void>;
   escape: () => Promise<void>;
   castSkill: (skillId: string) => Promise<void>; // compétence de carte par classe
+  drinkRation: () => Promise<void>; // boire une ration d'eau (+6 PA) du sac
   ruinClear: () => Promise<void>; // déblayer la ruine sous le héros (tous ses PA)
   ruinExplore: () => Promise<void>; // fouiller le donjon déblayé (2 PA)
   advance: () => Promise<void>;
@@ -787,6 +789,18 @@ export const useStore = create<StoreState>((set, get) => {
         renderMap();
       }),
 
+    drinkRation: () =>
+      withBusy(async () => {
+        const { game, selectedHeroId, playerId } = get();
+        if (!game || !selectedHeroId) return;
+        if (!ownsHero(selectedHeroId)) return;
+        const name = game.heroes.find((h) => h.id === selectedHeroId)?.name ?? "Le héros";
+        const next = await api.drinkRation(game.id, selectedHeroId, playerId);
+        set({ game: next });
+        pushLog(`💧 ${name} boit une ration d'eau (+${6} PA).`);
+        renderMap();
+      }),
+
     castSkill: (skillId) =>
       withBusy(async () => {
         const { game, selectedHeroId, playerId, mapSkills } = get();
@@ -990,8 +1004,9 @@ export const useStore = create<StoreState>((set, get) => {
     joinCombat: () =>
       withBusy(async () => {
         const { game, playerId } = get();
-        if (!game?.activeCombat) return;
-        const resp = await api.joinCombat(game.id, game.activeCombat, playerId);
+        const mine = myActiveCombat(game, playerId);
+        if (!game || !mine) return;
+        const resp = await api.joinCombat(game.id, mine.id, playerId);
         set({ view: "combat", combatMode: "move", tab: "map" });
         pushLog("⚔️ Tu rejoins le combat !");
         applyCombat(resp);

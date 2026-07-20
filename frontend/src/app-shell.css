@@ -2679,6 +2679,15 @@ body {
 .action-menu .am-skill i {
   color: #e8e0ff;
 }
+.action-menu .am-drink {
+  background: linear-gradient(180deg, #4bc8e3, #2b8fb0);
+  border: none;
+  color: #06222b;
+  font-weight: 700;
+}
+.action-menu .am-drink i {
+  color: #06333f;
+}
 .map-hint {
   font-size: 11px;
   color: #9fb2c9;

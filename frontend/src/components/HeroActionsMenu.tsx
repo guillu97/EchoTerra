@@ -19,6 +19,7 @@ export function HeroActionsMenu({ onClose }: { onClose: () => void }) {
   const hide = useStore((s) => s.hide);
   const escape = useStore((s) => s.escape);
   const castSkill = useStore((s) => s.castSkill);
+  const drinkRation = useStore((s) => s.drinkRation);
   const mapSkills = useStore((s) => s.mapSkills);
   const startCombat = useStore((s) => s.startCombat);
   if (!game) return null;
@@ -52,6 +53,8 @@ export function HeroActionsMenu({ onClose }: { onClose: () => void }) {
           const usableSkills = mapSkillsForHero(mapSkills, h.classId).filter((sk) =>
             sk.kind === "snipe" ? onMonster : monsterAdjacent,
           );
+          const rations = h.inventory.find((it) => it.name === "Ration d'eau")?.qty ?? 0;
+          const canDrink = rations > 0 && h.pa < h.maxPa;
           return (
             <div key={h.id} className={`hm-row ${h.id === selectedHeroId ? "sel" : ""} ${dead ? "dead" : ""}`}>
               <button
@@ -95,6 +98,16 @@ export function HeroActionsMenu({ onClose }: { onClose: () => void }) {
                       {sk.icon}
                     </button>
                   ))}
+                  {canDrink && (
+                    <button
+                      className="hm-act"
+                      title={`Boire une ration d'eau (+6 PA) — ${rations} en réserve`}
+                      disabled={busy}
+                      onClick={() => run(h, drinkRation)}
+                    >
+                      💧
+                    </button>
+                  )}
                   {onTown ? (
                     <span className="hm-note">🏰 en ville</span>
                   ) : (

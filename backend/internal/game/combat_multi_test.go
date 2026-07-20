@@ -170,3 +170,99 @@ func TestMultiSpawnStaysOnGrid(t *testing.T) {
 		t.Fatalf("the arena row holds 7 heroes max, got %d", heroes)
 	}
 }
+
+// Un combat en cours ne FIGE PLUS les autres joueurs (2026-07-20) : seuls les
+// héros engagés sont bloqués ; les autres bougent, fouillent, castent librement.
+func TestCombatDoesNotFreezeOtherPlayers(t *testing.T) {
+	gs := &GameState{ID: "g1", Width: 8, Height: 8, Monsters: map[string]*Monster{}, Combats: map[string]*Combat{}}
+	gs.Tiles = make([]Tile, 64)
+	// pack costaud pour A sur (3,3)
+	m := &Monster{ID: "m1", Species: "Slime Vorace", X: 3, Y: 3, HP: 80, MaxHP: 80,
+		Stats: Stats{Endurance: 10}, Count: 1}
+	gs.Monsters[m.ID] = m
+	gs.TileAt(3, 3).MonsterID = m.ID
+	// héros de A engagé, héros de B ailleurs sur de l'herbe
+	a := testHero("Alice", 6)
+	a.X, a.Y = 3, 3
+	a.PA = 6
+	a.Stats.Endurance = 12
+	a.HP, a.MaxHP = 60, 60
+	b := testHero("Bob", 6)
+	b.X, b.Y = 6, 6
+	b.PA = 6
+	gs.Heroes = []*Hero{a, b}
+	gs.Players = []*Player{
+		{ID: "pA", Name: "Alice", HeroIDs: []string{a.ID}, Host: true},
+		{ID: "pB", Name: "Bob", HeroIDs: []string{b.ID}},
+	}
+	// worldgen-free tiles default to biome 0 (water) — rendre praticable autour de B
+	for _, xy := range [][2]int{{6, 6}, {5, 6}, {6, 5}} {
+		gs.TileAt(xy[0], xy[1]).Biome = BiomeGrass
+	}
+
+	if _, err := gs.StartCombat(a.ID, "pA"); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	if gs.heroInCombat(a.ID) == nil {
+		t.Fatalf("Alice's hero should be flagged in combat")
+	}
+	if gs.heroInCombat(b.ID) != nil {
+		t.Fatalf("Bob's hero is NOT in the combat")
+	}
+	// Alice's hero is blocked on the map…
+	if err := gs.MoveHero(a.ID, -1, 0); err == nil {
+		t.Fatalf("a hero in combat must not move on the map")
+	}
+	// …but Bob's hero moves freely despite the running combat.
+	bx, by := b.X, b.Y
+	if err := gs.MoveHero(b.ID, -1, 0); err != nil {
+		t.Fatalf("a hero NOT in combat must keep playing while another fights: %v", err)
+	}
+	if b.X == bx && b.Y == by {
+		t.Fatalf("Bob's hero should have moved")
+	}
+}
+
+// Deux combats peuvent tourner en parallèle (chaque joueur le sien).
+func TestConcurrentCombats(t *testing.T) {
+	gs := &GameState{ID: "g1", Width: 10, Height: 10, Monsters: map[string]*Monster{}, Combats: map[string]*Combat{}}
+	gs.Tiles = make([]Tile, 100)
+	mk := func(id string, x, y int) {
+		m := &Monster{ID: id, Species: "Slime Vorace", X: x, Y: y, HP: 80, MaxHP: 80, Stats: Stats{Endurance: 10}, Count: 1}
+		gs.Monsters[id] = m
+		gs.TileAt(x, y).MonsterID = id
+	}
+	mk("m1", 2, 2)
+	mk("m2", 7, 7)
+	a := testHero("Alice", 6); a.X, a.Y = 2, 2; a.PA = 6; a.Stats.Endurance = 12; a.HP, a.MaxHP = 60, 60
+	b := testHero("Bob", 6); b.X, b.Y = 7, 7; b.PA = 6; b.Stats.Endurance = 12; b.HP, b.MaxHP = 60, 60
+	gs.Heroes = []*Hero{a, b}
+	gs.Players = []*Player{
+		{ID: "pA", HeroIDs: []string{a.ID}, Host: true},
+		{ID: "pB", HeroIDs: []string{b.ID}},
+	}
+	c1, err := gs.StartCombat(a.ID, "pA")
+	if err != nil {
+		t.Fatalf("start A: %v", err)
+	}
+	c2, err := gs.StartCombat(b.ID, "pB")
+	if err != nil {
+		t.Fatalf("a second combat must be allowed while the first runs: %v", err)
+	}
+	if c1.ID == c2.ID {
+		t.Fatalf("the two combats must be distinct")
+	}
+	active := 0
+	for _, c := range gs.Combats {
+		if c.Status == "active" {
+			active++
+		}
+	}
+	if active != 2 {
+		t.Fatalf("expected 2 concurrent active combats, got %d", active)
+	}
+	// engager Alice une 2e fois est refusé (déjà au combat)
+	if _, err := gs.StartCombat(a.ID, "pA"); err == nil {
+		t.Fatalf("a hero already fighting cannot start another combat")
+	}
+}
