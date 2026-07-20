@@ -6,6 +6,23 @@
 
 ---
 
+## 2026-07-19 (42) — BROUILLARD abaissé aux 3/4 : nappe basse sur le niveau 1
+
+### Fait (demande : « réduire la hauteur du brouillard de 3/4, 1/4 de hauteur sur le niveau 1 »)
+- Le mur de brume à 2 blocs (sommet y=2) devient une **NAPPE de 0.5 unité posée sur le
+  niveau 1** (sommet 1.5) : `TerrainCell` gagne `baseY`/`scaleY` (buildTerrain compose
+  échelle + décalage par instance), la carte pose `{block:"mist", levels:1, baseY:1,
+  scaleY:0.5}` — `mistbase` n'est plus chargé par la carte. `topOf`/`levelsOf` non
+  découvert : 2 → **1.5** (losanges/overlays suivent). Banc aligné.
+- La jupe du monde sous la nappe (zones non découvertes) passe en **lavande** au lieu du
+  gris falaise — le socle gris jurait au bord du monde maintenant que le mur ne le cache
+  plus (`smoothTerrain.wall`, override si `!discovered`).
+
+### Fonctionnel (vérifié)
+- Captures : l'île émerge nettement d'une mer de brume basse, socle lavande cohérent ;
+  déplacement OK (losanges cliquables sur la nappe) ; suite perf **12/12** — tris vraie
+  partie 1,39 M → **1,06 M** (le mur en dôme pesait), payload 1,88 → 1,84 MiB.
+
 ## 2026-07-19 (41) — Nuages RETIRÉS de la carte (lag mobile) — ville seulement
 
 ### Fait (retour : « pas besoin des nuages sur la map, ça lag trop »)

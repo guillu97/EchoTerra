@@ -54,7 +54,7 @@ function makeCells(): TerrainCell[] {
   for (let y = 0; y < H; y++) {
     for (let x = 0; x < W; x++) {
       if (Math.max(Math.abs(x - cx), Math.abs(y - cy)) > FOG_RADIUS) {
-        cells.push({ x, y, block: "mist", under: "mistbase", levels: 2 });
+        cells.push({ x, y, block: "mist", levels: 1, baseY: 1, scaleY: 0.5 });
         continue;
       }
       const t = tileFor(x, y);
@@ -109,7 +109,7 @@ export function VoxelBench() {
       lib = new BlockLibrary("/voxels/16"); // LOD carte : blocs 16³
       const propsLib = new BlockLibrary("/voxels/props");
       await Promise.all([
-        lib.load(["water", "sand", "grass", "forest", "stone", "snow", "mist", "mistbase", "dirt"]),
+        lib.load(["water", "sand", "grass", "forest", "stone", "snow", "mist", "dirt"]),
         propsLib.load(PROP_KEYS),
       ]);
       if (disposed) return;

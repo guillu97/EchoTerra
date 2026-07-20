@@ -65,6 +65,8 @@ export type TerrainCell = {
   // sous l'herbe, la pierre sous la neige : sans lui les piliers montrent une
   // couche d'herbe à CHAQUE niveau (effet "rayures" constaté au banc)
   tint?: THREE.Color; // teinte d'instance (défaut blanc)
+  baseY?: number; // décalage vertical de la pile (défaut 0)
+  scaleY?: number; // écrasement vertical des blocs (nappe de brume basse : 0.5)
 };
 
 /**
@@ -105,7 +107,9 @@ export function buildTerrain(lib: BlockLibrary, cells: TerrainCell[]): {
     const cellsOf: TerrainCell[] = [];
     for (let i = 0; i < items.length; i++) {
       const { cell, level } = items[i];
-      m.makeTranslation(cell.x, level, cell.y);
+      const sy = cell.scaleY ?? 1;
+      m.makeScale(1, sy, 1);
+      m.setPosition(cell.x, (cell.baseY ?? 0) + level * sy, cell.y);
       mesh.setMatrixAt(i, m);
       mesh.setColorAt(i, cell.tint ?? WHITE);
       cellsOf.push(cell);
