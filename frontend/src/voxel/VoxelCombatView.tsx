@@ -237,13 +237,14 @@ class CombatWorld {
       m.position.set(x, topOf(x, y) + 0.02, y);
       this.overlays.add(m);
     };
-    const ring = (x: number, y: number, color: number) => {
+    const ring = (x: number, y: number, color: number, scale = 1) => {
       const m = new THREE.Mesh(
         CRING_GEOM,
         new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.95, depthWrite: false }),
       );
       m.userData.ownMat = true;
-      m.position.set(x, topOf(x, y) + 0.03, y);
+      m.position.set(x, topOf(Math.floor(x), Math.floor(y)) + 0.03, y);
+      m.scale.setScalar(scale); // anneau élargi pour un boss 2×2
       this.overlays.add(m);
     };
 
@@ -269,6 +270,18 @@ class CombatWorld {
       for (const [tx, ty] of threat?.cells ?? []) quad(tx, ty, 0xff8c3b, 0.48);
     }
 
+    // pattern de BOSS annoncé (lot C5) : les cases qui seront frappées à son
+    // prochain tour — orange vif, à évacuer !
+    if (c.status === "active" && c.telegraph) {
+      for (const [tx, ty] of c.telegraph.cells) {
+        quad(tx, ty, 0xff5a1f, 0.62);
+        const warn = makeLabel("⚠", "#ffd166", 0.22);
+        warn.center.set(0.5, 0);
+        warn.position.set(tx, topOf(tx, ty) + 0.05, ty);
+        this.overlays.add(warn);
+      }
+    }
+
     // unités : billboards + barre de PV (sprites face caméra)
     const targets = new Set(
       this.mode === "skill"
@@ -279,8 +292,13 @@ class CombatWorld {
     );
     for (const u of c.units) {
       if (u.hp <= 0 || u.fled) continue; // les fuyards ont quitté l'arène (C3)
+      // boss 2×2 (lot C5) : rendu au CENTRE de l'empreinte, modèle et anneaux ×2
+      const span = u.size && u.size > 1 ? u.size : 1;
+      const ux = u.x + (span - 1) / 2;
+      const uy = u.y + (span - 1) / 2;
+      const top = topOf(u.x, u.y);
       // flèche d'orientation (C4) : où l'unité regarde — attaquer son dos = +25 %
-      if (u.fx || u.fy) {
+      if ((u.fx || u.fy) && span === 1) {
         const arrow = new THREE.Mesh(
           FACING_GEOM,
           new THREE.MeshBasicMaterial({
@@ -291,22 +309,23 @@ class CombatWorld {
           }),
         );
         arrow.userData.ownMat = true;
-        arrow.position.set(u.x + u.fx * 0.42, topOf(u.x, u.y) + 0.035, u.y + u.fy * 0.42);
+        arrow.position.set(u.x + u.fx * 0.42, top + 0.035, u.y + u.fy * 0.42);
         arrow.rotation.y = -Math.atan2(u.fy, u.fx);
         this.overlays.add(arrow);
       }
-      if (this.current && u.id === this.current.unitId) ring(u.x, u.y, 0xffe066);
-      if (u.id === this.threatUnitId) ring(u.x, u.y, 0xff8c3b);
+      if (this.current && u.id === this.current.unitId) ring(ux, uy, 0xffe066, span);
+      if (u.id === this.threatUnitId) ring(ux, uy, 0xff8c3b, span);
       if (targets.has(u.id))
-        ring(u.x, u.y, this.mode === "skill" ? 0xc06bd6 : this.mode === "push" ? 0x4bc8e3 : 0xff5a4d);
+        ring(ux, uy, this.mode === "skill" ? 0xc06bd6 : this.mode === "push" ? 0x4bc8e3 : 0xff5a4d, span);
 
       const tex =
         u.side === "hero" ? (u.appearance || heroTexKey(u.kind)) : monsterTexKey(u.kind, u.appearance);
       // modèle voxel (héros ET monstres) si disponible — tourne avec la caméra
       const mesh = tex ? this.chars.make(tex) : undefined;
       if (mesh) {
-        mesh.position.set(u.x, topOf(u.x, u.y), u.y);
+        mesh.position.set(ux, top, uy);
         mesh.rotation.y = this.engine.azimuthNow;
+        mesh.scale.multiplyScalar(span);
         this.sprites.add(mesh);
         this.charMeshes.push(mesh);
         this.unitOf.set(mesh, u.id);
@@ -315,38 +334,40 @@ class CombatWorld {
         const mat = new THREE.SpriteMaterial({ map: this.texture(url), alphaTest: 0.35, transparent: true });
         const s = new THREE.Sprite(mat);
         s.userData.ownMat = true;
-        s.scale.set(0.7, 0.7, 1);
+        s.scale.set(0.7 * span, 0.7 * span, 1);
         s.center.set(0.5, 0.04);
-        s.position.set(u.x, topOf(u.x, u.y), u.y);
+        s.position.set(ux, top, uy);
         this.sprites.add(s);
         this.unitOf.set(s, u.id);
       }
 
       // barre de PV : fond sombre + remplissage coloré, toujours face caméra
       const ratio = Math.max(0, u.hp / u.maxHp);
+      const barW = 0.5 * span;
+      const barY = top + 0.8 * span;
       const back = new THREE.Sprite(new THREE.SpriteMaterial({ color: 0x000000, opacity: 0.6, transparent: true }));
       back.userData.ownMat = true;
-      back.scale.set(0.5, 0.06, 1);
-      back.position.set(u.x, topOf(u.x, u.y) + 0.8, u.y);
+      back.scale.set(barW, 0.06, 1);
+      back.position.set(ux, barY, uy);
       this.sprites.add(back);
       const fill = new THREE.Sprite(
         new THREE.SpriteMaterial({ color: u.side === "hero" ? 0x4be36e : 0xe24b4b, transparent: true }),
       );
       fill.userData.ownMat = true;
-      fill.scale.set(0.5 * ratio, 0.06, 1);
-      fill.position.set(u.x - (0.5 * (1 - ratio)) / 2, topOf(u.x, u.y) + 0.801, u.y);
+      fill.scale.set(barW * ratio, 0.06, 1);
+      fill.position.set(ux - (barW * (1 - ratio)) / 2, barY + 0.001, uy);
       this.sprites.add(fill);
 
       // nom (+ états) sous l'unité, comme CombatScene
       const short = u.name.length > 10 ? u.name.slice(0, 9) + "…" : u.name;
       const lbl = makeLabel(short, "#e8e8f0", 0.17);
       lbl.center.set(0.5, 1);
-      lbl.position.set(u.x, topOf(u.x, u.y) - 0.06, u.y);
+      lbl.position.set(ux, top - 0.06, uy);
       this.sprites.add(lbl);
       if (u.states.length) {
         const st = makeLabel(u.states.join(","), "#ffd166", 0.15);
         st.center.set(0.5, 1);
-        st.position.set(u.x, topOf(u.x, u.y) - 0.26, u.y);
+        st.position.set(ux, top - 0.26, uy);
         this.sprites.add(st);
       }
     }

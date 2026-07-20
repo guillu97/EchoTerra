@@ -33,6 +33,45 @@ type CombatUnit struct {
 	// couverture. Vecteur unitaire orthogonal (FX,FY).
 	FX int `json:"fx"`
 	FY int `json:"fy"`
+	// Size (lot C5) : côté de l'empreinte — 2 pour un BOSS (2×2 cases, une seule
+	// unité, ancre = coin haut-gauche X,Y). 0/1 = unité normale.
+	Size int `json:"size,omitempty"`
+}
+
+// span renvoie le côté de l'empreinte (1 par défaut).
+func (u *CombatUnit) span() int {
+	if u.Size < 1 {
+		return 1
+	}
+	return u.Size
+}
+
+// occupies : (x,y) est dans l'empreinte de l'unité.
+func (u *CombatUnit) occupies(x, y int) bool {
+	return x >= u.X && x < u.X+u.span() && y >= u.Y && y < u.Y+u.span()
+}
+
+// footprint : les cases occupées par l'unité.
+func (u *CombatUnit) footprint() [][2]int {
+	n := u.span()
+	out := make([][2]int, 0, n*n)
+	for dy := 0; dy < n; dy++ {
+		for dx := 0; dx < n; dx++ {
+			out = append(out, [2]int{u.X + dx, u.Y + dy})
+		}
+	}
+	return out
+}
+
+// distTo : distance de Manhattan MINIMALE entre (x,y) et l'empreinte.
+func (u *CombatUnit) distTo(x, y int) int {
+	best := 1 << 30
+	for _, cell := range u.footprint() {
+		if d := manhattan(cell[0], cell[1], x, y); d < best {
+			best = d
+		}
+	}
+	return best
 }
 
 // Alive reports whether the unit still has hit points.
@@ -153,6 +192,23 @@ type Combat struct {
 	// l'IA ; « Rejoindre le combat » ajoute le joueur et lui rend le contrôle
 	// de SES héros. Vide dans les parties legacy sans joueurs (tout est manuel).
 	Participants []string `json:"participants,omitempty"`
+	// Lot C5 — boss & IA. Telegraph : l'attaque de zone ANNONCÉE par le boss un
+	// tour à l'avance (cases oranges côté client) et frappée à son tour suivant,
+	// sur les cases annoncées (le jeu du placement). Wave : la vague de la partie
+	// à l'engagement (les renforts n'arrivent qu'à partir de la vague 4).
+	// ReinforceAt : round d'arrivée des renforts (annoncés un round avant),
+	// 0 = pas de renforts ; ReinforceDone : déjà arrivés.
+	Telegraph     *CombatTelegraph `json:"telegraph,omitempty"`
+	Wave          int              `json:"wave,omitempty"`
+	ReinforceAt   int              `json:"reinforceAt,omitempty"`
+	ReinforceDone bool             `json:"reinforceDone,omitempty"`
+}
+
+// CombatTelegraph : l'attaque de zone annoncée par un boss (lot C5).
+type CombatTelegraph struct {
+	UnitID string   `json:"unitId"`
+	Attack string   `json:"attack"` // nom de l'AttackDef (résolue à la frappe)
+	Cells  [][2]int `json:"cells"`  // cases qui seront frappées au prochain tour du boss
 }
 
 // hasParticipant reports whether a player is present in the combat.
@@ -302,7 +358,14 @@ func buildArena(biome Biome, gw, gh int) []CombatCell {
 // sont joués par l'IA tant que leur propriétaire n'a pas « rejoint » ("" = partie
 // legacy sans joueurs, tout est manuel).
 func NewCombat(gs *GameState, heroes []*Hero, monster *Monster, starterID string) *Combat {
-	const gw, gh = 7, 7
+	gw, gh := 7, 7
+	// Lot C5 : un BOSS (Roi Gobelin, Arbre Vivant Ancien) se combat dans une
+	// arène 9×9 — il occupe 2×2 cases et a besoin d'espace pour ses patterns.
+	sp := SpeciesByName(monster.Species)
+	boss := sp != nil && sp.Boss
+	if boss {
+		gw, gh = 9, 9
+	}
 	biome := Biome(2)
 	if t := gs.TileAt(monster.X, monster.Y); t != nil {
 		biome = t.Biome
@@ -325,6 +388,12 @@ func NewCombat(gs *GameState, heroes []*Hero, monster *Monster, starterID string
 		Cells:   cells,
 		Status:  "active",
 		Log:     []string{},
+		Wave:    gs.WaveNumber,
+	}
+	// Renforts (lot C5) : à partir de la vague 4, 1-2 créatures rejoignent le
+	// pack au round 3 (annoncées au round 2).
+	if !boss && gs.WaveNumber >= bossWaveThreshold && monster.Count > 1 {
+		c.ReinforceAt = 3
 	}
 	c.AddParticipant(starterID)
 
@@ -360,6 +429,40 @@ func NewCombat(gs *GameState, heroes []*Hero, monster *Monster, starterID string
 			States:     []string{},
 		}
 		c.Units = append(c.Units, u)
+	}
+	if boss {
+		// Une SEULE unité 2×2, ancrée en haut au centre ; son empreinte et la
+		// rangée devant elle sont aplanies et dégagées (pas d'obstacle collé).
+		bx := gw/2 - 1
+		for y := 0; y < 3; y++ {
+			for x := bx - 1; x <= bx+2; x++ {
+				if x >= 0 && x < gw {
+					cells[y*gw+x] = CombatCell{}
+					c.Heights[y*gw+x] = 0
+				}
+			}
+		}
+		c.Units = append(c.Units, &CombatUnit{
+			ID:         uuid.NewString(),
+			Name:       monster.Species,
+			Side:       "monster",
+			RefID:      monster.ID,
+			Kind:       monster.Species,
+			Appearance: monster.Appearance,
+			X:          bx,
+			Y:          0,
+			FY:         1,
+			Size:       2,
+			HP:         monster.HP,
+			MaxHP:      monster.MaxHP,
+			Stats:      monster.Stats,
+			Move:       2, // massif : lent
+			States:     []string{},
+		})
+		c.computeOrder()
+		c.logf("Le combat commence ! %s se dresse devant vous.", monster.Species)
+		c.advanceUntilHeroOrEnd()
+		return c
 	}
 	// One combat unit per creature on the tile, capped so fights stay manageable even
 	// when the surrounding pack (monster.Count, used for Tétanisé) is large.
@@ -436,7 +539,7 @@ func (c *Combat) CurrentUnit() *CombatUnit {
 
 func (c *Combat) unitAt(x, y int) *CombatUnit {
 	for _, u := range c.Units {
-		if u.inBattle() && u.X == x && u.Y == y {
+		if u.inBattle() && u.occupies(x, y) {
 			return u
 		}
 	}
@@ -474,18 +577,24 @@ func (c *Combat) cellAt(x, y int) *CombatCell {
 }
 
 func (c *Combat) passable(x, y int, u *CombatUnit) bool {
-	if x < 0 || y < 0 || x >= c.GridW || y >= c.GridH {
-		return false
-	}
-	// arène C1 : rochers/arbres et eau sont infranchissables
-	if cell := c.cellAt(x, y); cell != nil && (cell.Blocked || cell.Hazard == "water") {
-		return false
-	}
-	if o := c.unitAt(x, y); o != nil && o != u {
-		return false
-	}
-	if absI(c.heightAt(x, y)-c.heightAt(u.X, u.Y)) > 2 {
-		return false
+	// une unité large (boss 2×2) doit poser TOUTE son empreinte, ancre en (x,y)
+	for dy := 0; dy < u.span(); dy++ {
+		for dx := 0; dx < u.span(); dx++ {
+			cx, cy := x+dx, y+dy
+			if cx < 0 || cy < 0 || cx >= c.GridW || cy >= c.GridH {
+				return false
+			}
+			// arène C1 : rochers/arbres et eau sont infranchissables
+			if cell := c.cellAt(cx, cy); cell != nil && (cell.Blocked || cell.Hazard == "water") {
+				return false
+			}
+			if o := c.unitAt(cx, cy); o != nil && o != u {
+				return false
+			}
+			if absI(c.heightAt(cx, cy)-c.heightAt(u.X, u.Y)) > 2 {
+				return false
+			}
+		}
 	}
 	return true
 }
@@ -506,6 +615,9 @@ func (c *Combat) enterCell(u *CombatUnit, tx, ty int) {
 	}
 	if dx != 0 || dy != 0 {
 		u.FX, u.FY = dx, dy // le déplacement oriente l'unité (Facing, lot C4)
+	}
+	if u.span() > 1 {
+		return // un boss est trop massif pour glisser ou craindre les ronces
 	}
 	for slides := 0; slides < 3 && (dx != 0 || dy != 0); slides++ {
 		cell := c.cellAt(u.X, u.Y)
@@ -644,13 +756,21 @@ func (c *Combat) hasLOS(x0, y0, x1, y1 int) bool {
 // à distance (>1), la ligne de vue est dégagée. Utilisé par le ciblage servi,
 // la validation des actions ET l'IA — personne ne tire à travers un rocher.
 func (c *Combat) canTarget(att *CombatUnit, atk *AttackDef, def *CombatUnit) bool {
-	if !atk.inTargets(def.X-att.X, def.Y-att.Y) {
-		return false
+	// multi-cases (boss 2×2, lot C5) : la grille de ciblage s'évalue entre CHAQUE
+	// case de l'attaquant et CHAQUE case de la cible — avec ligne de vue sur ce
+	// segment pour les tirs (>1).
+	for _, ac := range att.footprint() {
+		for _, dc := range def.footprint() {
+			if !atk.inTargets(dc[0]-ac[0], dc[1]-ac[1]) {
+				continue
+			}
+			if manhattan(ac[0], ac[1], dc[0], dc[1]) > 1 && !c.hasLOS(ac[0], ac[1], dc[0], dc[1]) {
+				continue
+			}
+			return true
+		}
 	}
-	if manhattan(att.X, att.Y, def.X, def.Y) > 1 && !c.hasLOS(att.X, att.Y, def.X, def.Y) {
-		return false
-	}
-	return true
+	return false
 }
 
 // isRearAttack : l'attaquant est dans l'arc ARRIÈRE de la cible (le vecteur
@@ -691,11 +811,11 @@ func (c *Combat) dmgMods(att, def *CombatUnit) (heightBonus, mulNum, mulDen int)
 		hd = -1
 	}
 	mulNum, mulDen = 1, 1
-	rear := c.isRearAttack(att, def)
+	rear := def.span() == 1 && c.isRearAttack(att, def) // un boss n'a pas de dos
 	if rear {
 		mulNum, mulDen = mulNum*5, mulDen*4
 	}
-	if !rear && manhattan(att.X, att.Y, def.X, def.Y) > 1 && c.inCover(att, def) {
+	if !rear && def.distTo(att.X, att.Y) > 1 && c.inCover(att, def) {
 		mulNum, mulDen = mulNum*3, mulDen*4
 	}
 	return hd, mulNum, mulDen
@@ -704,8 +824,8 @@ func (c *Combat) dmgMods(att, def *CombatUnit) (heightBonus, mulNum, mulDen int)
 // EstimateFlags expose l'attaque de dos et la couverture effective pour la
 // télégraphie client (🗡 dos / 🛡 à couvert) — mêmes règles que dmgMods.
 func (c *Combat) EstimateFlags(att, def *CombatUnit) (rear, cover bool) {
-	rear = c.isRearAttack(att, def)
-	cover = !rear && manhattan(att.X, att.Y, def.X, def.Y) > 1 && c.inCover(att, def)
+	rear = def.span() == 1 && c.isRearAttack(att, def)
+	cover = !rear && def.distTo(att.X, att.Y) > 1 && c.inCover(att, def)
 	return
 }
 
@@ -843,11 +963,13 @@ func (c *Combat) performAttack(att *CombatUnit, atk *AttackDef, tx, ty int) {
 	}
 	zone := append([]GridCell{{0, 0}}, atk.Damage...)
 	struck := 0
+	hitOnce := map[*CombatUnit]bool{} // un boss 2×2 sous plusieurs cases de zone n'est frappé qu'une fois
 	for _, z := range zone {
 		def := c.unitAt(tx+z.DX, ty+z.DY)
-		if def == nil || !def.Alive() || def.Side == att.Side {
+		if def == nil || !def.Alive() || def.Side == att.Side || hitOnce[def] {
 			continue
 		}
+		hitOnce[def] = true
 		struck++
 		if atk.DmgStat != "" {
 			dmg := c.damageWith(att, def, atk)
@@ -972,6 +1094,9 @@ func (c *Combat) PlayerAction(unitID, action string, tx, ty int, targetID string
 		if def == nil || !def.inBattle() || def.Side == cur.Side {
 			return ErrInvalidAction{"cible invalide"}
 		}
+		if def.span() > 1 {
+			return ErrInvalidAction{def.Name + " est bien trop massif pour être poussé"}
+		}
 		dx, dy := def.X-cur.X, def.Y-cur.Y
 		rng := 1
 		if cur.ClassID == "pionnier" {
@@ -1061,8 +1186,8 @@ func (c *Combat) PushTargets(u *CombatUnit) []*CombatUnit {
 	}
 	var out []*CombatUnit
 	for _, o := range c.Units {
-		if !o.inBattle() || o.Side == u.Side {
-			continue
+		if !o.inBattle() || o.Side == u.Side || o.span() > 1 {
+			continue // un boss ne se pousse pas
 		}
 		dx, dy := o.X-u.X, o.Y-u.Y
 		if (dx == 0 && absI(dy) >= 1 && absI(dy) <= rng) || (dy == 0 && absI(dx) >= 1 && absI(dx) <= rng) {
@@ -1136,6 +1261,7 @@ func (c *Combat) advanceTurn() {
 		if c.TurnIdx >= len(c.Order) {
 			c.TurnIdx = 0
 			c.Round++
+			c.roundTick() // lot C5 : annonce/arrivée des renforts
 		}
 		u := c.CurrentUnit()
 		if u == nil || !u.inBattle() {
@@ -1193,12 +1319,30 @@ func (c *Combat) advanceUntilHeroOrEnd() {
 // approach the nearest hero until it stands on one of the attack's targeting cells,
 // then strike (with the attack's damage zone and effects).
 func (c *Combat) monsterTurn(u *CombatUnit) {
-	target := c.nearestEnemy(u)
+	if u.span() > 1 {
+		c.bossTurn(u)
+		return
+	}
+	// IA de meute (lot C5) : focus-fire sur l'ennemi le plus blessé.
+	target := c.packTarget(u)
 	if target == nil {
 		return
 	}
+	// Retraite : sous 25 % de PV, la créature recule d'un pas avant d'agir.
+	if u.HP*4 < u.MaxHP && !u.Moved {
+		if c.stepAway(u, target) {
+			c.logf("%s recule, blessé.", u.Name)
+		}
+	}
 	atk := c.baseAttackFor(u)
-	if specials := c.specialsFor(u); len(specials) > 0 && rand.Intn(100) < 35 {
+	specials := c.specialsFor(u)
+	isBuffer := false
+	for i := range specials {
+		if specials[i].BuffAllies {
+			isBuffer = true
+		}
+	}
+	if len(specials) > 0 && rand.Intn(100) < 35 {
 		pick := specials[rand.Intn(len(specials))]
 		// Don't re-shield while already shielded; self abilities fire immediately.
 		if !pick.SelfShield || !u.hasState("Bouclier") {
@@ -1211,7 +1355,10 @@ func (c *Combat) monsterTurn(u *CombatUnit) {
 	}
 	// Step toward the target until it can actually be HIT : case verte ET ligne
 	// de vue dégagée (lot C4) — l'IA continue d'avancer pour débloquer son tir.
-	if !u.Moved {
+	// Le BUFFEUR (Hurlement de Meute) reste derrière : il n'approche pas tant
+	// qu'un allié est plus proche de l'ennemi que lui.
+	holdBack := isBuffer && c.allyCloserThan(u, target)
+	if !u.Moved && !holdBack && u.HP*4 >= u.MaxHP {
 		for steps := u.Move; steps > 0 && !c.canTarget(u, &atk, target); steps-- {
 			if !c.stepToward(u, target) {
 				break
@@ -1222,8 +1369,185 @@ func (c *Combat) monsterTurn(u *CombatUnit) {
 		c.performAttack(u, &atk, target.X, target.Y)
 	} else if base := c.baseAttackFor(u); c.canTarget(u, &base, target) {
 		c.performAttack(u, &base, target.X, target.Y) // fall back to the base strike
+	} else if holdBack {
+		c.logf("%s reste en retrait.", u.Name)
 	} else {
 		c.logf("%s avance.", u.Name)
+	}
+}
+
+// bossTurn (lot C5) : le boss ANNONCE son attaque de zone un tour à l'avance
+// (cases oranges) et la déchaîne au tour suivant sur les cases ANNONCÉES —
+// le jeu du placement : quiconque y est encore prend le coup.
+func (c *Combat) bossTurn(u *CombatUnit) {
+	if t := c.Telegraph; t != nil && t.UnitID == u.ID {
+		c.Telegraph = nil
+		atk := c.attackByName(u, t.Attack)
+		struck := 0
+		hit := map[*CombatUnit]bool{}
+		for _, cell := range t.Cells {
+			def := c.unitAt(cell[0], cell[1])
+			if def == nil || !def.Alive() || def.Side == u.Side || hit[def] {
+				continue
+			}
+			hit[def] = true
+			struck++
+			dmg := c.damageWith(u, def, atk)
+			def.HP -= dmg
+			c.addHit(def.ID, dmg, "dmg")
+			c.logf("%s déchaîne %s sur %s (-%d PV).", u.Name, atk.Name, def.Name, dmg)
+			if !def.Alive() {
+				c.logf("%s est vaincu.", def.Name)
+			}
+		}
+		if struck == 0 {
+			c.logf("%s frappe dans le vide — bien esquivé !", u.Name)
+		}
+		return
+	}
+	target := c.packTarget(u)
+	if target == nil {
+		return
+	}
+	base := c.baseAttackFor(u)
+	if !u.Moved {
+		for steps := u.Move; steps > 0 && !c.canTarget(u, &base, target); steps-- {
+			if !c.stepToward(u, target) {
+				break
+			}
+		}
+	}
+	// ~50 % : télégraphier une spéciale de ZONE centrée sur la cible
+	var zone *AttackDef
+	specials := c.specialsFor(u)
+	for i := range specials {
+		if len(specials[i].Damage) > 0 && specials[i].DmgStat != "" {
+			zone = &specials[i]
+			break
+		}
+	}
+	if zone != nil && rand.Intn(100) < 50 {
+		cells := [][2]int{}
+		for _, z := range append([]GridCell{{0, 0}}, zone.Damage...) {
+			x, y := target.X+z.DX, target.Y+z.DY
+			if x >= 0 && y >= 0 && x < c.GridW && y < c.GridH {
+				cells = append(cells, [2]int{x, y})
+			}
+		}
+		c.Telegraph = &CombatTelegraph{UnitID: u.ID, Attack: zone.Name, Cells: cells}
+		c.logf("%s prépare %s — gare aux cases marquées !", u.Name, zone.Name)
+		return
+	}
+	if c.canTarget(u, &base, target) {
+		c.performAttack(u, &base, target.X, target.Y)
+	} else {
+		c.logf("%s avance pesamment.", u.Name)
+	}
+}
+
+// attackByName retrouve une attaque de l'espèce par son nom (base en secours).
+func (c *Combat) attackByName(u *CombatUnit, name string) *AttackDef {
+	attacks := monsterAttacks(u.Kind)
+	for i := range attacks {
+		if attacks[i].Name == name {
+			return &attacks[i]
+		}
+	}
+	base := c.baseAttackFor(u)
+	return &base
+}
+
+// packTarget (lot C5) : focus-fire — l'ennemi le plus BLESSÉ, le plus proche à
+// égalité de PV.
+func (c *Combat) packTarget(u *CombatUnit) *CombatUnit {
+	var best *CombatUnit
+	bestScore := 1 << 30
+	for _, o := range c.Units {
+		if !o.inBattle() || o.Side == u.Side {
+			continue
+		}
+		score := o.HP*100 + o.distTo(u.X, u.Y)
+		if score < bestScore {
+			bestScore, best = score, o
+		}
+	}
+	return best
+}
+
+// allyCloserThan : un allié (hors buffeur) est plus proche de la cible que u.
+func (c *Combat) allyCloserThan(u, target *CombatUnit) bool {
+	d := target.distTo(u.X, u.Y)
+	for _, o := range c.Units {
+		if o != u && o.inBattle() && o.Side == u.Side && target.distTo(o.X, o.Y) < d {
+			return true
+		}
+	}
+	return false
+}
+
+// stepAway (lot C5) : recule d'une case en s'éloignant de la menace.
+func (c *Combat) stepAway(u, threat *CombatUnit) bool {
+	bestDX, bestDY, bestD := 0, 0, threat.distTo(u.X, u.Y)
+	moved := false
+	for _, d := range [][2]int{{1, 0}, {-1, 0}, {0, 1}, {0, -1}} {
+		nx, ny := u.X+d[0], u.Y+d[1]
+		if !c.passable(nx, ny, u) {
+			continue
+		}
+		if dd := threat.distTo(nx, ny); dd > bestD {
+			bestD, bestDX, bestDY, moved = dd, d[0], d[1], true
+		}
+	}
+	if moved {
+		c.enterCell(u, u.X+bestDX, u.Y+bestDY)
+	}
+	return moved
+}
+
+// roundTick (lot C5) : annonce (round R−1) puis fait entrer (round R) les
+// renforts par le bord monstre.
+func (c *Combat) roundTick() {
+	if c.ReinforceAt == 0 || c.ReinforceDone || c.Status != "active" {
+		return
+	}
+	if c.Round == c.ReinforceAt-1 {
+		c.logf("Des renforts ennemis approchent — ils surgiront au prochain round !")
+	}
+	if c.Round >= c.ReinforceAt {
+		c.spawnReinforcements()
+	}
+}
+
+func (c *Combat) spawnReinforcements() {
+	c.ReinforceDone = true
+	var tpl *CombatUnit
+	for _, u := range c.Units {
+		if u.Side == "monster" {
+			tpl = u
+			break
+		}
+	}
+	if tpl == nil {
+		return
+	}
+	n := 1 + rand.Intn(2)
+	spawned := 0
+	for x := 0; x < c.GridW && spawned < n; x++ {
+		cell := c.cellAt(x, 0)
+		if c.unitAt(x, 0) != nil || (cell != nil && (cell.Blocked || cell.Hazard == "water")) {
+			continue
+		}
+		nu := &CombatUnit{
+			ID: uuid.NewString(), Name: tpl.Name, Side: "monster", RefID: tpl.RefID,
+			Kind: tpl.Kind, Appearance: tpl.Appearance, X: x, Y: 0, FY: 1,
+			HP: tpl.MaxHP, MaxHP: tpl.MaxHP, Stats: tpl.Stats, Move: tpl.Move, States: []string{},
+		}
+		c.Units = append(c.Units, nu)
+		c.Order = append(c.Order, nu.ID)
+		spawned++
+	}
+	if spawned > 0 {
+		c.logf("%d renfort(s) ennemis surgissent par le nord !", spawned)
 	}
 }
 

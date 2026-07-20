@@ -6,6 +6,40 @@
 
 ---
 
+## 2026-07-20 (49) — COMBAT C5 : boss 2×2, patterns télégraphiés, IA de meute, renforts — COMBAT-PLAN ✅ COMPLET
+
+### Fait (lot C5, dernier du COMBAT-PLAN)
+- **Boss 2×2 en 9×9** : espèce `Boss` du design (Roi Gobelin, Arbre Vivant Ancien) →
+  arène 9×9, UNE unité `Size=2` (ancre coin haut-gauche, empreinte aplanie au spawn).
+  Fondations multi-cases : `span/occupies/footprint/distTo`, `unitAt`/`passable`
+  (empreinte complète), `canTarget` évalué entre CHAQUE case attaquant × cible (le
+  boss frappe depuis toute son empreinte, on l'atteint par n'importe quelle case),
+  zone de dégâts dédupliquée (`hitOnce`), pas de dos ni de poussée sur un boss,
+  insensible glace/ronces, lent (Move 2).
+- **Patterns télégraphiés** : `Combat.Telegraph {unitId, attack, cells}` — le boss
+  ANNONCE sa spéciale de zone (~50 %) centrée sur sa cible, la frappe à son tour
+  SUIVANT sur les cases ANNONCÉES (quiconque y reste prend le coup, esquive = zéro
+  dégât). Client : cases orange vif + ⚠ + bannière « X prépare Y — évacue ! ».
+- **IA de meute** (tous les monstres) : focus-fire (`packTarget` : l'ennemi le plus
+  BLESSÉ, le plus proche à égalité), retraite d'un pas sous 25 % PV (`stepAway`),
+  le BUFFEUR (Hurlement de Meute) reste en retrait tant qu'un allié est plus avancé.
+- **Renforts vague 4+** : `ReinforceAt=3` (pack >1, hors boss) — annoncés au round 2
+  (log + bannière), 1-2 créatures surgissent par le bord nord au round 3
+  (`roundTick` dans advanceTurn, unités ajoutées à l'ordre du tour).
+- **Client** : boss rendu au centre de l'empreinte (modèle/anneaux/barre de PV ×2),
+  cases télégraphiées, bannières boss + renforts.
+
+### Fonctionnel (vérifié)
+- `combat_c5_test.go` (arène/empreinte, mêlée depuis toute case de l'empreinte +
+  poussée refusée, annonce→frappe sur cases marquées ET esquive indemne, focus-fire
+  sur le blessé, retraite, renforts annoncés puis arrivés vague 5 / absents tôt) ;
+  suite Go verte ; e2e réel de non-régression (combat normal C4) ; capture c5-boss
+  (injection synthétique) ; tsc + build ; perf voxel 12/12.
+
+### Le COMBAT-PLAN (C1-C5) est ✅ INTÉGRALEMENT LIVRÉ, plus le combat multijoueur.
+Prolongements possibles : boss en vraie partie longue (vague 4+ organique), FX
+d'impact (flash/recul), notification quand son tour arrive en multi.
+
 ## 2026-07-20 (48) — COMBAT C4 : ligne de vue, couverture, hauteur formalisée, attaque de dos
 
 ### Fait (lot C4 du COMBAT-PLAN)

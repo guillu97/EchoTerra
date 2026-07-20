@@ -1,5 +1,10 @@
 # Plan — Amélioration de la carte et du système de combat isométrique
 
+> ✅ **RÉALISÉ EN TOTALITÉ (2026-07-20)** — C1 arène par biome, C2 lisibilité & juice,
+> C3 actions tactiques, C4 couverture/visée/dos, C5 boss & IA, PLUS le combat
+> multijoueur (équipes par joueur, IA des absents, « Rejoindre le combat »).
+> Détail par lot dans `journal.md` (entrées 44-49).
+
 > Rédigé le 2026-07-19. Objectif : faire du combat FFTA2-like le SECOND pilier du jeu
 > (aujourd'hui : arène 7×7 quasi plate tirée au hasard, sans lien avec le biome, actions
 > move/attaque/skill/end, IA monstre simple). Tout respecte l'architecture actuelle :

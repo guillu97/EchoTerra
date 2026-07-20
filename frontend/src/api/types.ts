@@ -279,6 +279,7 @@ export interface CombatUnit {
   ownerId?: string; // joueur propriétaire du héros ("" / absent = partie legacy)
   fx: number; // Facing (lot C4) : direction regardée — l'arc arrière prend +25 %
   fy: number;
+  size?: number; // lot C5 : 2 = boss 2×2 (ancre = coin haut-gauche)
 }
 
 // A combat ability with its GDD grids (mirrors backend AttackDef).
@@ -338,6 +339,12 @@ export interface Combat {
   lastHits?: CombatHit[];
   rewards?: CombatReward[];
   participants?: string[]; // joueurs présents — les héros des absents sont joués par l'IA
+  // Lot C5 : l'attaque de zone annoncée par le boss (cases oranges, frappées à
+  // son prochain tour) + fenêtre de renforts (vague 4+).
+  telegraph?: { unitId: string; attack: string; cells: [number, number][] };
+  wave?: number;
+  reinforceAt?: number;
+  reinforceDone?: boolean;
 }
 
 // Objet du sac utilisable en combat (lot C3) — servi par combatResponse.
