@@ -562,6 +562,12 @@ export function VoxelMapView({ active = true }: { active?: boolean }) {
         world.draw();
       },
     );
+    // recentrage caméra sur un héros (sélection depuis la barre de héros) :
+    // la cible glisse vers la case du héros, le zoom courant est conservé.
+    const offFocus = bus.on(EV.MapFocusHero, (p: { x: number; y: number }) => {
+      engine.target.set(p.x, engine.target.y, p.y);
+      engine.invalidate();
+    });
     // même poignée de main que MapScene : le store re-pousse l'état courant
     bus.emit(EV.MapSceneReady);
 
@@ -581,6 +587,7 @@ export function VoxelMapView({ active = true }: { active?: boolean }) {
     if (import.meta.env.DEV) (window as unknown as { __vm?: unknown }).__vm = { engine, world };
     return () => {
       off();
+      offFocus();
       unsubSettings();
       clearInterval(sunTimer);
       controls.dispose();

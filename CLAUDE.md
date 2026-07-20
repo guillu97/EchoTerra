@@ -403,9 +403,18 @@ POST /api/games/{id}/combat/{c}/action            {unitId, action: move|attack|s
   sur la carte (et bascule sur l'onglet Map), et les actions contextuelles du héros (⚔️ si monstre sur
   sa case, 🔥 si pack à portée, 🔎/🫥 hors ville, 🏃 si Tétanisé, note « en ville » sinon). Les actions
   sélectionnent le héros puis agissent. La barre du bas de la Map est réduite à Forcer vague + 👥 Autres
-  + hint (déplacement inchangé : losanges jaunes). ⚠ le span du nom de ville est `className="town-name"`
+  (déplacement inchangé : losanges jaunes). ⚠ le span du nom de ville est `className="town-name"`
   — PAS `town` (collision `.town{position:absolute;inset:0}` qui recouvrait l'avatar et mangeait ses
   clics). 🏰% chip opens **TownStatus**; ⚙️ opens Settings.
+- **MapHeroBar** (`components/MapHeroBar.tsx`, bas de la vue Map) : **barre de sélection des héros** — une
+  pastille par héros de MON équipe (portrait de classe, nom, barre de PV, PA, badge de lieu 🏰/🔒/💀). Taper
+  une pastille = `store.focusHero(id)` : sélectionne le héros ACTIF (celui que les losanges jaunes déplacent)
+  ET recentre la caméra dessus (bus `EV.MapFocusHero`, géré par VoxelMapView `engine.target` + MapScene
+  `setScroll`) ; bouton ⓘ = fiche (HeroOverlay). Hint contextuel sous la barre (ville → « tape une case
+  adjacente pour sortir » ; Tétanisé ; sinon losanges). C'est LE moyen de choisir qui sort de la ville (les
+  héros en ville sont masqués sur la carte mais chacun a sa pastille) et qui je déplace. `focusHero` ≠
+  `selectHero` (ce dernier, appelé par les taps carte, ne recentre PAS — le héros tapé est déjà à l'écran).
+  Empilé au-dessus de `MapControls` via `.map-bottom` (`.map-controls` passe en `position:static` dedans).
 - **Character screen** (`HeroOverlay`, from the avatar): Skill view only (class, attributes + bonuses, unique
   skills, Evolve, ◀▶ roster cycle). **No inventory tab / no Stock link** (user decision).
 - **Stock**: MY team's personal bags only (always) + the **Bank** section (only when ≥1 of MY heroes in town)

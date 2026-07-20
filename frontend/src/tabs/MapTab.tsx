@@ -5,6 +5,7 @@ import { VoxelMapView } from "../voxel/VoxelMapView";
 import { VoxelCombatView } from "../voxel/VoxelCombatView";
 import { bus, EV } from "../eventBus";
 import { heroTexKey, libUrl, monsterTexKey } from "../assets";
+import { MapHeroBar } from "../components/MapHeroBar";
 
 // Radial action menu (Hordes-style) that pops at the selected hero when tapped on the map.
 const FIREBALL_PA = 2; // mirrors backend FireballPACost
@@ -113,10 +114,8 @@ function ActionMenu() {
 // the TopBar (HeroActionsMenu). Movement is unchanged: select a hero, tap the
 // yellow diamonds on the map. Only map-wide tools remain here.
 function MapControls() {
-  const { game, selectedHeroId, advance, busy, showOthers, toggleOthers, playerId, joinCombat } = useStore();
+  const { game, advance, busy, showOthers, toggleOthers, playerId, joinCombat } = useStore();
   if (!game) return null;
-  const hero = game.heroes.find((h) => h.id === selectedHeroId);
-  const stuck = !!hero?.states.includes("Tétanisé");
   const multiplayer = (game.players?.length ?? 0) > 1;
   // Combat en cours où figurent MES héros (joués par l'IA tant que je n'ai pas
   // rejoint) : proposer « Rejoindre le combat ».
@@ -152,13 +151,6 @@ function MapControls() {
           </button>
         )}
       </div>
-      {stuck ? (
-        <div className="map-hint warn">⚠️ {hero?.name} est Tétanisé — tue le monstre (Fight) ou fuis (Escape).</div>
-      ) : (
-        <div className="map-hint">
-          💡 Héros et actions via 🙂 en haut — tape les losanges jaunes pour te déplacer.
-        </div>
-      )}
     </div>
   );
 }
@@ -431,9 +423,18 @@ export function MapTab({ active = true }: { active?: boolean }) {
         <PhaserGame active={active} />
       )}
       {view !== "combat" && <ActionMenu />}
-      {view === "combat" && <InitiativeBar />}
-      {view === "combat" && <CombatEndScreen />}
-      {view === "combat" ? <CombatControls /> : <MapControls />}
+      {view === "combat" ? (
+        <>
+          <InitiativeBar />
+          <CombatEndScreen />
+          <CombatControls />
+        </>
+      ) : (
+        <div className="map-bottom">
+          <MapHeroBar />
+          <MapControls />
+        </div>
+      )}
     </div>
   );
 }

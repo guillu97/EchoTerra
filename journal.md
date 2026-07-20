@@ -6,6 +6,34 @@
 
 ---
 
+## 2026-07-20 (51) — UI : barre de sélection des héros sur la carte (sortir de ville / déplacer)
+
+### Fait (retour utilisateur : « sur la map je dois facilement sélectionner qui sort de la ville et qui je déplace »)
+- **`components/MapHeroBar.tsx`** : barre posée en bas de la carte (vue Map), une
+  pastille par héros de MON équipe — portrait de classe, nom, barre de PV colorée
+  (vert/jaune/rouge), PA, et un **badge de lieu** (🏰 en ville, 🔒 Tétanisé, 💀 mort).
+  Taper une pastille **sélectionne le héros actif** (celui que les losanges jaunes
+  déplacent) ET **recentre la caméra** dessus ; bouton ⓘ = fiche du personnage.
+- **`store.focusHero(id)`** : sélection + `bus.emit(EV.MapFocusHero)` (nouveau) —
+  distinct de `selectHero` exprès (un tap MAP sélectionne un héros déjà à l'écran,
+  recentrer serait sautillant). Handler `MapFocusHero` dans **VoxelMapView**
+  (`engine.target` glisse sur la case) ET **MapScene** Phaser (même math que
+  `fitCamera`).
+- **Hint contextuel** sous la barre : héros en ville → « tape une case adjacente
+  pour le faire sortir » ; Tétanisé → alerte ; sinon → « tape les losanges jaunes ».
+  L'ancien hint générique de `MapControls` (« Héros et actions via 🙂 ») est retiré
+  (redondant). Le bas de carte est empilé proprement (`.map-bottom` : barre +
+  contrôles map-wide).
+- Le flux « sortir de la ville » devient trivial : les héros en ville sont masqués
+  sur la carte (dans les murs) mais chacun a SA pastille ; sélectionner puis taper
+  une case adjacente le fait sortir (règles de porte inchangées). Le dropdown 🙂 du
+  TopBar reste pour les fiches/actions détaillées.
+
+### Fonctionnel (vérifié)
+- E2E réel `herobar-check.mjs` : 1 pastille/héros, sélection surlignée, badges 🏰,
+  hint ville→sortir puis terrain→déplacer, recentrage caméra sur la case du héros ;
+  captures herobar-town / herobar-field ; tsc + build ; perf voxel 12/12.
+
 ## 2026-07-20 (50) — BOSS révisé : plus d'annonce, il attaque chaque tour (base ou spéciale)
 
 ### Fait (retour utilisateur : « les attaques prévues à l'avance, c'est trop simple »)

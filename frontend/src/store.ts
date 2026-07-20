@@ -151,6 +151,7 @@ interface StoreState {
   newGame: () => Promise<void>;
   loadGame: (id: string) => Promise<void>;
   selectHero: (id: string) => void;
+  focusHero: (id: string) => void; // sélectionne un héros ET recentre la caméra dessus
   move: (dx: number, dy: number) => Promise<void>;
   search: () => Promise<void>;
   hide: () => Promise<void>;
@@ -698,6 +699,21 @@ export const useStore = create<StoreState>((set, get) => {
       if (game?.players?.length && !myHeroIds().includes(id)) return;
       set({ selectedHeroId: id });
       renderMap();
+    },
+
+    // Select a hero and pan the map camera onto it. Used by the map hero bar so
+    // the player immediately SEES who they picked — for an in-town hero the pan
+    // lands on the town and its yellow exit diamonds, making "who leaves town"
+    // one tap. Camera centering is deliberately NOT in selectHero (map taps
+    // select a hero that is already on screen — panning then would be jarring).
+    focusHero: (id: string) => {
+      const { game } = get();
+      if (game?.players?.length && !myHeroIds().includes(id)) return;
+      const h = game?.heroes.find((x) => x.id === id);
+      if (!h || h.hp <= 0) return;
+      set({ selectedHeroId: id });
+      renderMap();
+      bus.emit(EV.MapFocusHero, { x: h.x, y: h.y });
     },
 
     move: (dx, dy) =>

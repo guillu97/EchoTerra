@@ -26,6 +26,7 @@ export const bus = new EventBus();
 export const EV = {
   // React -> Phaser
   MapRender: "map:render", // { game, selectedHeroId }
+  MapFocusHero: "map:focusHero", // { x, y } — recentre la caméra sur un héros
   CombatRender: "combat:render", // { resp, mode }
   ShowScene: "scene:show", // "map" | "combat"
   // Phaser -> React
