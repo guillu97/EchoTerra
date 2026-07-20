@@ -115,19 +115,49 @@ func heroBaseAttack() AttackDef {
 	return AttackDef{Name: "Attaque", Kind: "base", Targets: orthCells(), DmgStat: "force"}
 }
 
-// heroSkillFor returns the hero's class iso skill (the generic Frappe puissante for
-// classless heroes and for classes whose iso ability is passive).
-func heroSkillFor(classID string) AttackDef {
+// heroIsoSkillsFor returns the hero's class iso-combat skills (the AttackDefs the
+// combat UI turns into skill buttons). Each class has one or two signature
+// abilities; classless heroes fall back to a generic Frappe puissante.
+func heroIsoSkillsFor(classID string) []AttackDef {
 	switch classID {
 	case "pionnier":
-		return AttackDef{Name: "Frappe de la mort qui tue", Kind: "special", Desc: "Attaque puissante.", Targets: orthCells(), DmgStat: "force", Bonus: 5}
+		return []AttackDef{
+			{Name: "Frappe de la mort qui tue", Kind: "special", Desc: "Attaque puissante en mêlée.", Targets: orthCells(), DmgStat: "force", Bonus: 5},
+			{Name: "Coup de bouclier", Kind: "special", Desc: "Frappe étourdissante (30% Stun).", Targets: orthCells(), DmgStat: "force", Bonus: 2, StunPct: 30},
+		}
 	case "chasseur":
-		return AttackDef{Name: "Tir de zone", Kind: "special", Desc: "Dégâts de zone en croix.", Targets: manhattanCells(1, 3), Damage: orthCells(), DmgStat: "dexterite", Bonus: 3}
+		return []AttackDef{
+			{Name: "Tir de zone", Kind: "special", Desc: "Dégâts de zone en croix à distance.", Targets: manhattanCells(1, 3), Damage: orthCells(), DmgStat: "dexterite", Bonus: 3},
+			{Name: "Flèche perçante", Kind: "special", Desc: "Tir précis à longue portée.", Targets: lineCells(3), DmgStat: "dexterite", Bonus: 4},
+		}
+	case "eclaireur":
+		return []AttackDef{
+			{Name: "Coup vif", Kind: "special", Desc: "Frappe rapide et sûre.", Targets: orthCells(), DmgStat: "dexterite", Bonus: 3},
+		}
 	case "gardien":
-		return AttackDef{Name: "Posture défensive", Kind: "special", Desc: "-50% dégâts subis jusqu'au prochain tour.", SelfShield: true}
+		return []AttackDef{
+			{Name: "Posture défensive", Kind: "special", Desc: "-50% dégâts subis jusqu'au prochain tour.", SelfShield: true},
+			{Name: "Provocation", Kind: "special", Desc: "Coup lourd qui entrave la cible (Root).", Targets: orthCells(), DmgStat: "force", Bonus: 2, Root: true},
+		}
+	case "recuperateur":
+		return []AttackDef{
+			{Name: "Coup de grâce", Kind: "special", Desc: "Achève brutalement un ennemi.", Targets: orthCells(), DmgStat: "force", Bonus: 4},
+		}
+	case "herboriste":
+		return []AttackDef{
+			{Name: "Aspersion acide", Kind: "special", Desc: "Nuage corrosif de zone.", Targets: manhattanCells(1, 2), Damage: orthCells(), DmgStat: "precision", Bonus: 2},
+		}
 	default:
-		return AttackDef{Name: "Frappe puissante", Kind: "special", Targets: orthCells(), DmgStat: "force", Bonus: 3}
+		return []AttackDef{
+			{Name: "Frappe puissante", Kind: "special", Desc: "Attaque renforcée en mêlée.", Targets: orthCells(), DmgStat: "force", Bonus: 3},
+		}
 	}
+}
+
+// heroSkillFor returns the hero's PRIMARY iso skill (index 0) — used by the AI and
+// as a back-compatible single-skill accessor.
+func heroSkillFor(classID string) AttackDef {
+	return heroIsoSkillsFor(classID)[0]
 }
 
 // monsterAttacks returns a species' attack list (with a melee fallback).
@@ -680,9 +710,18 @@ func (c *Combat) TargetsFor(u *CombatUnit, atk *AttackDef) []*CombatUnit {
 	return out
 }
 
-// BaseAttack / HeroSkill expose a unit's abilities to the API view layer.
+// BaseAttack / HeroSkill / HeroSkills expose a unit's abilities to the API view layer.
 func (c *Combat) BaseAttack(u *CombatUnit) AttackDef { return c.baseAttackFor(u) }
 func (c *Combat) HeroSkill(u *CombatUnit) AttackDef  { return heroSkillFor(u.ClassID) }
+
+// HeroSkills lists every iso skill of a hero unit (empty for monsters) — the
+// combat UI renders one skill button per entry.
+func (c *Combat) HeroSkills(u *CombatUnit) []AttackDef {
+	if u.Side != "hero" {
+		return nil
+	}
+	return heroIsoSkillsFor(u.ClassID)
+}
 
 // baseAttackFor returns a unit's plain attack (heroes: melee; monsters: their
 // species' "base" attack from the design grids).
@@ -1012,8 +1051,9 @@ type ErrInvalidAction struct{ Msg string }
 func (e ErrInvalidAction) Error() string { return e.Msg }
 
 // PlayerAction applies a hero action and then auto-resolves enemy turns.
-// action is one of "move", "attack", "skill", "end".
-func (c *Combat) PlayerAction(unitID, action string, tx, ty int, targetID string) error {
+// action is one of "move", "attack", "skill", "defend", "push", "flee", "end".
+// The optional skillIdx selects WHICH iso skill for action=="skill" (default 0).
+func (c *Combat) PlayerAction(unitID, action string, tx, ty int, targetID string, skillIdx ...int) error {
 	if c.Status != "active" {
 		return ErrInvalidAction{"le combat est terminé"}
 	}
@@ -1055,7 +1095,15 @@ func (c *Combat) PlayerAction(unitID, action string, tx, ty int, targetID string
 	case "attack", "skill":
 		atk := c.baseAttackFor(cur)
 		if action == "skill" {
-			atk = heroSkillFor(cur.ClassID)
+			skills := heroIsoSkillsFor(cur.ClassID)
+			idx := 0
+			if len(skillIdx) > 0 {
+				idx = skillIdx[0]
+			}
+			if idx < 0 || idx >= len(skills) {
+				return ErrInvalidAction{"compétence inconnue"}
+			}
+			atk = skills[idx]
 		}
 		// Self abilities (Posture défensive) need no target — anything else must aim
 		// at a living enemy standing on one of the attack's green targeting cells.

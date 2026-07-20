@@ -315,11 +315,11 @@ func TestPreciseShot(t *testing.T) {
 	g.Monsters[m.ID] = m
 	g.TileAt(h.X, h.Y).MonsterID = m.ID
 
-	if _, err := g.PreciseShotHero("h1"); err == nil {
+	if _, err := g.CastMapSkill("h1", "precise-shot"); err == nil {
 		t.Fatal("Tir précis is Chasseur-only")
 	}
 	h.ClassID = "chasseur"
-	rep, err := g.PreciseShotHero("h1")
+	rep, err := g.CastMapSkill("h1", "precise-shot")
 	if err != nil {
 		t.Fatalf("tir précis: %v", err)
 	}
@@ -327,7 +327,7 @@ func TestPreciseShot(t *testing.T) {
 		t.Fatalf("one creature should fall (next steps up at full HP): slain=%d count=%d hp=%d", rep.Slain, m.Count, m.HP)
 	}
 	m.HP = 9
-	if _, err := g.PreciseShotHero("h1"); err == nil {
+	if _, err := g.CastMapSkill("h1", "precise-shot"); err == nil {
 		t.Fatal("Tir précis must be refused above 5 HP")
 	}
 }

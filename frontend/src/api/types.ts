@@ -146,15 +146,6 @@ export interface Recipe {
   effects?: string;
 }
 
-export interface FireballReport {
-  monsterId: string;
-  species: string;
-  damage: number;
-  slain: number; // creatures removed from the pack by this cast
-  killed: boolean; // the whole pack was destroyed
-  x: number;
-  y: number;
-}
 
 export interface WaveHit {
   id: string;
@@ -361,16 +352,53 @@ export interface DamageEstimate {
   cover?: number; // 1 = cible à couvert (−25 % à distance) — lot C4
 }
 
+// Une compétence iso jouable ce tour (une par bouton) — servie par combatResponse.
+export interface CombatSkill {
+  idx: number;
+  skill: Skill;
+  targets: string[];
+  estimates?: Record<string, DamageEstimate>;
+  selfCast: boolean; // capacité sur soi (ex. Posture défensive) — pas de cible
+}
+
 export interface CombatCurrent {
   unitId: string;
   reachable: [number, number][];
   attackTargets: string[];
   skillTargets: string[];
   skill: Skill;
+  skills?: CombatSkill[]; // toutes les compétences iso du héros actif
   attackEstimates?: Record<string, DamageEstimate>;
   skillEstimates?: Record<string, DamageEstimate>;
   pushTargets?: string[]; // Poussée (C3) : ennemis alignés à portée
   items?: CombatItem[]; // objets consommables du sac du héros actif (C3)
+}
+
+// Compétence de carte par classe (catalogue /api/mapskills), remplace la boule de feu.
+export interface MapSkillDef {
+  id: string;
+  classId: string; // "" = héros sans classe (compétence de base)
+  name: string;
+  icon: string;
+  pa: number;
+  desc: string;
+  kind: "blast" | "snipe";
+  base: number;
+  stat: string;
+  loot: boolean;
+}
+
+export interface MapSkillReport {
+  skillId: string;
+  name: string;
+  monsterId: string;
+  species: string;
+  damage: number;
+  slain: number;
+  killed: boolean;
+  loot?: string;
+  x: number;
+  y: number;
 }
 
 // Cases menacées par un ennemi depuis sa position (télégraphie orange, lot C2).

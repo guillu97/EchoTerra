@@ -169,6 +169,14 @@ export class MapScene extends Phaser.Scene {
         this.draw();
       },
     );
+    // recentrage caméra sur un héros (barre de héros) — même math que fitCamera.
+    const offFocus = bus.on(EV.MapFocusHero, (p: { x: number; y: number }) => {
+      if (!this.gs) return;
+      const t = this.gs.tiles[p.y * this.gs.width + p.x];
+      const f = this.topFace(p.x, p.y, this.renderHeight(t));
+      const cam = this.cameras.main;
+      cam.setScroll(f.sx - cam.width / 2, f.sy - cam.height / 2);
+    });
     const onResize = () => {
       this.fitted = false;
       this.draw();
@@ -192,6 +200,7 @@ export class MapScene extends Phaser.Scene {
     // scene keeps reacting to bus events and crashes (this.add becomes null).
     const cleanup = () => {
       offRender();
+      offFocus();
       this.scale.off("resize", onResize);
       this.load.off(Phaser.Loader.Events.COMPLETE, onLoaded);
       this.tileImgAt.forEach((im) => im?.destroy());

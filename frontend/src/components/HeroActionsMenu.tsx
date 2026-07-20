@@ -1,8 +1,7 @@
 import { useStore } from "../store";
 import { myTeamHeroes } from "../townUtils";
+import { mapSkillsForHero } from "../skills";
 import type { Hero } from "../api/types";
-
-const FIREBALL_PA = 2; // mirrors backend FireballPACost
 
 // Dropdown anchored on the TopBar smiley: MY team's roster, one row per hero with
 // its map actions. The hero's name button opens the character sheet; the action
@@ -19,8 +18,8 @@ export function HeroActionsMenu({ onClose }: { onClose: () => void }) {
   const search = useStore((s) => s.search);
   const hide = useStore((s) => s.hide);
   const escape = useStore((s) => s.escape);
-  const fireball = useStore((s) => s.fireball);
-  const snipe = useStore((s) => s.snipe);
+  const castSkill = useStore((s) => s.castSkill);
+  const mapSkills = useStore((s) => s.mapSkills);
   const startCombat = useStore((s) => s.startCombat);
   if (!game) return null;
 
@@ -45,11 +44,14 @@ export function HeroActionsMenu({ onClose }: { onClose: () => void }) {
           const tile = tileAt(h.x, h.y);
           const onTown = h.x === game.town.x && h.y === game.town.y;
           const onMonster = !!tile?.monsterId;
-          const monsterInRange =
+          const monsterAdjacent =
             onMonster ||
             [[0, -1], [0, 1], [-1, 0], [1, 0]].some(([dx, dy]) => !!tileAt(h.x + dx, h.y + dy)?.monsterId);
           const stuck = h.states.includes("Tétanisé");
           const noPa = busy || h.pa <= 0;
+          const usableSkills = mapSkillsForHero(mapSkills, h.classId).filter((sk) =>
+            sk.kind === "snipe" ? onMonster : monsterAdjacent,
+          );
           return (
             <div key={h.id} className={`hm-row ${h.id === selectedHeroId ? "sel" : ""} ${dead ? "dead" : ""}`}>
               <button
@@ -81,26 +83,18 @@ export function HeroActionsMenu({ onClose }: { onClose: () => void }) {
                       ⚔️
                     </button>
                   )}
-                  {monsterInRange && (
+                  {/* Compétences de carte de la classe (remplacent boule de feu / tir précis). */}
+                  {usableSkills.map((sk) => (
                     <button
+                      key={sk.id}
                       className="hm-act"
-                      title={`Fire ball (-${FIREBALL_PA} PA)`}
-                      disabled={busy || h.pa < FIREBALL_PA}
-                      onClick={() => run(h, fireball)}
+                      title={`${sk.name} (-${sk.pa} PA) — ${sk.desc}`}
+                      disabled={busy || h.pa < sk.pa}
+                      onClick={() => run(h, () => castSkill(sk.id))}
                     >
-                      🔥
+                      {sk.icon}
                     </button>
-                  )}
-                  {onMonster && h.classId === "chasseur" && (
-                    <button
-                      className="hm-act"
-                      title="Tir précis (-1 PA) : achève une créature du pack si PV ≤ 5"
-                      disabled={noPa}
-                      onClick={() => run(h, snipe)}
-                    >
-                      🏹
-                    </button>
-                  )}
+                  ))}
                   {onTown ? (
                     <span className="hm-note">🏰 en ville</span>
                   ) : (

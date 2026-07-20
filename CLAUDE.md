@@ -175,9 +175,12 @@ frontend/src/
   dans le picker), role, bonuses{Stats}, paBonus, skills[{name, scope, pa, desc, effects}], appearance{map,
   icon} (asset char-* : sprite du héros sur carte + combat)`. **Passifs implémentés** : Éclaireur vision +1
   (fog), Récupérateur +1 ressource/fouille +1 trophée/victoire, Herboriste +1 plante/minerai, Gardien poids 3
-  (Tétanisé). **Actives** : Chasseur « Tir précis » (map, 1 PA, tue 1 créature d'un pack ≤5 PV, route
-  `/snipe`, bouton 🏹 du menu héros) ; en iso : Frappe de la mort qui tue (+5), Tir de zone (portée 3, dégâts
-  en croix), Posture défensive (Bouclier -50% 1 tour, se déclenche sans cible).
+  (Tétanisé). **Actives de CARTE** : chaque classe a sa/ses compétence(s) `MapSkills` (voir §5, route `/skill`),
+  ex. Chasseur « Tir précis ». **Actives iso** : `heroIsoSkillsFor(classID)` sert la LISTE des compétences de
+  combat de la classe (une par bouton) — pionnier [Frappe de la mort qui tue +5, Coup de bouclier Stun],
+  chasseur [Tir de zone en croix, Flèche perçante portée 3], gardien [Posture défensive Bouclier, Provocation
+  Root], éclaireur/récupérateur/herboriste 1 skill, sans classe [Frappe puissante]. `combatResponse` sert
+  `current.skills[{idx, skill, targets, estimates, selfCast}]` ; l'action combat porte `skillIdx`.
 
 `Recompute()` (called in `persist()` and on load `tick()`) refreshes derived fields: `town.defense`,
 per-building `defense`, per-building `cost`, `bank.capacity = sum(storage qty)`, and hero `Tétanisé`.
@@ -237,11 +240,21 @@ paliers de rareté pierre > fer/charbon > argent/or/givre), decrements tile `res
 REFUSÉS sur la case ville** (serveur `actions.go` + menu radial masqué ; la tuile ville est générée avec
 `resources: 0` pour que les bots/UI ne la ciblent pas).
 
-**Fire ball (map skill)** — `FireballHero` (`actions.go`): 2 PA AoE blast on a monster pack on the hero's tile
-or an orthogonally adjacent tile. `damage = 5 + précision + dextérité/2 + rand(0..3)`; the blast burns through
-the pack — each downed creature drops `Monster.Count` (refilling HP for the next), and the pack is removed when
-the last one dies. A `Tétanisé` hero may still cast it (thinning the pack can clear Tétanisé via `Recompute`).
-Casting clears `Caché`. Returns `{report:{species,damage,slain,killed,...}, game}`. Tests: `fireball_test.go`.
+**Compétences de carte PAR CLASSE** (`mapskills.go`, 2026-07-20 — remplacent la boule de feu universelle) —
+catalogue data `MapSkills []MapSkillDef {id, classId, name, icon, pa, desc, kind, base, stat, loot}` servi par
+`GET /api/mapskills` ; `MapSkillsForClass(classID)` = les compétences de SA classe (ou la base `stone-throw`
+« Jet de pierre » pour un héros sans classe). `CastMapSkill(heroID, skillID)` (route `POST /heroes/{h}/skill`
+`{skillId}`) valide la possession (classe) + les PA, puis :
+- **blast** (Jet de pierre / Charge héroïque pionnier / Volée de flèches chasseur / Tir tendu éclaireur / Cri
+  de ralliement gardien / Tir chapardeur récupérateur [+trophée] / Projection de spores herboriste) : souffle
+  de zone sur un pack de la case du héros ou orthogonalement adjacent, `dmg = base + stat + dext/2 + rand(0..3)`,
+  traverse le pack (réduit `Count` / le détruit — aide à briser Tétanisé) ;
+- **snipe** (Chasseur « Tir précis ») : achève 1 créature d'un pack sur la case si PV ≤ 5.
+Un `Tétanisé` peut caster ; le sort clear `Caché`. Renvoie `{report:{skillId,name,species,damage,slain,killed,
+loot?,...}, game}`. Front : boutons dynamiques (menu radial + dropdown 🙂) filtrés par classe + portée,
+catalogue dans `store.mapSkills` (util `skills.ts mapSkillsForHero`). Tests : `mapskills_test.go`. Les bots
+lancent leur 1re compétence blast abordable. (Ex-`FireballHero`/`PreciseShotHero` + routes `/fireball`/`/snipe`
+SUPPRIMÉS.)
 
 **States (map)**: `Fatigue` (0 PA), `Soif`, `Tétanisé`, `Caché`, `Blessé`. **(iso)**: `Stun`, `Cécité`, `Root`…
 - **Tétanisé**: a hero on a tile with a pack is stuck when `playersOnTile < ceil(monsters/heroesPerPack)`
@@ -377,15 +390,15 @@ POST /api/games/{id}/heroes/{h}/move              {DX,DY}
 POST /api/games/{id}/heroes/{h}/search
 POST /api/games/{id}/heroes/{h}/hide
 POST /api/games/{id}/heroes/{h}/escape
-POST /api/games/{id}/heroes/{h}/fireball          Fire ball map skill -> {report, game}
-POST /api/games/{id}/heroes/{h}/snipe             Tir précis du Chasseur (pack ≤5 PV) -> {report, game}
+POST /api/games/{id}/heroes/{h}/skill             {skillId} compétence de carte par classe -> {report, game}
 POST /api/games/{id}/heroes/{h}/ruin/clear        {points} déblaye la ruine sous le héros -> {ruin, game}
 POST /api/games/{id}/heroes/{h}/ruin/explore      fouille le donjon déblayé (2 PA) -> {item, game}
 POST /api/games/{id}/heroes/{h}/evolve            {classId} -> GameState (applies class bonuses)
 GET  /api/classes                                 [] ClassDef catalog (tier 1+2 classes)
+GET  /api/mapskills                               [] MapSkillDef (compétences de carte par classe)
 POST /api/games/{id}/heroes/{h}/combat/start
 GET  /api/games/{id}/combat/{c}
-POST /api/games/{id}/combat/{c}/action            {unitId, action: move|attack|skill|end, x,y, targetId}
+POST /api/games/{id}/combat/{c}/action            {unitId, action: move|attack|skill|defend|push|flee|item|end, x,y, targetId, skillIdx, item}
 ```
 
 ## 7. Frontend UX (decisions that matter)
@@ -403,9 +416,18 @@ POST /api/games/{id}/combat/{c}/action            {unitId, action: move|attack|s
   sur la carte (et bascule sur l'onglet Map), et les actions contextuelles du héros (⚔️ si monstre sur
   sa case, 🔥 si pack à portée, 🔎/🫥 hors ville, 🏃 si Tétanisé, note « en ville » sinon). Les actions
   sélectionnent le héros puis agissent. La barre du bas de la Map est réduite à Forcer vague + 👥 Autres
-  + hint (déplacement inchangé : losanges jaunes). ⚠ le span du nom de ville est `className="town-name"`
+  (déplacement inchangé : losanges jaunes). ⚠ le span du nom de ville est `className="town-name"`
   — PAS `town` (collision `.town{position:absolute;inset:0}` qui recouvrait l'avatar et mangeait ses
   clics). 🏰% chip opens **TownStatus**; ⚙️ opens Settings.
+- **MapHeroBar** (`components/MapHeroBar.tsx`, bas de la vue Map) : **barre de sélection des héros** — une
+  pastille par héros de MON équipe (portrait de classe, nom, barre de PV, PA, badge de lieu 🏰/🔒/💀). Taper
+  une pastille = `store.focusHero(id)` : sélectionne le héros ACTIF (celui que les losanges jaunes déplacent)
+  ET recentre la caméra dessus (bus `EV.MapFocusHero`, géré par VoxelMapView `engine.target` + MapScene
+  `setScroll`) ; bouton ⓘ = fiche (HeroOverlay). Hint contextuel sous la barre (ville → « tape une case
+  adjacente pour sortir » ; Tétanisé ; sinon losanges). C'est LE moyen de choisir qui sort de la ville (les
+  héros en ville sont masqués sur la carte mais chacun a sa pastille) et qui je déplace. `focusHero` ≠
+  `selectHero` (ce dernier, appelé par les taps carte, ne recentre PAS — le héros tapé est déjà à l'écran).
+  Empilé au-dessus de `MapControls` via `.map-bottom` (`.map-controls` passe en `position:static` dedans).
 - **Character screen** (`HeroOverlay`, from the avatar): Skill view only (class, attributes + bonuses, unique
   skills, Evolve, ◀▶ roster cycle). **No inventory tab / no Stock link** (user decision).
 - **Stock**: MY team's personal bags only (always) + the **Bank** section (only when ≥1 of MY heroes in town)
