@@ -47,7 +47,6 @@ class CombatWorld {
   lib = new BlockLibrary("/voxels"); // 32³ : le combat est vu de près
   propsLib = new BlockLibrary("/voxels/props"); // obstacles/ronces de l'arène (C1)
   chars = new CharLibrary();
-  charMeshes: THREE.Mesh[] = [];
   libReady = false;
   terrain: THREE.Group | null = null;
   terrainKey = "";
@@ -84,9 +83,10 @@ class CombatWorld {
       this.draw();
     });
     void this.chars.load(ALL_CHAR_KEYS).then(() => this.draw());
-    engine.onFrame = () => {
-      for (const m of this.charMeshes) m.rotation.y = engine.azimuthNow;
-    };
+    // Les modèles ne font PLUS de billboard : ils sont orientés selon leur
+    // Facing (fx/fy) MONDE — un sens au début du combat puis pivot au
+    // déplacement/à l'attaque. Ce cap étant en espace-monde, il reste correct
+    // quand la caméra tourne (on peut voir un dos), donc aucun onFrame à câbler.
   }
   dispose() {
     if (this.fxRaf) cancelAnimationFrame(this.fxRaf);
@@ -226,7 +226,6 @@ class CombatWorld {
     clearOwned(this.overlays);
     clearOwned(this.sprites);
     this.unitOf.clear();
-    this.charMeshes = [];
 
     const topOf = (x: number, y: number) => this.heightAt(x, y) + 1;
     const quad = (x: number, y: number, color: number, opacity: number) => {
@@ -309,14 +308,17 @@ class CombatWorld {
 
       const tex =
         u.side === "hero" ? (u.appearance || heroTexKey(u.kind)) : monsterTexKey(u.kind, u.appearance);
-      // modèle voxel (héros ET monstres) si disponible — tourne avec la caméra
+      // modèle voxel (héros ET monstres) si disponible — orienté selon son Facing
+      // MONDE (fx/fy) : les unités se font face au début, puis pivotent selon
+      // leur sens de déplacement/d'attaque. Le modèle regarde +Z au repos, donc
+      // atan2(fx, fy) le tourne vers (fx,fy) ; à défaut de cap, il fait face caméra.
+      const faceY = u.fx || u.fy ? Math.atan2(u.fx, u.fy) : this.engine.azimuthNow;
       const mesh = tex ? this.chars.make(tex) : undefined;
       if (mesh) {
         mesh.position.set(ux, top, uy);
-        mesh.rotation.y = this.engine.azimuthNow;
+        mesh.rotation.y = faceY;
         mesh.scale.multiplyScalar(span);
         this.sprites.add(mesh);
-        this.charMeshes.push(mesh);
         this.unitOf.set(mesh, u.id);
       } else {
         const url = libUrl(u.side === "hero" ? "characters" : "monsters", tex || "char-scout");
