@@ -6,6 +6,27 @@
 
 ---
 
+## 2026-07-20 (50) — BOSS révisé : plus d'annonce, il attaque chaque tour (base ou spéciale)
+
+### Fait (retour utilisateur : « les attaques prévues à l'avance, c'est trop simple »)
+- **L'annonce des patterns un tour à l'avance est RETIRÉE** (le tour d'annonce était
+  un tour GRATUIT pour les joueurs et la zone s'esquivait à l'infini) : `bossTurn`
+  attaque désormais À CHAQUE TOUR — ~40 % sa spéciale offensive (immédiate, zone GDD
+  appliquée autour de la cible : Piétinement du Croc, Racines Sinistres…), sinon son
+  attaque de base. `Combat.Telegraph`/`CombatTelegraph` supprimés (serveur + types +
+  rendu des cases annoncées + bannière).
+- La LECTURE du danger reste possible via la télégraphie C2 (taper le boss → cases
+  menacées en orange) — `ThreatCells` corrigé pour évaluer depuis CHAQUE case de
+  l'empreinte 2×2 (l'ancre seule sous-estimait sa portée).
+- Harnais c4-check : le héros AVANCE vers l'ennemi (les espèces à portée ne viennent
+  plus au contact depuis la C4 — le harnais qui ne bougeait pas n'avait jamais de
+  cible en mêlée).
+
+### Fonctionnel (vérifié)
+- `TestBossAttacksEveryTurnBaseOrSpecial` (au contact, le boss frappe à CHAQUE tour
+  et mélange base/spéciale sur 60 tours) remplace le test d'annonce ; suite Go
+  verte ; e2e combat réel vert ; tsc + build.
+
 ## 2026-07-20 (49) — COMBAT C5 : boss 2×2, patterns télégraphiés, IA de meute, renforts — COMBAT-PLAN ✅ COMPLET
 
 ### Fait (lot C5, dernier du COMBAT-PLAN)

@@ -279,13 +279,9 @@ function CombatControls() {
       <div className="line">
         <strong>Combat · round {combat.round}</strong>
       </div>
-      {/* Lot C5 : pattern de boss annoncé + renforts imminents. */}
-      {!ended && combat.telegraph && (
-        <div className="line" style={{ color: "#ffb454", fontSize: 12, fontWeight: 700 }}>
-          ⚠️ {combat.units.find((u) => u.id === combat.telegraph!.unitId)?.name ?? "Le boss"} prépare{" "}
-          {combat.telegraph.attack} — évacue les cases orange !
-        </div>
-      )}
+      {/* Lot C5 : renforts imminents. (L'annonce des patterns de boss a été
+          retirée — le boss attaque chaque tour, base ou spéciale ; lis sa menace
+          en le tapant : cases orange de la télégraphie C2.) */}
       {!ended && !!combat.reinforceAt && !combat.reinforceDone && combat.round === combat.reinforceAt - 1 && (
         <div className="line" style={{ color: "#ffb454", fontSize: 12 }}>
           👹 Des renforts ennemis surgiront au prochain round !

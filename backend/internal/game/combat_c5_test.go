@@ -84,61 +84,34 @@ func TestBossMeleeFromAnyFootprintCell(t *testing.T) {
 	}
 }
 
-func TestBossTelegraphAnnounceThenStrike(t *testing.T) {
+func TestBossAttacksEveryTurnBaseOrSpecial(t *testing.T) {
+	// Révision 2026-07-20 : plus d'annonce (un tour gratuit s'esquivait à
+	// l'infini) — au contact, le boss FRAPPE à chaque tour, base ou spéciale.
 	_, c, hu, bu := bossGame(t)
 	bu.X, bu.Y = 3, 1
-	hu.X, hu.Y = 4, 4
-	// forcer l'annonce : on appelle bossTurn jusqu'à obtenir un télégraphe (50 %)
-	announced := false
-	for i := 0; i < 30 && !announced; i++ {
-		bu.Moved = true // pas de déplacement pour garder la géométrie du test
+	hu.X, hu.Y = 3, 3 // collé au bord bas de l'empreinte (mêlée)
+	usedBase, usedSpecial := false, false
+	for i := 0; i < 60; i++ {
+		hu.HP = hu.MaxHP // on ne mesure que le comportement, pas la survie
+		bu.Moved = true  // géométrie figée
+		logLen := len(c.Log)
 		c.bossTurn(bu)
-		if c.Telegraph != nil {
-			announced = true
+		if hu.HP == hu.MaxHP {
+			t.Fatalf("at melee range the boss must attack EVERY turn (iter %d, log %v)", i, c.Log[logLen:])
+		}
+		turnLog := ""
+		for _, l := range c.Log[logLen:] {
+			turnLog += l + " | "
+		}
+		if contains(turnLog, "Charge du Sanglier") {
+			usedBase = true // l'attaque de base du Roi Gobelin
+		}
+		if contains(turnLog, "Piétinement du Croc") {
+			usedSpecial = true // sa spéciale de zone (immédiate)
 		}
 	}
-	if !announced {
-		t.Fatalf("the boss should eventually telegraph its zone attack")
-	}
-	if len(c.Telegraph.Cells) == 0 {
-		t.Fatalf("telegraph should carry the marked cells")
-	}
-	// la cible RESTE sur une case marquée → elle prend le coup au tour suivant
-	onMarked := false
-	for _, cell := range c.Telegraph.Cells {
-		if cell[0] == hu.X && cell[1] == hu.Y {
-			onMarked = true
-		}
-	}
-	if !onMarked {
-		t.Fatalf("the telegraph should cover the target's cell")
-	}
-	hp0 := hu.HP
-	c.bossTurn(bu)
-	if c.Telegraph != nil {
-		t.Fatalf("the telegraph is consumed by the strike")
-	}
-	if hu.HP >= hp0 {
-		t.Fatalf("standing on a marked cell must hurt: %d -> %d", hp0, hu.HP)
-	}
-
-	// cette fois la cible ESQUIVE : re-télégraphe puis déplacement hors zone
-	announced = false
-	for i := 0; i < 30 && !announced; i++ {
-		bu.Moved = true
-		c.bossTurn(bu)
-		if c.Telegraph != nil {
-			announced = true
-		}
-	}
-	if !announced {
-		t.Skipf("no second telegraph (random)")
-	}
-	hu.X, hu.Y = 8, 8 // très loin des cases marquées
-	hp1 := hu.HP
-	c.bossTurn(bu)
-	if hu.HP != hp1 {
-		t.Fatalf("dodging the marked cells must avoid all damage")
+	if !usedBase || !usedSpecial {
+		t.Fatalf("over 60 turns the boss should mix base and special attacks (base=%v special=%v)", usedBase, usedSpecial)
 	}
 }
 

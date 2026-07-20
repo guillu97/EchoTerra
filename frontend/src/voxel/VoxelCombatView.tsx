@@ -270,18 +270,6 @@ class CombatWorld {
       for (const [tx, ty] of threat?.cells ?? []) quad(tx, ty, 0xff8c3b, 0.48);
     }
 
-    // pattern de BOSS annoncé (lot C5) : les cases qui seront frappées à son
-    // prochain tour — orange vif, à évacuer !
-    if (c.status === "active" && c.telegraph) {
-      for (const [tx, ty] of c.telegraph.cells) {
-        quad(tx, ty, 0xff5a1f, 0.62);
-        const warn = makeLabel("⚠", "#ffd166", 0.22);
-        warn.center.set(0.5, 0);
-        warn.position.set(tx, topOf(tx, ty) + 0.05, ty);
-        this.overlays.add(warn);
-      }
-    }
-
     // unités : billboards + barre de PV (sprites face caméra)
     const targets = new Set(
       this.mode === "skill"

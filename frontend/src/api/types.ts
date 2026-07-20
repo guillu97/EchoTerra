@@ -339,9 +339,8 @@ export interface Combat {
   lastHits?: CombatHit[];
   rewards?: CombatReward[];
   participants?: string[]; // joueurs présents — les héros des absents sont joués par l'IA
-  // Lot C5 : l'attaque de zone annoncée par le boss (cases oranges, frappées à
-  // son prochain tour) + fenêtre de renforts (vague 4+).
-  telegraph?: { unitId: string; attack: string; cells: [number, number][] };
+  // Lot C5 : fenêtre de renforts (vague 4+). (Le boss n'annonce plus ses
+  // patterns — il attaque chaque tour, base ou spéciale.)
   wave?: number;
   reinforceAt?: number;
   reinforceDone?: boolean;

@@ -192,23 +192,15 @@ type Combat struct {
 	// l'IA ; « Rejoindre le combat » ajoute le joueur et lui rend le contrôle
 	// de SES héros. Vide dans les parties legacy sans joueurs (tout est manuel).
 	Participants []string `json:"participants,omitempty"`
-	// Lot C5 — boss & IA. Telegraph : l'attaque de zone ANNONCÉE par le boss un
-	// tour à l'avance (cases oranges côté client) et frappée à son tour suivant,
-	// sur les cases annoncées (le jeu du placement). Wave : la vague de la partie
-	// à l'engagement (les renforts n'arrivent qu'à partir de la vague 4).
-	// ReinforceAt : round d'arrivée des renforts (annoncés un round avant),
-	// 0 = pas de renforts ; ReinforceDone : déjà arrivés.
-	Telegraph     *CombatTelegraph `json:"telegraph,omitempty"`
-	Wave          int              `json:"wave,omitempty"`
-	ReinforceAt   int              `json:"reinforceAt,omitempty"`
-	ReinforceDone bool             `json:"reinforceDone,omitempty"`
-}
-
-// CombatTelegraph : l'attaque de zone annoncée par un boss (lot C5).
-type CombatTelegraph struct {
-	UnitID string   `json:"unitId"`
-	Attack string   `json:"attack"` // nom de l'AttackDef (résolue à la frappe)
-	Cells  [][2]int `json:"cells"`  // cases qui seront frappées au prochain tour du boss
+	// Lot C5 — boss & IA. Wave : la vague de la partie à l'engagement (les
+	// renforts n'arrivent qu'à partir de la vague 4). ReinforceAt : round
+	// d'arrivée des renforts (annoncés un round avant), 0 = pas de renforts ;
+	// ReinforceDone : déjà arrivés. (L'annonce des patterns de boss un tour à
+	// l'avance a été RETIRÉE le 2026-07-20 — trop simple à esquiver ; le boss
+	// attaque désormais chaque tour, base ou spéciale.)
+	Wave          int  `json:"wave,omitempty"`
+	ReinforceAt   int  `json:"reinforceAt,omitempty"`
+	ReinforceDone bool `json:"reinforceDone,omitempty"`
 }
 
 // hasParticipant reports whether a player is present in the combat.
@@ -914,18 +906,22 @@ func (c *Combat) ThreatCells(u *CombatUnit) [][2]int {
 		if a.SelfShield || a.BuffAllies || a.DmgStat == "" {
 			continue
 		}
-		for _, t := range a.Targets {
-			// la zone de dégâts ROUGE autour de chaque case visée est toujours incluse
-			zone := append([]GridCell{{0, 0}}, a.Damage...)
-			for _, z := range zone {
-				x, y := u.X+t.DX+z.DX, u.Y+t.DY+z.DY
-				if x < 0 || y < 0 || x >= c.GridW || y >= c.GridH {
-					continue
-				}
-				key := [2]int{x, y}
-				if !seen[key] {
-					seen[key] = true
-					out = append(out, key)
+		// multi-cases (boss 2×2) : la menace s'évalue depuis CHAQUE case de
+		// l'empreinte — l'ancre seule sous-estimerait la portée réelle.
+		for _, fc := range u.footprint() {
+			for _, t := range a.Targets {
+				// la zone de dégâts ROUGE autour de chaque case visée est toujours incluse
+				zone := append([]GridCell{{0, 0}}, a.Damage...)
+				for _, z := range zone {
+					x, y := fc[0]+t.DX+z.DX, fc[1]+t.DY+z.DY
+					if x < 0 || y < 0 || x >= c.GridW || y >= c.GridH {
+						continue
+					}
+					key := [2]int{x, y}
+					if !seen[key] {
+						seen[key] = true
+						out = append(out, key)
+					}
 				}
 			}
 		}
@@ -1376,35 +1372,13 @@ func (c *Combat) monsterTurn(u *CombatUnit) {
 	}
 }
 
-// bossTurn (lot C5) : le boss ANNONCE son attaque de zone un tour à l'avance
-// (cases oranges) et la déchaîne au tour suivant sur les cases ANNONCÉES —
-// le jeu du placement : quiconque y est encore prend le coup.
+// bossTurn (lot C5, révisé 2026-07-20) : le boss ATTAQUE à chaque tour — soit
+// son attaque de base, soit une SPÉCIALE de zone (~40 %, immédiate, avec sa
+// grille de dégâts GDD). L'annonce un tour à l'avance a été retirée : elle
+// offrait un tour gratuit et s'esquivait à l'infini (retour utilisateur). La
+// lecture du danger passe par la télégraphie C2 (tap sur le boss → cases
+// menacées, zones de dégâts incluses).
 func (c *Combat) bossTurn(u *CombatUnit) {
-	if t := c.Telegraph; t != nil && t.UnitID == u.ID {
-		c.Telegraph = nil
-		atk := c.attackByName(u, t.Attack)
-		struck := 0
-		hit := map[*CombatUnit]bool{}
-		for _, cell := range t.Cells {
-			def := c.unitAt(cell[0], cell[1])
-			if def == nil || !def.Alive() || def.Side == u.Side || hit[def] {
-				continue
-			}
-			hit[def] = true
-			struck++
-			dmg := c.damageWith(u, def, atk)
-			def.HP -= dmg
-			c.addHit(def.ID, dmg, "dmg")
-			c.logf("%s déchaîne %s sur %s (-%d PV).", u.Name, atk.Name, def.Name, dmg)
-			if !def.Alive() {
-				c.logf("%s est vaincu.", def.Name)
-			}
-		}
-		if struck == 0 {
-			c.logf("%s frappe dans le vide — bien esquivé !", u.Name)
-		}
-		return
-	}
 	target := c.packTarget(u)
 	if target == nil {
 		return
@@ -1417,25 +1391,18 @@ func (c *Combat) bossTurn(u *CombatUnit) {
 			}
 		}
 	}
-	// ~50 % : télégraphier une spéciale de ZONE centrée sur la cible
+	// ~40 % : une spéciale OFFENSIVE (zone GDD appliquée autour de la cible)
 	var zone *AttackDef
 	specials := c.specialsFor(u)
 	for i := range specials {
-		if len(specials[i].Damage) > 0 && specials[i].DmgStat != "" {
-			zone = &specials[i]
+		sp := &specials[i]
+		if sp.DmgStat != "" && !sp.SelfShield && !sp.BuffAllies {
+			zone = sp
 			break
 		}
 	}
-	if zone != nil && rand.Intn(100) < 50 {
-		cells := [][2]int{}
-		for _, z := range append([]GridCell{{0, 0}}, zone.Damage...) {
-			x, y := target.X+z.DX, target.Y+z.DY
-			if x >= 0 && y >= 0 && x < c.GridW && y < c.GridH {
-				cells = append(cells, [2]int{x, y})
-			}
-		}
-		c.Telegraph = &CombatTelegraph{UnitID: u.ID, Attack: zone.Name, Cells: cells}
-		c.logf("%s prépare %s — gare aux cases marquées !", u.Name, zone.Name)
+	if zone != nil && rand.Intn(100) < 40 && c.canTarget(u, zone, target) {
+		c.performAttack(u, zone, target.X, target.Y)
 		return
 	}
 	if c.canTarget(u, &base, target) {
@@ -1443,18 +1410,6 @@ func (c *Combat) bossTurn(u *CombatUnit) {
 	} else {
 		c.logf("%s avance pesamment.", u.Name)
 	}
-}
-
-// attackByName retrouve une attaque de l'espèce par son nom (base en secours).
-func (c *Combat) attackByName(u *CombatUnit, name string) *AttackDef {
-	attacks := monsterAttacks(u.Kind)
-	for i := range attacks {
-		if attacks[i].Name == name {
-			return &attacks[i]
-		}
-	}
-	base := c.baseAttackFor(u)
-	return &base
 }
 
 // packTarget (lot C5) : focus-fire — l'ennemi le plus BLESSÉ, le plus proche à
