@@ -6,6 +6,22 @@
 
 ---
 
+## 2026-07-19 (43) — PLAN d'amélioration du combat isométrique (COMBAT-PLAN.md)
+
+### Fait
+- État des lieux : arène 7×7 aléatoire quasi plate SANS lien avec le biome, pas
+  d'obstacles ; actions move/attaque/skill/end ; IA simple ; bonus hauteur implicite.
+- **`COMBAT-PLAN.md`** : 5 lots — **C1** arène PAR BIOME (sol/hauteurs thématiques,
+  obstacles bloquants, eau/glace/ronces, `Combat.Cells`), **C2** lisibilité & juice
+  (timeline d'initiative, dégâts flottants, fourchette prévisualisée, télégraphie,
+  écran de victoire), **C3** actions tactiques (Defend générique — pending §9.3 —,
+  Poussée avec collisions/chutes, objets en combat, fuite), **C4** couverture/ligne de
+  vue/hauteur formalisée/attaque de dos, **C5** boss 2×2 en 9×9 à patterns télégraphiés
+  + IA de meute + renforts. Chaque lot mergeable seul, tests Go + e2e voxel.
+
+### À faire
+- Attendre le GO de Guillaume sur l'ordre (C1+C2 conseillés en premier) puis implémenter.
+
 ## 2026-07-19 (42) — BROUILLARD abaissé aux 3/4 : nappe basse sur le niveau 1
 
 ### Fait (demande : « réduire la hauteur du brouillard de 3/4, 1/4 de hauteur sur le niveau 1 »)
