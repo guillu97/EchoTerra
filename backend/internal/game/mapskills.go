@@ -97,8 +97,8 @@ type MapSkillReport struct {
 // skill + PA, finds a target pack, applies the effect (blast or snipe) and
 // spends the PA. A Tétanisé hero may still cast (thinning the pack can free it).
 func (g *GameState) CastMapSkill(heroID, skillID string) (*MapSkillReport, error) {
-	if g.ActiveCombat != "" {
-		return nil, ActionError{"un combat est en cours"}
+	if g.heroInCombat(heroID) != nil {
+		return nil, ActionError{"ce héros est en plein combat"}
 	}
 	h := g.HeroByID(heroID)
 	if h == nil {

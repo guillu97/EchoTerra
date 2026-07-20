@@ -6,6 +6,42 @@
 
 ---
 
+## 2026-07-20 (53) — 4 améliorations : combat non bloquant, gating connexion, vue de dessus, ration +6 PA
+
+### Fait (retours utilisateur)
+1. **Un combat ne fige PLUS les autres joueurs** — les gardes globales `if
+   g.ActiveCombat != ""` (move/hide/escape/search/skill/ruin) deviennent
+   `g.heroInCombat(heroID) != nil` : seuls les héros ENGAGÉS sont bloqués.
+   `StartCombat` autorise plusieurs combats EN PARALLÈLE (refuse juste d'engager
+   un héros déjà au combat) ; `FinishCombat` ne nettoie QUE son combat
+   (`delete(g.Combats, c.ID)`, ActiveCombat effacé si c'est lui). Bots : gate par
+   héros. Client : `myActiveCombat(game, playerId)` scanne TOUS les combats
+   actifs (bouton « Rejoindre » + marqueur ⚔ par case). Tests
+   `combat_multi_test.go` (autre joueur libre pendant un combat, 2 combats
+   concurrents, refus double-engagement).
+2. **Menu gaté sur la connexion** — la carte « Reprendre » n'apparaît QUE si
+   connecté (sinon on ignore quel joueur reprendre) ; « Parties publiques »
+   verrouillée (🔒 → écran connexion) hors compte, ET refus serveur du join
+   public anonyme (`join` : 401 si `IsPublic() && user == nil`). Le join par code
+   (privé) reste ouvert aux anonymes.
+3. **Vue de DESSUS en combat** — `engine.topDown` (élévation ~78°, azimut
+   conservé) + bouton 🔼/🎥 dans VoxelCombatView : bascule un angle plongeant
+   pour voir les monstres masqués par les piliers/reliefs. `setTopDown` rafraîchit
+   les ombres ; n'affecte ni la carte ni l'éditeur.
+4. **Ration d'eau sur la CARTE = +6 PA** — `DrinkRation(heroID)` (`RationPA=6`,
+   route `POST /heroes/{h}/drink`) : consomme une Ration d'eau du SAC, restaure
+   6 PA (plafonné à MaxPA), purge Fatigue/Soif ; refusé sans ration ou à PA plein ;
+   ne coûte pas de PA. Boutons 💧 (menu radial + dropdown 🙂) quand ration en sac
+   et PA non pleins. Test `TestDrinkRationRestoresPA`.
+
+### Fonctionnel (vérifié)
+- Suite Go verte (nouveaux tests concurrence combat + ration). E2E réel
+  `improve-check.mjs` (reprise cachée/publiques verrouillées puis déverrouillées
+  connecté, ration puisée au puits → bue → +6 PA & consommée, bouton 💧, bascule
+  vue de dessus `engine.topDown`) ; mp-combat-check (Rejoindre) non régressé ;
+  captures improve-menu/ration/combat-normal/combat-topdown ; tsc + build ; perf
+  voxel 12/12.
+
 ## 2026-07-20 (52) — Compétences PAR CLASSE (carte + iso), barre de héros en combat
 
 ### Fait (retour utilisateur : « retire le fireball, ajoute les sorts/compétences par classe ; en combat réutilise la barre de sélection et ajoute les compétences iso »)
