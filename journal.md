@@ -6,6 +6,36 @@
 
 ---
 
+## 2026-07-20 (48) — COMBAT C4 : ligne de vue, couverture, hauteur formalisée, attaque de dos
+
+### Fait (lot C4 du COMBAT-PLAN)
+- **Ligne de vue** : `hasLOS` (Bresenham, extrémités exclues) — un obstacle C1 sur le
+  trajet coupe les attaques à distance (>1). `canTarget` centralise case verte + LOS
+  et est utilisé PARTOUT : ciblage servi (`TargetsFor`), validation des actions
+  joueur, IA monstre ET héros auto (qui continuent d'AVANCER tant que le tir est
+  bloqué, au lieu de s'arrêter à portée).
+- **Hauteur formalisée** : +1 dégât par niveau d'avantage (max +3), −1 en
+  contre-plongée — remplace l'ancien « +1 si plus haut », dans `dmgMods` PARTAGÉ par
+  `damageWith` et `EstimateDamage` (la fourchette C2 reste exacte).
+- **Attaque de dos** : `CombatUnit.FX/FY` (Facing) mis à jour au déplacement
+  (`enterCell`) et à l'attaque ; attaquant dans l'arc arrière (produit scalaire < 0)
+  = **+25 %** et ignore la couverture. `stepToward` préfère à distance égale la case
+  dans le dos de la cible (contournement IA).
+- **Couverture** : cible orth-adjacente à un obstacle CÔTÉ attaquant = **−25 %** sur
+  les attaques à distance (annulée par le dos). Télégraphie servie dans les
+  fourchettes (`rear`/`cover`) → icônes 🗡/🛡 sur les boutons cibles.
+- **Client** : flèches d'orientation (triangle au bord de la case, teinte
+  héros/monstre) dans l'arène voxel ; icônes + tooltips sur les cibles.
+
+### Fonctionnel (vérifié)
+- `combat_c4_test.go` (LOS bloquée/dégagée + refus serveur, mêlée exemptée,
+  contre-plongée −1, plafond +3, dos +25 % encadré par la fourchette sur 50 tirages,
+  Facing mis à jour move/attaque, couverture −25 % hors trajectoire + ignorée de
+  dos + mêlée exempte) ; suite Go verte ; e2e réel (fx/fy servis, fourchette C4
+  respectée par le coup réel) ; capture c4-facing ; tsc + build ; perf 12/12.
+
+### Reste : C5 boss & IA (arène 9×9, boss 2×2, patterns télégraphiés, renforts).
+
 ## 2026-07-20 (47) — COMBAT MULTIJOUEUR : équipes, IA des absents, « Rejoindre le combat »
 
 ### Fait (directive /loop du 2026-07-20)

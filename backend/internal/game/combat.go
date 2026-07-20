@@ -28,6 +28,11 @@ type CombatUnit struct {
 	Initiative int      `json:"initiative"`
 	Fled       bool     `json:"fled,omitempty"`    // a quitté l'arène par le bord bas (lot C3)
 	OwnerID    string   `json:"ownerId,omitempty"` // joueur propriétaire du héros ("" = partie legacy)
+	// Facing (lot C4) : direction regardée, mise à jour au déplacement et à
+	// l'attaque — une attaque depuis l'arc ARRIÈRE fait +25 % et ignore la
+	// couverture. Vecteur unitaire orthogonal (FX,FY).
+	FX int `json:"fx"`
+	FY int `json:"fy"`
 }
 
 // Alive reports whether the unit still has hit points.
@@ -347,6 +352,7 @@ func NewCombat(gs *GameState, heroes []*Hero, monster *Monster, starterID string
 			OwnerID:    gs.OwnerOfHero(h.ID),
 			X:          spawnX[i],
 			Y:          gh - 1,
+			FY:         -1, // face aux monstres (rangée du haut)
 			HP:         h.HP,
 			MaxHP:      h.MaxHP,
 			Stats:      h.Stats,
@@ -374,6 +380,7 @@ func NewCombat(gs *GameState, heroes []*Hero, monster *Monster, starterID string
 			Appearance: monster.Appearance,
 			X:          2 + i,
 			Y:          0,
+			FY:         1, // face aux héros (rangée du bas)
 			HP:         monster.HP,
 			MaxHP:      monster.MaxHP,
 			Stats:      monster.Stats,
@@ -497,6 +504,9 @@ func (c *Combat) enterCell(u *CombatUnit, tx, ty int) {
 	} else {
 		dy = signI(ty - fromY)
 	}
+	if dx != 0 || dy != 0 {
+		u.FX, u.FY = dx, dy // le déplacement oriente l'unité (Facing, lot C4)
+	}
 	for slides := 0; slides < 3 && (dx != 0 || dy != 0); slides++ {
 		cell := c.cellAt(u.X, u.Y)
 		if cell == nil || cell.Hazard != "ice" {
@@ -554,11 +564,12 @@ func (c *Combat) Reachable(u *CombatUnit) [][2]int {
 
 func manhattan(ax, ay, bx, by int) int { return absI(ax-bx) + absI(ay-by) }
 
-// TargetsFor returns the enemy units standing on the attack's green targeting cells.
+// TargetsFor returns the enemy units standing on the attack's green targeting
+// cells — with a clear line of sight for ranged attacks (lot C4).
 func (c *Combat) TargetsFor(u *CombatUnit, atk *AttackDef) []*CombatUnit {
 	var out []*CombatUnit
 	for _, o := range c.Units {
-		if o.inBattle() && o.Side != u.Side && atk.inTargets(o.X-u.X, o.Y-u.Y) {
+		if o.inBattle() && o.Side != u.Side && c.canTarget(u, atk, o) {
 			out = append(out, o)
 		}
 	}
@@ -597,9 +608,111 @@ func (c *Combat) specialsFor(u *CombatUnit) []AttackDef {
 	return out
 }
 
+// --- Lot C4 : ligne de vue, couverture, hauteur formalisée, attaque de dos ----
+
+// hasLOS trace une ligne de Bresenham entre deux cases : un obstacle C1
+// (Blocked) sur le TRAJET (extrémités exclues) coupe la ligne de vue des
+// attaques à distance.
+func (c *Combat) hasLOS(x0, y0, x1, y1 int) bool {
+	dx, dy := absI(x1-x0), -absI(y1-y0)
+	sx, sy := signI(x1-x0), signI(y1-y0)
+	e := dx + dy
+	x, y := x0, y0
+	for {
+		if x == x1 && y == y1 {
+			return true
+		}
+		e2 := 2 * e
+		if e2 >= dy {
+			e += dy
+			x += sx
+		}
+		if e2 <= dx {
+			e += dx
+			y += sy
+		}
+		if x == x1 && y == y1 {
+			return true
+		}
+		if cell := c.cellAt(x, y); cell != nil && cell.Blocked {
+			return false // une case traversée bloque le tir
+		}
+	}
+}
+
+// canTarget : la cible est sur une case VERTE de l'attaque ET, pour une attaque
+// à distance (>1), la ligne de vue est dégagée. Utilisé par le ciblage servi,
+// la validation des actions ET l'IA — personne ne tire à travers un rocher.
+func (c *Combat) canTarget(att *CombatUnit, atk *AttackDef, def *CombatUnit) bool {
+	if !atk.inTargets(def.X-att.X, def.Y-att.Y) {
+		return false
+	}
+	if manhattan(att.X, att.Y, def.X, def.Y) > 1 && !c.hasLOS(att.X, att.Y, def.X, def.Y) {
+		return false
+	}
+	return true
+}
+
+// isRearAttack : l'attaquant est dans l'arc ARRIÈRE de la cible (le vecteur
+// cible→attaquant s'oppose au regard de la cible) → +25 %, ignore la couverture.
+func (c *Combat) isRearAttack(att, def *CombatUnit) bool {
+	if def.FX == 0 && def.FY == 0 {
+		return false
+	}
+	return (att.X-def.X)*def.FX+(att.Y-def.Y)*def.FY < 0
+}
+
+// inCover : la cible est adjacente (orth) à un obstacle situé CÔTÉ attaquant
+// → −25 % sur les attaques à distance (télégraphié dans la fourchette servie).
+func (c *Combat) inCover(att, def *CombatUnit) bool {
+	for _, d := range [][2]int{{1, 0}, {-1, 0}, {0, 1}, {0, -1}} {
+		cell := c.cellAt(def.X+d[0], def.Y+d[1])
+		if cell == nil || !cell.Blocked {
+			continue
+		}
+		// l'obstacle protège s'il est du côté d'où vient le tir
+		if d[0]*(att.X-def.X)+d[1]*(att.Y-def.Y) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// dmgMods renvoie les modificateurs C4 partagés par damageWith et
+// EstimateDamage : bonus de hauteur GRADUÉ (+1 par niveau d'avantage, max +3 ;
+// −1 en contre-plongée) et multiplicateur (dos +25 % ; couverture −25 % à
+// distance, annulée par une attaque de dos).
+func (c *Combat) dmgMods(att, def *CombatUnit) (heightBonus, mulNum, mulDen int) {
+	hd := c.heightAt(att.X, att.Y) - c.heightAt(def.X, def.Y)
+	if hd > 3 {
+		hd = 3
+	}
+	if hd < -1 {
+		hd = -1
+	}
+	mulNum, mulDen = 1, 1
+	rear := c.isRearAttack(att, def)
+	if rear {
+		mulNum, mulDen = mulNum*5, mulDen*4
+	}
+	if !rear && manhattan(att.X, att.Y, def.X, def.Y) > 1 && c.inCover(att, def) {
+		mulNum, mulDen = mulNum*3, mulDen*4
+	}
+	return hd, mulNum, mulDen
+}
+
+// EstimateFlags expose l'attaque de dos et la couverture effective pour la
+// télégraphie client (🗡 dos / 🛡 à couvert) — mêmes règles que dmgMods.
+func (c *Combat) EstimateFlags(att, def *CombatUnit) (rear, cover bool) {
+	rear = c.isRearAttack(att, def)
+	cover = !rear && manhattan(att.X, att.Y, def.X, def.Y) > 1 && c.inCover(att, def)
+	return
+}
+
 // damageWith computes one hit of `atk` from att onto def: the attack's damage stat
-// (force/dexterite/precision), its divisor and flat bonus, high-ground bonus, the
-// defender's endurance, and the -50% Bouclier state.
+// (force/dexterite/precision), its divisor and flat bonus, the C4 modifiers
+// (graded height, rear +25%, ranged cover −25%), the defender's endurance, and
+// the -50% Bouclier state.
 func (c *Combat) damageWith(att, def *CombatUnit, atk *AttackDef) int {
 	var stat int
 	switch atk.DmgStat {
@@ -613,11 +726,12 @@ func (c *Combat) damageWith(att, def *CombatUnit, atk *AttackDef) int {
 	if atk.DmgDiv > 1 {
 		stat /= atk.DmgDiv
 	}
-	bonus := atk.Bonus
-	if c.heightAt(att.X, att.Y) > c.heightAt(def.X, def.Y) {
-		bonus++ // high ground
+	hd, num, den := c.dmgMods(att, def)
+	d := stat + atk.Bonus + hd + rand.Intn(3) - def.Stats.Endurance/2
+	if d < 1 {
+		d = 1
 	}
-	d := stat + bonus + rand.Intn(3) - def.Stats.Endurance/2
+	d = d * num / den
 	if d < 1 {
 		d = 1
 	}
@@ -647,12 +761,13 @@ func (c *Combat) EstimateDamage(att, def *CombatUnit, atk *AttackDef) (int, int)
 	if atk.DmgDiv > 1 {
 		stat /= atk.DmgDiv
 	}
-	bonus := atk.Bonus
-	if c.heightAt(att.X, att.Y) > c.heightAt(def.X, def.Y) {
-		bonus++
-	}
-	base := stat + bonus - def.Stats.Endurance/2
+	hd, num, den := c.dmgMods(att, def) // mêmes modificateurs C4 que damageWith
+	base := stat + atk.Bonus + hd - def.Stats.Endurance/2
 	clamp := func(d int) int {
+		if d < 1 {
+			d = 1
+		}
+		d = d * num / den
 		if d < 1 {
 			d = 1
 		}
@@ -702,6 +817,14 @@ func (c *Combat) ThreatCells(u *CombatUnit) [][2]int {
 // enemy in the damage zone (struck cell + the attack's red grid) takes damage and
 // effects. Self-targeted abilities (SelfShield/BuffAllies) ignore the target.
 func (c *Combat) performAttack(att *CombatUnit, atk *AttackDef, tx, ty int) {
+	// attaquer oriente l'attaquant vers la case frappée (Facing, lot C4)
+	if dx, dy := tx-att.X, ty-att.Y; dx != 0 || dy != 0 {
+		if absI(dx) >= absI(dy) {
+			att.FX, att.FY = signI(dx), 0
+		} else {
+			att.FX, att.FY = 0, signI(dy)
+		}
+	}
 	if atk.SelfShield {
 		att.addState("Bouclier")
 		c.logf("%s utilise %s : les dégâts subis sont réduits de moitié.", att.Name, atk.Name)
@@ -827,8 +950,8 @@ func (c *Combat) PlayerAction(unitID, action string, tx, ty int, targetID string
 		if def == nil || !def.inBattle() || def.Side == cur.Side {
 			return ErrInvalidAction{"cible invalide"}
 		}
-		if !atk.inTargets(def.X-cur.X, def.Y-cur.Y) {
-			return ErrInvalidAction{"cible hors de portée"}
+		if !c.canTarget(cur, &atk, def) {
+			return ErrInvalidAction{"cible hors de portée ou hors de vue"}
 		}
 		c.performAttack(cur, &atk, def.X, def.Y)
 		c.endTurn()
@@ -1086,18 +1209,18 @@ func (c *Combat) monsterTurn(u *CombatUnit) {
 		c.performAttack(u, &atk, u.X, u.Y)
 		return
 	}
-	// Step toward the target until it sits on one of the attack's green cells.
+	// Step toward the target until it can actually be HIT : case verte ET ligne
+	// de vue dégagée (lot C4) — l'IA continue d'avancer pour débloquer son tir.
 	if !u.Moved {
-		reach := atk.maxReach()
-		for steps := u.Move; steps > 0 && manhattan(u.X, u.Y, target.X, target.Y) > reach; steps-- {
+		for steps := u.Move; steps > 0 && !c.canTarget(u, &atk, target); steps-- {
 			if !c.stepToward(u, target) {
 				break
 			}
 		}
 	}
-	if atk.inTargets(target.X-u.X, target.Y-u.Y) {
+	if c.canTarget(u, &atk, target) {
 		c.performAttack(u, &atk, target.X, target.Y)
-	} else if base := c.baseAttackFor(u); base.inTargets(target.X-u.X, target.Y-u.Y) {
+	} else if base := c.baseAttackFor(u); c.canTarget(u, &base, target) {
 		c.performAttack(u, &base, target.X, target.Y) // fall back to the base strike
 	} else {
 		c.logf("%s avance.", u.Name)
@@ -1117,17 +1240,26 @@ func (c *Combat) nearestEnemy(u *CombatUnit) *CombatUnit {
 	return best
 }
 
-// stepToward moves u one tile closer to target, returning false if it cannot move.
+// stepToward moves u one tile closer to target, returning false if it cannot
+// move. Contournement (lot C4) : à distance égale, l'IA préfère la case située
+// dans l'arc ARRIÈRE de la cible (attaque de dos +25 %).
 func (c *Combat) stepToward(u, target *CombatUnit) bool {
-	bestDX, bestDY, bestD := 0, 0, manhattan(u.X, u.Y, target.X, target.Y)
+	score := func(x, y int) int {
+		s := manhattan(x, y, target.X, target.Y) * 4
+		if (x-target.X)*target.FX+(y-target.Y)*target.FY < 0 {
+			s-- // derrière la cible
+		}
+		return s
+	}
+	bestDX, bestDY, bestS := 0, 0, score(u.X, u.Y)
 	moved := false
 	for _, d := range [][2]int{{1, 0}, {-1, 0}, {0, 1}, {0, -1}} {
 		nx, ny := u.X+d[0], u.Y+d[1]
 		if !c.passable(nx, ny, u) {
 			continue
 		}
-		if dd := manhattan(nx, ny, target.X, target.Y); dd < bestD {
-			bestD, bestDX, bestDY, moved = dd, d[0], d[1], true
+		if s := score(nx, ny); s < bestS {
+			bestS, bestDX, bestDY, moved = s, d[0], d[1], true
 		}
 	}
 	if moved {
@@ -1178,16 +1310,15 @@ func (c *Combat) heroAutoAct(u *CombatUnit) {
 		atk = c.baseAttackFor(u)
 	}
 	if !u.Moved {
-		reach := atk.maxReach()
-		for steps := u.Move; steps > 0 && manhattan(u.X, u.Y, target.X, target.Y) > reach; steps-- {
+		for steps := u.Move; steps > 0 && !c.canTarget(u, &atk, target); steps-- {
 			if !c.stepToward(u, target) {
 				break
 			}
 		}
 	}
-	if atk.inTargets(target.X-u.X, target.Y-u.Y) {
+	if c.canTarget(u, &atk, target) {
 		c.performAttack(u, &atk, target.X, target.Y)
-	} else if base := c.baseAttackFor(u); base.inTargets(target.X-u.X, target.Y-u.Y) {
+	} else if base := c.baseAttackFor(u); c.canTarget(u, &base, target) {
 		c.performAttack(u, &base, target.X, target.Y)
 	} else {
 		c.logf("%s avance.", u.Name)

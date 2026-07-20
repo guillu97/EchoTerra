@@ -1236,7 +1236,14 @@ func estimatesOf(c *game.Combat, att *game.CombatUnit, atk *game.AttackDef, targ
 	}
 	for _, t := range targets {
 		lo, hi := c.EstimateDamage(att, t, atk)
-		out[t.ID] = map[string]int{"min": lo, "max": hi}
+		e := map[string]int{"min": lo, "max": hi}
+		// Télégraphie C4 : attaque de dos (🗡 +25 %) / cible à couvert (🛡 −25 %).
+		if rear, cover := c.EstimateFlags(att, t); rear {
+			e["rear"] = 1
+		} else if cover {
+			e["cover"] = 1
+		}
+		out[t.ID] = e
 	}
 	return out
 }

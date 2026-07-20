@@ -30,6 +30,16 @@ const ARENA_PROP_MAT = new THREE.MeshLambertMaterial({ vertexColors: true });
 const CQUAD_GEOM = new THREE.PlaneGeometry(0.94, 0.94).rotateX(-Math.PI / 2);
 const CRING_GEOM = new THREE.RingGeometry(0.3, 0.4, 24).rotateX(-Math.PI / 2);
 const CEDGE_GEOM = new THREE.RingGeometry(0.6, 0.67, 4).rotateZ(Math.PI / 4).rotateX(-Math.PI / 2);
+// Flèche d'orientation (Facing, lot C4) : petit triangle au bord de la case,
+// pointant là où l'unité regarde — l'arc arrière prend +25 %.
+const FACING_GEOM = (() => {
+  const sh = new THREE.Shape();
+  sh.moveTo(0.2, 0);
+  sh.lineTo(-0.04, 0.11);
+  sh.lineTo(-0.04, -0.11);
+  sh.closePath();
+  return new THREE.ShapeGeometry(sh).rotateX(-Math.PI / 2);
+})();
 import { makeLabel } from "./labels";
 import { ALL_CHAR_KEYS, CharLibrary } from "./characters";
 
@@ -269,6 +279,22 @@ class CombatWorld {
     );
     for (const u of c.units) {
       if (u.hp <= 0 || u.fled) continue; // les fuyards ont quitté l'arène (C3)
+      // flèche d'orientation (C4) : où l'unité regarde — attaquer son dos = +25 %
+      if (u.fx || u.fy) {
+        const arrow = new THREE.Mesh(
+          FACING_GEOM,
+          new THREE.MeshBasicMaterial({
+            color: u.side === "hero" ? 0xd9f2ff : 0xffd9d9,
+            transparent: true,
+            opacity: 0.85,
+            depthWrite: false,
+          }),
+        );
+        arrow.userData.ownMat = true;
+        arrow.position.set(u.x + u.fx * 0.42, topOf(u.x, u.y) + 0.035, u.y + u.fy * 0.42);
+        arrow.rotation.y = -Math.atan2(u.fy, u.fx);
+        this.overlays.add(arrow);
+      }
       if (this.current && u.id === this.current.unitId) ring(u.x, u.y, 0xffe066);
       if (u.id === this.threatUnitId) ring(u.x, u.y, 0xff8c3b);
       if (targets.has(u.id))

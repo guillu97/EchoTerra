@@ -347,10 +347,17 @@ function CombatControls() {
                   const u = combat.units.find((x) => x.id === id);
                   const est = combatMode === "push" ? undefined : estimates?.[id];
                   return (
-                    <button key={id} className="small red" disabled={busy} onClick={() => combatUnitClick(id)}>
+                    <button
+                      key={id}
+                      className="small red"
+                      disabled={busy}
+                      title={est?.rear ? "Attaque de dos : +25 %, ignore la couverture" : est?.cover ? "Cible à couvert : −25 % à distance" : ""}
+                      onClick={() => combatUnitClick(id)}
+                    >
                       {combatMode === "push" ? "👐" : "🎯"} {u?.name}
                       {est && (
                         <i className="dmg-est">
+                          {est.rear ? "🗡" : est.cover ? "🛡" : ""}
                           {est.min === est.max ? `−${est.min}` : `−${est.min}…${est.max}`}
                         </i>
                       )}

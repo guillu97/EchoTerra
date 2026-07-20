@@ -122,12 +122,19 @@ func TestEstimateHighGroundBonus(t *testing.T) {
 	_, c, hu, mu := juiceGame()
 	atk := c.baseAttackFor(hu)
 	lo0, _ := c.EstimateDamage(hu, mu, &atk)
-	// surélève l'attaquant : +1 dans la fourchette
+	// hauteur FORMALISÉE (lot C4) : +1 par niveau d'avantage — 2 niveaux = +2
 	c.Cells[hu.Y*c.GridW+hu.X].Height = 2
 	c.Heights[hu.Y*c.GridW+hu.X] = 2
 	lo1, _ := c.EstimateDamage(hu, mu, &atk)
-	if lo1 != lo0+1 {
-		t.Fatalf("high ground should add +1 to the estimate: %d -> %d", lo0, lo1)
+	if lo1 != lo0+2 {
+		t.Fatalf("2 levels of high ground should add +2: %d -> %d", lo0, lo1)
+	}
+	// plafonné à +3
+	c.Cells[hu.Y*c.GridW+hu.X].Height = 6
+	c.Heights[hu.Y*c.GridW+hu.X] = 6
+	lo6, _ := c.EstimateDamage(hu, mu, &atk)
+	if lo6 != lo0+3 {
+		t.Fatalf("height bonus caps at +3: %d -> %d", lo0, lo6)
 	}
 }
 

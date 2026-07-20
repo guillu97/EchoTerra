@@ -277,6 +277,8 @@ export interface CombatUnit {
   initiative: number;
   fled?: boolean; // a quitté l'arène par le bord bas (lot C3)
   ownerId?: string; // joueur propriétaire du héros ("" / absent = partie legacy)
+  fx: number; // Facing (lot C4) : direction regardée — l'arc arrière prend +25 %
+  fy: number;
 }
 
 // A combat ability with its GDD grids (mirrors backend AttackDef).
@@ -349,6 +351,8 @@ export interface CombatItem {
 export interface DamageEstimate {
   min: number;
   max: number;
+  rear?: number; // 1 = attaque de dos (+25 %, ignore la couverture) — lot C4
+  cover?: number; // 1 = cible à couvert (−25 % à distance) — lot C4
 }
 
 export interface CombatCurrent {
