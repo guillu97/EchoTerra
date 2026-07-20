@@ -6,6 +6,27 @@
 
 ---
 
+## 2026-07-19 (44) — COMBAT C1 : l'arène par biome (obstacles, eau, glace, ronces)
+
+### Fait (lot C1 du COMBAT-PLAN — /loop « implémente tout »)
+- **Serveur** : `CombatCell {height, blocked, hazard}` + `Combat.Biome/Cells` (Heights
+  reste le miroir des hauteurs pour la CombatScene classique). `buildArena(biome)` :
+  prairie douce, forêt vallonnée (+4 arbres), montagne en terrasses diagonales 0..3,
+  sable plat + langues d'eau en bord, neige + 4-6 plaques de glace ; ronces ×2 en
+  prairie/forêt ; obstacles jamais adjacents entre eux ; rangées de spawn toujours
+  dégagées. `passable` refuse bloqué + eau (Reachable suit). **`enterCell` partagé
+  joueur/IA** : la glace prolonge le pas dans la direction du déplacement (chaîne
+  bornée à 3), les ronces piquent (−1 PV, ne tuent jamais).
+- **Assets** : bloc `ice` (32³ + LOD 16³), prop `brambles` ×3.
+- **Client** (`VoxelCombatView`) : sol du biome, colonnes d'eau, plaques de glace,
+  obstacles en props (arbre/rocher/pic selon biome) + ronces posés sur les cases.
+
+### Fonctionnel (vérifié)
+- `combat_arena_test.go` + suite Go verte ; e2e combat réel (reachable sans obstacles,
+  clic projeté, rotation) ; captures des 5 arènes ; `tsc` + build + perf 12/12.
+
+### Reste (COMBAT-PLAN) : C2 lisibilité, C3 actions, C4 couverture/visée, C5 boss & IA.
+
 ## 2026-07-19 (43) — PLAN d'amélioration du combat isométrique (COMBAT-PLAN.md)
 
 ### Fait
