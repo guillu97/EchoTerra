@@ -6,6 +6,60 @@
 
 ---
 
+## 2026-07-20 (47) — COMBAT MULTIJOUEUR : équipes, IA des absents, « Rejoindre le combat »
+
+### Fait (directive /loop du 2026-07-20)
+- **Serveur** : `CombatUnit.OwnerID` (joueur propriétaire, posé par `NewCombat` via
+  `OwnerOfHero`) + `Combat.Participants` (joueurs PRÉSENTS ; l'initiateur passé par
+  `StartCombat(heroID, starterID)`). `advanceUntilHeroOrEnd` ne s'arrête que sur les
+  unités d'un participant : **les héros des joueurs absents (autre joueur pas encore
+  entré, bots) sont joués par l'IA** (`heroAutoAct`, refactor de heroAutoTurn sans le
+  endTurn — sinon récursion). `JoinCombat(combatID, playerID)` (+ route
+  `POST /combat/{c}/join`) : valide joueur + héros vivant dans le combat, idempotent,
+  et agir dans le combat (re)inscrit défensivement comme participant. Spawn héros :
+  rangée du bas remplie du CENTRE vers les bords (`spawnX`), plafonnée à 7 — plusieurs
+  équipes tiennent dans l'arène. Parties legacy sans joueurs : tout reste manuel.
+- **Client** : bouton **« ⚔️ Rejoindre le combat (x,y) — tes héros y sont ! »** dans la
+  barre Map quand un combat actif contient MES héros et que je n'y suis pas ;
+  **marqueur ⚔ rouge sur la case** du combat (carte voxel) ; en combat, **je ne pilote
+  que MES unités** (« ⏳ Tour de X (autre joueur)… » sinon) ; **poll 3 s du combat**
+  (`refreshCombat`, n'applique que les vrais changements seq/statut/tour, désamorcé en
+  solo) pour voir les tours adverses et son propre tour arriver.
+
+### Fonctionnel (vérifié)
+- `combat_multi_test.go` (IA des absents — le tour n'est JAMAIS rendu à l'unité de
+  l'absent et son héros AGIT au log ; join → ses tours se mettent en pause ;
+  validations ; spawns sans doublon ni hors-grille) + suite Go verte ; **e2e à DEUX
+  navigateurs** (lobby par code, marche coordonnée vers le même pack, engage par A,
+  ownerId/participants vérifiés, IA joue Bob, bouton Rejoindre chez B, B participant,
+  tour de Bob rendu à B qui agit) ; captures mp-join-button/mp-bob-turn ; tsc + build ;
+  perf voxel 12/12.
+
+### Reste : C4 couverture/visée/dos, C5 boss & IA (COMBAT-PLAN). Multi : pas de
+notification push quand son tour arrive (le poll 3 s suffit en séance).
+
+## 2026-07-20 (46) — COMBAT C3 : actions tactiques (Defend, Poussée, objets, fuite)
+
+### Fait (lot C3 du COMBAT-PLAN — /loop « implémente tout »)
+- **Serveur** : `defend` (Bouclier -50 % jusqu'au prochain tour, termine le tour) ;
+  `push` (0 dégât, déplace d'1 case dans l'axe : collision bord/obstacle/mur ≥2/unité
+  = 2 dégâts [aux DEUX si télescopage], poussée dans l'eau = Root « piégé un tour »,
+  chute ≥2 niveaux = +2, glace/ronces s'appliquent via enterCell ; portée 1, **2 pour
+  le Pionnier — « Poussée du Survivant »** ; `PushTargets` servi) ; `item` (=
+  `UseItem(gs,…)` : consomme du SAC — `combatConsumables` : Potion de soin +5, Baume
+  de gelée +3, Ration d'eau +2, Baies +2 — soigne l'unité, termine le tour) ; `flee`
+  (bord bas uniquement, `CombatUnit.Fled`, plus jamais le tour [`inBattle`], dernier
+  vivant → statut **"fled"** : `FinishCombat` SANS butin, héros restent sur la case,
+  **pack conservé avec ses pertes** [Count − tués, PV de tête persistés]).
+- **Client** : boutons 🛡️ Défendre / 👐 Pousser (mode ciblage, anneaux cyan) /
+  🧪 objets servis par `current.items` / 🏃 Fuir (bord bas) ; écran de fin « 🏃 Repli ! ».
+
+### Fonctionnel (vérifié)
+- `combat_c3_test.go` (mécaniques de poussée pures + validations, item, fuite,
+  fuyard sauté dans l'ordre du tour) ; e2e réel (defend loggé, poussée jouée,
+  fuite → fled + écran + pack conservé) ; captures c3-push/c3-flee ; tsc + build ;
+  perf 12/12.
+
 ## 2026-07-20 (45) — COMBAT C2 : lisibilité & juice (+ fuite GPU des redraws corrigée)
 
 ### Fait (lot C2 du COMBAT-PLAN — /loop « implémente tout »)

@@ -228,7 +228,7 @@ func TestCombatVictoryLootFromSpecies(t *testing.T) {
 	g.Monsters[m.ID] = m
 	g.TileAt(h.X, h.Y).MonsterID = m.ID
 
-	c, err := g.StartCombat("h1")
+	c, err := g.StartCombat("h1", "")
 	if err != nil {
 		t.Fatal(err)
 	}

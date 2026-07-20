@@ -261,13 +261,18 @@ class CombatWorld {
 
     // unités : billboards + barre de PV (sprites face caméra)
     const targets = new Set(
-      this.mode === "skill" ? this.current?.skillTargets ?? [] : this.current?.attackTargets ?? [],
+      this.mode === "skill"
+        ? this.current?.skillTargets ?? []
+        : this.mode === "push"
+          ? this.current?.pushTargets ?? []
+          : this.current?.attackTargets ?? [],
     );
     for (const u of c.units) {
-      if (u.hp <= 0) continue;
+      if (u.hp <= 0 || u.fled) continue; // les fuyards ont quitté l'arène (C3)
       if (this.current && u.id === this.current.unitId) ring(u.x, u.y, 0xffe066);
       if (u.id === this.threatUnitId) ring(u.x, u.y, 0xff8c3b);
-      if (targets.has(u.id)) ring(u.x, u.y, this.mode === "skill" ? 0xc06bd6 : 0xff5a4d);
+      if (targets.has(u.id))
+        ring(u.x, u.y, this.mode === "skill" ? 0xc06bd6 : this.mode === "push" ? 0x4bc8e3 : 0xff5a4d);
 
       const tex =
         u.side === "hero" ? (u.appearance || heroTexKey(u.kind)) : monsterTexKey(u.kind, u.appearance);

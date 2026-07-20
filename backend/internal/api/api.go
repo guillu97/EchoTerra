@@ -224,6 +224,7 @@ func (s *Server) Router() http.Handler {
 			r.Post("/heroes/{heroID}/combat/start", s.startCombat)
 			r.Get("/combat/{combatID}", s.getCombat)
 			r.Post("/combat/{combatID}/action", s.combatAction)
+			r.Post("/combat/{combatID}/join", s.joinCombat)
 		})
 	})
 	return r
@@ -1034,10 +1035,34 @@ func (s *Server) startCombat(w http.ResponseWriter, r *http.Request) {
 	if gs == nil {
 		return
 	}
-	if !s.ownHero(w, gs, decodePlayer(r), chi.URLParam(r, "heroID")) {
+	playerID := decodePlayer(r)
+	if !s.ownHero(w, gs, playerID, chi.URLParam(r, "heroID")) {
 		return
 	}
-	c, err := gs.StartCombat(chi.URLParam(r, "heroID"))
+	c, err := gs.StartCombat(chi.URLParam(r, "heroID"), playerID)
+	if err != nil {
+		writeActionErr(w, err)
+		return
+	}
+	s.persist(gs)
+	writeJSON(w, http.StatusOK, combatResponse(gs, c))
+}
+
+// joinCombat (multijoueur) : un joueur dont les héros ont été embarqués dans un
+// combat (IA) le rejoint et reprend le contrôle de SES unités.
+func (s *Server) joinCombat(w http.ResponseWriter, r *http.Request) {
+	gs := s.mustGame(w, r)
+	if gs == nil {
+		return
+	}
+	var body struct {
+		PlayerID string `json:"playerId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeErr(w, http.StatusBadRequest, "corps invalide")
+		return
+	}
+	c, err := gs.JoinCombat(chi.URLParam(r, "combatID"), body.PlayerID)
 	if err != nil {
 		writeActionErr(w, err)
 		return
@@ -1075,6 +1100,7 @@ func (s *Server) combatAction(w http.ResponseWriter, r *http.Request) {
 		X        int    `json:"x"`
 		Y        int    `json:"y"`
 		TargetID string `json:"targetId"`
+		Item     string `json:"item"` // action "item" (C3) : nom de l'objet du sac
 		PlayerID string `json:"playerId"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -1087,10 +1113,19 @@ func (s *Server) combatAction(w http.ResponseWriter, r *http.Request) {
 			if !s.ownHero(w, gs, body.PlayerID, u.RefID) {
 				return
 			}
+			// Agir dans le combat vaut présence : un joueur qui joue son unité
+			// est (re)inscrit comme participant (défensif — reconnexion).
+			c.AddParticipant(body.PlayerID)
 			break
 		}
 	}
-	if err := c.PlayerAction(body.UnitID, body.Action, body.X, body.Y, body.TargetID); err != nil {
+	var err error
+	if body.Action == "item" {
+		err = c.UseItem(gs, body.UnitID, body.Item) // touche le sac du héros → besoin de gs
+	} else {
+		err = c.PlayerAction(body.UnitID, body.Action, body.X, body.Y, body.TargetID)
+	}
+	if err != nil {
 		writeActionErr(w, err)
 		return
 	}
@@ -1156,6 +1191,9 @@ func combatResponse(gs *game.GameState, c *game.Combat) map[string]any {
 				// Fourchettes de dégâts prévisualisées (lot C2) — calcul serveur.
 				"attackEstimates": estimatesOf(c, cur, &base, atkTargets),
 				"skillEstimates":  estimatesOf(c, cur, &sk, skTargets),
+				// Lot C3 : cibles de Poussée + objets du sac utilisables en combat.
+				"pushTargets": idsOf(c.PushTargets(cur)),
+				"items":       usableItemsOf(gs, cur),
 			}
 		}
 		// Télégraphie (lot C2) : cases menacées par chaque ennemi vivant depuis sa
@@ -1173,6 +1211,21 @@ func combatResponse(gs *game.GameState, c *game.Combat) map[string]any {
 		resp["threats"] = threats
 	}
 	return resp
+}
+
+// usableItemsOf lists the combat consumables in the acting hero's bag (C3).
+func usableItemsOf(gs *game.GameState, cur *game.CombatUnit) []map[string]any {
+	out := []map[string]any{}
+	h := gs.HeroByID(cur.RefID)
+	if h == nil {
+		return out
+	}
+	for _, it := range h.Inventory {
+		if heal := game.CombatHeal(it.Name); heal > 0 && it.Qty > 0 {
+			out = append(out, map[string]any{"name": it.Name, "qty": it.Qty, "heal": heal})
+		}
+	}
+	return out
 }
 
 // estimatesOf maps target unit id -> {min,max} predicted damage of atk.

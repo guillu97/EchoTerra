@@ -113,14 +113,31 @@ function ActionMenu() {
 // the TopBar (HeroActionsMenu). Movement is unchanged: select a hero, tap the
 // yellow diamonds on the map. Only map-wide tools remain here.
 function MapControls() {
-  const { game, selectedHeroId, advance, busy, showOthers, toggleOthers } = useStore();
+  const { game, selectedHeroId, advance, busy, showOthers, toggleOthers, playerId, joinCombat } = useStore();
   if (!game) return null;
   const hero = game.heroes.find((h) => h.id === selectedHeroId);
   const stuck = !!hero?.states.includes("Tétanisé");
   const multiplayer = (game.players?.length ?? 0) > 1;
+  // Combat en cours où figurent MES héros (joués par l'IA tant que je n'ai pas
+  // rejoint) : proposer « Rejoindre le combat ».
+  const activeCombat = game.activeCombat ? game.combats?.[game.activeCombat] : undefined;
+  const myHeroIds = game.players?.find((p) => p.id === playerId)?.heroIds ?? [];
+  const canJoin =
+    !!activeCombat &&
+    activeCombat.status === "active" &&
+    !!playerId &&
+    !activeCombat.participants?.includes(playerId) &&
+    activeCombat.units.some((u) => u.side === "hero" && u.hp > 0 && !u.fled && myHeroIds.includes(u.refId));
 
   return (
     <div className="map-controls">
+      {canJoin && (
+        <div className="line">
+          <button className="small red" disabled={busy} onClick={() => joinCombat()}>
+            ⚔️ Rejoindre le combat ({activeCombat!.tileX},{activeCombat!.tileY}) — tes héros y sont !
+          </button>
+        </div>
+      )}
       <div className="line">
         <button className="small" disabled={busy} onClick={() => advance()} title="Déclencher la prochaine vague maintenant">
           🌊 Forcer vague
@@ -163,7 +180,7 @@ function InitiativeBar() {
           "init-chip",
           u.side === "hero" ? "ally" : "enemy",
           i === combat.turnIdx ? "active" : "",
-          u.hp <= 0 ? "dead" : "",
+          u.hp <= 0 || u.fled ? "dead" : "",
           u.id === threatUnitId ? "threat" : "",
         ].join(" ");
         return (
@@ -188,11 +205,14 @@ function CombatEndScreen() {
   const { combat, returnToMap } = useStore();
   if (!combat || combat.status === "active") return null;
   const won = combat.status === "won";
+  const fled = combat.status === "fled";
   const heroes = combat.units.filter((u) => u.side === "hero");
   return (
     <div className="combat-end">
       <div className="combat-end-card">
-        <h2 className={won ? "win" : "loss"}>{won ? "🏆 Victoire !" : "💀 Défaite…"}</h2>
+        <h2 className={won ? "win" : fled ? "flee" : "loss"}>
+          {won ? "🏆 Victoire !" : fled ? "🏃 Repli !" : "💀 Défaite…"}
+        </h2>
         <div className="combat-end-sub">
           {combat.round} tour{combat.round > 1 ? "s" : ""} · {heroes.filter((u) => u.hp > 0).length}/
           {heroes.length} héros debout
@@ -220,7 +240,12 @@ function CombatEndScreen() {
             ))}
           </div>
         )}
-        {!won && <div className="combat-end-sub">Les survivants battent en retraite vers la ville…</div>}
+        {fled && (
+          <div className="combat-end-sub">
+            L'équipe s'est repliée — pas de butin, et le pack rôde toujours sur la case…
+          </div>
+        )}
+        {!won && !fled && <div className="combat-end-sub">Les survivants battent en retraite vers la ville…</div>}
         <button className="small green" onClick={() => returnToMap()}>↩ Retour à la carte</button>
       </div>
     </div>
@@ -228,13 +253,26 @@ function CombatEndScreen() {
 }
 
 function CombatControls() {
-  const { combat, current, combatMode, setCombatMode, combatUnitClick, endTurn, busy } =
-    useStore();
+  const {
+    combat, current, combatMode, setCombatMode, combatUnitClick,
+    combatDefend, combatFlee, combatUseItem, endTurn, busy, game, playerId,
+  } = useStore();
   if (!combat) return null;
   const curUnit = combat.units.find((u) => u.id === current?.unitId);
   const ended = combat.status !== "active";
-  const targetList = current && (combatMode === "skill" ? current.skillTargets : current.attackTargets);
+  // Multijoueur : je ne pilote que MES unités — le tour d'un autre joueur
+  // présent s'affiche en attente (les absents sont joués par l'IA côté serveur).
+  const legacy = (game?.players?.length ?? 0) === 0;
+  const myTurn = !!curUnit && curUnit.side === "hero" && (legacy || !curUnit.ownerId || curUnit.ownerId === playerId);
+  const targetList =
+    current &&
+    (combatMode === "skill"
+      ? current.skillTargets
+      : combatMode === "push"
+        ? current.pushTargets ?? []
+        : current.attackTargets);
   const estimates = current && (combatMode === "skill" ? current.skillEstimates : current.attackEstimates);
+  const onBottomEdge = !!curUnit && curUnit.y === combat.gridH - 1;
 
   return (
     <div className="map-controls">
@@ -242,7 +280,13 @@ function CombatControls() {
         <strong>Combat · round {combat.round}</strong>
       </div>
 
-      {!ended && curUnit && curUnit.side === "hero" && (
+      {!ended && curUnit && curUnit.side === "hero" && !myTurn && (
+        <div className="line" style={{ color: "#9fb2c9" }}>
+          ⏳ Tour de <strong>&nbsp;{curUnit.name}</strong> (autre joueur)…
+        </div>
+      )}
+
+      {!ended && curUnit && myTurn && (
         <>
           <div className="line" style={{ fontSize: 12, color: "#cbd6e6" }}>
             Tour de <strong>&nbsp;{curUnit.name}</strong> — clique une case verte pour bouger.
@@ -254,19 +298,57 @@ function CombatControls() {
             <button className={`small ${combatMode === "skill" ? "red" : ""}`} disabled={busy} onClick={() => setCombatMode("skill")}>
               {current?.skill?.name || "Compétence"}
             </button>
+            <button
+              className={`small ${combatMode === "push" ? "red" : ""}`}
+              disabled={busy}
+              title="Pousser un ennemi d'une case : collision 2 dégâts, eau = piégé, chute ≥2 = +2"
+              onClick={() => setCombatMode("push")}
+            >
+              👐 Pousser
+            </button>
             <button className="small" disabled={busy} onClick={() => endTurn()}>
               Fin du tour
             </button>
           </div>
-          {(combatMode === "attack" || combatMode === "skill") && (
+          {/* Actions C3 : Défendre (termine le tour), objets du sac, fuite au bord bas. */}
+          <div className="line">
+            <button
+              className="small"
+              disabled={busy}
+              title="-50% dégâts subis jusqu'à ton prochain tour (termine le tour)"
+              onClick={() => combatDefend()}
+            >
+              🛡️ Défendre
+            </button>
+            {(current?.items ?? []).map((it) => (
+              <button
+                key={it.name}
+                className="small"
+                disabled={busy}
+                title={`+${it.heal} PV (consomme 1 ${it.name} du sac, termine le tour)`}
+                onClick={() => combatUseItem(it.name)}
+              >
+                🧪 {it.name} ×{it.qty} <i className="dmg-est" style={{ color: "#9fe3b0" }}>+{it.heal}</i>
+              </button>
+            ))}
+            <button
+              className="small"
+              disabled={busy || !onBottomEdge}
+              title={onBottomEdge ? "Quitter le combat par le bord bas — pas de butin, le pack reste" : "Rejoins le bord bas de l'arène pour fuir"}
+              onClick={() => combatFlee()}
+            >
+              🏃 Fuir
+            </button>
+          </div>
+          {(combatMode === "attack" || combatMode === "skill" || combatMode === "push") && (
             <div className="line">
               {targetList && targetList.length > 0 ? (
                 targetList.map((id) => {
                   const u = combat.units.find((x) => x.id === id);
-                  const est = estimates?.[id];
+                  const est = combatMode === "push" ? undefined : estimates?.[id];
                   return (
                     <button key={id} className="small red" disabled={busy} onClick={() => combatUnitClick(id)}>
-                      🎯 {u?.name}
+                      {combatMode === "push" ? "👐" : "🎯"} {u?.name}
                       {est && (
                         <i className="dmg-est">
                           {est.min === est.max ? `−${est.min}` : `−${est.min}…${est.max}`}
@@ -276,7 +358,9 @@ function CombatControls() {
                   );
                 })
               ) : (
-                <span style={{ fontSize: 12, color: "#9fb2c9" }}>Aucune cible à portée — déplace-toi.</span>
+                <span style={{ fontSize: 12, color: "#9fb2c9" }}>
+                  {combatMode === "push" ? "Aucun ennemi aligné à portée de poussée." : "Aucune cible à portée — déplace-toi."}
+                </span>
               )}
             </div>
           )}
@@ -296,6 +380,7 @@ function CombatControls() {
 export function MapTab({ active = true }: { active?: boolean }) {
   const view = useStore((s) => s.view);
   const syncScene = useStore((s) => s.syncScene);
+  const refreshCombat = useStore((s) => s.refreshCombat);
   // Rendu voxel expérimental (VOXEL-PLAN Phases 2+3) : les vues voxel parlent
   // le même contrat bus que les scènes Phaser — le reste de l'app est agnostique.
   const voxelMap = useStore((s) => s.settings.voxelMap);
@@ -313,6 +398,15 @@ export function MapTab({ active = true }: { active?: boolean }) {
     const t = setTimeout(() => syncScene(), 80);
     return () => clearTimeout(t);
   }, [active, syncScene]);
+
+  // Combat multijoueur : poll 3 s pour voir les tours des AUTRES joueurs (et le
+  // sien arriver) — refreshCombat n'applique que les vrais changements et se
+  // désamorce seul en solo legacy.
+  useEffect(() => {
+    if (view !== "combat") return;
+    const id = setInterval(() => void refreshCombat(), 3000);
+    return () => clearInterval(id);
+  }, [view, refreshCombat]);
 
   return (
     <div className={active ? "map-host" : "map-host map-host-hidden"}>

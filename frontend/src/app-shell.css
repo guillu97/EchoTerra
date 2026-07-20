@@ -2631,6 +2631,9 @@ body {
 .combat-end-card h2.loss {
   color: #e24b4b;
 }
+.combat-end-card h2.flee {
+  color: #ffd166;
+}
 .combat-end-sub {
   font-size: 12px;
   color: #9fb2c9;

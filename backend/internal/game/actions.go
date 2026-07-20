@@ -381,8 +381,9 @@ func (g *GameState) Advance() {
 }
 
 // StartCombat engages the monster on the acting hero's tile. Every hero standing on
-// that tile joins the fight.
-func (g *GameState) StartCombat(heroID string) (*Combat, error) {
+// that tile joins the fight — those of OTHER players are AI-driven until their
+// owner joins the combat (starterID = the engaging player, "" in legacy games).
+func (g *GameState) StartCombat(heroID, starterID string) (*Combat, error) {
 	if g.ActiveCombat != "" {
 		return nil, ActionError{"un combat est déjà en cours"}
 	}
@@ -407,7 +408,7 @@ func (g *GameState) StartCombat(heroID string) (*Combat, error) {
 	if len(party) == 0 {
 		party = []*Hero{h}
 	}
-	c := NewCombat(g, party, m)
+	c := NewCombat(g, party, m, starterID)
 	if g.Combats == nil { // states from legacy rows/fixtures may lack the map
 		g.Combats = map[string]*Combat{}
 	}
@@ -416,6 +417,33 @@ func (g *GameState) StartCombat(heroID string) (*Combat, error) {
 	if c.Status != "active" {
 		g.FinishCombat(c)
 	}
+	return c, nil
+}
+
+// JoinCombat (multijoueur) : le joueur REJOINT le combat actif où figurent ses
+// héros et en reprend le contrôle — jusqu'ici l'IA les jouait. Idempotent.
+func (g *GameState) JoinCombat(combatID, playerID string) (*Combat, error) {
+	c := g.Combats[combatID]
+	if c == nil {
+		return nil, ActionError{"combat introuvable"}
+	}
+	if c.Status != "active" {
+		return nil, ActionError{"le combat est terminé"}
+	}
+	if g.PlayerByID(playerID) == nil {
+		return nil, ActionError{"joueur inconnu — reconnecte-toi à la partie"}
+	}
+	mine := false
+	for _, u := range c.Units {
+		if u.Side == "hero" && u.OwnerID == playerID && u.inBattle() {
+			mine = true
+			break
+		}
+	}
+	if !mine {
+		return nil, ActionError{"aucun de tes héros ne participe à ce combat"}
+	}
+	c.AddParticipant(playerID)
 	return c, nil
 }
 
@@ -479,6 +507,35 @@ func (g *GameState) FinishCombat(c *Combat) {
 					h.HP = 1
 				}
 				h.AddState(StateTetanise)
+			}
+		}
+	case "fled":
+		// Fuite d'équipe (lot C3) : AUCUN butin, les héros restent sur la case
+		// (PV écrits ci-dessus), et le pack CONSERVE ses pertes — les unités
+		// tuées pendant le combat réduisent le pack, le PV de la créature de
+		// tête est persisté (même sémantique que la boule de feu).
+		if t := g.TileAt(c.TileX, c.TileY); t != nil {
+			if m := g.Monsters[t.MonsterID]; m != nil {
+				killed, aliveHP := 0, 0
+				for _, u := range c.Units {
+					if u.Side != "monster" {
+						continue
+					}
+					if u.Alive() {
+						if aliveHP == 0 {
+							aliveHP = u.HP
+						}
+					} else {
+						killed++
+					}
+				}
+				m.Count -= killed
+				if m.Count < 1 {
+					m.Count = 1
+				}
+				if aliveHP > 0 {
+					m.HP = aliveHP
+				}
 			}
 		}
 	}

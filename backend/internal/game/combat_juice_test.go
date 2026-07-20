@@ -14,7 +14,7 @@ func juiceGame() (*GameState, *Combat, *CombatUnit, *CombatUnit) {
 	hero := testHero("Aldric", 30)
 	hero.X, hero.Y = m.X, m.Y
 	gs.Heroes = []*Hero{hero}
-	c := NewCombat(gs, []*Hero{hero}, m)
+	c := NewCombat(gs, []*Hero{hero}, m, "")
 	var hu, mu *CombatUnit
 	for _, u := range c.Units {
 		if u.Side == "hero" {

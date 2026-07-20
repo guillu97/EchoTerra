@@ -275,6 +275,8 @@ export interface CombatUnit {
   states: string[];
   move: number;
   initiative: number;
+  fled?: boolean; // a quitté l'arène par le bord bas (lot C3)
+  ownerId?: string; // joueur propriétaire du héros ("" / absent = partie legacy)
 }
 
 // A combat ability with its GDD grids (mirrors backend AttackDef).
@@ -328,11 +330,19 @@ export interface Combat {
   order: string[];
   turnIdx: number;
   round: number;
-  status: "active" | "won" | "lost";
+  status: "active" | "won" | "lost" | "fled";
   log: string[];
   seq: number; // s'incrémente à chaque action — le client diffe pour animer lastHits
   lastHits?: CombatHit[];
   rewards?: CombatReward[];
+  participants?: string[]; // joueurs présents — les héros des absents sont joués par l'IA
+}
+
+// Objet du sac utilisable en combat (lot C3) — servi par combatResponse.
+export interface CombatItem {
+  name: string;
+  qty: number;
+  heal: number;
 }
 
 // Fourchette de dégâts prévisualisée, calculée par le serveur (lot C2).
@@ -349,6 +359,8 @@ export interface CombatCurrent {
   skill: Skill;
   attackEstimates?: Record<string, DamageEstimate>;
   skillEstimates?: Record<string, DamageEstimate>;
+  pushTargets?: string[]; // Poussée (C3) : ennemis alignés à portée
+  items?: CombatItem[]; // objets consommables du sac du héros actif (C3)
 }
 
 // Cases menacées par un ennemi depuis sa position (télégraphie orange, lot C2).

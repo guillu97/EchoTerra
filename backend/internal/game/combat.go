@@ -26,10 +26,16 @@ type CombatUnit struct {
 	Move       int      `json:"move"`
 	Moved      bool     `json:"moved"` // already moved this turn (FFTA2: one move per turn)
 	Initiative int      `json:"initiative"`
+	Fled       bool     `json:"fled,omitempty"`    // a quitté l'arène par le bord bas (lot C3)
+	OwnerID    string   `json:"ownerId,omitempty"` // joueur propriétaire du héros ("" = partie legacy)
 }
 
 // Alive reports whether the unit still has hit points.
 func (u *CombatUnit) Alive() bool { return u.HP > 0 }
+
+// inBattle reports whether the unit still fights: alive AND not fled (lot C3 —
+// un héros qui a fui est vivant mais a quitté l'arène).
+func (u *CombatUnit) inBattle() bool { return u.HP > 0 && !u.Fled }
 
 func (u *CombatUnit) hasState(s string) bool {
 	for _, st := range u.States {
@@ -128,7 +134,7 @@ type Combat struct {
 	Order   []string      `json:"order"` // unit ids, by initiative desc
 	TurnIdx int           `json:"turnIdx"`
 	Round   int           `json:"round"`
-	Status  string        `json:"status"` // "active" | "won" | "lost"
+	Status  string        `json:"status"` // "active" | "won" | "lost" | "fled" (C3)
 	Log     []string      `json:"log"`
 	// Lot C2 (lisibilité) : Seq s'incrémente à chaque action jouée et LastHits
 	// liste les coups de CE lot d'actions (action du héros + tours IA qui suivent)
@@ -137,6 +143,36 @@ type Combat struct {
 	Seq      int            `json:"seq"`
 	LastHits []CombatHit    `json:"lastHits,omitempty"`
 	Rewards  []CombatReward `json:"rewards,omitempty"`
+	// Combat multijoueur : les joueurs PRÉSENTS dans le combat. Les héros d'un
+	// joueur absent (autre joueur pas encore « rejoint », bot) sont joués par
+	// l'IA ; « Rejoindre le combat » ajoute le joueur et lui rend le contrôle
+	// de SES héros. Vide dans les parties legacy sans joueurs (tout est manuel).
+	Participants []string `json:"participants,omitempty"`
+}
+
+// hasParticipant reports whether a player is present in the combat.
+func (c *Combat) hasParticipant(playerID string) bool {
+	for _, p := range c.Participants {
+		if p == playerID {
+			return true
+		}
+	}
+	return false
+}
+
+// AddParticipant enregistre un joueur comme présent (idempotent). À partir de
+// là, les tours de SES héros attendent ses ordres au lieu d'être joués par l'IA.
+func (c *Combat) AddParticipant(playerID string) {
+	if playerID != "" && !c.hasParticipant(playerID) {
+		c.Participants = append(c.Participants, playerID)
+	}
+}
+
+// unitIsAuto : l'unité héros est pilotée par l'IA — elle appartient à un joueur
+// (bot ou humain) qui n'a pas rejoint le combat. Les héros sans propriétaire
+// (parties legacy) restent toujours manuels.
+func (c *Combat) unitIsAuto(u *CombatUnit) bool {
+	return u.Side == "hero" && u.OwnerID != "" && !c.hasParticipant(u.OwnerID)
 }
 
 // addHit enregistre un coup pour l'affichage client (plafonné : les combats
@@ -256,7 +292,11 @@ func buildArena(biome Biome, gw, gh int) []CombatCell {
 }
 
 // NewCombat builds a battle from the heroes on a tile versus the tile's monster.
-func NewCombat(gs *GameState, heroes []*Hero, monster *Monster) *Combat {
+// starterID est le joueur qui ENGAGE le combat : il en est le premier participant ;
+// les héros des autres joueurs présents sur la case entrent dans la bataille mais
+// sont joués par l'IA tant que leur propriétaire n'a pas « rejoint » ("" = partie
+// legacy sans joueurs, tout est manuel).
+func NewCombat(gs *GameState, heroes []*Hero, monster *Monster, starterID string) *Combat {
 	const gw, gh = 7, 7
 	biome := Biome(2)
 	if t := gs.TileAt(monster.X, monster.Y); t != nil {
@@ -281,8 +321,16 @@ func NewCombat(gs *GameState, heroes []*Hero, monster *Monster) *Combat {
 		Status:  "active",
 		Log:     []string{},
 	}
+	c.AddParticipant(starterID)
 
-	// Heroes spawn on the bottom row, monsters on the top row.
+	// Heroes spawn on the bottom row, monsters on the top row. Avec plusieurs
+	// ÉQUIPES sur la case (multijoueur) la rangée se remplit du centre vers les
+	// bords — au-delà de 7 héros (largeur de l'arène) les suivants restent
+	// spectateurs sur la carte.
+	spawnX := []int{3, 2, 4, 1, 5, 0, 6}
+	if len(heroes) > len(spawnX) {
+		heroes = heroes[:len(spawnX)]
+	}
 	for i, h := range heroes {
 		appearance := ""
 		if cls := ClassByID(h.ClassID); cls != nil {
@@ -296,7 +344,8 @@ func NewCombat(gs *GameState, heroes []*Hero, monster *Monster) *Combat {
 			Kind:       h.Class,
 			ClassID:    h.ClassID,
 			Appearance: appearance,
-			X:          2 + i,
+			OwnerID:    gs.OwnerOfHero(h.ID),
+			X:          spawnX[i],
 			Y:          gh - 1,
 			HP:         h.HP,
 			MaxHP:      h.MaxHP,
@@ -380,7 +429,7 @@ func (c *Combat) CurrentUnit() *CombatUnit {
 
 func (c *Combat) unitAt(x, y int) *CombatUnit {
 	for _, u := range c.Units {
-		if u.Alive() && u.X == x && u.Y == y {
+		if u.inBattle() && u.X == x && u.Y == y {
 			return u
 		}
 	}
@@ -397,7 +446,7 @@ func (c *Combat) heightAt(x, y int) int {
 func (c *Combat) aliveOnSide(side string) int {
 	n := 0
 	for _, u := range c.Units {
-		if u.Alive() && u.Side == side {
+		if u.inBattle() && u.Side == side {
 			n++
 		}
 	}
@@ -509,7 +558,7 @@ func manhattan(ax, ay, bx, by int) int { return absI(ax-bx) + absI(ay-by) }
 func (c *Combat) TargetsFor(u *CombatUnit, atk *AttackDef) []*CombatUnit {
 	var out []*CombatUnit
 	for _, o := range c.Units {
-		if o.Alive() && o.Side != u.Side && atk.inTargets(o.X-u.X, o.Y-u.Y) {
+		if o.inBattle() && o.Side != u.Side && atk.inTargets(o.X-u.X, o.Y-u.Y) {
 			out = append(out, o)
 		}
 	}
@@ -661,7 +710,7 @@ func (c *Combat) performAttack(att *CombatUnit, atk *AttackDef, tx, ty int) {
 	if atk.BuffAllies {
 		n := 0
 		for _, o := range c.Units {
-			if o.Alive() && o != att && o.Side == att.Side && manhattan(att.X, att.Y, o.X, o.Y) == 1 {
+			if o.inBattle() && o != att && o.Side == att.Side && manhattan(att.X, att.Y, o.X, o.Y) == 1 {
 				o.Stats.Force += 2
 				n++
 			}
@@ -775,7 +824,7 @@ func (c *Combat) PlayerAction(unitID, action string, tx, ty int, targetID string
 			return nil
 		}
 		def := c.unitByID(targetID)
-		if def == nil || !def.Alive() || def.Side == cur.Side {
+		if def == nil || !def.inBattle() || def.Side == cur.Side {
 			return ErrInvalidAction{"cible invalide"}
 		}
 		if !atk.inTargets(def.X-cur.X, def.Y-cur.Y) {
@@ -785,11 +834,166 @@ func (c *Combat) PlayerAction(unitID, action string, tx, ty int, targetID string
 		c.endTurn()
 		return nil
 
+	case "defend":
+		// Lot C3 : le Defend générique (pending §9.3) — réutilise le Bouclier de la
+		// Posture défensive (-50 % subis, consommé au début du prochain tour du héros).
+		cur.addState("Bouclier")
+		c.logf("%s se met en garde : dégâts subis réduits de moitié jusqu'à son prochain tour.", cur.Name)
+		c.endTurn()
+		return nil
+
+	case "push":
+		// Lot C3 : Poussée — 0 dégât, déplace la cible d'1 case dans l'axe.
+		// Portée 1 orthogonale (2 pour le Pionnier : « Poussée du Survivant »).
+		def := c.unitByID(targetID)
+		if def == nil || !def.inBattle() || def.Side == cur.Side {
+			return ErrInvalidAction{"cible invalide"}
+		}
+		dx, dy := def.X-cur.X, def.Y-cur.Y
+		rng := 1
+		if cur.ClassID == "pionnier" {
+			rng = 2
+		}
+		aligned := (dx == 0 && absI(dy) >= 1 && absI(dy) <= rng) || (dy == 0 && absI(dx) >= 1 && absI(dx) <= rng)
+		if !aligned {
+			return ErrInvalidAction{"cible hors de portée de poussée"}
+		}
+		c.pushUnit(cur, def, signI(dx), signI(dy))
+		c.endTurn()
+		return nil
+
+	case "flee":
+		// Lot C3 : fuite — le héros doit avoir rejoint le bord bas de l'arène.
+		if cur.Y != c.GridH-1 {
+			return ErrInvalidAction{"rejoins le bord bas de l'arène pour fuir"}
+		}
+		cur.Fled = true
+		c.logf("%s fuit le combat !", cur.Name)
+		c.endTurn()
+		return nil
+
 	case "end":
 		c.endTurn()
 		return nil
 	}
 	return ErrInvalidAction{"action inconnue"}
+}
+
+// pushUnit (lot C3) : pousse def d'une case dans la direction (dx,dy).
+// Collision avec un bord d'arène, un obstacle, un mur de terrain (montée ≥2) ou
+// une autre unité = 2 dégâts (aux DEUX unités en cas de télescopage) ; poussée
+// dans l'eau = la cible y reste, piégée un tour (Root) ; chute ≥2 niveaux =
+// +2 dégâts ; sinon le déplacement passe par enterCell (glace et ronces
+// s'appliquent aussi aux poussées).
+func (c *Combat) pushUnit(att, def *CombatUnit, dx, dy int) {
+	fromH := c.heightAt(def.X, def.Y)
+	nx, ny := def.X+dx, def.Y+dy
+	blocked := nx < 0 || ny < 0 || nx >= c.GridW || ny >= c.GridH
+	if !blocked {
+		if cell := c.cellAt(nx, ny); cell != nil && cell.Blocked {
+			blocked = true
+		}
+		if c.heightAt(nx, ny)-fromH >= 2 {
+			blocked = true // un mur de terrain arrête la poussée comme un obstacle
+		}
+	}
+	hurt := func(u *CombatUnit, dmg int) {
+		u.HP -= dmg
+		c.addHit(u.ID, dmg, "dmg")
+		if !u.Alive() {
+			c.logf("%s est vaincu.", u.Name)
+		}
+	}
+	if blocked {
+		hurt(def, 2)
+		c.logf("%s pousse %s contre un obstacle (-2 PV).", att.Name, def.Name)
+		return
+	}
+	if other := c.unitAt(nx, ny); other != nil {
+		hurt(def, 2)
+		hurt(other, 2)
+		c.logf("%s pousse %s sur %s (-2 PV chacun).", att.Name, def.Name, other.Name)
+		return
+	}
+	if cell := c.cellAt(nx, ny); cell != nil && cell.Hazard == "water" {
+		def.X, def.Y = nx, ny
+		def.addState("Root")
+		c.logf("%s pousse %s à l'eau — piégé un tour !", att.Name, def.Name)
+		return
+	}
+	c.logf("%s pousse %s.", att.Name, def.Name)
+	c.enterCell(def, nx, ny)
+	if fall := fromH - c.heightAt(def.X, def.Y); fall >= 2 {
+		hurt(def, 2)
+		c.logf("%s chute de %d niveaux (-2 PV).", def.Name, fall)
+	}
+}
+
+// PushTargets renvoie les ennemis poussables par u : alignés orthogonalement à
+// portée 1 (2 pour le Pionnier). Servi par combatResponse comme les autres cibles.
+func (c *Combat) PushTargets(u *CombatUnit) []*CombatUnit {
+	rng := 1
+	if u.ClassID == "pionnier" {
+		rng = 2
+	}
+	var out []*CombatUnit
+	for _, o := range c.Units {
+		if !o.inBattle() || o.Side == u.Side {
+			continue
+		}
+		dx, dy := o.X-u.X, o.Y-u.Y
+		if (dx == 0 && absI(dy) >= 1 && absI(dy) <= rng) || (dy == 0 && absI(dx) >= 1 && absI(dx) <= rng) {
+			out = append(out, o)
+		}
+	}
+	return out
+}
+
+// combatConsumables : les objets du sac utilisables EN COMBAT (lot C3 — premier
+// pas du chantier « consommation d'objets » du design) et leurs PV rendus.
+var combatConsumables = map[string]int{
+	"Potion de soin": 5,
+	"Baume de gelée": 3,
+	"Ration d'eau":   2,
+	"Baies":          2,
+}
+
+// CombatHeal renvoie les PV rendus par un objet en combat (0 = inutilisable).
+func CombatHeal(name string) int { return combatConsumables[name] }
+
+// UseItem (lot C3) : le héros consomme un objet de SON sac (1 action, termine le
+// tour). L'objet est retiré du sac immédiatement — le sac vit dans GameState,
+// d'où le paramètre g (l'appelant tient déjà le verrou de la partie).
+func (c *Combat) UseItem(g *GameState, unitID, itemName string) error {
+	if c.Status != "active" {
+		return ErrInvalidAction{"le combat est terminé"}
+	}
+	cur := c.CurrentUnit()
+	if cur == nil || cur.ID != unitID {
+		return ErrInvalidAction{"ce n'est pas le tour de cette unité"}
+	}
+	if cur.Side != "hero" {
+		return ErrInvalidAction{"cette unité n'est pas contrôlable"}
+	}
+	heal := CombatHeal(itemName)
+	if heal <= 0 {
+		return ErrInvalidAction{"cet objet ne s'utilise pas en combat"}
+	}
+	h := g.HeroByID(cur.RefID)
+	if h == nil || heroItemQty(h, itemName) < 1 {
+		return ErrInvalidAction{"pas de « " + itemName + " » dans le sac"}
+	}
+	removeHeroItem(h, itemName, 1)
+	c.Seq++
+	c.LastHits = nil
+	if cur.HP+heal > cur.MaxHP {
+		heal = cur.MaxHP - cur.HP
+	}
+	cur.HP += heal
+	c.addHit(cur.ID, heal, "heal")
+	c.logf("%s consomme %s (+%d PV).", cur.Name, itemName, heal)
+	c.endTurn()
+	return nil
 }
 
 // endTurn finishes the current unit's turn and resolves AI up to the next hero turn.
@@ -811,7 +1015,7 @@ func (c *Combat) advanceTurn() {
 			c.Round++
 		}
 		u := c.CurrentUnit()
-		if u == nil || !u.Alive() {
+		if u == nil || !u.inBattle() {
 			continue
 		}
 		// Tick one-turn states at the start of the unit's turn.
@@ -845,9 +1049,15 @@ func (c *Combat) advanceUntilHeroOrEnd() {
 			break
 		}
 		if u.Side == "hero" {
-			return
+			if !c.unitIsAuto(u) {
+				return // un joueur PRÉSENT contrôle cette unité : on attend ses ordres
+			}
+			// Héros d'un joueur absent (bot, ou humain n'ayant pas rejoint le
+			// combat) : l'IA joue son tour comme celui d'un monstre.
+			c.heroAutoAct(u)
+		} else {
+			c.monsterTurn(u)
 		}
-		c.monsterTurn(u)
 		c.checkEnd()
 		if c.Status != "active" {
 			return
@@ -898,7 +1108,7 @@ func (c *Combat) nearestEnemy(u *CombatUnit) *CombatUnit {
 	var best *CombatUnit
 	bestD := 1 << 30
 	for _, o := range c.Units {
-		if o.Alive() && o.Side != u.Side {
+		if o.inBattle() && o.Side != u.Side {
 			if d := manhattan(u.X, u.Y, o.X, o.Y); d < bestD {
 				bestD, best = d, o
 			}
@@ -949,9 +1159,17 @@ func (c *Combat) AutoResolve() {
 // strike with the class skill when it deals damage (its bonus beats a plain attack),
 // falling back to the base attack.
 func (c *Combat) heroAutoTurn(u *CombatUnit) {
+	c.heroAutoAct(u)
+	c.endTurn()
+}
+
+// heroAutoAct joue l'action du tour SANS le clore — utilisé par heroAutoTurn
+// (AutoResolve des parties 100 % bots) et par advanceUntilHeroOrEnd pour les
+// héros des joueurs absents du combat (l'appelant gère checkEnd/advanceTurn,
+// sinon la récursion endTurn→advanceUntilHeroOrEnd s'empilerait).
+func (c *Combat) heroAutoAct(u *CombatUnit) {
 	target := c.nearestEnemy(u)
 	if target == nil {
-		c.endTurn()
 		return
 	}
 	sk := heroSkillFor(u.ClassID)
@@ -974,7 +1192,6 @@ func (c *Combat) heroAutoTurn(u *CombatUnit) {
 	} else {
 		c.logf("%s avance.", u.Name)
 	}
-	c.endTurn()
 }
 
 func (c *Combat) checkEnd() {
@@ -982,8 +1199,22 @@ func (c *Combat) checkEnd() {
 		c.Status = "won"
 		c.logf("Victoire ! Les monstres sont vaincus.")
 	} else if c.aliveOnSide("hero") == 0 {
-		c.Status = "lost"
-		c.logf("Défaite... tous les héros sont tombés.")
+		// Plus aucun héros au combat : s'il reste des fuyards VIVANTS c'est une
+		// fuite d'équipe (lot C3 — pas de butin, le pack reste), sinon la défaite.
+		fled := false
+		for _, u := range c.Units {
+			if u.Side == "hero" && u.Alive() && u.Fled {
+				fled = true
+				break
+			}
+		}
+		if fled {
+			c.Status = "fled"
+			c.logf("L'équipe se replie — le combat est rompu.")
+		} else {
+			c.Status = "lost"
+			c.logf("Défaite... tous les héros sont tombés.")
+		}
 	}
 }
 

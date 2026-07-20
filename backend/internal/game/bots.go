@@ -101,7 +101,7 @@ func (g *GameState) botHeroAct(h *Hero) bool {
 	// combat, auto-resolved), otherwise thin it with a Fire ball.
 	if t := g.TileAt(h.X, h.Y); t != nil && t.MonsterID != "" {
 		if m := g.Monsters[t.MonsterID]; m != nil && g.botShouldEngage(h, m) {
-			if c, err := g.StartCombat(h.ID); err == nil {
+			if c, err := g.StartCombat(h.ID, g.OwnerOfHero(h.ID)); err == nil {
 				c.AutoResolve()
 				if c.Status == "active" {
 					// Pathological stall (AutoResolve guard hit): the bots retreat

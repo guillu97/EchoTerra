@@ -426,6 +426,17 @@ class MapWorld {
       quad(ru.x, ru.y, topOf(ru.x, ru.y), ru.cleared && ru.charges > 0 ? 0xffd66e : 0xfff3d0, ru.cleared ? 0.35 : 0.2);
     }
 
+    // combat en cours : marqueur ⚔ sur la case — les autres joueurs le voient
+    // sur la carte et peuvent le rejoindre (bouton dans la barre de la Map)
+    const ac = game.activeCombat ? game.combats?.[game.activeCombat] : undefined;
+    if (ac && ac.status === "active") {
+      quad(ac.tileX, ac.tileY, topOf(ac.tileX, ac.tileY), 0xff4433, 0.45);
+      const lbl = makeLabel("⚔️ Combat !", "#ffd166", 0.3);
+      lbl.center.set(0.5, 0);
+      lbl.position.set(ac.tileX, topOf(ac.tileX, ac.tileY) + 0.95, ac.tileY);
+      this.sprites.add(lbl);
+    }
+
     // monstres : teinte de danger sur la case + sprite de créature
     for (const id in game.monsters) {
       const m = game.monsters[id];

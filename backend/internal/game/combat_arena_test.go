@@ -21,7 +21,7 @@ func arenaGame(biome Biome) (*GameState, *Monster) {
 func TestArenaPerBiome(t *testing.T) {
 	for _, biome := range []Biome{1, 2, 3, 4, 5} {
 		g, m := arenaGame(biome)
-		c := NewCombat(g, g.Heroes, m)
+		c := NewCombat(g, g.Heroes, m, "")
 		if c.Biome != biome {
 			t.Fatalf("biome %d attendu, obtenu %d", biome, c.Biome)
 		}
@@ -48,7 +48,7 @@ func TestArenaPerBiome(t *testing.T) {
 
 func TestArenaBlockedImpassable(t *testing.T) {
 	g, m := arenaGame(3) // forêt : 4 obstacles
-	c := NewCombat(g, g.Heroes, m)
+	c := NewCombat(g, g.Heroes, m, "")
 	var bx, by int
 	found := false
 	for y := 0; y < c.GridH && !found; y++ {
@@ -74,7 +74,7 @@ func TestArenaBlockedImpassable(t *testing.T) {
 
 func TestIceSlideAndBrambles(t *testing.T) {
 	g, m := arenaGame(2)
-	c := NewCombat(g, g.Heroes, m)
+	c := NewCombat(g, g.Heroes, m, "")
 	// arène artificielle contrôlée
 	for i := range c.Cells {
 		c.Cells[i] = CombatCell{}
@@ -114,7 +114,7 @@ func TestIceSlideAndBrambles(t *testing.T) {
 
 func TestWaterImpassable(t *testing.T) {
 	g, m := arenaGame(2)
-	c := NewCombat(g, g.Heroes, m)
+	c := NewCombat(g, g.Heroes, m, "")
 	for i := range c.Cells {
 		c.Cells[i] = CombatCell{}
 	}

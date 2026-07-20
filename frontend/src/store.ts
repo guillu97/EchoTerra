@@ -21,7 +21,7 @@ const LS_PLAYER_NAME = "echoterra:playerName";
 const lsPlayerKey = (gameId: string) => `echoterra:player:${gameId}`;
 
 type View = "map" | "combat";
-type CombatMode = "move" | "attack" | "skill";
+type CombatMode = "move" | "attack" | "skill" | "push";
 
 export type AppScreen = "loading" | "title" | "cinematic" | "game" | "editor" | "designer" | "voxelbench" | "voxeledit" | "lobby" | "account";
 export type Tab = "home" | "map" | "stock" | "structure" | "craft";
@@ -166,6 +166,11 @@ interface StoreState {
   combatTileClick: (x: number, y: number) => Promise<void>;
   combatUnitClick: (unitId: string) => Promise<void>;
   toggleThreat: (unitId: string) => void; // afficher/masquer les cases menacées d'un ennemi
+  joinCombat: () => Promise<void>; // multijoueur : reprendre le contrôle de MES héros
+  refreshCombat: () => Promise<void>; // poll du combat multijoueur (tours des autres)
+  combatDefend: () => Promise<void>; // 🛡️ -50% subis jusqu'au prochain tour (C3)
+  combatFlee: () => Promise<void>; // 🏃 fuir depuis le bord bas (C3)
+  combatUseItem: (name: string) => Promise<void>; // 🧪 consommer un objet du sac (C3)
   endTurn: () => Promise<void>;
   returnToMap: () => void;
   pushLog: (msg: string) => void;
@@ -211,7 +216,13 @@ export const useStore = create<StoreState>((set, get) => {
     });
     resp.combat.log.slice(-3).forEach((l) => pushLog(l));
     if (resp.combat.status !== "active") {
-      pushLog(resp.combat.status === "won" ? "🏆 Victoire !" : "💀 Défaite…");
+      pushLog(
+        resp.combat.status === "won"
+          ? "🏆 Victoire !"
+          : resp.combat.status === "fled"
+            ? "🏃 L'équipe s'est repliée."
+            : "💀 Défaite…",
+      );
       set({ combatMode: "move" });
     }
     renderCombat();
@@ -913,7 +924,12 @@ export const useStore = create<StoreState>((set, get) => {
       withBusy(async () => {
         const { game, combat, current, combatMode, playerId } = get();
         if (!game || !combat || !current) return;
-        const list = combatMode === "skill" ? current.skillTargets : current.attackTargets;
+        const list =
+          combatMode === "skill"
+            ? current.skillTargets
+            : combatMode === "push"
+              ? current.pushTargets ?? []
+              : current.attackTargets;
         if (!list.includes(unitId)) {
           // Pas une cible valide : taper un ennemi montre/masque ses cases
           // menacées (télégraphie C2) au lieu de ne rien faire.
@@ -923,7 +939,7 @@ export const useStore = create<StoreState>((set, get) => {
         }
         const resp = await api.combatAction(game.id, combat.id, {
           unitId: current.unitId,
-          action: combatMode === "skill" ? "skill" : "attack",
+          action: combatMode === "skill" ? "skill" : combatMode === "push" ? "push" : "attack",
           targetId: unitId,
           playerId,
         });
@@ -948,6 +964,75 @@ export const useStore = create<StoreState>((set, get) => {
       set({ threatUnitId: get().threatUnitId === unitId ? undefined : unitId });
       renderCombat();
     },
+
+    joinCombat: () =>
+      withBusy(async () => {
+        const { game, playerId } = get();
+        if (!game?.activeCombat) return;
+        const resp = await api.joinCombat(game.id, game.activeCombat, playerId);
+        set({ view: "combat", combatMode: "move", tab: "map" });
+        pushLog("⚔️ Tu rejoins le combat !");
+        applyCombat(resp);
+      }),
+
+    refreshCombat: async () => {
+      // Poll silencieux du combat multijoueur : n'applique la réponse QUE si
+      // quelque chose a bougé (seq / statut / unité au tour) — sinon applyCombat
+      // re-pousserait les mêmes lignes de log toutes les 3 s.
+      const { game, combat, current, busy } = get();
+      if (!game || !combat || busy || combat.status !== "active") return;
+      if ((game.players?.length ?? 0) === 0) return; // solo legacy : rien à synchroniser
+      try {
+        const resp = await api.getCombat(game.id, combat.id);
+        const changed =
+          resp.combat.seq !== combat.seq ||
+          resp.combat.status !== combat.status ||
+          resp.current?.unitId !== current?.unitId;
+        if (changed) applyCombat(resp);
+      } catch {
+        /* poll silencieux */
+      }
+    },
+
+    combatDefend: () =>
+      withBusy(async () => {
+        const { game, combat, current, playerId } = get();
+        if (!game || !combat || !current) return;
+        const resp = await api.combatAction(game.id, combat.id, {
+          unitId: current.unitId,
+          action: "defend",
+          playerId,
+        });
+        set({ combatMode: "move" });
+        applyCombat(resp);
+      }),
+
+    combatFlee: () =>
+      withBusy(async () => {
+        const { game, combat, current, playerId } = get();
+        if (!game || !combat || !current) return;
+        const resp = await api.combatAction(game.id, combat.id, {
+          unitId: current.unitId,
+          action: "flee",
+          playerId,
+        });
+        set({ combatMode: "move" });
+        applyCombat(resp);
+      }),
+
+    combatUseItem: (name) =>
+      withBusy(async () => {
+        const { game, combat, current, playerId } = get();
+        if (!game || !combat || !current) return;
+        const resp = await api.combatAction(game.id, combat.id, {
+          unitId: current.unitId,
+          action: "item",
+          item: name,
+          playerId,
+        });
+        set({ combatMode: "move" });
+        applyCombat(resp);
+      }),
 
     returnToMap: () => {
       set({ view: "map", combat: undefined, current: undefined, combatThreats: [], threatUnitId: undefined });
