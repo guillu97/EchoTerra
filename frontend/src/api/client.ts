@@ -174,7 +174,8 @@ export const api = {
       { playerId },
     ),
 
-  advance: (gameId: string) => req<GameState>("POST", `/api/games/${gameId}/advance`, {}),
+  advance: (gameId: string, safe = false) =>
+    req<GameState>("POST", `/api/games/${gameId}/advance`, { safe }),
 
   revealFog: (gameId: string, on: boolean) =>
     req<GameState>("POST", `/api/games/${gameId}/reveal`, { on }),

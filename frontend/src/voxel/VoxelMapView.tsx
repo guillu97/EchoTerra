@@ -438,7 +438,9 @@ class MapWorld {
         o.castShadow = o.receiveShadow = true;
         o.position.set(px, this.smoothMode ? this.smooth.heightAt(px, py) - 0.02 : topOf(Math.round(px), Math.round(py)), py);
         o.rotation.y = hash01(i + 9) * Math.PI * 2;
-        o.scale.setScalar(0.34 + hash01(i + 20) * 0.1);
+        // agrandis pour se mettre à l'échelle des arbres de la carte (boost 1.6) —
+        // un olivier ridicule à côté d'un chêne sinon (retour utilisateur)
+        o.scale.setScalar(0.7 + hash01(i + 20) * 0.2);
         this.sprites.add(o);
       }
     }
