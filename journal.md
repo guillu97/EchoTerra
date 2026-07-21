@@ -6,6 +6,36 @@
 
 ---
 
+## 2026-07-21 (57) — Arène de combat : diorama-île, braseros lumineux, ciel crépusculaire
+
+### Fait (retour utilisateur : « améliore la carte des combats pour qu'elle soit bien plus jolie »)
+- **Socle-île flottante** : l'arène ne flotte plus dans un vide plat — un **socle en
+  pyramide inversée** (terre puis roche, `buildStacks` en niveaux négatifs, liseré
+  d'1 case + `inset` croissant) descend sous chaque case → vrai diorama posé.
+- **Braseros d'angle** (×4) : vasque `CylinderGeometry` + flamme `IcosahedronGeometry`
+  self-lit posée sur le **calque bloom** (`BLOOM_LAYER`) → **rayonnent** en mode
+  beauté (halo chaud, façon FFTA2), et restent des braises orange en mode standard.
+- **Fond crépusculaire** : dégradé indigo→mauve (`makeSkyGradient`, exporté) au lieu
+  du à-plat `0x161022` → profondeur atmosphérique.
+- **Décor épars** : herbe/fleurs/champignons/cristaux par biome (`DECO_BY_BIOME`) sur
+  les cases plates vides (ni relief, ni obstacle, ni danger), placement haché ~38 % —
+  de la vie sans gêner la lecture tactique ; cristaux/glace posés sur le calque bloom.
+- **Passe beauté branchée au combat** (`engine.setBeauty(..., {keepBackground:true})`,
+  nouveau flag : la vue garde SON fond, on n'ajoute que tone mapping + bloom sélectif) ;
+  suit `settings.voxelBeauty` à chaud.
+- **Cadrage par défaut** revu : vise plus bas (`y=-0.5`) et zoom adapté à la grille
+  (`380/gridW`, boss 9×9 compris) → on voit le socle-île tout en gardant l'arène lisible.
+
+### Fonctionnel (vérifié)
+- `tsc` + `npm run build` OK ; perf voxel **12/12**. Rendus e2e : `combat-wide`
+  (socle-île + 4 braseros), `combat-wide-beauty` (braseros qui GLOW), `combat-fit`
+  /`combat-fit-beauty` (cadrage de jeu — arène lisible + île + braseros).
+- Overlays tactiques (cases vertes, anneaux, picking, barres de PV, Facing) intacts ;
+  géométries/matériaux des braseros/déco PARTAGÉS (pas de fuite par redraw).
+
+### Reste à faire
+- Braseros animés (flamme qui vacille) — nécessiterait un rendu continu (batterie).
+
 ## 2026-07-21 (56) — Rendu « beauté » expérimental : tone mapping ACES + ciel chaud + bloom SÉLECTIF
 
 ### Fait (retour utilisateur : « ce style [3D lumineux, cristaux brillants] est magnifique, faisable en voxel ? »)

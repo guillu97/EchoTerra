@@ -44,7 +44,7 @@ const TOP_DOWN_ELEVATION = 1.36; // ~78° : vue de dessus du combat (non dégén
 
 // Dégradé vertical zénith→horizon peint dans une petite texture, posé en fond de
 // scène (mode beauté) : donne le halo d'horizon chaud de la référence.
-function makeSkyGradient(top: number, horizon: number): THREE.Texture {
+export function makeSkyGradient(top: number, horizon: number): THREE.Texture {
   const c = document.createElement("canvas");
   c.width = 4;
   c.height = 256;
@@ -155,24 +155,32 @@ export class VoxelEngine {
    * (Le glow sélectif sur les cristaux — bloom réservé aux seuls émissifs — est un
    *  Tier 2 : un bloom GLOBAL délave la scène claire, il faut un rendu séparé.)
    */
-  setBeauty(on: boolean, opts: { horizon?: number; top?: number; fog?: [number, number] } = {}) {
+  setBeauty(
+    on: boolean,
+    opts: { horizon?: number; top?: number; fog?: [number, number]; keepBackground?: boolean } = {},
+  ) {
     if (this.beauty === on) return;
     this.beauty = on;
     if (on) {
-      const horizon = opts.horizon ?? 0xffd9a0; // crème doré chaud à l'horizon
-      const top = opts.top ?? 0x6f9fd8; // bleu ciel plus profond au zénith
-      if (!this.skyTex) this.skyTex = makeSkyGradient(top, horizon);
-      this.scene.background = this.skyTex;
-      // canvas OPAQUE en beauté (sinon le ciel CSS clair transparaît et délave)
-      this.renderer.setClearAlpha(1);
-      this.scene.fog = opts.fog ? new THREE.Fog(horizon, opts.fog[0], opts.fog[1]) : null;
+      // keepBackground : la vue gère elle-même son fond (combat = arène opaque) ;
+      // on n'ajoute alors QUE le tone mapping + le bloom sélectif.
+      if (!opts.keepBackground) {
+        const horizon = opts.horizon ?? 0xffd9a0; // crème doré chaud à l'horizon
+        const top = opts.top ?? 0x6f9fd8; // bleu ciel plus profond au zénith
+        if (!this.skyTex) this.skyTex = makeSkyGradient(top, horizon);
+        this.scene.background = this.skyTex;
+        this.renderer.setClearAlpha(1); // canvas OPAQUE (sinon le ciel CSS délave)
+        this.scene.fog = opts.fog ? new THREE.Fog(horizon, opts.fog[0], opts.fog[1]) : null;
+      }
       this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
       this.renderer.toneMappingExposure = 1.15; // un peu de pêche : ACES assombrit sinon
       this.buildComposers();
     } else {
-      this.scene.background = null; // redevient transparent → ciel CSS visible
-      this.scene.fog = null;
-      this.renderer.setClearAlpha(0);
+      if (!opts.keepBackground) {
+        this.scene.background = null; // redevient transparent → ciel CSS visible
+        this.scene.fog = null;
+        this.renderer.setClearAlpha(0);
+      }
       this.renderer.toneMapping = THREE.NoToneMapping;
       this.renderer.toneMappingExposure = 1;
     }

@@ -12,9 +12,9 @@ import { bus, EV } from "../eventBus";
 import type { Combat, CombatCurrent, CombatHit, CombatThreat, CombatUnit } from "../api/types";
 import { heroTexKey, libUrl, monsterTexKey } from "../assets";
 import { useStore } from "../store";
-import { clearOwned, VoxelEngine } from "./engine";
+import { BLOOM_LAYER, clearOwned, makeSkyGradient, VoxelEngine } from "./engine";
 import { VoxelControls } from "./controls";
-import { BlockLibrary, buildTerrain, type TerrainCell } from "./terrain";
+import { BlockLibrary, buildStacks, buildTerrain, type StackItem, type TerrainCell } from "./terrain";
 
 // sol d'arène par biome (lot C1) — mêmes blocs que la carte du monde
 const COMBAT_FLOOR: Record<number, { block: string; under?: string }> = {
@@ -25,6 +25,21 @@ const COMBAT_FLOOR: Record<number, { block: string; under?: string }> = {
   5: { block: "snow", under: "stone" },
 };
 const ARENA_PROP_MAT = new THREE.MeshLambertMaterial({ vertexColors: true });
+// Flamme des braseros d'angle : self-lit + posée sur le calque bloom → rayonne
+// (comme les cristaux de la carte). Sphère basse résolution = look voxel/braise.
+const FIRE_MAT = new THREE.MeshBasicMaterial({ color: 0xff8a2a });
+const GLOW_VC_MAT = new THREE.MeshBasicMaterial({ vertexColors: true }); // cristaux lumineux (leur couleur)
+const FIRE_GEOM = new THREE.IcosahedronGeometry(0.17, 0);
+const BRAZIER_MAT = new THREE.MeshLambertMaterial({ color: 0x3a3230 });
+const BRAZIER_GEOM = new THREE.CylinderGeometry(0.13, 0.17, 0.34, 6);
+// props décoratifs sur les cases vides (herbe/fleurs/champignons)
+const DECO_BY_BIOME: Record<number, string[]> = {
+  1: ["dune-grass", "pebbles"],
+  2: ["grass-tuft", "flowers", "daisy"],
+  3: ["fern", "mushroom", "grass-tuft"],
+  4: ["scree", "crystal"],
+  5: ["snowdrift", "ice-spike"],
+};
 // Géométries PARTAGÉES des overlays de combat (reconstruits à chaque action) —
 // une géométrie par quad/anneau fuyait à chaque redraw (voir clearOwned).
 const CQUAD_GEOM = new THREE.PlaneGeometry(0.94, 0.94).rotateX(-Math.PI / 2);
@@ -68,14 +83,29 @@ class CombatWorld {
   private fxAnims: { sprite: THREE.Sprite; x: number; y0: number; z: number; start: number; dur: number }[] = [];
   private fxRaf = 0;
 
+  skyTex: THREE.Texture;
+  private unsubBeauty: () => void;
+
   constructor(readonly engine: VoxelEngine) {
-    engine.enableLighting({ shadowSpan: 9 }); // arène 7×7 : ombres serrées et nettes
-    engine.scene.background = new THREE.Color(0x161022); // fond opaque (comme CombatScene)
+    engine.enableLighting({ shadowSpan: 12 }); // arène + socle : ombres serrées
+    // fond : dégradé crépusculaire (indigo profond → mauve chaud) au lieu du à-plat
+    // → profondeur atmosphérique, l'arène-diorama ne flotte plus dans un vide plat.
+    this.skyTex = makeSkyGradient(0x120c22, 0x39284e);
+    engine.scene.background = this.skyTex;
     engine.scene.add(this.overlays);
     engine.scene.add(this.sprites);
     engine.scene.add(this.fx);
+    // passe beauté (tone mapping + bloom sélectif sur les flammes) — la vue garde
+    // SON fond crépusculaire (keepBackground) ; suit le réglage à chaud.
+    const beautyOn = () => useStore.getState().settings.voxelBeauty;
+    engine.setBeauty(beautyOn(), { keepBackground: true });
+    this.unsubBeauty = useStore.subscribe((s, prev) => {
+      if (s.settings.voxelBeauty !== prev.settings.voxelBeauty)
+        engine.setBeauty(s.settings.voxelBeauty, { keepBackground: true });
+    });
     void this.propsLib
-      .load(["rock", "tree-green", "ice-spike", "brambles"])
+      .load(["rock", "tree-green", "ice-spike", "brambles", "grass-tuft", "flowers", "daisy",
+             "fern", "mushroom", "dune-grass", "pebbles", "scree", "crystal", "snowdrift"])
       .then(() => { this.terrainKey = ""; this.draw(); });
     void this.lib.load(["grass", "dirt", "sand", "forest", "stone", "snow", "water", "ice"]).then(() => {
       this.libReady = true;
@@ -90,7 +120,10 @@ class CombatWorld {
   }
   dispose() {
     if (this.fxRaf) cancelAnimationFrame(this.fxRaf);
+    this.unsubBeauty();
+    this.skyTex.dispose();
     this.lib.dispose();
+    this.propsLib.dispose();
     this.chars.dispose();
     for (const t of this.textures.values()) t.dispose();
   }
@@ -202,6 +235,60 @@ class CombatWorld {
       const built = buildTerrain(this.lib, cells);
       this.terrain = built.group;
       this.lookup = built.lookup;
+
+      // SOCLE d'île flottante : l'arène ne flotte plus dans le vide — un bloc de
+      // terre/roche descend sous chaque case, en pyramide inversée (côtés rocheux),
+      // avec un liseré d'1 case autour → diorama posé, pas dalle suspendue.
+      const baseItems: StackItem[] = [];
+      const BASE_DEPTH = 5;
+      for (let d = 1; d <= BASE_DEPTH; d++) {
+        const inset = Math.floor((d - 1) / 2) - (d === 1 ? 1 : 0); // -1 (liseré), 0,0,1,1
+        const blk = d <= 2 ? floor.under ?? "dirt" : "stone";
+        for (let y = inset; y < c.gridH - inset; y++)
+          for (let x = inset; x < c.gridW - inset; x++)
+            baseItems.push({ x, y, level: -d, block: blk });
+      }
+      built.group.add(buildStacks(this.lib, baseItems).group);
+
+      // BRASEROS d'angle : 4 vasques posées sur le liseré, flamme self-lit qui
+      // RAYONNE (calque bloom) — cadre l'arène façon FFTA2 et anime la lumière.
+      for (const [bx, by] of [[-1, -1], [c.gridW, -1], [-1, c.gridH], [c.gridW, c.gridH]] as const) {
+        const bowl = new THREE.Mesh(BRAZIER_GEOM, BRAZIER_MAT);
+        bowl.castShadow = true;
+        bowl.position.set(bx, 0.17, by); // sur le dessus du liseré (y=0)
+        built.group.add(bowl);
+        const fire = new THREE.Mesh(FIRE_GEOM, FIRE_MAT);
+        fire.position.set(bx, 0.42, by);
+        fire.layers.enable(BLOOM_LAYER);
+        built.group.add(fire);
+      }
+
+      // DÉCOR : herbe/fleurs/champignons épars sur les cases vides (ni relief, ni
+      // obstacle, ni danger) — de la vie, sans gêner la lecture tactique.
+      const deco = DECO_BY_BIOME[c.biome] ?? DECO_BY_BIOME[2];
+      for (let y = 0; y < c.gridH; y++) {
+        for (let x = 0; x < c.gridW; x++) {
+          const cc = cellAt(x, y);
+          if (cc?.blocked || cc?.hazard || this.heightAt(x, y) > 0) continue;
+          const h = (x * 73856093) ^ (y * 19349663);
+          if (((h >>> 0) % 100) >= 38) continue; // ~38 % des cases plates
+          const id = deco[((h >>> 3) >>> 0) % deco.length];
+          const geom = this.propsLib.get(id, ((h >>> 5) >>> 0) % 3);
+          if (!geom) continue;
+          const glow = id === "crystal" || id === "ice-spike";
+          const m = new THREE.Mesh(geom, glow ? GLOW_VC_MAT : ARENA_PROP_MAT);
+          m.castShadow = !glow;
+          m.receiveShadow = !glow;
+          if (glow) m.layers.enable(BLOOM_LAYER);
+          const jx = (((h >>> 7) % 40) / 100) - 0.2;
+          const jy = (((h >>> 11) % 40) / 100) - 0.2;
+          m.position.set(x + jx, 1 - 0.02, y + jy);
+          m.rotation.y = ((h >>> 2) % 8) * (Math.PI / 4);
+          m.scale.setScalar(0.34 + ((h >>> 9) % 20) / 100);
+          built.group.add(m);
+        }
+      }
+
       // obstacles (rocher/arbre/pic selon biome) et ronces posés SUR les cases
       const obstacleId = c.biome === 3 || c.biome === 2 ? "tree-green" : c.biome === 5 ? "ice-spike" : "rock";
       for (let y = 0; y < c.gridH; y++) {
@@ -364,8 +451,10 @@ class CombatWorld {
     }
 
     if (!this.fitted) {
-      engine.target.set((c.gridW - 1) / 2, 0.4, (c.gridH - 1) / 2);
-      engine.zoom = 64;
+      // vise un peu plus BAS et dézoome légèrement pour montrer le socle-île (le
+      // diorama), tout en gardant l'arène lisible ; zoom adapté à la grille (boss 9×9).
+      engine.target.set((c.gridW - 1) / 2, -0.5, (c.gridH - 1) / 2);
+      engine.zoom = Math.round(380 / c.gridW);
       this.fitted = true;
     }
     engine.invalidate();
