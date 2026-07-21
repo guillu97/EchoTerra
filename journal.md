@@ -6,6 +6,29 @@
 
 ---
 
+## 2026-07-21 (60) — Densité de monstres relevée (carte peuplée dès le départ)
+
+### Fait (retour utilisateur : « le nombre de monstres sur la carte est ridicule vs l'attaque de vague ; plus de monstres dès le début »)
+- **Seed initial ∝ surface** : `SeedStartingMonsters` passe de `3 + (players-1)` à
+  `6 + aire/280 + 2*(players-1)` → **~18 packs** sur une carte 60×60 (contre 3), et
+  ~26 en solo-avec-bots (5 « joueurs »).
+- **Monstres VISIBLES dès le départ** : le fog cachait tous les packs (posés hors de
+  l'anneau découvert) → 0 visible au lancement. `spawnPackInBand` pose désormais
+  `3 + (players-1)` packs dans l'anneau DÉJÀ DÉCOUVERT autour de la ville
+  (`[safeRadius+1 .. townSightRadius]`) — **3 à 7 monstres visibles immédiatement**,
+  le reste réparti au loin (révélé à l'exploration + migration).
+- **Densité de fond** : `spawnChance` = `0.45 + 0.55*dist` (fond peuplé partout,
+  plus dense au loin) au lieu du quadratique qui vidait tout sauf les bords ; anneau
+  vierge réduit à **1** (seul le pourtour immédiat de la ville).
+- **Apparition par vague** relevée : `2 + vague/2` (plafond 8) → `4 + vague`
+  (plafond 20) — la horde sur la carte grossit vraiment vague après vague.
+
+### Fonctionnel (vérifié)
+- `go test ./...` vert (`TestStartingMonstersScaleWithPlayers` recalé sur la densité,
+  `spawn_test.go` : distance/ruines/vague croissantes toujours OK). Serveur réel :
+  60×60 → 3 visibles / 18 total (1 joueur), 7 visibles / 26 total (solo-bots) ; rendu
+  carte confirmant les packs + badges ☠ autour de la ville.
+
 ## 2026-07-21 (59) — Économie d'exploration : biomes accessibles + épuisement des cases
 
 ### Fait (retour utilisateur : « facilitons l'accès des biomes + ajoutons l'épuisement des cases pour pousser à explorer »)

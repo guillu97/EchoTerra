@@ -49,17 +49,17 @@ func (g *GameState) spawnableSpeciesAt(x, y int, includeBosses bool) *SpeciesDef
 	return pool[rand.Intn(len(pool))]
 }
 
-// Réglages de l'apparition pondérée (2026-07-20).
+// Réglages de l'apparition pondérée (2026-07-20, densité relevée 2026-07-21).
 const (
-	spawnSafeRadius  = 2   // anneau autour de la ville où RIEN n'apparaît (Chebyshev)
-	ruinDangerRadius = 3   // rayon autour d'une ruine qui gonfle l'apparition
-	waveSpawnGrowth  = 0.2 // chaque vague soulève tout le champ de probabilité
+	spawnSafeRadius  = 1    // seul l'anneau immédiat de la ville reste vierge
+	spawnBaseChance  = 0.45 // densité de FOND partout au-delà de l'anneau (carte peuplée)
+	ruinDangerRadius = 3    // rayon autour d'une ruine qui gonfle l'apparition
+	waveSpawnGrowth  = 0.2  // chaque vague soulève tout le champ de probabilité
 )
 
 // spawnChance renvoie 0..1 : la probabilité qu'une tuile praticable fasse
-// apparaître un pack. Elle CROÎT avec la distance à la ville (près de la ville =
-// quasi nul, d'où « presque pas de monstres autour de la ville » au début),
-// AUTOUR des ruines, et à chaque vague passée.
+// apparaître un pack. Densité de fond partout au-delà de l'anneau de la ville, qui
+// CROÎT avec la distance (plus dense au loin), AUTOUR des ruines, et à chaque vague.
 func (g *GameState) spawnChance(x, y, waveNumber int) float64 {
 	dTown := g.chebyshevToTown(x, y)
 	if dTown <= spawnSafeRadius {
@@ -77,7 +77,8 @@ func (g *GameState) spawnChance(x, y, waveNumber int) float64 {
 	if dist > 1 {
 		dist = 1
 	}
-	w := dist * dist // quadratique : la bande proche de la ville reste très pauvre
+	// fond peuplé + bonus de distance : la carte a des monstres partout, plus au loin.
+	w := spawnBaseChance + (1-spawnBaseChance)*dist
 	// les ruines rayonnent le danger : les tuiles à quelques pas apparaissent bien plus.
 	for _, ru := range g.Ruins {
 		if d := cheb(x-ru.X, y-ru.Y); d <= ruinDangerRadius {
@@ -124,16 +125,54 @@ func (g *GameState) spawnWeightedPack(waveNumber int, includeBosses bool) bool {
 	return false
 }
 
-// SeedStartingMonsters place PEU de packs au lancement, et la pondération par
-// distance les repousse LOIN de la ville (règle : au début, autour de la ville
-// est presque vide). +1 pack par joueur supplémentaire. Renvoie le nombre posé.
+// spawnPackInBand pose UN pack sur une tuile praticable libre à distance Chebyshev
+// [lo,hi] de la ville (sert à garantir des monstres VISIBLES dans l'anneau déjà
+// découvert autour de la ville dès le lancement — le fog cache le reste).
+func (g *GameState) spawnPackInBand(lo, hi int, includeBosses bool) bool {
+	for tries := 0; tries < 120; tries++ {
+		r := lo + rand.Intn(hi-lo+1)
+		x, y := g.Town.X, g.Town.Y
+		if rand.Intn(2) == 0 { // bord haut/bas de l'anneau
+			x += rand.Intn(2*r+1) - r
+			y += r * (2*rand.Intn(2) - 1)
+		} else { // bord gauche/droite
+			x += r * (2*rand.Intn(2) - 1)
+			y += rand.Intn(2*r+1) - r
+		}
+		t := g.TileAt(x, y)
+		if t == nil || !t.Biome.Walkable() || t.MonsterID != "" || (x == g.Town.X && y == g.Town.Y) {
+			continue
+		}
+		sp := g.spawnableSpeciesAt(x, y, includeBosses)
+		if sp == nil {
+			continue
+		}
+		m := NewMonster(sp.Name, x, y)
+		g.Monsters[m.ID] = m
+		t.MonsterID = m.ID
+		return true
+	}
+	return false
+}
+
+// SeedStartingMonsters peuple la carte dès le lancement : un nombre de packs
+// PROPORTIONNEL À LA SURFACE (densité constante quelle que soit la taille), + par
+// joueur (retour : « trop peu de monstres vs l'attaque de vague »). Quelques packs
+// sont posés dans l'anneau DÉCOUVERT autour de la ville pour être visibles tout de
+// suite ; le reste est réparti au loin (pondéré). Renvoie le nombre posé.
 func (g *GameState) SeedStartingMonsters(players int) int {
 	if players < 1 {
 		players = 1
 	}
-	target := 3 + (players - 1)
+	target := 6 + (g.Width*g.Height)/280 + 2*(players-1)
+	near := 3 + (players - 1) // visibles dès le départ (dans le rayon de vision de la ville)
 	placed := 0
-	for i := 0; i < target; i++ {
+	for i := 0; i < near; i++ {
+		if g.spawnPackInBand(spawnSafeRadius+1, townSightRadius, false) {
+			placed++
+		}
+	}
+	for i := near; i < target; i++ {
 		if g.spawnWeightedPack(0, false) {
 			placed++
 		}
