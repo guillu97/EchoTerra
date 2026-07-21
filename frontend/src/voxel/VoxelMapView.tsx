@@ -16,7 +16,7 @@ import * as THREE from "three";
 import { bus, EV } from "../eventBus";
 import type { GameState, Hero } from "../api/types";
 import { heroTexKey, libUrl, monsterTexKey } from "../assets";
-import { clearOwned, VoxelEngine } from "./engine";
+import { BLOOM_LAYER, clearOwned, VoxelEngine } from "./engine";
 import { VoxelControls } from "./controls";
 import { BlockLibrary, buildTerrain, type TerrainCell } from "./terrain";
 import { SmoothTerrain } from "./smoothTerrain";
@@ -184,13 +184,16 @@ class MapWorld {
       const dash = key.lastIndexOf("-v");
       const geom = this.propsLib.get(key.slice(0, dash), Number(key.slice(dash + 2)));
       if (!geom) continue;
-      // lucioles : self-lit (Basic) pour luire au crépuscule, sans ombre portée
-      const glowing = key.startsWith("firefly");
-      const mesh = new THREE.InstancedMesh(geom, glowing ? FIREFLY_MAT : PROP_MAT, mats.length);
+      // objets LUMINEUX : lucioles + cristaux/stalagmites de givre — self-lit
+      // (Basic) et posés sur le calque bloom pour RAYONNER en mode beauté.
+      const glowing = GLOW_PROPS.some((g) => key.startsWith(g));
+      const mesh = new THREE.InstancedMesh(geom, glowing ? GLOW_MAT : PROP_MAT, mats.length);
       for (let i = 0; i < mats.length; i++) mesh.setMatrixAt(i, mats[i]);
       mesh.instanceMatrix.needsUpdate = true;
       mesh.castShadow = !glowing;
       mesh.receiveShadow = !glowing;
+      if (glowing) mesh.layers.enable(BLOOM_LAYER); // rayonne dans la passe beauté
+
       if (eagleP && key.startsWith("eagle")) {
         this.eagle = {
           mesh, x: eagleP.x, z: eagleP.y,
@@ -655,7 +658,10 @@ export function VoxelMapView({ active = true }: { active?: boolean }) {
 
 const UP = new THREE.Vector3(0, 1, 0);
 const PROP_MAT = new THREE.MeshLambertMaterial({ vertexColors: true });
-const FIREFLY_MAT = new THREE.MeshBasicMaterial({ vertexColors: true }); // luit dans la pénombre
+// matériau des objets LUMINEUX (lucioles, cristaux, givre) : self-lit (Basic) →
+// couleurs pleines, luit dans la pénombre, et alimente le bloom sélectif.
+const GLOW_MAT = new THREE.MeshBasicMaterial({ vertexColors: true });
+const GLOW_PROPS = ["firefly", "crystal", "ice-spike"]; // props posés sur le calque bloom
 // le temple est surtout fait de FACES VERTICALES : ombrage cuit du mesher +
 // Lambert = double peine → petite émissive chaude pour garder le marbre clair
 const TEMPLE_MAT = new THREE.MeshLambertMaterial({ vertexColors: true, emissive: new THREE.Color(0x4a453e) });

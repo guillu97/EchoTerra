@@ -6,6 +6,38 @@
 
 ---
 
+## 2026-07-21 (56) — Rendu « beauté » expérimental : tone mapping ACES + ciel chaud + bloom SÉLECTIF
+
+### Fait (retour utilisateur : « ce style [3D lumineux, cristaux brillants] est magnifique, faisable en voxel ? »)
+- Nouveau réglage **`settings.voxelBeauty`** (off par défaut) → **Réglages → « Rendu
+  beauté : Cinématique / Standard »**, câblé à chaud sur `VoxelMapView` et
+  `VoxelTownView` (abonnement au store). `engine.setBeauty(on)`.
+- **Passe légère** : tone mapping **ACES filmique** (+ exposition 1.15) + **ciel
+  dégradé chaud opaque** (horizon doré, `makeSkyGradient`) + `setClearAlpha(1)` en
+  beauté (sinon le ciel CSS clair transparaît et délave) ; brume `THREE.Fog`
+  optionnelle (off par défaut — la caméra ortho la rend très sensible).
+- **BLOOM SÉLECTIF** (le « glow » de la référence) : un bloom GLOBAL délavait toute
+  la scène (décor clair, quasi pas d'émissifs HDR) → technique à deux composers.
+  `BLOOM_LAYER = 1` : les props LUMINEUX (`GLOW_PROPS` = luciole/cristal/givre,
+  `GLOW_MAT` self-lit) sont posés sur ce calque EN PLUS du calque 0. Au rendu :
+  (1) `bloomComposer` rend la scène caméra restreinte au calque bloom (fond/brume
+  retirés → seuls les émissifs sur noir) puis `UnrealBloomPass` ; (2) `finalComposer`
+  rend la scène normale (ciel+brume) puis un `ShaderPass` ADDITIONNE la texture de
+  bloom, puis `OutputPass` (tone mapping). Résultat : cristaux/lucioles rayonnent,
+  le reste reste net. Rendu **on-demand préservé** (composers seulement aux redraws).
+
+### Fonctionnel (vérifié)
+- `tsc` + `npm run build` OK ; perf voxel **12/12** (chemin par défaut = beauté OFF,
+  inchangé — les composers ne sont construits qu'à l'activation). Rendus e2e :
+  `beauty-town` (terrasses dorées chaudes, horizon doré), `bloom-map` (cristaux
+  injectés rayonnant sur calque bloom, reste de la scène net, zéro délavage).
+- Chemin par défaut (transparent + `renderer.render`) intact.
+
+### Reste à faire
+- Étendre `GLOW_PROPS` (fleurs magiques ?) si on veut plus de glow en plaine.
+- Éventuel Tier « mode beauté desktop » : eau réfléchissante / god-rays / DOF
+  (coûteux, rendu continu → réservé desktop, pas mobile).
+
 ## 2026-07-20 (55) — Lot d'ajustements : header, danger, échelle, créneaux de reprise, apparition des monstres, tour sur la montagne
 
 ### Fait (retours utilisateur groupés)

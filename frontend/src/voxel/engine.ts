@@ -9,8 +9,19 @@
 //   des contrôles est triviale et exacte.
 
 import * as THREE from "three";
+import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
+import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
+import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { DPR } from "../game/dpr";
 import { azimuthFor, cameraDir, ELEVATION, nextOrientation, type Orientation } from "./rotation";
+
+// Calque « lumineux » : les objets qui doivent RAYONNER (cristaux, fleurs
+// magiques, lucioles) sont posés dessus EN PLUS du calque 0. Le bloom sélectif
+// ne rend QUE ce calque (fond noir) → seuls eux bloment, la scène claire ne
+// délave pas. Les vues appellent `mesh.layers.enable(BLOOM_LAYER)`.
+export const BLOOM_LAYER = 1;
 
 // Vide un groupe d'overlays reconstruit à chaque draw en LIBÉRANT ce que les
 // enfants possèdent : géométrie si `userData.ownGeom`, matériau si
@@ -76,12 +87,14 @@ export class VoxelEngine {
   topDown = false;
   onFrame: ((info: { calls: number; triangles: number; ms: number }) => void) | null = null;
 
-  /** passe « beauté » expérimentale (Tier 1) : tone mapping ACES filmique + ciel
-   *  dégradé chaud + brume atmosphérique optionnelle. Léger (pas de post-process
-   *  plein écran) → rendu on-demand inchangé. Désactivée par défaut. Le glow sélectif
-   *  sur les cristaux (bloom) est un Tier 2 séparé. */
+  /** passe « beauté » expérimentale : tone mapping ACES filmique + ciel dégradé chaud
+   *  + BLOOM SÉLECTIF (glow des cristaux/lucioles/fleurs, sans délaver la scène).
+   *  Rendu on-demand préservé (les composers ne tournent qu'aux redraws). Off par défaut. */
   beauty = false;
   private skyTex: THREE.Texture | null = null;
+  private bloomComposer: EffectComposer | null = null;
+  private finalComposer: EffectComposer | null = null;
+  private bloomPass: UnrealBloomPass | null = null;
 
   private azimuth = azimuthFor(0);
   private sun: THREE.DirectionalLight | null = null;
@@ -109,6 +122,8 @@ export class VoxelEngine {
     cancelAnimationFrame(this.raf);
     this.ro.disconnect();
     this.skyTex?.dispose();
+    this.bloomComposer?.dispose();
+    this.finalComposer?.dispose();
     this.renderer.dispose();
     this.renderer.domElement.remove();
   }
@@ -119,6 +134,9 @@ export class VoxelEngine {
     this.cssW = w;
     this.cssH = h;
     this.renderer.setSize(w, h, false); // false: le style CSS reste 100%
+    this.bloomComposer?.setSize(w, h);
+    this.finalComposer?.setSize(w, h);
+    this.bloomPass?.setSize(w, h);
     this.camera.left = -w / 2;
     this.camera.right = w / 2;
     this.camera.top = h / 2;
@@ -150,6 +168,7 @@ export class VoxelEngine {
       this.scene.fog = opts.fog ? new THREE.Fog(horizon, opts.fog[0], opts.fog[1]) : null;
       this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
       this.renderer.toneMappingExposure = 1.15; // un peu de pêche : ACES assombrit sinon
+      this.buildComposers();
     } else {
       this.scene.background = null; // redevient transparent → ciel CSS visible
       this.scene.fog = null;
@@ -159,6 +178,46 @@ export class VoxelEngine {
     }
     this.refreshShadows();
     this.invalidate();
+  }
+
+  /** Pipeline de BLOOM SÉLECTIF (construit à la 1re activation) :
+   *  - bloomComposer : rend la scène en n'affichant QUE le calque lumineux (fond
+   *    noir → seuls cristaux/lucioles apparaissent) puis applique le flou-bloom ;
+   *  - finalComposer : rend la scène NORMALE (ciel/brume compris), puis un shader
+   *    de mélange ADDITIONNE la texture de bloom, puis OutputPass (tone mapping). */
+  private buildComposers() {
+    if (this.bloomComposer) return;
+    const size = new THREE.Vector2(this.cssW, this.cssH);
+    const bloomPass = new UnrealBloomPass(size, 1.1, 0.55, 0.0); // seuil 0 : le fond est déjà noir
+    const bloomComposer = new EffectComposer(this.renderer);
+    bloomComposer.renderToScreen = false;
+    bloomComposer.addPass(new RenderPass(this.scene, this.camera));
+    bloomComposer.addPass(bloomPass);
+
+    const mixPass = new ShaderPass(
+      new THREE.ShaderMaterial({
+        uniforms: {
+          baseTexture: { value: null },
+          bloomTexture: { value: bloomComposer.renderTarget2.texture },
+        },
+        vertexShader: "varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }",
+        fragmentShader:
+          "uniform sampler2D baseTexture; uniform sampler2D bloomTexture; varying vec2 vUv;" +
+          "void main(){ gl_FragColor = texture2D(baseTexture, vUv) + texture2D(bloomTexture, vUv); }",
+      }),
+      "baseTexture",
+    );
+    mixPass.needsSwap = true;
+
+    const finalComposer = new EffectComposer(this.renderer);
+    finalComposer.addPass(new RenderPass(this.scene, this.camera));
+    finalComposer.addPass(mixPass);
+    finalComposer.addPass(new OutputPass());
+
+    this.bloomComposer = bloomComposer;
+    this.finalComposer = finalComposer;
+    this.bloomPass = bloomPass;
+    this.resize(); // dimensionne les cibles de rendu
   }
 
   /**
@@ -367,7 +426,24 @@ export class VoxelEngine {
           this.renderer.shadowMap.needsUpdate = true; // pan/cycle solaire : ombres à jour
         }
       }
-      this.renderer.render(this.scene, this.camera);
+      if (this.beauty && this.bloomComposer && this.finalComposer) {
+        // 1) passe bloom : caméra restreinte au calque lumineux, fond/brume retirés
+        //    (sinon le ciel clair bloomerait) → texture de halos.
+        const mask = this.camera.layers.mask;
+        const bg = this.scene.background;
+        const fog = this.scene.fog;
+        this.scene.background = null;
+        this.scene.fog = null;
+        this.camera.layers.set(BLOOM_LAYER);
+        this.bloomComposer.render();
+        // 2) passe finale : scène normale + ciel + brume, additionnée du bloom.
+        this.camera.layers.mask = mask;
+        this.scene.background = bg;
+        this.scene.fog = fog;
+        this.finalComposer.render();
+      } else {
+        this.renderer.render(this.scene, this.camera);
+      }
       this.onFrame?.({
         calls: this.renderer.info.render.calls,
         triangles: this.renderer.info.render.triangles,
