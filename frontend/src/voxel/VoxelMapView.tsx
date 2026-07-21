@@ -578,12 +578,16 @@ export function VoxelMapView({ active = true }: { active?: boolean }) {
     const controls = new VoxelControls(engine);
     const world = new MapWorld(engine);
     controls.onTap = (t) => world.onTap(t.cssX, t.cssY);
-    // mode terrain (blocs ⇄ lisse) depuis les Réglages, à chaud
+    // mode terrain (blocs ⇄ lisse) + passe beauté depuis les Réglages, à chaud
     world.smoothMode = useStore.getState().settings.voxelSmooth;
+    engine.setBeauty(useStore.getState().settings.voxelBeauty);
     const unsubSettings = useStore.subscribe((s, prev) => {
       if (s.settings.voxelSmooth !== prev.settings.voxelSmooth) {
         world.smoothMode = s.settings.voxelSmooth;
         world.draw();
+      }
+      if (s.settings.voxelBeauty !== prev.settings.voxelBeauty) {
+        engine.setBeauty(s.settings.voxelBeauty);
       }
     });
 

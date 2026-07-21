@@ -31,6 +31,34 @@ const CAM_DIST = 300; // recul arbitraire (ortho : seule la direction compte)
 const ROT_MS = 240; // durée de l'animation de rotation
 const TOP_DOWN_ELEVATION = 1.36; // ~78° : vue de dessus du combat (non dégénérée)
 
+// Dégradé vertical zénith→horizon peint dans une petite texture, posé en fond de
+// scène (mode beauté) : donne le halo d'horizon chaud de la référence.
+function makeSkyGradient(top: number, horizon: number): THREE.Texture {
+  const c = document.createElement("canvas");
+  c.width = 4;
+  c.height = 256;
+  const ctx = c.getContext("2d")!;
+  const g = ctx.createLinearGradient(0, 0, 0, 256);
+  const hex = (n: number) => `#${n.toString(16).padStart(6, "0")}`;
+  g.addColorStop(0, hex(top));
+  g.addColorStop(0.55, hex(lerpHex(top, horizon, 0.6)));
+  g.addColorStop(1, hex(horizon));
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 4, 256);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.needsUpdate = true;
+  return tex;
+}
+function lerpHex(a: number, b: number, t: number): number {
+  const ar = (a >> 16) & 255, ag = (a >> 8) & 255, ab = a & 255;
+  const br = (b >> 16) & 255, bg = (b >> 8) & 255, bb = b & 255;
+  const r = Math.round(ar + (br - ar) * t);
+  const gg = Math.round(ag + (bg - ag) * t);
+  const bl = Math.round(ab + (bb - ab) * t);
+  return (r << 16) | (gg << 8) | bl;
+}
+
 export class VoxelEngine {
   readonly renderer: THREE.WebGLRenderer;
   readonly scene = new THREE.Scene();
@@ -47,6 +75,13 @@ export class VoxelEngine {
    *  monstres masqués par les piliers/reliefs, sans changer l'azimut. */
   topDown = false;
   onFrame: ((info: { calls: number; triangles: number; ms: number }) => void) | null = null;
+
+  /** passe « beauté » expérimentale (Tier 1) : tone mapping ACES filmique + ciel
+   *  dégradé chaud + brume atmosphérique optionnelle. Léger (pas de post-process
+   *  plein écran) → rendu on-demand inchangé. Désactivée par défaut. Le glow sélectif
+   *  sur les cristaux (bloom) est un Tier 2 séparé. */
+  beauty = false;
+  private skyTex: THREE.Texture | null = null;
 
   private azimuth = azimuthFor(0);
   private sun: THREE.DirectionalLight | null = null;
@@ -73,6 +108,7 @@ export class VoxelEngine {
   dispose() {
     cancelAnimationFrame(this.raf);
     this.ro.disconnect();
+    this.skyTex?.dispose();
     this.renderer.dispose();
     this.renderer.domElement.remove();
   }
@@ -87,6 +123,41 @@ export class VoxelEngine {
     this.camera.right = w / 2;
     this.camera.top = h / 2;
     this.camera.bottom = -h / 2;
+    this.invalidate();
+  }
+
+  /**
+   * Active/désactive la passe BEAUTÉ (Tier 1) — légère, sans post-process plein
+   * écran (donc compatible on-demand mobile) :
+   *  - **tone mapping ACES filmique** : compresse les hautes lumières → lumière plus
+   *    « cinéma », couleurs plus riches ;
+   *  - **ciel dégradé chaud opaque** : le halo d'horizon doré de la référence (en mode
+   *    normal le canvas reste transparent → ciel CSS) ;
+   *  - **brume atmosphérique** optionnelle (opts.fog) pour la profondeur.
+   * (Le glow sélectif sur les cristaux — bloom réservé aux seuls émissifs — est un
+   *  Tier 2 : un bloom GLOBAL délave la scène claire, il faut un rendu séparé.)
+   */
+  setBeauty(on: boolean, opts: { horizon?: number; top?: number; fog?: [number, number] } = {}) {
+    if (this.beauty === on) return;
+    this.beauty = on;
+    if (on) {
+      const horizon = opts.horizon ?? 0xffd9a0; // crème doré chaud à l'horizon
+      const top = opts.top ?? 0x6f9fd8; // bleu ciel plus profond au zénith
+      if (!this.skyTex) this.skyTex = makeSkyGradient(top, horizon);
+      this.scene.background = this.skyTex;
+      // canvas OPAQUE en beauté (sinon le ciel CSS clair transparaît et délave)
+      this.renderer.setClearAlpha(1);
+      this.scene.fog = opts.fog ? new THREE.Fog(horizon, opts.fog[0], opts.fog[1]) : null;
+      this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      this.renderer.toneMappingExposure = 1.15; // un peu de pêche : ACES assombrit sinon
+    } else {
+      this.scene.background = null; // redevient transparent → ciel CSS visible
+      this.scene.fog = null;
+      this.renderer.setClearAlpha(0);
+      this.renderer.toneMapping = THREE.NoToneMapping;
+      this.renderer.toneMappingExposure = 1;
+    }
+    this.refreshShadows();
     this.invalidate();
   }
 

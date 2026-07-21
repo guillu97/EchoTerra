@@ -81,6 +81,11 @@ export function VoxelTownView({
     engine.enableLighting({ shadowSpan: 32 }); // lumière pastel + ombres sur la ville
     engine.minZoom = 8;
     engine.maxZoom = 90;
+    // passe beauté (Tier 1) depuis les Réglages, à chaud
+    engine.setBeauty(useStore.getState().settings.voxelBeauty);
+    const unsubBeauty = useStore.subscribe((s, prev) => {
+      if (s.settings.voxelBeauty !== prev.settings.voxelBeauty) engine.setBeauty(s.settings.voxelBeauty);
+    });
     const controls = new VoxelControls(engine);
     // LOD 16³ aussi pour la ville : 575 cellules × 32³ pesaient 6,1 M tris —
     // en 16³ le style voxel reste lisible de près et le budget retombe ~4×.
@@ -317,6 +322,7 @@ export function VoxelTownView({
     if (import.meta.env.DEV) (window as unknown as { __vt?: unknown }).__vt = { engine };
     return () => {
       unsub();
+      unsubBeauty();
       cancelAnimationFrame(raf);
       clouds?.dispose();
       controls.dispose();

@@ -83,6 +83,7 @@ export interface Settings {
   notif: { loot: boolean; wave: boolean; actionPoint: boolean; communication: boolean };
   voxelMap: boolean; // carte monde en voxel 3D (expérimental — VOXEL-PLAN Phase 2)
   voxelSmooth: boolean; // carte : terrain CONTINU lissé (true) ou blocs discrets (false)
+  voxelBeauty: boolean; // passe beauté Tier 1 : tone mapping ACES + bloom + ciel/brume (expérimental)
 }
 
 const DEFAULT_SETTINGS: Settings = {
@@ -94,6 +95,7 @@ const DEFAULT_SETTINGS: Settings = {
   notif: { loot: true, wave: true, actionPoint: true, communication: false },
   voxelMap: true, // Phase 6 (décision utilisateur 2026-07-17) : le voxel est le rendu par défaut
   voxelSmooth: true,
+  voxelBeauty: false, // opt-in (coût GPU du bloom aux redraws) — Réglages « Rendu beauté »
 };
 
 function loadSettings(): Settings {
