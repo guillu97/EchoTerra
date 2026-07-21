@@ -6,6 +6,93 @@
 
 ---
 
+## 2026-07-21 (58) — Arène de combat : sol en pentes voxel lissées (fini les gros cubes) + décor curé
+
+### Fait (retour utilisateur : « les herbes trop nombreuses/moches, et les blocs pas beaux — autre chose que des blocs serait sympa »)
+- **Fini les gros cubes** : le sol de l'arène est désormais rendu en **pentes voxel
+  LISSÉES** (le même `SmoothTerrain` que la carte du monde), au lieu du `buildTerrain`
+  en blocs 32³. `SmoothTerrain.build` prend un `opts {heightScale, rollAmp, micro}` :
+  la carte amplifie/roule, le **combat** passe `{1, 0, 0}` → marches fidèles, plateaux
+  plats et lisibles, pentes arrondies. Cases d'eau (hazard) → biome 0 creusé (shader
+  d'eau `setTime` sur les frames). `heightAt` (logique serveur) inchangé ; nouveau
+  `surfaceY()` = sommet lissé où se posent overlays/unités/props/dégâts flottants.
+- **Socle-île LISSE** : tronc de pyramide (`CylinderGeometry` 4 faces, `PLINTH_MAT`)
+  sous l'arène — plus de blocs empilés, une seule forme propre.
+- **Décor curé** : densité **38 % → 12 %**, plus de « touffes d'herbe » (retirées) —
+  fleurs/champignons/fougères/galets épars par biome (`DECO_BY_BIOME` nettoyé) ; le
+  sol lissé apporte déjà ses pointillés d'herbe. Cristaux sur le calque bloom.
+- **Picking réécrit** : plus de `lookup` instance→case (blocs) ; un clic sur le mesh
+  lissé unique → case = arrondi du point d'impact (`Math.round(point.x/z)`). Vérifié.
+- Braseros d'angle conservés (flamme self-lit sur calque bloom → glow en beauté).
+
+### Fonctionnel (vérifié)
+- `tsc` + `npm run build` OK ; perf voxel **12/12** (carte/ville inchangées). Rendus :
+  `combat-smooth-beauty`/`combat-smooth-fit` (île lissée + braseros, arène lisible),
+  overlays tactiques (cases vertes/anneaux) alignés. **Picking** e2e : projection de
+  la case (2,3) → `onTap` → `CombatTileClick {2,3}` ✓.
+
+## 2026-07-21 (57) — Arène de combat : diorama-île, braseros lumineux, ciel crépusculaire
+
+### Fait (retour utilisateur : « améliore la carte des combats pour qu'elle soit bien plus jolie »)
+- **Socle-île flottante** : l'arène ne flotte plus dans un vide plat — un **socle en
+  pyramide inversée** (terre puis roche, `buildStacks` en niveaux négatifs, liseré
+  d'1 case + `inset` croissant) descend sous chaque case → vrai diorama posé.
+- **Braseros d'angle** (×4) : vasque `CylinderGeometry` + flamme `IcosahedronGeometry`
+  self-lit posée sur le **calque bloom** (`BLOOM_LAYER`) → **rayonnent** en mode
+  beauté (halo chaud, façon FFTA2), et restent des braises orange en mode standard.
+- **Fond crépusculaire** : dégradé indigo→mauve (`makeSkyGradient`, exporté) au lieu
+  du à-plat `0x161022` → profondeur atmosphérique.
+- **Décor épars** : herbe/fleurs/champignons/cristaux par biome (`DECO_BY_BIOME`) sur
+  les cases plates vides (ni relief, ni obstacle, ni danger), placement haché ~38 % —
+  de la vie sans gêner la lecture tactique ; cristaux/glace posés sur le calque bloom.
+- **Passe beauté branchée au combat** (`engine.setBeauty(..., {keepBackground:true})`,
+  nouveau flag : la vue garde SON fond, on n'ajoute que tone mapping + bloom sélectif) ;
+  suit `settings.voxelBeauty` à chaud.
+- **Cadrage par défaut** revu : vise plus bas (`y=-0.5`) et zoom adapté à la grille
+  (`380/gridW`, boss 9×9 compris) → on voit le socle-île tout en gardant l'arène lisible.
+
+### Fonctionnel (vérifié)
+- `tsc` + `npm run build` OK ; perf voxel **12/12**. Rendus e2e : `combat-wide`
+  (socle-île + 4 braseros), `combat-wide-beauty` (braseros qui GLOW), `combat-fit`
+  /`combat-fit-beauty` (cadrage de jeu — arène lisible + île + braseros).
+- Overlays tactiques (cases vertes, anneaux, picking, barres de PV, Facing) intacts ;
+  géométries/matériaux des braseros/déco PARTAGÉS (pas de fuite par redraw).
+
+### Reste à faire
+- Braseros animés (flamme qui vacille) — nécessiterait un rendu continu (batterie).
+
+## 2026-07-21 (56) — Rendu « beauté » expérimental : tone mapping ACES + ciel chaud + bloom SÉLECTIF
+
+### Fait (retour utilisateur : « ce style [3D lumineux, cristaux brillants] est magnifique, faisable en voxel ? »)
+- Nouveau réglage **`settings.voxelBeauty`** (off par défaut) → **Réglages → « Rendu
+  beauté : Cinématique / Standard »**, câblé à chaud sur `VoxelMapView` et
+  `VoxelTownView` (abonnement au store). `engine.setBeauty(on)`.
+- **Passe légère** : tone mapping **ACES filmique** (+ exposition 1.15) + **ciel
+  dégradé chaud opaque** (horizon doré, `makeSkyGradient`) + `setClearAlpha(1)` en
+  beauté (sinon le ciel CSS clair transparaît et délave) ; brume `THREE.Fog`
+  optionnelle (off par défaut — la caméra ortho la rend très sensible).
+- **BLOOM SÉLECTIF** (le « glow » de la référence) : un bloom GLOBAL délavait toute
+  la scène (décor clair, quasi pas d'émissifs HDR) → technique à deux composers.
+  `BLOOM_LAYER = 1` : les props LUMINEUX (`GLOW_PROPS` = luciole/cristal/givre,
+  `GLOW_MAT` self-lit) sont posés sur ce calque EN PLUS du calque 0. Au rendu :
+  (1) `bloomComposer` rend la scène caméra restreinte au calque bloom (fond/brume
+  retirés → seuls les émissifs sur noir) puis `UnrealBloomPass` ; (2) `finalComposer`
+  rend la scène normale (ciel+brume) puis un `ShaderPass` ADDITIONNE la texture de
+  bloom, puis `OutputPass` (tone mapping). Résultat : cristaux/lucioles rayonnent,
+  le reste reste net. Rendu **on-demand préservé** (composers seulement aux redraws).
+
+### Fonctionnel (vérifié)
+- `tsc` + `npm run build` OK ; perf voxel **12/12** (chemin par défaut = beauté OFF,
+  inchangé — les composers ne sont construits qu'à l'activation). Rendus e2e :
+  `beauty-town` (terrasses dorées chaudes, horizon doré), `bloom-map` (cristaux
+  injectés rayonnant sur calque bloom, reste de la scène net, zéro délavage).
+- Chemin par défaut (transparent + `renderer.render`) intact.
+
+### Reste à faire
+- Étendre `GLOW_PROPS` (fleurs magiques ?) si on veut plus de glow en plaine.
+- Éventuel Tier « mode beauté desktop » : eau réfléchissante / god-rays / DOF
+  (coûteux, rendu continu → réservé desktop, pas mobile).
+
 ## 2026-07-20 (55) — Lot d'ajustements : header, danger, échelle, créneaux de reprise, apparition des monstres, tour sur la montagne
 
 ### Fait (retours utilisateur groupés)

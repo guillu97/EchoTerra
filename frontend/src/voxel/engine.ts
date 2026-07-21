@@ -9,8 +9,19 @@
 //   des contrôles est triviale et exacte.
 
 import * as THREE from "three";
+import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
+import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
+import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { DPR } from "../game/dpr";
 import { azimuthFor, cameraDir, ELEVATION, nextOrientation, type Orientation } from "./rotation";
+
+// Calque « lumineux » : les objets qui doivent RAYONNER (cristaux, fleurs
+// magiques, lucioles) sont posés dessus EN PLUS du calque 0. Le bloom sélectif
+// ne rend QUE ce calque (fond noir) → seuls eux bloment, la scène claire ne
+// délave pas. Les vues appellent `mesh.layers.enable(BLOOM_LAYER)`.
+export const BLOOM_LAYER = 1;
 
 // Vide un groupe d'overlays reconstruit à chaque draw en LIBÉRANT ce que les
 // enfants possèdent : géométrie si `userData.ownGeom`, matériau si
@@ -31,6 +42,34 @@ const CAM_DIST = 300; // recul arbitraire (ortho : seule la direction compte)
 const ROT_MS = 240; // durée de l'animation de rotation
 const TOP_DOWN_ELEVATION = 1.36; // ~78° : vue de dessus du combat (non dégénérée)
 
+// Dégradé vertical zénith→horizon peint dans une petite texture, posé en fond de
+// scène (mode beauté) : donne le halo d'horizon chaud de la référence.
+export function makeSkyGradient(top: number, horizon: number): THREE.Texture {
+  const c = document.createElement("canvas");
+  c.width = 4;
+  c.height = 256;
+  const ctx = c.getContext("2d")!;
+  const g = ctx.createLinearGradient(0, 0, 0, 256);
+  const hex = (n: number) => `#${n.toString(16).padStart(6, "0")}`;
+  g.addColorStop(0, hex(top));
+  g.addColorStop(0.55, hex(lerpHex(top, horizon, 0.6)));
+  g.addColorStop(1, hex(horizon));
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 4, 256);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.needsUpdate = true;
+  return tex;
+}
+function lerpHex(a: number, b: number, t: number): number {
+  const ar = (a >> 16) & 255, ag = (a >> 8) & 255, ab = a & 255;
+  const br = (b >> 16) & 255, bg = (b >> 8) & 255, bb = b & 255;
+  const r = Math.round(ar + (br - ar) * t);
+  const gg = Math.round(ag + (bg - ag) * t);
+  const bl = Math.round(ab + (bb - ab) * t);
+  return (r << 16) | (gg << 8) | bl;
+}
+
 export class VoxelEngine {
   readonly renderer: THREE.WebGLRenderer;
   readonly scene = new THREE.Scene();
@@ -47,6 +86,15 @@ export class VoxelEngine {
    *  monstres masqués par les piliers/reliefs, sans changer l'azimut. */
   topDown = false;
   onFrame: ((info: { calls: number; triangles: number; ms: number }) => void) | null = null;
+
+  /** passe « beauté » expérimentale : tone mapping ACES filmique + ciel dégradé chaud
+   *  + BLOOM SÉLECTIF (glow des cristaux/lucioles/fleurs, sans délaver la scène).
+   *  Rendu on-demand préservé (les composers ne tournent qu'aux redraws). Off par défaut. */
+  beauty = false;
+  private skyTex: THREE.Texture | null = null;
+  private bloomComposer: EffectComposer | null = null;
+  private finalComposer: EffectComposer | null = null;
+  private bloomPass: UnrealBloomPass | null = null;
 
   private azimuth = azimuthFor(0);
   private sun: THREE.DirectionalLight | null = null;
@@ -73,6 +121,9 @@ export class VoxelEngine {
   dispose() {
     cancelAnimationFrame(this.raf);
     this.ro.disconnect();
+    this.skyTex?.dispose();
+    this.bloomComposer?.dispose();
+    this.finalComposer?.dispose();
     this.renderer.dispose();
     this.renderer.domElement.remove();
   }
@@ -83,11 +134,98 @@ export class VoxelEngine {
     this.cssW = w;
     this.cssH = h;
     this.renderer.setSize(w, h, false); // false: le style CSS reste 100%
+    this.bloomComposer?.setSize(w, h);
+    this.finalComposer?.setSize(w, h);
+    this.bloomPass?.setSize(w, h);
     this.camera.left = -w / 2;
     this.camera.right = w / 2;
     this.camera.top = h / 2;
     this.camera.bottom = -h / 2;
     this.invalidate();
+  }
+
+  /**
+   * Active/désactive la passe BEAUTÉ (Tier 1) — légère, sans post-process plein
+   * écran (donc compatible on-demand mobile) :
+   *  - **tone mapping ACES filmique** : compresse les hautes lumières → lumière plus
+   *    « cinéma », couleurs plus riches ;
+   *  - **ciel dégradé chaud opaque** : le halo d'horizon doré de la référence (en mode
+   *    normal le canvas reste transparent → ciel CSS) ;
+   *  - **brume atmosphérique** optionnelle (opts.fog) pour la profondeur.
+   * (Le glow sélectif sur les cristaux — bloom réservé aux seuls émissifs — est un
+   *  Tier 2 : un bloom GLOBAL délave la scène claire, il faut un rendu séparé.)
+   */
+  setBeauty(
+    on: boolean,
+    opts: { horizon?: number; top?: number; fog?: [number, number]; keepBackground?: boolean } = {},
+  ) {
+    if (this.beauty === on) return;
+    this.beauty = on;
+    if (on) {
+      // keepBackground : la vue gère elle-même son fond (combat = arène opaque) ;
+      // on n'ajoute alors QUE le tone mapping + le bloom sélectif.
+      if (!opts.keepBackground) {
+        const horizon = opts.horizon ?? 0xffd9a0; // crème doré chaud à l'horizon
+        const top = opts.top ?? 0x6f9fd8; // bleu ciel plus profond au zénith
+        if (!this.skyTex) this.skyTex = makeSkyGradient(top, horizon);
+        this.scene.background = this.skyTex;
+        this.renderer.setClearAlpha(1); // canvas OPAQUE (sinon le ciel CSS délave)
+        this.scene.fog = opts.fog ? new THREE.Fog(horizon, opts.fog[0], opts.fog[1]) : null;
+      }
+      this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      this.renderer.toneMappingExposure = 1.15; // un peu de pêche : ACES assombrit sinon
+      this.buildComposers();
+    } else {
+      if (!opts.keepBackground) {
+        this.scene.background = null; // redevient transparent → ciel CSS visible
+        this.scene.fog = null;
+        this.renderer.setClearAlpha(0);
+      }
+      this.renderer.toneMapping = THREE.NoToneMapping;
+      this.renderer.toneMappingExposure = 1;
+    }
+    this.refreshShadows();
+    this.invalidate();
+  }
+
+  /** Pipeline de BLOOM SÉLECTIF (construit à la 1re activation) :
+   *  - bloomComposer : rend la scène en n'affichant QUE le calque lumineux (fond
+   *    noir → seuls cristaux/lucioles apparaissent) puis applique le flou-bloom ;
+   *  - finalComposer : rend la scène NORMALE (ciel/brume compris), puis un shader
+   *    de mélange ADDITIONNE la texture de bloom, puis OutputPass (tone mapping). */
+  private buildComposers() {
+    if (this.bloomComposer) return;
+    const size = new THREE.Vector2(this.cssW, this.cssH);
+    const bloomPass = new UnrealBloomPass(size, 1.1, 0.55, 0.0); // seuil 0 : le fond est déjà noir
+    const bloomComposer = new EffectComposer(this.renderer);
+    bloomComposer.renderToScreen = false;
+    bloomComposer.addPass(new RenderPass(this.scene, this.camera));
+    bloomComposer.addPass(bloomPass);
+
+    const mixPass = new ShaderPass(
+      new THREE.ShaderMaterial({
+        uniforms: {
+          baseTexture: { value: null },
+          bloomTexture: { value: bloomComposer.renderTarget2.texture },
+        },
+        vertexShader: "varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }",
+        fragmentShader:
+          "uniform sampler2D baseTexture; uniform sampler2D bloomTexture; varying vec2 vUv;" +
+          "void main(){ gl_FragColor = texture2D(baseTexture, vUv) + texture2D(bloomTexture, vUv); }",
+      }),
+      "baseTexture",
+    );
+    mixPass.needsSwap = true;
+
+    const finalComposer = new EffectComposer(this.renderer);
+    finalComposer.addPass(new RenderPass(this.scene, this.camera));
+    finalComposer.addPass(mixPass);
+    finalComposer.addPass(new OutputPass());
+
+    this.bloomComposer = bloomComposer;
+    this.finalComposer = finalComposer;
+    this.bloomPass = bloomPass;
+    this.resize(); // dimensionne les cibles de rendu
   }
 
   /**
@@ -296,7 +434,24 @@ export class VoxelEngine {
           this.renderer.shadowMap.needsUpdate = true; // pan/cycle solaire : ombres à jour
         }
       }
-      this.renderer.render(this.scene, this.camera);
+      if (this.beauty && this.bloomComposer && this.finalComposer) {
+        // 1) passe bloom : caméra restreinte au calque lumineux, fond/brume retirés
+        //    (sinon le ciel clair bloomerait) → texture de halos.
+        const mask = this.camera.layers.mask;
+        const bg = this.scene.background;
+        const fog = this.scene.fog;
+        this.scene.background = null;
+        this.scene.fog = null;
+        this.camera.layers.set(BLOOM_LAYER);
+        this.bloomComposer.render();
+        // 2) passe finale : scène normale + ciel + brume, additionnée du bloom.
+        this.camera.layers.mask = mask;
+        this.scene.background = bg;
+        this.scene.fog = fog;
+        this.finalComposer.render();
+      } else {
+        this.renderer.render(this.scene, this.camera);
+      }
       this.onFrame?.({
         calls: this.renderer.info.render.calls,
         triangles: this.renderer.info.render.triangles,

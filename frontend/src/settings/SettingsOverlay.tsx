@@ -114,6 +114,25 @@ export function SettingsOverlay() {
           </span>
         </div>
       )}
+      {settings.voxelMap && (
+        <div className="row">
+          <span className="lbl">Rendu beauté (expérimental)</span>
+          <div className="seg">
+            {[false, true].map((v) => (
+              <button
+                key={String(v)}
+                className={settings.voxelBeauty === v ? "on" : ""}
+                onClick={() => updateSettings({ voxelBeauty: v })}
+              >
+                {v ? "Cinématique" : "Standard"}
+              </button>
+            ))}
+          </div>
+          <span className="hint">
+            Lumière filmique (tone mapping ACES), halo lumineux sur les cristaux/fleurs, ciel dégradé et brume atmosphérique. Plus joli mais plus gourmand — coûte du GPU à chaque redraw.
+          </span>
+        </div>
+      )}
       <button className="pill green" style={{ width: "100%", marginTop: 8 }} onClick={() => openSettings("menu")}>
         Return
       </button>
