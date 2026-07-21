@@ -12,10 +12,31 @@ import (
 // bigger shared PA pool to spend on construction, restoration and town actions.
 
 // BuildReq is the cost of the next build/upgrade of a building: action points (labour)
-// plus materials that must be present in the Bank.
+// plus materials that must be present in the Bank. For a fresh site (level-1 build)
+// the raw materials are replaced by a single lootable Plan (blueprint) item — you find
+// the plan out in the world, and having it in town lets you lay the chantier down.
 type BuildReq struct {
 	PA        int    `json:"pa"`
 	Materials []Item `json:"materials"`
+	Plan      string `json:"plan,omitempty"` // blueprint item name required to open a fresh site ("" for upgrades)
+}
+
+// buildingPlanItem returns the blueprint (plan) item that must be FOUND out in the
+// world and carried to town before a fresh site's construction plan can be laid.
+// Only the constructible-at-start sites use plans; buildings that start built (and
+// every upgrade) return "" (no plan — upgrades still consume crafted materials).
+func buildingPlanItem(id string) string {
+	switch id {
+	case "townhall":
+		return "Plan de la Mairie"
+	case "tower":
+		return "Plan de la Tour"
+	case "kitchen":
+		return "Plan de la Cuisine"
+	case "recyclerie":
+		return "Plan de la Recyclerie"
+	}
+	return ""
 }
 
 // TownBuilding is the authoritative state of one city building.
@@ -76,11 +97,6 @@ func (g *GameState) buildingCost(b *TownBuilding) BuildReq {
 	if target > MaxBuildingLevel {
 		return BuildReq{Materials: []Item{}}
 	}
-	var mats []Item
-	if lv := buildingLevelDef(b.ID, target); lv != nil {
-		mats = make([]Item, len(lv.Materials))
-		copy(mats, lv.Materials)
-	}
 	pa := buildPA[b.ID]
 	if pa == 0 {
 		pa = 10
@@ -88,6 +104,19 @@ func (g *GameState) buildingCost(b *TownBuilding) BuildReq {
 	pa *= target
 	if w := g.buildingByID("workshop"); w != nil && w != b && w.Built && w.Level >= 2 && pa > 1 {
 		pa-- // Workshop niv.2 : coût PA des chantiers -1
+	}
+	// Fresh site (level-1 build): the found Plan replaces the raw-material cost — you
+	// only need the blueprint in the Bank plus the collective PA. Upgrades keep their
+	// per-level crafted materials (you'll have production going by then).
+	if !b.Built {
+		if plan := buildingPlanItem(b.ID); plan != "" {
+			return BuildReq{PA: pa, Materials: []Item{}, Plan: plan}
+		}
+	}
+	var mats []Item
+	if lv := buildingLevelDef(b.ID, target); lv != nil {
+		mats = make([]Item, len(lv.Materials))
+		copy(mats, lv.Materials)
 	}
 	return BuildReq{PA: pa, Materials: mats}
 }
@@ -370,14 +399,26 @@ func (g *GameState) TownAction(buildingID, action string, points int, heroID str
 				if err := g.checkBuildRequires(b); err != nil {
 					return err
 				}
+				// A fresh site needs its blueprint FOUND and sitting in the Bank; laying
+				// the plan consumes it (that's the whole cost of a level-1 build besides PA).
+				if cost.Plan != "" {
+					if g.storageQty(cost.Plan) < 1 {
+						return ActionError{"il faut trouver « " + cost.Plan + " » et le déposer à la Banque pour poser ce chantier"}
+					}
+				}
 			}
 			if !g.spendFor(heroID, planPACost) {
 				return ActionError{"PA insuffisants"}
+			}
+			if cost.Plan != "" {
+				g.removeStorage(cost.Plan, 1)
 			}
 			b.UnderConstruction = true
 			b.PaInvested = 0
 			if b.Built {
 				g.logTown(fmt.Sprintf("📐 %s a posé le plan d'amélioration de %s (niveau %d — %d PA à investir)", worker, b.Name, b.Level+1, cost.PA))
+			} else if cost.Plan != "" {
+				g.logTown(fmt.Sprintf("📐 %s a posé %s (%d PA à investir)", worker, cost.Plan, cost.PA))
 			} else {
 				g.logTown(fmt.Sprintf("📐 %s a posé le plan de chantier de %s (%d PA à investir)", worker, b.Name, cost.PA))
 			}
@@ -425,7 +466,7 @@ func (g *GameState) TownAction(buildingID, action string, points int, heroID str
 			b.Built = true
 			b.Level = 1
 			b.Durability = b.MaxDurability
-			g.logTown(fmt.Sprintf("🏗️ %s a achevé la construction de %s (matériaux prélevés à la Banque)", worker, b.Name))
+			g.logTown(fmt.Sprintf("🏗️ %s a achevé la construction de %s", worker, b.Name))
 		}
 		// Per-level stock capacity from the design (Well 50/75/112, Bank 500/750/1125).
 		if lv := buildingLevelDef(b.ID, b.Level); lv != nil && lv.Capacity > 0 {

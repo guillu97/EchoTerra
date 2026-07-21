@@ -112,6 +112,7 @@ export interface Monster {
 export interface BuildReq {
   pa: number;
   materials: Item[];
+  plan?: string; // blueprint item name required to open a fresh site ("" for upgrades)
 }
 
 export interface TownBuilding {
