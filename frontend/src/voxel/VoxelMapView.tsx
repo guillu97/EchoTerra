@@ -164,7 +164,7 @@ class MapWorld {
     for (const p of placements) {
       // Les ARBRES sont montés d'un cran pour dominer les personnages (échelle
       // naturelle : un arbre dépasse un chibi) sans écraser la ville.
-      const s = p.scale * (TREE_IDS.has(p.id) ? 1.3 : 1);
+      const s = p.scale * (TREE_IDS.has(p.id) ? 1.6 : 1);
       const m = new THREE.Matrix4().compose(
         new THREE.Vector3(p.x, this.smooth.heightAt(p.x, p.y) - 0.02, p.y),
         new THREE.Quaternion().setFromAxisAngle(UP, p.rot),
