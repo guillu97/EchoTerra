@@ -153,6 +153,77 @@ func findTown(tiles []game.Tile, width, height int) (int, int) {
 	return bestX, bestY
 }
 
+// ensureNearbyBiomes guarantees a FOREST (wood) and a MOUNTAIN (stone/ore) tile are
+// reachable within radius R of the town. When a biome is missing, it carves a small
+// 2×2 patch on the nearest land ring — biome + matching richness only, the height is
+// left untouched so the relief stays coherent.
+func ensureNearbyBiomes(gs *game.GameState) {
+	const R = 10
+	w, h := gs.Width, gs.Height
+	tx, ty := gs.Town.X, gs.Town.Y
+	within := func(b game.Biome) bool {
+		for dy := -R; dy <= R; dy++ {
+			for dx := -R; dx <= R; dx++ {
+				nx, ny := tx+dx, ty+dy
+				if nx >= 0 && ny >= 0 && nx < w && ny < h && gs.Tiles[ny*w+nx].Biome == b {
+					return true
+				}
+			}
+		}
+		return false
+	}
+	res := func(b game.Biome) int {
+		if td, ok := game.Terrains[b]; ok && td.ResourcesMax > 0 {
+			return td.ResourcesMin + rand.Intn(td.ResourcesMax-td.ResourcesMin+1)
+		}
+		return 0
+	}
+	carve := func(b game.Biome) {
+		for r := 4; r <= R; r++ {
+			for dy := -r; dy <= r; dy++ {
+				for dx := -r; dx <= r; dx++ {
+					if absW(dx)+absW(dy) != r {
+						continue
+					}
+					nx, ny := tx+dx, ty+dy
+					if nx < 1 || ny < 1 || nx >= w-1 || ny >= h-1 {
+						continue
+					}
+					if gs.Tiles[ny*w+nx].Biome == game.BiomeWater {
+						continue
+					}
+					for _, o := range [][2]int{{0, 0}, {1, 0}, {0, 1}, {1, 1}} {
+						px, py := nx+o[0], ny+o[1]
+						if px == tx && py == ty {
+							continue
+						}
+						t := &gs.Tiles[py*w+px]
+						if t.Biome == game.BiomeWater {
+							continue
+						}
+						t.Biome = b
+						t.Resources = res(b)
+					}
+					return
+				}
+			}
+		}
+	}
+	if !within(game.BiomeForest) {
+		carve(game.BiomeForest)
+	}
+	if !within(game.BiomeMountain) {
+		carve(game.BiomeMountain)
+	}
+}
+
+func absW(v int) int {
+	if v < 0 {
+		return -v
+	}
+	return v
+}
+
 // newWorld builds the shared skeleton of a game: generated world, town at the center
 // plain, default buildings, seeded monsters — but no heroes, players, or status yet.
 func newWorld(width, height int, seed int64) *game.GameState {
@@ -173,6 +244,10 @@ func newWorld(width, height int, seed int64) *game.GameState {
 		CreatedAt: time.Now(),
 	}
 	gs.Town.X, gs.Town.Y = tx, ty
+	// Accès aux biomes : garantit une forêt (bois) et une montagne (pierre)
+	// atteignables près de la ville — sinon les matériaux de base sont hors de
+	// portée et on ne peut jamais amorcer la construction.
+	ensureNearbyBiomes(gs)
 	gs.Town.HP, gs.Town.MaxHP = 100, 100
 	gs.Town.Buildings = game.DefaultBuildings()
 	gs.Town.Storage = []game.Item{}

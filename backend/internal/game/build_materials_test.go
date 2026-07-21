@@ -55,9 +55,9 @@ func TestEveryBuildingMaterialIsObtainable(t *testing.T) {
 	}
 }
 
-// La ville naît sur l'herbe : les matériaux de base DOIVENT s'y fouiller, sinon
-// le joueur ne peut jamais amorcer la moindre construction.
-func TestGrassYieldsBasicBuildMaterials(t *testing.T) {
+// Spécialisation : la FORÊT donne le bois, la MONTAGNE la pierre (le worldgen les
+// place près de la ville, cf. TestEnsureNearbyBiomes).
+func TestForestYieldsWoodMountainYieldsStone(t *testing.T) {
 	has := func(b Biome, name string) bool {
 		for _, d := range Terrains[b].Drops {
 			if d.Name == name {
@@ -66,34 +66,48 @@ func TestGrassYieldsBasicBuildMaterials(t *testing.T) {
 		}
 		return false
 	}
-	for _, name := range []string{"Bois", "Pierre"} {
-		if !has(BiomeGrass, name) {
-			t.Errorf("le terrain herbe (case de la ville) doit pouvoir donner %q", name)
-		}
+	if !has(BiomeForest, "Bois") {
+		t.Error("la forêt doit donner du Bois")
+	}
+	if !has(BiomeMountain, "Pierre") {
+		t.Error("la montagne doit donner de la Pierre")
 	}
 }
 
-// Bout en bout : fouiller de l'herbe finit par rendre Bois ET Pierre (les
-// matériaux de base) — le joueur peut amorcer la construction depuis le départ.
-func TestSearchingGrassYieldsBuildMaterials(t *testing.T) {
+// ÉPUISEMENT : une case fraîche rend sa ressource ; une fois épuisée elle ne rend
+// plus grand chose (surtout des débris), mais reste fouillable.
+func TestTileDepletionYieldsMostlyDebris(t *testing.T) {
 	g := &GameState{Width: 3, Height: 3, Monsters: map[string]*Monster{}}
 	g.Tiles = make([]Tile, 9)
 	for i := range g.Tiles {
-		g.Tiles[i] = Tile{Biome: BiomeGrass, Resources: 9999}
+		g.Tiles[i] = Tile{Biome: BiomeForest, Resources: 3}
 	}
 	g.Town.X, g.Town.Y = 0, 0
 	h := &Hero{ID: "h", Name: "Test", X: 1, Y: 1, PA: 1, MaxPA: 6, Bars: map[string]int{}}
 	g.Heroes = []*Hero{h}
-	got := map[string]int{}
-	for i := 0; i < 400; i++ {
+	// vide les 3 ressources de la case
+	for i := 0; i < 3; i++ {
+		h.PA = 1
+		if _, err := g.SearchTile("h"); err != nil {
+			t.Fatalf("fouille riche %d: %v", i, err)
+		}
+	}
+	if g.TileAt(1, 1).Resources != 0 {
+		t.Fatalf("la case devrait être épuisée, reste %d", g.TileAt(1, 1).Resources)
+	}
+	// épuisée : encore fouillable, mais surtout des débris
+	debris := 0
+	for i := 0; i < 200; i++ {
 		h.PA = 1
 		it, err := g.SearchTile("h")
 		if err != nil {
-			t.Fatalf("fouille %d: %v", i, err)
+			t.Fatalf("fouille épuisée %d: %v", i, err)
 		}
-		got[it.Name]++
+		if it.Name == "Débris" {
+			debris++
+		}
 	}
-	if got["Bois"] == 0 || got["Pierre"] == 0 {
-		t.Fatalf("400 fouilles d'herbe doivent donner Bois ET Pierre, obtenu: %v", got)
+	if debris < 100 {
+		t.Fatalf("une case épuisée doit rendre surtout des débris, %d/200", debris)
 	}
 }

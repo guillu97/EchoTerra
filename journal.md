@@ -6,6 +6,29 @@
 
 ---
 
+## 2026-07-21 (59) — Économie d'exploration : biomes accessibles + épuisement des cases
+
+### Fait (retour utilisateur : « facilitons l'accès des biomes + ajoutons l'épuisement des cases pour pousser à explorer »)
+- **Accès aux biomes garanti** (`worldgen.ensureNearbyBiomes`) : après le placement de
+  la ville, si aucune **forêt** (bois) ou **montagne** (pierre) n'est à portée
+  (rayon 10), on grave une petite tache 2×2 du biome manquant sur l'anneau de terre
+  le plus proche (biome + richesse ; hauteur inchangée). Le worldgen garantit donc
+  Bois et Pierre atteignables au départ. Vérifié sur 30 seeds + serveur réel
+  (forêt 69 / montagne 3 dans un rayon 10 autour de la ville).
+- **Spécialisation restaurée** (retour arrière du bootstrap herbe→Bois/Pierre du
+  commit précédent) : herbe/sable NOURRISSENT, FORÊT = bois (poids 3), MONTAGNE/NEIGE
+  = pierre/minerais (richesse 1–3 → **2–4** pour valoir le déplacement).
+- **Épuisement des cases** (`SearchTile`) : plus de refus « case épuisée ». Une case
+  n'est riche que `Resources` fouilles ; ensuite elle **ne rend plus grand chose** —
+  75 % de **Débris**, 25 % encore une vraie ressource (`depletedFindPct`) — ce qui
+  pousse à explorer des cases fraîches (boucle façon Hordes).
+
+### Fonctionnel (vérifié)
+- `go test ./...` vert : `TestEnsureNearbyBiomes` (30 seeds : forêt+montagne à portée),
+  `TestTileDepletionYieldsMostlyDebris`, `TestForestYieldsWoodMountainYieldsStone`,
+  `TestEveryBuildingMaterialIsObtainable` (garde-fou : aucun matériau de bâtiment
+  inobtenable). `tsc` + build. Smoke serveur réel OK. Studio (front) resynchronisé.
+
 ## 2026-07-21 (58) — Arène de combat : sol en pentes voxel lissées (fini les gros cubes) + décor curé
 
 ### Fait (retour utilisateur : « les herbes trop nombreuses/moches, et les blocs pas beaux — autre chose que des blocs serait sympa »)

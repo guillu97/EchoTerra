@@ -19,6 +19,32 @@ func TestGenerateTilesDeterministic(t *testing.T) {
 	}
 }
 
+// La forêt (bois) ET la montagne (pierre) doivent être atteignables près de la
+// ville sur TOUTE seed — sinon les matériaux de base sont hors de portée.
+func TestEnsureNearbyBiomes(t *testing.T) {
+	const R = 10
+	for seed := int64(1); seed <= 30; seed++ {
+		gs := NewGame(60, 60, seed)
+		near := func(b game.Biome) bool {
+			for dy := -R; dy <= R; dy++ {
+				for dx := -R; dx <= R; dx++ {
+					x, y := gs.Town.X+dx, gs.Town.Y+dy
+					if x >= 0 && y >= 0 && x < gs.Width && y < gs.Height && gs.TileAt(x, y).Biome == b {
+						return true
+					}
+				}
+			}
+			return false
+		}
+		if !near(game.BiomeForest) {
+			t.Fatalf("seed %d: aucune forêt à portée de la ville", seed)
+		}
+		if !near(game.BiomeMountain) {
+			t.Fatalf("seed %d: aucune montagne à portée de la ville", seed)
+		}
+	}
+}
+
 func TestNewGameHasTownAndHeroes(t *testing.T) {
 	gs := NewGame(24, 24, 7)
 	if len(gs.Heroes) != 3 {
