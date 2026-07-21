@@ -30,9 +30,9 @@ type TownBuilding struct {
 	MaxDurability     int      `json:"maxDurability"`
 	Capacity          int      `json:"capacity"`    // e.g. water stored in the Well
 	MaxCapacity       int      `json:"maxCapacity"` // 0 when the building has no stock
-	Open              bool     `json:"open"`    // Gate only: an open gate gives no defense
-	Defense           int      `json:"defense"` // computed defense contribution
-	Cost              BuildReq `json:"cost"`    // computed cost of the next build/upgrade
+	Open              bool     `json:"open"`        // Gate only: an open gate gives no defense
+	Defense           int      `json:"defense"`     // computed defense contribution
+	Cost              BuildReq `json:"cost"`        // computed cost of the next build/upgrade
 	// Requires mirrors the design tech tree (derived; refreshed by Recompute) so the
 	// client can show why a site's plan is locked.
 	Requires []BuildingRequire `json:"requires,omitempty"`
@@ -43,15 +43,16 @@ type TownBuilding struct {
 // pour their heroes' PA into the site over several days (Hordes-style). These values
 // deliberately IGNORE the design file's pa fields (user decision).
 var buildPA = map[string]int{
-	"townhall": 20,
-	"tower":    15,
-	"kitchen":  12,
-	"wall":     15,
-	"gate":     12,
-	"well":     10,
-	"bank":     12,
-	"workshop": 15,
-	"panel":    6,
+	"townhall":   20,
+	"tower":      15,
+	"kitchen":    12,
+	"wall":       15,
+	"gate":       12,
+	"well":       10,
+	"bank":       12,
+	"workshop":   15,
+	"panel":      6,
+	"recyclerie": 12,
 }
 
 // planPACost is the price of laying down the plan that opens a chantier.
@@ -123,6 +124,9 @@ func DefaultBuildings() []*TownBuilding {
 		{ID: "wall", Name: "Wall", Built: true, Level: 1, Durability: 20, MaxDurability: 100},
 		{ID: "kitchen", Name: "Kitchen", Built: false, Level: 0, MaxDurability: 80},
 		{ID: "panel", Name: "Panel", Built: true, Level: 1, Durability: 97, MaxDurability: 100},
+		// Recyclerie : chantier à construire — débloque le recyclage des débris en
+		// matériaux (recettes de forge gatées sur ce bâtiment, cf. craft.go).
+		{ID: "recyclerie", Name: "Recyclerie", Built: false, Level: 0, MaxDurability: 80},
 	}
 }
 
@@ -327,10 +331,10 @@ func (g *GameState) buildingByID(id string) *TownBuilding {
 
 // TownAction applies a town action to a building. Supported actions:
 //   - "build":   chantier flow. No open chantier -> lay the PLAN (1 PA, no materials);
-//                open chantier -> invest `points` PA, allowed only while ALL required
-//                materials sit in the Bank (they are NOT consumed yet — invested PA
-//                remain if materials vanish, investing just pauses). Reaching the PA
-//                requirement consumes the materials and completes the build/upgrade.
+//     open chantier -> invest `points` PA, allowed only while ALL required
+//     materials sit in the Bank (they are NOT consumed yet — invested PA
+//     remain if materials vanish, investing just pauses). Reaching the PA
+//     requirement consumes the materials and completes the build/upgrade.
 //   - "restore": spend `points` PA to repair (+5 durability per PA). Built only.
 //   - "use":     a flavored 1-PA action (draw water, …). Built only.
 //

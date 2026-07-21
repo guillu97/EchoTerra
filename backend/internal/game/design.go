@@ -57,6 +57,9 @@ type TerrainDef struct {
 // silver/gold/frost rare).
 var Terrains = map[Biome]TerrainDef{
 	BiomeWater: {Searchable: false},
+	// Spécialisation par biome (le worldgen garantit forêt + montagne proches de la
+	// ville, cf. ensureNearbyBiomes) : l'herbe/le sable nourrissent, la FORÊT donne
+	// le bois, la MONTAGNE/NEIGE la pierre et les minerais.
 	BiomeSand: {Searchable: true, ResourcesMin: 3, ResourcesMax: 6, Drops: []DropDef{
 		{"plante", "Fleur", 1, 1}, {"animal", "Viande", 1, 1}, {"objet", "Débris", 1, 1}, {"aliment", "Poisson", 1, 1},
 	}},
@@ -65,14 +68,15 @@ var Terrains = map[Biome]TerrainDef{
 		{"plante", "Baie sauvage", 1, 2}, {"plante", "Fibre végétale", 1, 2},
 	}},
 	BiomeForest: {Searchable: true, ResourcesMin: 3, ResourcesMax: 6, Drops: []DropDef{
-		{"plante", "Herbe médicinale", 1, 1}, {"animal", "Peau", 1, 1}, {"objet", "Bois", 1, 1},
+		// la forêt est LA source de bois (poids fort) — le reste en appoint
+		{"objet", "Bois", 1, 3}, {"plante", "Herbe médicinale", 1, 1}, {"animal", "Peau", 1, 1},
 		{"plante", "Champignon", 1, 2}, {"plante", "Baie sauvage", 1, 1},
 	}},
-	BiomeMountain: {Searchable: true, ResourcesMin: 1, ResourcesMax: 3, Drops: []DropDef{
+	BiomeMountain: {Searchable: true, ResourcesMin: 2, ResourcesMax: 4, Drops: []DropDef{
 		{"minerai", "Pierre", 1, 3}, {"minerai", "Minerai de fer", 1, 2}, {"minerai", "Charbon", 1, 2},
 		{"minerai", "Minerai d'argent", 1, 1}, {"minerai", "Minerai d'or", 1, 1},
 	}},
-	BiomeSnow: {Searchable: true, ResourcesMin: 1, ResourcesMax: 3, Drops: []DropDef{
+	BiomeSnow: {Searchable: true, ResourcesMin: 2, ResourcesMax: 4, Drops: []DropDef{
 		{"minerai", "Pierre", 1, 3}, {"minerai", "Minerai de fer", 1, 2},
 		{"minerai", "Minerai d'argent", 1, 1}, {"minerai", "Givre éternel", 1, 1},
 	}},
@@ -418,6 +422,14 @@ var BuildingDesigns = map[string]BuildingDesign{
 			{Materials: []Item{{"objet", "Bois", 1}}, Effects: "journal"},
 			{Materials: []Item{{"objet", "Bois", 2}}, Effects: "sondages"},
 			{Materials: []Item{{"objet", "Bois", 3}}, Effects: "statistiques"},
+		},
+	},
+	"recyclerie": {
+		Requires: []BuildingRequire{{"workshop", 1}},
+		Levels: []BuildingLevelDef{
+			{Materials: []Item{{"objet", "Bois", 3}, {"minerai", "Pierre", 2}}, Effects: "débloque le recyclage des débris"},
+			{Materials: []Item{{"objet", "Bois", 6}, {"minerai", "Pierre", 4}, {"objet", "Planche", 1}}, Effects: "recyclage plus efficace"},
+			{Materials: []Item{{"objet", "Bois", 9}, {"minerai", "Pierre", 6}, {"minerai", "Brique", 1}}, Effects: "recyclage optimisé"},
 		},
 	},
 }

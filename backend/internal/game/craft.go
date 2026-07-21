@@ -9,13 +9,13 @@ import "fmt"
 type Recipe struct {
 	ID            string `json:"id"`
 	Name          string `json:"name"`
-	Category      string `json:"category"`      // conso | potion | forge | deco
-	Building      string `json:"building"`      // kitchen | workshop ("" = aucun)
-	BuildingLevel int    `json:"buildingLevel"` // minimum level of that building (town crafts)
-	OutputType    string `json:"outputType"`    // aliment | consommable | arme | deco | objet | minerai
+	Category      string `json:"category"`             // conso | potion | forge | deco
+	Building      string `json:"building"`             // kitchen | workshop ("" = aucun)
+	BuildingLevel int    `json:"buildingLevel"`        // minimum level of that building (town crafts)
+	OutputType    string `json:"outputType"`           // aliment | consommable | arme | deco | objet | minerai
 	OutputName    string `json:"outputName,omitempty"` // defaults to Name
 	OutputQty     int    `json:"outputQty,omitempty"`  // defaults to 1
-	Field         bool   `json:"field"` // craftable outside town (campfire-style)
+	Field         bool   `json:"field"`                // craftable outside town (campfire-style)
 	PACost        int    `json:"paCost"`
 	Ingredients   []Item `json:"ingredients"`
 	Effects       string `json:"effects,omitempty"` // design text (what the item does)
@@ -62,6 +62,12 @@ var Recipes = []Recipe{
 		Ingredients: []Item{{"animal", "Peau", 2}}, Effects: "Matériau : équipements"},
 	{ID: "steel", Name: "Acier", Category: "forge", Building: "workshop", BuildingLevel: 2, OutputType: "minerai", PACost: 2,
 		Ingredients: []Item{{"minerai", "Minerai de fer", 1}, {"minerai", "Charbon", 1}}, Effects: "Alliage : Gate niv.3, Workshop niv.3"},
+	// --- recyclage des débris (RECYCLERIE, à construire) : les broutilles ramassées
+	// sur les cases épuisées redeviennent des matériaux de base — 3 débris + 1 PA. ---
+	{ID: "recycle_wood", Name: "Recyclage → Bois", Category: "forge", Building: "recyclerie", BuildingLevel: 1, OutputType: "objet", OutputName: "Bois", OutputQty: 1, PACost: 1,
+		Ingredients: []Item{{"objet", "Débris", 3}}, Effects: "Recycle 3 débris en 1 Bois"},
+	{ID: "recycle_stone", Name: "Recyclage → Pierre", Category: "forge", Building: "recyclerie", BuildingLevel: 1, OutputType: "minerai", OutputName: "Pierre", OutputQty: 1, PACost: 1,
+		Ingredients: []Item{{"objet", "Débris", 3}}, Effects: "Recycle 3 débris en 1 Pierre"},
 	// --- armes & équipements ---
 	{ID: "iron_blade", Name: "Lame de fer", Category: "forge", Building: "workshop", BuildingLevel: 1, OutputType: "arme", PACost: 2,
 		Ingredients: []Item{{"minerai", "Minerai de fer", 2}, {"objet", "Bois", 1}}, Effects: "Arme : +3 force en combat"},

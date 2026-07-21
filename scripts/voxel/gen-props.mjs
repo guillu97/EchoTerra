@@ -1203,6 +1203,22 @@ function bldKitchen(seed) {
   return g;
 }
 
+function bldRecyclerie(seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz, FINE);
+  const rnd = makeRng(seed); void rnd;
+  g.box(4, 15, 7, 14, 0, 5.5, shade(WOOD_W, 0.98)); // hangar bois
+  for (const x of [4.4, 9.5, 14.6]) g.box(x, x + 0.6, 6.6, 7, 0, 5.5, shade(DARK_W, 1.5)); // colombages
+  g.box(6, 13, 6.4, 7, 0, 4.4, DARK_W); // grande ouverture
+  prismRoof(g, 3.6, 15.4, 7.4, 13.6, 5.5, shade([90, 156, 96], 1.0)); // toit VERT (recyclage)
+  g.box(9, 11, 6.4, 6.7, 4.6, 5.4, [120, 205, 130]); // symbole ♻ clair sur le pignon
+  g.box(15.6, 17.2, 8.2, 9.7, 0, 1.9, shade([120, 160, 120], 1.0)); // bac de tri vert
+  g.box(15.9, 16.9, 8.5, 9.4, 1.9, 2.2, DARK_W);
+  g.box(15.5, 17.3, 10.4, 12, 0, 1.4, shade(STONE_W, 0.82)); // tas de gravats
+  g.box(2.6, 4.2, 10.4, 12, 0, 1.2, shade(WOOD_W, 0.8)); // palettes empilées
+  g.set(10, 8, 6, [212, 176, 96]); // panneau doré
+  return g;
+}
+
 function bldWall(seed) {
   const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz, FINE);
   const rnd = makeRng(seed); void rnd;
@@ -1340,6 +1356,7 @@ async function main() {
       ["bld-well", bldWell], ["bld-panel", bldPanel], ["bld-bank", bldBank],
       ["bld-workshop", bldWorkshop], ["bld-gate", bldGate], ["bld-tower", bldTower],
       ["bld-townhall", bldTownhall], ["bld-kitchen", bldKitchen], ["bld-wall", bldWall],
+      ["bld-recyclerie", bldRecyclerie],
     ].map(([id, mk], bi) => ({
       id,
       make: (v) => {

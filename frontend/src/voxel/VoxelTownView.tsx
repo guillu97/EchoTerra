@@ -37,6 +37,7 @@ const ASSET_TO_BUILDING: Record<string, string> = {
   workshop: "workshop",
   bank: "bank",
   "bld-archerytower": "tower",
+  "bld-recyclerie": "recyclerie",
 };
 const GRASS_FILES = new Set(["grass", "jungle", "darkgrass", "fallgrass", "mossy"]);
 
@@ -196,7 +197,7 @@ export function VoxelTownView({
     let clouds: Clouds | null = null;
     void propsLib
       .load(["bld-well", "bld-panel", "bld-bank", "bld-workshop", "bld-gate", "bld-tower",
-             "bld-townhall", "bld-kitchen", "bld-wall", "bld-chantier", "cloud"])
+             "bld-townhall", "bld-kitchen", "bld-wall", "bld-recyclerie", "bld-chantier", "cloud"])
       .then(() => {
         drawBuildings();
         // nuages au-dessus de la ville : plus hauts, plus lents que la carte

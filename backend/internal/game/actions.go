@@ -10,6 +10,10 @@ const (
 	StateCache    = "Caché"
 )
 
+// depletedFindPct: chance (%) qu'une case ÉPUISÉE rende encore une vraie ressource
+// (sinon des débris) — assez bas pour rendre les cases fraîches nettement meilleures.
+const depletedFindPct = 25
+
 // ActionError is a player-facing rejection of a map action.
 type ActionError struct{ Msg string }
 
@@ -220,14 +224,24 @@ func (g *GameState) SearchTile(heroID string) (*Item, error) {
 	if !ok || !td.Searchable {
 		return nil, ActionError{"ce terrain n'a rien à fouiller"}
 	}
-	if t.Resources <= 0 {
-		return nil, ActionError{"cette case est épuisée"}
-	}
 	h.PA--
 	h.Bars["collecte"]++
-	t.Resources--
 	if h.PA == 0 {
 		h.AddState(StateFatigue)
+	}
+	// ÉPUISEMENT : une case n'est riche que `Resources` fouilles ; ensuite elle ne
+	// rend plus grand chose — le plus souvent des débris, et seulement de temps en
+	// temps une vraie ressource — ce qui pousse à explorer des cases fraîches.
+	if t.Resources <= 0 {
+		if rand.Intn(100) < depletedFindPct {
+			// coup de chance : une dernière ressource traîne encore
+		} else {
+			it := Item{Type: "objet", Name: "Débris", Qty: 1}
+			h.AddLoot(it)
+			return &it, nil
+		}
+	} else {
+		t.Resources--
 	}
 	d := weightedDrop(td.Drops)
 	if d == nil {
@@ -245,7 +259,6 @@ func (g *GameState) SearchTile(heroID string) (*Item, error) {
 	h.AddLoot(it)
 	return &it, nil
 }
-
 
 // RationPA is the action points a Ration d'eau restores when drunk on the map.
 const RationPA = 6

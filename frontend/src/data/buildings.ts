@@ -61,6 +61,7 @@ export const TOWN_BUILDINGS: BuildingLayout[] = [
   { id: "well",     name: "Well",     icon: "💧",  assetKey: "building-well",     blurb: "Source d'eau de la ville.", primary: "Draw water", island: "sw", x: 36, y: 42 },
   { id: "workshop", name: "Workshop", icon: "🔨",  assetKey: "building-workshop", blurb: "Menuiserie & forge — gère les constructions.", primary: "", island: "sw", x: 62, y: 42 },
   { id: "kitchen",  name: "Kitchen",  icon: "🍳",  assetKey: "building-kitchen",  blurb: "Feu de camp / cuisine.", primary: "Cook", island: "sw", x: 50, y: 62 },
+  { id: "recyclerie", name: "Recyclerie", icon: "♻️", assetKey: "building-workshop", blurb: "Recycle les débris ramassés en matériaux de construction (Bois/Pierre).", primary: "", island: "sw", x: 38, y: 62 },
 ];
 
 export function buildingIcon(id: string): string {

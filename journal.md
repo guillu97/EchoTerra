@@ -6,6 +6,72 @@
 
 ---
 
+## 2026-07-21 (61) — Recyclerie : nouveau bâtiment à construire pour recycler les débris
+
+### Fait (retour utilisateur : « je préfère que le recyclage soit dans une NOUVELLE structure à construire »)
+- **Nouveau bâtiment `recyclerie`** (chantier à bâtir, pas construit au départ) :
+  `DefaultBuildings` (site), `buildPA` (12), `BuildingDesigns` (requiert Workshop 1 ;
+  niveaux Bois/Pierre → Planche/Brique). Se pose/construit via l'onglet **Structure**
+  (data-driven).
+- **Recettes de recyclage gatées dessus** : `recycle_wood`/`recycle_stone` passent de
+  `Building "workshop"` à `"recyclerie"` — tant qu'elle n'est pas construite, le
+  recyclage (3 Débris + 1 PA → 1 Bois / 1 Pierre) est refusé.
+- **Modèle voxel `bld-recyclerie`** généré (`gen-props.mjs` : `bldRecyclerie`, hangar
+  bois + toit vert + bacs de tri) — 3 variantes de durabilité ; **placé dans la ville**
+  (town-map.json (36,48), `ASSET_TO_BUILDING`, préchargé) → rendu 3D + hotspot ♻️.
+  Métadonnées front (`buildings.ts` : icône ♻️, blurb).
+
+### Fonctionnel (vérifié)
+- `go test ./...` vert (`TestRecycleDebrisIntoMaterials` : refus tant que la Recyclerie
+  n'est pas bâtie, puis 3 Débris + 1 PA → Bois/Pierre depuis la Banque). `tsc` + build.
+  Rendu Home : la Recyclerie apparaît avec son modèle + label ♻️.
+
+## 2026-07-21 (60) — Densité de monstres relevée (carte peuplée dès le départ)
+
+### Fait (retour utilisateur : « le nombre de monstres sur la carte est ridicule vs l'attaque de vague ; plus de monstres dès le début »)
+- **Seed initial ∝ surface** : `SeedStartingMonsters` passe de `3 + (players-1)` à
+  `6 + aire/280 + 2*(players-1)` → **~18 packs** sur une carte 60×60 (contre 3), et
+  ~26 en solo-avec-bots (5 « joueurs »).
+- **Monstres VISIBLES dès le départ** : le fog cachait tous les packs (posés hors de
+  l'anneau découvert) → 0 visible au lancement. `spawnPackInBand` pose désormais
+  `3 + (players-1)` packs dans l'anneau DÉJÀ DÉCOUVERT autour de la ville
+  (`[safeRadius+1 .. townSightRadius]`) — **3 à 7 monstres visibles immédiatement**,
+  le reste réparti au loin (révélé à l'exploration + migration).
+- **Densité de fond** : `spawnChance` = `0.45 + 0.55*dist` (fond peuplé partout,
+  plus dense au loin) au lieu du quadratique qui vidait tout sauf les bords ; anneau
+  vierge réduit à **1** (seul le pourtour immédiat de la ville).
+- **Apparition par vague** relevée : `2 + vague/2` (plafond 8) → `4 + vague`
+  (plafond 20) — la horde sur la carte grossit vraiment vague après vague.
+
+### Fonctionnel (vérifié)
+- `go test ./...` vert (`TestStartingMonstersScaleWithPlayers` recalé sur la densité,
+  `spawn_test.go` : distance/ruines/vague croissantes toujours OK). Serveur réel :
+  60×60 → 3 visibles / 18 total (1 joueur), 7 visibles / 26 total (solo-bots) ; rendu
+  carte confirmant les packs + badges ☠ autour de la ville.
+
+## 2026-07-21 (59) — Économie d'exploration : biomes accessibles + épuisement des cases
+
+### Fait (retour utilisateur : « facilitons l'accès des biomes + ajoutons l'épuisement des cases pour pousser à explorer »)
+- **Accès aux biomes garanti** (`worldgen.ensureNearbyBiomes`) : après le placement de
+  la ville, si aucune **forêt** (bois) ou **montagne** (pierre) n'est à portée
+  (rayon 10), on grave une petite tache 2×2 du biome manquant sur l'anneau de terre
+  le plus proche (biome + richesse ; hauteur inchangée). Le worldgen garantit donc
+  Bois et Pierre atteignables au départ. Vérifié sur 30 seeds + serveur réel
+  (forêt 69 / montagne 3 dans un rayon 10 autour de la ville).
+- **Spécialisation restaurée** (retour arrière du bootstrap herbe→Bois/Pierre du
+  commit précédent) : herbe/sable NOURRISSENT, FORÊT = bois (poids 3), MONTAGNE/NEIGE
+  = pierre/minerais (richesse 1–3 → **2–4** pour valoir le déplacement).
+- **Épuisement des cases** (`SearchTile`) : plus de refus « case épuisée ». Une case
+  n'est riche que `Resources` fouilles ; ensuite elle **ne rend plus grand chose** —
+  75 % de **Débris**, 25 % encore une vraie ressource (`depletedFindPct`) — ce qui
+  pousse à explorer des cases fraîches (boucle façon Hordes).
+
+### Fonctionnel (vérifié)
+- `go test ./...` vert : `TestEnsureNearbyBiomes` (30 seeds : forêt+montagne à portée),
+  `TestTileDepletionYieldsMostlyDebris`, `TestForestYieldsWoodMountainYieldsStone`,
+  `TestEveryBuildingMaterialIsObtainable` (garde-fou : aucun matériau de bâtiment
+  inobtenable). `tsc` + build. Smoke serveur réel OK. Studio (front) resynchronisé.
+
 ## 2026-07-21 (58) — Arène de combat : sol en pentes voxel lissées (fini les gros cubes) + décor curé
 
 ### Fait (retour utilisateur : « les herbes trop nombreuses/moches, et les blocs pas beaux — autre chose que des blocs serait sympa »)

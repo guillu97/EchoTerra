@@ -243,6 +243,8 @@ const seedRecipes = (): RecipeDef[] => [
   { id: "healing_potion", name: "Potion de soin", icon: "🧪", category: "potion", building: "kitchen", buildingLevel: 1, field: true, pa: 1, ingredients: [{ name: "Herbe médicinale", qty: 2 }], output: { type: "consommable", name: "Potion de soin", qty: 1 }, effects: "+8 PV, retire Blessé" },
   { id: "iron_blade", name: "Lame de fer", icon: "🗡️", category: "forge", building: "workshop", buildingLevel: 1, field: false, pa: 2, ingredients: [{ name: "Minerai de fer", qty: 2 }, { name: "Bois", qty: 1 }], output: { type: "arme", name: "Lame de fer", qty: 1 }, effects: "Arme : +3 force en combat" },
   { id: "wooden_totem", name: "Totem de bois", icon: "🗿", category: "deco", building: "workshop", buildingLevel: 1, field: false, pa: 1, ingredients: [{ name: "Bois", qty: 3 }], output: { type: "deco", name: "Totem de bois", qty: 1 }, effects: "Décoration (moral de la ville)" },
+  { id: "recycle_wood", name: "Recyclage → Bois", icon: "♻️", category: "forge", building: "workshop", buildingLevel: 1, field: false, pa: 1, ingredients: [{ name: "Débris", qty: 3 }], output: { type: "objet", name: "Bois", qty: 1 }, effects: "Recycle 3 débris en 1 Bois" },
+  { id: "recycle_stone", name: "Recyclage → Pierre", icon: "♻️", category: "forge", building: "workshop", buildingLevel: 1, field: false, pa: 1, ingredients: [{ name: "Débris", qty: 3 }], output: { type: "minerai", name: "Pierre", qty: 1 }, effects: "Recycle 3 débris en 1 Pierre" },
 ];
 
 const seedClasses = (): HeroClassDef[] => [
@@ -301,9 +303,9 @@ const seedTerrains = (): TerrainDef[] => [
   { id: "water", name: "Eau", icon: "🌊", walkable: false, searchable: false, resourcesMin: 0, resourcesMax: 0, drops: [], notes: "Infranchissable. Rien à fouiller." },
   { id: "sand", name: "Sable", icon: "🏜️", walkable: true, searchable: true, resourcesMin: 3, resourcesMax: 6, drops: [drop("plante", "Fleur"), drop("animal", "Viande"), drop("objet", "Débris")], notes: "" },
   { id: "grass", name: "Plaine", icon: "🌾", walkable: true, searchable: true, resourcesMin: 3, resourcesMax: 6, drops: [drop("plante", "Fleur"), drop("animal", "Viande"), drop("objet", "Débris")], notes: "Biome de départ autour de la ville." },
-  { id: "forest", name: "Forêt", icon: "🌲", walkable: true, searchable: true, resourcesMin: 3, resourcesMax: 6, drops: [drop("plante", "Herbe médicinale"), drop("animal", "Peau"), drop("objet", "Bois")], notes: "" },
-  { id: "mountain", name: "Montagne", icon: "⛰️", walkable: true, searchable: true, resourcesMin: 1, resourcesMax: 3, drops: [drop("minerai", "Pierre"), drop("minerai", "Minerai de fer")], notes: "" },
-  { id: "snow", name: "Neige", icon: "❄️", walkable: true, searchable: true, resourcesMin: 1, resourcesMax: 3, drops: [drop("minerai", "Pierre"), drop("minerai", "Minerai de fer")], notes: "" },
+  { id: "forest", name: "Forêt", icon: "🌲", walkable: true, searchable: true, resourcesMin: 3, resourcesMax: 6, drops: [drop("objet", "Bois", 1, 3), drop("plante", "Herbe médicinale"), drop("animal", "Peau")], notes: "Source principale de bois." },
+  { id: "mountain", name: "Montagne", icon: "⛰️", walkable: true, searchable: true, resourcesMin: 2, resourcesMax: 4, drops: [drop("minerai", "Pierre"), drop("minerai", "Minerai de fer")], notes: "Source de pierre/fer." },
+  { id: "snow", name: "Neige", icon: "❄️", walkable: true, searchable: true, resourcesMin: 2, resourcesMax: 4, drops: [drop("minerai", "Pierre"), drop("minerai", "Minerai de fer")], notes: "Source de pierre/fer." },
 ];
 
 // Species mirror monsters.go (stats/PV/pack) and combat.go SkillFor (specials);

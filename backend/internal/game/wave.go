@@ -331,9 +331,9 @@ func (g *GameState) attackHeroesOutside(waveNumber int, r *WaveReport) {
 const bossWaveThreshold = 4
 
 func (g *GameState) spawnWaveMonsters(waveNumber int) int {
-	count := 2 + waveNumber/2
-	if count > 8 {
-		count = 8
+	count := 4 + waveNumber
+	if count > 20 {
+		count = 20
 	}
 	includeBosses := waveNumber >= bossWaveThreshold
 	// Apparition PONDÉRÉE (loin de la ville / près des ruines / croissant par vague) —
