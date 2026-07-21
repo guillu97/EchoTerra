@@ -212,7 +212,7 @@ interface StoreState {
   drinkRation: () => Promise<void>; // boire une ration d'eau (+6 PA) du sac
   ruinClear: () => Promise<void>; // déblayer la ruine sous le héros (tous ses PA)
   ruinExplore: () => Promise<void>; // fouiller le donjon déblayé (2 PA)
-  advance: () => Promise<void>;
+  advance: (safe?: boolean) => Promise<void>;
   skipDay: () => Promise<void>;
   revealFog: (on: boolean) => Promise<void>;
   startCombat: () => Promise<void>;
@@ -931,16 +931,20 @@ export const useStore = create<StoreState>((set, get) => {
         renderMap();
       }),
 
-    advance: () =>
+    advance: (safe = false) =>
       withBusy(async () => {
         const { game } = get();
         if (!game) return;
-        const next = await api.advance(game.id);
+        const next = await api.advance(game.id, safe);
         set({ game: next });
         const lw = next.lastWave;
         if (lw) {
-          pushLog(`🌊 Vague ${lw.wave} forcée : -${lw.townDamage} PV ville (déf ${lw.defense} / horde ${lw.hordePower}).`);
-          if (lw.gameOver) pushLog("💀 La ville est tombée…");
+          if (safe) {
+            pushLog(`🛡️ Vague ${lw.wave} passée sans dégâts (debug) — ville intacte.`);
+          } else {
+            pushLog(`🌊 Vague ${lw.wave} forcée : -${lw.townDamage} PV ville (déf ${lw.defense} / horde ${lw.hordePower}).`);
+            if (lw.gameOver) pushLog("💀 La ville est tombée…");
+          }
         }
         renderMap();
       }),

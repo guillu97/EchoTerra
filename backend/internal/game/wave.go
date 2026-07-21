@@ -149,6 +149,14 @@ func hordePower(waveNumber int) int {
 // ProcessWave resolves a single horde assault on the town. It does NOT schedule the
 // next wave — callers (ForceWave / CatchUpWaves) own NextWaveAt.
 func (g *GameState) ProcessWave(now time.Time) {
+	g.processWave(now, false)
+}
+
+// processWave resolves a single horde assault. When safeTown is true (dev cheat
+// "pass the wave without town damage"), the town HP and every building's
+// durability are left untouched — the wave still advances (day/wave counters,
+// PA regen, migration, fresh spawns) so it behaves like a harmless skip.
+func (g *GameState) processWave(now time.Time, safeTown bool) {
 	if g.Status != "active" {
 		return
 	}
@@ -164,25 +172,27 @@ func (g *GameState) ProcessWave(now time.Time) {
 
 	r := &WaveReport{Wave: g.WaveNumber, Day: g.Day, HordePower: power, Defense: defense, At: now}
 
-	// Defensive structures absorb the blow, wearing down in the process.
-	absorbed := power
-	if absorbed > defense {
-		absorbed = defense
-	}
-	g.wearDefensiveBuildings(absorbed, r)
-
-	// Whatever the defenses can't stop hits the town (and some buildings).
-	overflow := power - defense
-	if overflow < 0 {
-		overflow = 0
-	}
-	if overflow > 0 {
-		g.Town.HP -= overflow
-		if g.Town.HP < 0 {
-			g.Town.HP = 0
+	if !safeTown {
+		// Defensive structures absorb the blow, wearing down in the process.
+		absorbed := power
+		if absorbed > defense {
+			absorbed = defense
 		}
-		r.TownDamage = overflow
-		g.damageRandomBuildings(overflow, r)
+		g.wearDefensiveBuildings(absorbed, r)
+
+		// Whatever the defenses can't stop hits the town (and some buildings).
+		overflow := power - defense
+		if overflow < 0 {
+			overflow = 0
+		}
+		if overflow > 0 {
+			g.Town.HP -= overflow
+			if g.Town.HP < 0 {
+				g.Town.HP = 0
+			}
+			r.TownDamage = overflow
+			g.damageRandomBuildings(overflow, r)
+		}
 	}
 	r.TownHPAfter = g.Town.HP
 
@@ -227,6 +237,16 @@ func (g *GameState) ForceWave(now time.Time) {
 		return
 	}
 	g.ProcessWave(now)
+	g.NextWaveAt = now.Add(WaveInterval)
+}
+
+// ForceWaveSafe triggers a wave immediately WITHOUT any town damage (dev cheat):
+// the horde advances, spawns and migrates, but the town HP and buildings are spared.
+func (g *GameState) ForceWaveSafe(now time.Time) {
+	if g.Status != "active" {
+		return
+	}
+	g.processWave(now, true)
 	g.NextWaveAt = now.Add(WaveInterval)
 }
 

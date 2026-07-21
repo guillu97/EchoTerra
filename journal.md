@@ -6,6 +6,38 @@
 
 ---
 
+## 2026-07-21 (62) — Plans de chantier à TROUVER + hauteur des biomes + oliviers + cheat vague sûre
+
+### Fait
+- **Plan à trouver + matériaux + PA (retour : « je ne loot pas assez de bois/pierre pour bâtir » →
+  affiné : « besoin du plan PUIS des resources et des PA ; les plans de bâtiments simples faciles à
+  trouver »)** : la construction NEUVE (niveau 1) d'un site exige EN PLUS un **plan (blueprint) trouvé**
+  dans la Banque, requis+consommé à la POSE (gate SUPPLÉMENTAIRE, pas un remplacement — matériaux niv.1
+  toujours requis à l'investissement). `buildingPlanItem` (Mairie/Tour/Cuisine/Recyclerie), `BuildReq.Plan`,
+  `buildingCost` (Materials niv.1 + Plan), pose gatée/consommée dans `TownAction`. Améliorations (niv.2/3)
+  sans plan. **Plans des bâtiments SIMPLES (recyclerie, cuisine) COMMUNS** dans les biomes proches de la
+  ville (sable/prairie, poids 2-3) ; avancés (tour/mairie) modérés (forêt/montagne, poids 1). Aussi droppés
+  par les **ruines** (repurpose des « Plan ancien : X »). Front : `BuildReq.plan`, StructureTab affiche
+  « 📐 <plan> 0/1 » + matériaux et gate « Poser le plan » (pose = plan seul ; invest = matériaux), ItemGrid
+  emoji 📐. Tests : `build_test.go` (plan+matériaux, recyclerie, plans communs vérifiés), `design_test.go`.
+- **Hauteur/taille des biomes augmentée sur la carte** : `smoothTerrain HEIGHT_SCALE 1.9→2.6`
+  (montagnes/collines plus hautes, terrasses marquées ; carte seule — combat `heightScale:1`, ville
+  intacte), arbres `VoxelMapView 1.3→1.6`.
+- **Oliviers du temple agrandis** (0.34–0.44 → 0.7–0.9) : ridicules à côté des arbres boostés sinon.
+- **Cheat « passer la vague sans dégâts »** : bouton 🛡️ dans le menu Triche → `ForceWaveSafe`/
+  `processWave(safeTown)` (la vague avance mais PV ville + durabilité intacts) ; endpoint `/advance`
+  `{safe:true}`. Tests `safewave_test.go`.
+
+### Vérifié
+- `go test ./...` OK (dont blueprint/recyclerie/safewave), `tsc` + `build` OK, perf voxel 12/12.
+- Rendu Playwright : relief en terrasses + gros arbres, oliviers à l'échelle, StructureTab montre les
+  plans requis (0/1 rouge, bouton grisé → vert quand le plan est en Banque), API refuse la pose sans
+  plan (« il faut trouver « Plan de la Recyclerie »… »).
+
+### À faire / notes
+- Équilibrage du taux de drop des plans à surveiller (poids 1 en fouille + ruines) — ajuster si trop
+  rare/fréquent en jeu réel.
+
 ## 2026-07-21 (61) — Recyclerie : nouveau bâtiment à construire pour recycler les débris
 
 ### Fait (retour utilisateur : « je préfère que le recyclage soit dans une NOUVELLE structure à construire »)

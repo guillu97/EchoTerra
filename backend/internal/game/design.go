@@ -62,19 +62,26 @@ var Terrains = map[Biome]TerrainDef{
 	// le bois, la MONTAGNE/NEIGE la pierre et les minerais.
 	BiomeSand: {Searchable: true, ResourcesMin: 3, ResourcesMax: 6, Drops: []DropDef{
 		{"plante", "Fleur", 1, 1}, {"animal", "Viande", 1, 1}, {"objet", "Débris", 1, 1}, {"aliment", "Poisson", 1, 1},
+		// Plans de chantier trouvables à la fouille. Les bâtiments SIMPLES (recyclerie,
+		// cuisine) ont des plans COMMUNS dans les biomes proches de la ville (sable/prairie) ;
+		// les avancés (tour/mairie) restent modérés (forêt/montagne).
+		{"objet", "Plan de la Recyclerie", 1, 3}, {"objet", "Plan de la Cuisine", 1, 1},
 	}},
 	BiomeGrass: {Searchable: true, ResourcesMin: 3, ResourcesMax: 6, Drops: []DropDef{
 		{"plante", "Fleur", 1, 1}, {"animal", "Viande", 1, 1}, {"objet", "Débris", 1, 1},
 		{"plante", "Baie sauvage", 1, 2}, {"plante", "Fibre végétale", 1, 2},
+		{"objet", "Plan de la Cuisine", 1, 3}, {"objet", "Plan de la Recyclerie", 1, 2},
 	}},
 	BiomeForest: {Searchable: true, ResourcesMin: 3, ResourcesMax: 6, Drops: []DropDef{
 		// la forêt est LA source de bois (poids fort) — le reste en appoint
 		{"objet", "Bois", 1, 3}, {"plante", "Herbe médicinale", 1, 1}, {"animal", "Peau", 1, 1},
 		{"plante", "Champignon", 1, 2}, {"plante", "Baie sauvage", 1, 1},
+		{"objet", "Plan de la Mairie", 1, 1},
 	}},
 	BiomeMountain: {Searchable: true, ResourcesMin: 2, ResourcesMax: 4, Drops: []DropDef{
 		{"minerai", "Pierre", 1, 3}, {"minerai", "Minerai de fer", 1, 2}, {"minerai", "Charbon", 1, 2},
 		{"minerai", "Minerai d'argent", 1, 1}, {"minerai", "Minerai d'or", 1, 1},
+		{"objet", "Plan de la Tour", 1, 1},
 	}},
 	BiomeSnow: {Searchable: true, ResourcesMin: 2, ResourcesMax: 4, Drops: []DropDef{
 		{"minerai", "Pierre", 1, 3}, {"minerai", "Minerai de fer", 1, 2},

@@ -15,6 +15,13 @@ export const TYPE_ICON: Record<string, string> = {
   deco: "🪵",
 };
 
+// Emoji fallback for an item with no sprite: blueprints (Plan de …) read as 📐,
+// everything else falls back to its category icon.
+export function itemEmoji(it: Item): string {
+  if (it.name.startsWith("Plan ")) return "📐";
+  return TYPE_ICON[it.type] ?? "❔";
+}
+
 export function ItemGrid({ items, empty = "— vide —" }: { items: Item[]; empty?: string }) {
   if (items.length === 0) return <div className="empty small">{empty}</div>;
   return (
@@ -37,7 +44,7 @@ export function ItemGrid({ items, empty = "— vide —" }: { items: Item[]; emp
                   }}
                 />
               ) : null}
-              <span style={url ? { display: "none" } : undefined}>{TYPE_ICON[it.type] ?? "❔"}</span>
+              <span style={url ? { display: "none" } : undefined}>{itemEmoji(it)}</span>
             </div>
             <div className="item-qty">×{it.qty}</div>
             <div className="item-name">{it.name}</div>

@@ -14,24 +14,35 @@ func newBuildTestGame(heroPA int) (*GameState, *Hero) {
 	return g, h
 }
 
-// The chantier flow: plan first (1 PA, no materials), then PA are invested only
-// while the Bank holds every required material; invested PA survive a material
-// shortage; materials are consumed at completion only.
-func TestChantierPlanThenInvestGatedByMaterials(t *testing.T) {
+// A fresh site is gated by THREE things: a FOUND blueprint (consumed at plan-laying),
+// the level-1 materials (present while investing, consumed at completion) and the PA.
+func TestChantierPlanThenInvestGatedByBlueprintAndMaterials(t *testing.T) {
 	g, h := newBuildTestGame(40)
 	tower := g.buildingByID("tower")
 	if tower.Built {
 		t.Fatal("tower should start as a construction site")
 	}
-	total := g.buildingCost(tower).PA // tower: 15 PA
-	if total != 15 {
-		t.Fatalf("expected tower chantier to require 15 PA, got %d", total)
+	cost := g.buildingCost(tower)
+	if cost.PA != 15 {
+		t.Fatalf("expected tower chantier to require 15 PA, got %d", cost.PA)
+	}
+	if cost.Plan != "Plan de la Tour" || len(cost.Materials) == 0 {
+		t.Fatalf("a fresh site must ask for a blueprint AND its materials: plan=%q mats=%v", cost.Plan, cost.Materials)
 	}
 	defBefore := g.TownDefense()
 
-	// Phase 1 — the PLAN opens even with an EMPTY Bank (1 PA, no materials).
+	// No blueprint in the Bank -> laying the plan is refused, nothing spent.
+	if err := g.TownAction("tower", "build", 1, "h1"); err == nil {
+		t.Fatal("laying the plan must be refused without the blueprint in the Bank")
+	}
+	if tower.UnderConstruction || h.PA != 40 {
+		t.Fatalf("refused plan must not change state: uc=%v pa=%d", tower.UnderConstruction, h.PA)
+	}
+
+	// Deposit the found blueprint -> laying the plan works (1 PA) and consumes it.
+	g.addStorage(Item{Type: "objet", Name: "Plan de la Tour", Qty: 1})
 	if err := g.TownAction("tower", "build", 1, "h1"); err != nil {
-		t.Fatalf("laying the plan must not need materials: %v", err)
+		t.Fatalf("laying the plan with the blueprint in bank should work: %v", err)
 	}
 	if !tower.UnderConstruction || tower.Built || tower.PaInvested != 0 {
 		t.Fatalf("after plan: uc=%v built=%v invested=%d", tower.UnderConstruction, tower.Built, tower.PaInvested)
@@ -39,51 +50,32 @@ func TestChantierPlanThenInvestGatedByMaterials(t *testing.T) {
 	if h.PA != 39 {
 		t.Fatalf("plan should cost 1 PA, hero has %d", h.PA)
 	}
+	if g.storageQty("Plan de la Tour") != 0 {
+		t.Fatalf("laying the plan must consume the blueprint, still have %d", g.storageQty("Plan de la Tour"))
+	}
 
-	// Empty Bank -> investing is refused, nothing spent.
+	// Empty Bank of materials -> investing PA is refused (materials gate the labour).
 	if err := g.TownAction("tower", "build", 5, "h1"); err == nil {
-		t.Fatal("investing PA must be refused while materials are missing")
+		t.Fatal("investing PA must be refused while the level-1 materials are missing")
 	}
-	if tower.PaInvested != 0 || h.PA != 39 {
-		t.Fatalf("refused invest must not change state: invested=%d pa=%d", tower.PaInvested, h.PA)
+	if tower.PaInvested != 0 {
+		t.Fatalf("refused invest must not change progress, got %d", tower.PaInvested)
 	}
 
-	// Stock the materials (tower: Bois x2, Pierre x3) -> investing works, and the
-	// materials are NOT consumed while the chantier is in progress.
+	// Stock tower materials (Bois x2, Pierre x3) -> investing pours to completion; the
+	// materials are consumed only at completion.
 	g.Town.Storage = []Item{{Type: "objet", Name: "Bois", Qty: 2}, {Type: "minerai", Name: "Pierre", Qty: 3}}
-	if err := g.TownAction("tower", "build", 6, "h1"); err != nil {
-		t.Fatalf("invest failed: %v", err)
-	}
-	if tower.PaInvested != 6 || h.PA != 33 {
-		t.Fatalf("expected 6 PA invested (hero 33 left), got invested=%d pa=%d", tower.PaInvested, h.PA)
-	}
-	if g.storageQty("Bois") != 2 || g.storageQty("Pierre") != 3 {
-		t.Fatal("materials must not be consumed while the chantier is in progress")
-	}
-
-	// Materials vanish mid-build -> invested PA REMAIN, investing just pauses.
-	g.removeStorage("Pierre", 3)
-	if err := g.TownAction("tower", "build", 5, "h1"); err == nil {
-		t.Fatal("investing must pause while a material is missing")
-	}
-	if tower.PaInvested != 6 {
-		t.Fatalf("invested PA must survive the shortage, got %d", tower.PaInvested)
-	}
-
-	// Restock -> finish the remaining 9 PA (asking for more clamps to the remainder);
-	// completion consumes the materials and the tower finally defends.
-	g.addStorage(Item{Type: "minerai", Name: "Pierre", Qty: 3})
 	if err := g.TownAction("tower", "build", 99, "h1"); err != nil {
-		t.Fatalf("final invest failed: %v", err)
+		t.Fatalf("invest failed: %v", err)
 	}
 	if !tower.Built || tower.UnderConstruction || tower.Level != 1 || tower.PaInvested != 0 {
 		t.Fatalf("tower should be built lvl1: built=%v uc=%v lvl=%d invested=%d", tower.Built, tower.UnderConstruction, tower.Level, tower.PaInvested)
 	}
-	if h.PA != 33-9 {
-		t.Fatalf("clamp: only the remaining 9 PA must be spent, hero has %d", h.PA)
-	}
 	if g.storageQty("Bois") != 0 || g.storageQty("Pierre") != 0 {
 		t.Fatalf("completion must consume the materials: Bois=%d Pierre=%d", g.storageQty("Bois"), g.storageQty("Pierre"))
+	}
+	if h.PA != 39-15 {
+		t.Fatalf("clamp: only the 15 PA of labour must be spent, hero has %d", h.PA)
 	}
 	g.Recompute()
 	if g.TownDefense() <= defBefore {
@@ -96,10 +88,11 @@ func TestChantierAccumulatesAcrossHeroes(t *testing.T) {
 	g, h1 := newBuildTestGame(10)
 	h2 := &Hero{ID: "h2", Name: "B", X: 2, Y: 2, HP: 10, PA: 10, MaxPA: 10, States: []string{}, Bars: map[string]int{}, Inventory: []Item{}}
 	g.Heroes = append(g.Heroes, h2)
-	g.Town.Storage = []Item{{Type: "objet", Name: "Bois", Qty: 3}}
-	kitchen := g.buildingByID("kitchen") // 12 PA, Bois x3
+	// Kitchen needs its blueprint (consumed at plan-laying) AND its level-1 materials.
+	g.Town.Storage = []Item{{Type: "objet", Name: "Plan de la Cuisine", Qty: 1}, {Type: "objet", Name: "Bois", Qty: 3}}
+	kitchen := g.buildingByID("kitchen") // 12 PA, blueprint "Plan de la Cuisine" + Bois x3
 
-	if err := g.TownAction("kitchen", "build", 1, "h1"); err != nil { // plan
+	if err := g.TownAction("kitchen", "build", 1, "h1"); err != nil { // plan (consumes blueprint)
 		t.Fatalf("plan: %v", err)
 	}
 	if err := g.TownAction("kitchen", "build", 7, "h1"); err != nil {
@@ -113,6 +106,76 @@ func TestChantierAccumulatesAcrossHeroes(t *testing.T) {
 	}
 	if h1.PA != 2 || h2.PA != 5 {
 		t.Fatalf("expected h1=2 h2=5 PA left, got %d/%d", h1.PA, h2.PA)
+	}
+}
+
+// The Recyclerie build (user design): it needs its found blueprint AND its level-1
+// materials AND the PA (the plan is an extra gate, not a replacement).
+func TestRecyclerieNeedsBlueprintAndMaterials(t *testing.T) {
+	g, _ := newBuildTestGame(30)
+	rec := g.buildingByID("recyclerie")
+	cost := g.buildingCost(rec)
+	if cost.Plan != "Plan de la Recyclerie" || len(cost.Materials) == 0 {
+		t.Fatalf("recyclerie fresh build must ask for its blueprint AND materials: plan=%q mats=%v", cost.Plan, cost.Materials)
+	}
+	// Blueprint lets us lay the plan; materials then gate the labour.
+	g.addStorage(Item{Type: "objet", Name: "Plan de la Recyclerie", Qty: 1})
+	if err := g.TownAction("recyclerie", "build", 1, "h1"); err != nil {
+		t.Fatalf("lay plan: %v", err)
+	}
+	if err := g.TownAction("recyclerie", "build", 99, "h1"); err == nil {
+		t.Fatal("investing must be refused with no materials in the Bank")
+	}
+	// Provide the materials -> completes.
+	for _, m := range cost.Materials {
+		g.addStorage(Item{Type: m.Type, Name: m.Name, Qty: m.Qty})
+	}
+	if err := g.TownAction("recyclerie", "build", 99, "h1"); err != nil {
+		t.Fatalf("invest: %v", err)
+	}
+	if !rec.Built || rec.Level != 1 {
+		t.Fatalf("recyclerie should be built lvl1, got built=%v lvl=%d", rec.Built, rec.Level)
+	}
+}
+
+// Every constructible site's blueprint must be findable somewhere (ruin or terrain),
+// or the building could never be started. SIMPLE buildings (recyclerie, kitchen) must
+// have COMMON plans in the near-town biomes (sand/grass) so the early game isn't stalled.
+func TestBuildingPlansAreLootable(t *testing.T) {
+	found := map[string]bool{}
+	for _, td := range Terrains {
+		for _, d := range td.Drops {
+			found[d.Name] = true
+		}
+	}
+	for _, rd := range ruinDefs {
+		for _, d := range rd.Loot {
+			found[d.Name] = true
+		}
+	}
+	for _, id := range []string{"townhall", "tower", "kitchen", "recyclerie"} {
+		plan := buildingPlanItem(id)
+		if plan == "" {
+			t.Fatalf("%s should have a blueprint", id)
+		}
+		if !found[plan] {
+			t.Fatalf("blueprint %q is not lootable anywhere (ruin/terrain)", plan)
+		}
+	}
+	// Simple buildings' plans must weigh at least as much as a common near-town drop.
+	weightIn := func(b Biome, name string) int {
+		for _, d := range Terrains[b].Drops {
+			if d.Name == name {
+				return d.Weight
+			}
+		}
+		return 0
+	}
+	if weightIn(BiomeSand, "Plan de la Recyclerie") < 2 {
+		t.Fatal("the Recyclerie plan (simple building) must be common on sand")
+	}
+	if weightIn(BiomeGrass, "Plan de la Cuisine") < 2 {
+		t.Fatal("the Kitchen plan (simple building) must be common on grass")
 	}
 }
 

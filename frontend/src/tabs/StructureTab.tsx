@@ -65,16 +65,19 @@ export function StructureTab() {
           const open = b.underConstruction; // chantier ouvert (plan posé)
           const remaining = Math.max(0, b.cost.pa - b.paInvested);
           // Chantier ouvert : on investit les PA du worker (le serveur borne au restant).
-          // Pas de plan : le poser coûte 1 PA (les matériaux ne servent qu'ensuite).
           const invest = Math.min(pa, remaining);
           const maxed = b.built && b.cost.pa === 0; // level 3 reached (design max)
+          // Plan (blueprint) à trouver : un chantier NEUF (site, pas encore posé) exige
+          // le plan correspondant en Banque pour être posé (il est consommé à la pose).
+          const plan = !b.built && !open ? b.cost.plan ?? "" : "";
+          const hasPlan = plan === "" || have(plan) >= 1;
           // Tech-tree prerequisites (sites only): the plan is locked until every
           // required building is BUILT at its level.
           const unmet = (!b.built && !open ? b.requires ?? [] : []).filter((req) => {
             const o = game?.town.buildings.find((x) => x.id === req.building);
             return !o || !o.built || o.level < req.level;
           });
-          const canAct = open ? enoughMats && invest > 0 : pa >= 1 && unmet.length === 0;
+          const canAct = open ? enoughMats && invest > 0 : pa >= 1 && unmet.length === 0 && hasPlan;
           const can = inTown && canAct && !busy && !maxed;
           const label = maxed ? "Niv. max" : open ? `+${invest} PA` : b.built ? "📐 Améliorer" : "📐 Poser le plan";
           const hint = !inTown
@@ -83,6 +86,8 @@ export function StructureTab() {
             ? "Niveau maximum atteint"
             : unmet.length > 0
             ? `Requiert ${unmet.map((r) => `${game?.town.buildings.find((x) => x.id === r.building)?.name ?? r.building} niv.${r.level}`).join(", ")}`
+            : !open && !hasPlan
+            ? `Trouve « ${plan} » et dépose-le à la Banque pour poser ce chantier`
             : open && !enoughMats
             ? "Matériaux manquants en Banque — les PA investis restent acquis"
             : open
@@ -116,6 +121,11 @@ export function StructureTab() {
                 {!maxed && (
                   <div className="ps-sub cost">
                     <span className="ing ok">⚡{b.cost.pa} PA</span>
+                    {plan !== "" && (
+                      <span className={hasPlan ? "ing ok" : "ing miss"}>
+                        {" · "}📐 {plan} {have(plan)}/1
+                      </span>
+                    )}
                     {mats.map((m, i) => (
                       <span key={i} className={have(m.name) >= m.qty ? "ing ok" : "ing miss"}>
                         {" · "}

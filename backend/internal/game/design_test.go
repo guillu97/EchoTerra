@@ -72,8 +72,10 @@ func TestBuildingPrerequisites(t *testing.T) {
 		t.Fatal("tower plan must be refused while the wall is unbuilt")
 	}
 	wall.Built = true
+	// A fresh site now also needs its blueprint in the Bank to lay the plan.
+	g.addStorage(Item{Type: "objet", Name: "Plan de la Tour", Qty: 1})
 	if err := g.TownAction("tower", "build", 1, "h1"); err != nil {
-		t.Fatalf("tower plan should pass with the wall built: %v", err)
+		t.Fatalf("tower plan should pass with the wall built + blueprint in bank: %v", err)
 	}
 }
 

@@ -958,7 +958,16 @@ func (s *Server) advance(w http.ResponseWriter, r *http.Request) {
 	if gs == nil {
 		return
 	}
-	gs.ForceWave(time.Now())
+	// {safe:true} (dev cheat) advances the wave WITHOUT any town damage.
+	var body struct {
+		Safe bool `json:"safe"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&body)
+	if body.Safe {
+		gs.ForceWaveSafe(time.Now())
+	} else {
+		gs.ForceWave(time.Now())
+	}
 	s.persist(gs)
 	writeJSON(w, http.StatusOK, gs)
 }

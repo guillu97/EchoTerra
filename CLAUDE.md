@@ -299,24 +299,32 @@ hits 0 (`status:"gameover"`).
 **Town buildings & construction** — built at start: **gate, wall, bank, well, workshop, panel**.
 Construction sites (Built=false): **townhall (renamed from House — revive), tower, kitchen**.
 `TownAction(buildingId, action, points, heroId)`:
-- `build` → **flux CHANTIER collectif (2026-07-14)** : (1) **poser le PLAN** (1 PA, `planPACost`, AUCUN
-  matériau) ouvre le chantier (`UnderConstruction=true`, `PaInvested=0`) — vaut pour les sites ET les
-  améliorations de bâtiments construits ; (2) **investir des PA** (`points`, borné au restant et aux PA
-  du payeur) — autorisé UNIQUEMENT si TOUS les matériaux requis sont en Banque (simple présence, PAS
-  consommés) ; s'il en manque, l'investissement est refusé mais **les PA déjà investis restent acquis**
-  (le chantier est juste en pause) ; (3) quand `PaInvested` atteint `cost.PA`, les matériaux sont
-  consommés et le bâtiment est construit (level 1) ou amélioré (level++). Coûts PA **élevés et
-  collectifs** : `buildPA` (townhall 20, tower/wall/workshop 15, kitchen/gate/bank 12, well 10,
-  panel 6) × niveau visé, **−1 si Workshop niv.2+** (« coût PA chantiers −1 ») ; matériaux = la liste PAR
-  NIVEAU du design (`BuildingDesigns` — niveaux hauts en Planche/Corde/Brique/Acier, Townhall niv.3 exige le
-  **Cœur de chêne ancien** du boss forêt) ; **niveau max 3**. **Prérequis d'arbre techno vérifiés à la pose
-  du plan** (townhall/kitchen ← workshop 1, tower ← wall 1 ; affichés 🔒 côté Structure). À l'achèvement les
-  capacités par niveau s'appliquent (Well 50/75/112, Bank 500/750/1125). `building.cost` expose le TOTAL du
-  chantier courant/suivant, `building.paInvested` la progression. **Home shows a building only when
-  `built || underConstruction`**. Structure : « 📐 Poser le plan » / « 📐 Améliorer » (1 PA) →
-  barre de progression + bouton « +N PA » (PA du worker, ⏸ si matériaux manquants). Les bots posent
-  les plans des sites, investissent 1 PA et rejoignent les chantiers d'amélioration ouverts par les
-  humains (jamais n'en ouvrent). Tests in `build_test.go`.
+- `build` → **flux CHANTIER collectif (2026-07-14)** : (1) **poser le PLAN** (1 PA, `planPACost`) ouvre le
+  chantier (`UnderConstruction=true`, `PaInvested=0`) — vaut pour les sites ET les améliorations ; (2)
+  **investir des PA** (`points`, borné au restant et aux PA du payeur) — autorisé UNIQUEMENT si TOUS les
+  matériaux requis sont en Banque (simple présence, PAS consommés) ; s'il en manque, l'investissement est
+  refusé mais **les PA déjà investis restent acquis** (le chantier est juste en pause) ; (3) quand
+  `PaInvested` atteint `cost.PA`, les matériaux sont consommés et le bâtiment est construit (level 1) ou
+  amélioré (level++). **PLAN À TROUVER + matériaux + PA (2026-07-21)** : la construction NEUVE (niveau 1)
+  d'un site exige EN PLUS un **plan (blueprint) LOOTABLE** dans la Banque, requis ET consommé à la POSE du
+  chantier (gate SUPPLÉMENTAIRE, pas un remplacement — il faut aussi les matériaux niv.1 + les PA)
+  (`buildingPlanItem` : townhall→« Plan de la Mairie », tower→« Plan de la Tour », kitchen→« Plan de la
+  Cuisine », recyclerie→« Plan de la Recyclerie » ; `BuildReq.Plan` porte le nom). Les plans tombent des
+  **ruines** (chaque ruine en donne un, cf. ruins.go) et de la **fouille de terrain** ; les bâtiments
+  **SIMPLES** (recyclerie, cuisine) ont des plans **COMMUNS** dans les biomes proches de la ville
+  (sable/prairie, poids 2-3) pour ne pas bloquer le début, les avancés (tour/mairie) restent modérés
+  (forêt/montagne, poids 1). Les **améliorations** (niv.2/3) n'exigent PAS de plan, gardent leurs matériaux
+  craftés (`BuildingDesigns` — Planche/Corde/Brique/Acier, Townhall niv.3 = **Cœur de chêne ancien** du
+  boss forêt). Coûts PA **élevés et collectifs** :
+  `buildPA` (townhall 20, tower/wall/workshop 15, kitchen/gate/bank 12, well 10, panel 6) × niveau visé,
+  **−1 si Workshop niv.2+**. **Prérequis d'arbre techno vérifiés à la pose** (townhall/kitchen ← workshop 1,
+  tower ← wall 1 ; 🔒 côté Structure). Capacités par niveau à l'achèvement (Well 50/75/112, Bank 500/750/
+  1125). `building.cost` expose PA + `plan` (site neuf) + `materials` (niv.1 pour un site, niv. suivant pour
+  une amélioration), `building.paInvested` la progression. Structure : « 📐 Poser le plan » (gaté sur le plan
+  en Banque, affiché « 📐 <plan> 0/1 » + les matériaux « Bois n/m ») / « 📐 Améliorer » ; la POSE ne réclame
+  que le plan, l'INVESTISSEMENT des PA réclame les matériaux ; barre de progression + « +N PA ». Les bots posent les plans des sites *quand le plan
+  est en Banque* (sinon l'action échoue en silence), déposent les plans qu'ils trouvent, et rejoignent les
+  améliorations ouvertes par les humains. Tests in `build_test.go`.
 - `restore` → +5 durability per PA (built only).
 - `revive` (Townhall) → **ressuscite le premier héros mort** : PV = max/2, replacé en ville, états purgés.
   Quota quotidien = niveau du Townhall (1/jour niv.1, 2/jour niv.2) ; **niv.3 = illimité ET gratuit** (sinon

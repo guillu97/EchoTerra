@@ -30,7 +30,7 @@ const VS = 1 / 10; // pas vertical (= 1/R : voxels cubiques)
 const MICRO = 0.045;
 const TERRACE_BAND = 0.26; // largeur de la transition de terrasse
 // Retour utilisateur (« sol trop lisse, reliefs plus hauts ») :
-const HEIGHT_SCALE = 1.9; // amplification des hauteurs du monde (collines ~2× plus hautes)
+const HEIGHT_SCALE = 2.6; // amplification des hauteurs du monde (montagnes/collines nettement plus hautes)
 const ROLL_AMP = 1.1; // ondulation lente des plaines (± unités) — buttes en marches
 
 // Palette diorama par biome (désaturée façon maquette), deux nuances par biome.

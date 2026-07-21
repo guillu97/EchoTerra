@@ -27,6 +27,9 @@ export function CheatPanel() {
         <button className="pill" disabled={busy || !game} onClick={() => advance()}>
           🌊 Avancer la vague
         </button>
+        <button className="pill" disabled={busy || !game} onClick={() => advance(true)}>
+          🛡️ Passer la vague (sans dégâts ville)
+        </button>
         <button className="pill" disabled={busy || !game} onClick={() => skipDay()}>
           ⏩ +1 Jour (×2 vagues)
         </button>

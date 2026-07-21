@@ -52,35 +52,35 @@ var ruinDefs = map[Biome]ruinDef{
 		{"objet", "Perle nacrée", 1, 2},
 		{"minerai", "Minerai d'argent", 1, 2},
 		{"aliment", "Rhum de contrebande", 1, 2},
-		{"objet", "Plan ancien : phare", 1, 1},
+		{"objet", "Plan de la Recyclerie", 1, 2}, // épave de récupération → recyclerie
 	}},
 	2: {Type: "ferme", Name: "Ferme abandonnée", Icon: "🏚️", ClearPA: 8, Loot: []DropDef{
 		{"objet", "Planche", 2, 3},
 		{"objet", "Corde", 1, 3},
 		{"plante", "Graines anciennes", 1, 2},
 		{"minerai", "Acier", 1, 1},
-		{"objet", "Plan ancien : moulin", 1, 1},
+		{"objet", "Plan de la Cuisine", 1, 2}, // ferme/moulin → cuisine
 	}},
 	3: {Type: "sanctuaire", Name: "Sanctuaire englouti", Icon: "🗿", ClearPA: 10, Loot: []DropDef{
 		{"plante", "Herbe médicinale", 1, 3},
 		{"objet", "Relique sculptée", 1, 2},
 		{"objet", "Bois", 3, 2},
 		{"objet", "Cœur de chêne ancien", 1, 1},
-		{"objet", "Plan ancien : autel", 1, 1},
+		{"objet", "Plan de la Mairie", 1, 2}, // sanctuaire civique → mairie
 	}},
 	4: {Type: "mine", Name: "Mine effondrée", Icon: "⛏️", ClearPA: 12, Loot: []DropDef{
 		{"minerai", "Minerai de fer", 2, 3},
 		{"minerai", "Charbon", 2, 3},
 		{"minerai", "Minerai d'argent", 1, 2},
 		{"minerai", "Acier", 1, 1},
-		{"objet", "Plan ancien : forge", 1, 1},
+		{"objet", "Plan de la Recyclerie", 1, 1}, // mine industrielle → recyclerie
 	}},
 	5: {Type: "tour", Name: "Tour gelée", Icon: "🗼", ClearPA: 12, Loot: []DropDef{
 		{"minerai", "Givre éternel", 1, 3},
 		{"objet", "Grimoire gelé", 1, 2},
 		{"minerai", "Minerai d'argent", 1, 2},
 		{"aliment", "Élixir de givre", 1, 1},
-		{"objet", "Plan ancien : observatoire", 1, 1},
+		{"objet", "Plan de la Tour", 1, 2}, // tour → tour
 	}},
 }
 
