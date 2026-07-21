@@ -6,6 +6,26 @@
 
 ---
 
+## 2026-07-21 (61) — Recyclerie : nouveau bâtiment à construire pour recycler les débris
+
+### Fait (retour utilisateur : « je préfère que le recyclage soit dans une NOUVELLE structure à construire »)
+- **Nouveau bâtiment `recyclerie`** (chantier à bâtir, pas construit au départ) :
+  `DefaultBuildings` (site), `buildPA` (12), `BuildingDesigns` (requiert Workshop 1 ;
+  niveaux Bois/Pierre → Planche/Brique). Se pose/construit via l'onglet **Structure**
+  (data-driven).
+- **Recettes de recyclage gatées dessus** : `recycle_wood`/`recycle_stone` passent de
+  `Building "workshop"` à `"recyclerie"` — tant qu'elle n'est pas construite, le
+  recyclage (3 Débris + 1 PA → 1 Bois / 1 Pierre) est refusé.
+- **Modèle voxel `bld-recyclerie`** généré (`gen-props.mjs` : `bldRecyclerie`, hangar
+  bois + toit vert + bacs de tri) — 3 variantes de durabilité ; **placé dans la ville**
+  (town-map.json (36,48), `ASSET_TO_BUILDING`, préchargé) → rendu 3D + hotspot ♻️.
+  Métadonnées front (`buildings.ts` : icône ♻️, blurb).
+
+### Fonctionnel (vérifié)
+- `go test ./...` vert (`TestRecycleDebrisIntoMaterials` : refus tant que la Recyclerie
+  n'est pas bâtie, puis 3 Débris + 1 PA → Bois/Pierre depuis la Banque). `tsc` + build.
+  Rendu Home : la Recyclerie apparaît avec son modèle + label ♻️.
+
 ## 2026-07-21 (60) — Densité de monstres relevée (carte peuplée dès le départ)
 
 ### Fait (retour utilisateur : « le nombre de monstres sur la carte est ridicule vs l'attaque de vague ; plus de monstres dès le début »)

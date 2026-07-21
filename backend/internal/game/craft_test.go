@@ -8,10 +8,17 @@ func TestRecycleDebrisIntoMaterials(t *testing.T) {
 	g := &GameState{Width: 3, Height: 3, Monsters: map[string]*Monster{}}
 	g.Tiles = make([]Tile, 9)
 	g.Town.X, g.Town.Y = 1, 1
-	g.Town.Buildings = DefaultBuildings() // Workshop construit niv.1 au départ
+	g.Town.Buildings = DefaultBuildings()
 	g.Town.Storage = []Item{{Type: "objet", Name: "Débris", Qty: 7}}
 	h := &Hero{ID: "h", Name: "Test", X: 1, Y: 1, HP: 20, MaxHP: 20, PA: 6, MaxPA: 6, Bars: map[string]int{}}
 	g.Heroes = []*Hero{h}
+
+	// la Recyclerie est un CHANTIER par défaut : recycler avant de l'avoir bâtie échoue.
+	if _, err := g.Craft("recycle_wood", "h"); err == nil {
+		t.Fatal("le recyclage doit exiger la Recyclerie construite")
+	}
+	rec := g.buildingByID("recyclerie")
+	rec.Built, rec.Level = true, 1
 
 	out, err := g.Craft("recycle_wood", "h")
 	if err != nil {

@@ -62,11 +62,11 @@ var Recipes = []Recipe{
 		Ingredients: []Item{{"animal", "Peau", 2}}, Effects: "Matériau : équipements"},
 	{ID: "steel", Name: "Acier", Category: "forge", Building: "workshop", BuildingLevel: 2, OutputType: "minerai", PACost: 2,
 		Ingredients: []Item{{"minerai", "Minerai de fer", 1}, {"minerai", "Charbon", 1}}, Effects: "Alliage : Gate niv.3, Workshop niv.3"},
-	// --- recyclage des débris (Atelier) : les broutilles ramassées sur les cases
-	// épuisées redeviennent des matériaux de base — plusieurs débris + 1 PA. ---
-	{ID: "recycle_wood", Name: "Recyclage → Bois", Category: "forge", Building: "workshop", BuildingLevel: 1, OutputType: "objet", OutputName: "Bois", OutputQty: 1, PACost: 1,
+	// --- recyclage des débris (RECYCLERIE, à construire) : les broutilles ramassées
+	// sur les cases épuisées redeviennent des matériaux de base — 3 débris + 1 PA. ---
+	{ID: "recycle_wood", Name: "Recyclage → Bois", Category: "forge", Building: "recyclerie", BuildingLevel: 1, OutputType: "objet", OutputName: "Bois", OutputQty: 1, PACost: 1,
 		Ingredients: []Item{{"objet", "Débris", 3}}, Effects: "Recycle 3 débris en 1 Bois"},
-	{ID: "recycle_stone", Name: "Recyclage → Pierre", Category: "forge", Building: "workshop", BuildingLevel: 1, OutputType: "minerai", OutputName: "Pierre", OutputQty: 1, PACost: 1,
+	{ID: "recycle_stone", Name: "Recyclage → Pierre", Category: "forge", Building: "recyclerie", BuildingLevel: 1, OutputType: "minerai", OutputName: "Pierre", OutputQty: 1, PACost: 1,
 		Ingredients: []Item{{"objet", "Débris", 3}}, Effects: "Recycle 3 débris en 1 Pierre"},
 	// --- armes & équipements ---
 	{ID: "iron_blade", Name: "Lame de fer", Category: "forge", Building: "workshop", BuildingLevel: 1, OutputType: "arme", PACost: 2,

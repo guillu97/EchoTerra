@@ -424,6 +424,14 @@ var BuildingDesigns = map[string]BuildingDesign{
 			{Materials: []Item{{"objet", "Bois", 3}}, Effects: "statistiques"},
 		},
 	},
+	"recyclerie": {
+		Requires: []BuildingRequire{{"workshop", 1}},
+		Levels: []BuildingLevelDef{
+			{Materials: []Item{{"objet", "Bois", 3}, {"minerai", "Pierre", 2}}, Effects: "débloque le recyclage des débris"},
+			{Materials: []Item{{"objet", "Bois", 6}, {"minerai", "Pierre", 4}, {"objet", "Planche", 1}}, Effects: "recyclage plus efficace"},
+			{Materials: []Item{{"objet", "Bois", 9}, {"minerai", "Pierre", 6}, {"minerai", "Brique", 1}}, Effects: "recyclage optimisé"},
+		},
+	},
 }
 
 // buildingLevelDef returns the design row for a building's given level (1-based),

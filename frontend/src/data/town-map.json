@@ -18648,6 +18648,20 @@
           "scale": 2.25,
           "flipX": true,
           "rot": -2
+        },
+        {
+          "id": "p-recyclerie-1",
+          "cx": 36,
+          "cy": 48,
+          "asset": {
+            "cat": "buildings",
+            "file": "bld-recyclerie"
+          },
+          "dx": 0,
+          "dy": 0,
+          "scale": 2.25,
+          "flipX": false,
+          "rot": 0
         }
       ]
     },
