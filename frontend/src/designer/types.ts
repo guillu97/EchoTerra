@@ -299,9 +299,9 @@ const seedItems = (): ResourceItemDef[] => [
 
 const seedTerrains = (): TerrainDef[] => [
   { id: "water", name: "Eau", icon: "🌊", walkable: false, searchable: false, resourcesMin: 0, resourcesMax: 0, drops: [], notes: "Infranchissable. Rien à fouiller." },
-  { id: "sand", name: "Sable", icon: "🏜️", walkable: true, searchable: true, resourcesMin: 3, resourcesMax: 6, drops: [drop("plante", "Fleur"), drop("animal", "Viande"), drop("objet", "Débris")], notes: "" },
-  { id: "grass", name: "Plaine", icon: "🌾", walkable: true, searchable: true, resourcesMin: 3, resourcesMax: 6, drops: [drop("plante", "Fleur"), drop("animal", "Viande"), drop("objet", "Débris")], notes: "Biome de départ autour de la ville." },
-  { id: "forest", name: "Forêt", icon: "🌲", walkable: true, searchable: true, resourcesMin: 3, resourcesMax: 6, drops: [drop("plante", "Herbe médicinale"), drop("animal", "Peau"), drop("objet", "Bois")], notes: "" },
+  { id: "sand", name: "Sable", icon: "🏜️", walkable: true, searchable: true, resourcesMin: 3, resourcesMax: 6, drops: [drop("plante", "Fleur"), drop("animal", "Viande"), drop("objet", "Débris"), drop("objet", "Bois"), drop("minerai", "Pierre")], notes: "Bois flotté + galets : amorce la construction." },
+  { id: "grass", name: "Plaine", icon: "🌾", walkable: true, searchable: true, resourcesMin: 3, resourcesMax: 6, drops: [drop("plante", "Fleur"), drop("animal", "Viande"), drop("objet", "Débris"), drop("objet", "Bois", 1, 2), drop("minerai", "Pierre")], notes: "Biome de départ autour de la ville — donne Bois/Pierre de base." },
+  { id: "forest", name: "Forêt", icon: "🌲", walkable: true, searchable: true, resourcesMin: 3, resourcesMax: 6, drops: [drop("objet", "Bois", 1, 3), drop("plante", "Herbe médicinale"), drop("animal", "Peau")], notes: "Source principale de bois." },
   { id: "mountain", name: "Montagne", icon: "⛰️", walkable: true, searchable: true, resourcesMin: 1, resourcesMax: 3, drops: [drop("minerai", "Pierre"), drop("minerai", "Minerai de fer")], notes: "" },
   { id: "snow", name: "Neige", icon: "❄️", walkable: true, searchable: true, resourcesMin: 1, resourcesMax: 3, drops: [drop("minerai", "Pierre"), drop("minerai", "Minerai de fer")], notes: "" },
 ];

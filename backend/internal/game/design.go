@@ -59,13 +59,19 @@ var Terrains = map[Biome]TerrainDef{
 	BiomeWater: {Searchable: false},
 	BiomeSand: {Searchable: true, ResourcesMin: 3, ResourcesMax: 6, Drops: []DropDef{
 		{"plante", "Fleur", 1, 1}, {"animal", "Viande", 1, 1}, {"objet", "Débris", 1, 1}, {"aliment", "Poisson", 1, 1},
+		// bois flotté + galets : de quoi amorcer la construction hors forêt/montagne
+		{"objet", "Bois", 1, 1}, {"minerai", "Pierre", 1, 1},
 	}},
 	BiomeGrass: {Searchable: true, ResourcesMin: 3, ResourcesMax: 6, Drops: []DropDef{
 		{"plante", "Fleur", 1, 1}, {"animal", "Viande", 1, 1}, {"objet", "Débris", 1, 1},
 		{"plante", "Baie sauvage", 1, 2}, {"plante", "Fibre végétale", 1, 2},
+		// branches tombées + pierres du champ : la ville naît sur l'herbe, les
+		// matériaux de base DOIVENT s'y trouver (sinon on ne construit jamais rien).
+		{"objet", "Bois", 1, 2}, {"minerai", "Pierre", 1, 1},
 	}},
 	BiomeForest: {Searchable: true, ResourcesMin: 3, ResourcesMax: 6, Drops: []DropDef{
-		{"plante", "Herbe médicinale", 1, 1}, {"animal", "Peau", 1, 1}, {"objet", "Bois", 1, 1},
+		// la forêt est LA source de bois (poids fort) — le reste en appoint
+		{"objet", "Bois", 1, 3}, {"plante", "Herbe médicinale", 1, 1}, {"animal", "Peau", 1, 1},
 		{"plante", "Champignon", 1, 2}, {"plante", "Baie sauvage", 1, 1},
 	}},
 	BiomeMountain: {Searchable: true, ResourcesMin: 1, ResourcesMax: 3, Drops: []DropDef{
