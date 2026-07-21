@@ -53,6 +53,17 @@ func (g *GameState) RevealVision() {
 func (g *GameState) ClientView() *GameState {
 	cp := *g
 	cp.Seed = 0
+	// DEBUG « lever le brouillard » : envoie TOUTE la carte (tuiles marquées
+	// découvertes) sans toucher au vrai jeu de tuiles explorées de `g` — désactiver
+	// le flag rend le brouillard réel. Monstres/ruines suivent (tout est visible).
+	if g.RevealAll {
+		cp.Tiles = make([]Tile, len(g.Tiles))
+		for i, t := range g.Tiles {
+			t.Discovered = true
+			cp.Tiles[i] = t
+		}
+		return &cp
+	}
 	cp.Tiles = make([]Tile, len(g.Tiles))
 	for i, t := range g.Tiles {
 		if t.Discovered {

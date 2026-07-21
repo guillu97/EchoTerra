@@ -176,6 +176,9 @@ export const api = {
 
   advance: (gameId: string) => req<GameState>("POST", `/api/games/${gameId}/advance`, {}),
 
+  revealFog: (gameId: string, on: boolean) =>
+    req<GameState>("POST", `/api/games/${gameId}/reveal`, { on }),
+
   recipes: () => req<Recipe[]>("GET", "/api/recipes"),
 
   classes: () => req<ClassDef[]>("GET", "/api/classes"),
