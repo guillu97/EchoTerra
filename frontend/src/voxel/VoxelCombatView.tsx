@@ -14,16 +14,9 @@ import { heroTexKey, libUrl, monsterTexKey } from "../assets";
 import { useStore } from "../store";
 import { BLOOM_LAYER, clearOwned, makeSkyGradient, VoxelEngine } from "./engine";
 import { VoxelControls } from "./controls";
-import { BlockLibrary, buildStacks, buildTerrain, type StackItem, type TerrainCell } from "./terrain";
+import { BlockLibrary } from "./terrain";
+import { SmoothTerrain } from "./smoothTerrain";
 
-// sol d'arène par biome (lot C1) — mêmes blocs que la carte du monde
-const COMBAT_FLOOR: Record<number, { block: string; under?: string }> = {
-  1: { block: "sand" },
-  2: { block: "grass", under: "dirt" },
-  3: { block: "forest", under: "dirt" },
-  4: { block: "stone" },
-  5: { block: "snow", under: "stone" },
-};
 const ARENA_PROP_MAT = new THREE.MeshLambertMaterial({ vertexColors: true });
 // Flamme des braseros d'angle : self-lit + posée sur le calque bloom → rayonne
 // (comme les cristaux de la carte). Sphère basse résolution = look voxel/braise.
@@ -32,13 +25,14 @@ const GLOW_VC_MAT = new THREE.MeshBasicMaterial({ vertexColors: true }); // cris
 const FIRE_GEOM = new THREE.IcosahedronGeometry(0.17, 0);
 const BRAZIER_MAT = new THREE.MeshLambertMaterial({ color: 0x3a3230 });
 const BRAZIER_GEOM = new THREE.CylinderGeometry(0.13, 0.17, 0.34, 6);
+const PLINTH_MAT = new THREE.MeshLambertMaterial({ color: 0x6a5b46 }); // terre/roche du socle-île
 // props décoratifs sur les cases vides (herbe/fleurs/champignons)
 const DECO_BY_BIOME: Record<number, string[]> = {
-  1: ["dune-grass", "pebbles"],
-  2: ["grass-tuft", "flowers", "daisy"],
-  3: ["fern", "mushroom", "grass-tuft"],
-  4: ["scree", "crystal"],
-  5: ["snowdrift", "ice-spike"],
+  1: ["pebbles", "daisy"],
+  2: ["flowers", "daisy", "pebbles"],
+  3: ["fern", "mushroom", "flowers"],
+  4: ["pebbles", "crystal"],
+  5: ["crystal", "pebbles"],
 };
 // Géométries PARTAGÉES des overlays de combat (reconstruits à chaque action) —
 // une géométrie par quad/anneau fuyait à chaque redraw (voir clearOwned).
@@ -59,13 +53,12 @@ import { makeLabel } from "./labels";
 import { ALL_CHAR_KEYS, CharLibrary } from "./characters";
 
 class CombatWorld {
-  lib = new BlockLibrary("/voxels"); // 32³ : le combat est vu de près
-  propsLib = new BlockLibrary("/voxels/props"); // obstacles/ronces de l'arène (C1)
+  smooth = new SmoothTerrain(); // sol en PENTES VOXEL lissées (comme la carte) — plus de gros cubes
+  propsLib = new BlockLibrary("/voxels/props"); // obstacles/ronces/décor de l'arène
   chars = new CharLibrary();
-  libReady = false;
+  ready = false; // props chargés (le sol lissé, lui, est synchrone)
   terrain: THREE.Group | null = null;
   terrainKey = "";
-  lookup = new Map<THREE.Object3D, TerrainCell[]>();
   overlays = new THREE.Group();
   sprites = new THREE.Group();
   fx = new THREE.Group(); // étiquettes flottantes (C2) — survivent aux redraws
@@ -104,14 +97,9 @@ class CombatWorld {
         engine.setBeauty(s.settings.voxelBeauty, { keepBackground: true });
     });
     void this.propsLib
-      .load(["rock", "tree-green", "ice-spike", "brambles", "grass-tuft", "flowers", "daisy",
-             "fern", "mushroom", "dune-grass", "pebbles", "scree", "crystal", "snowdrift"])
-      .then(() => { this.terrainKey = ""; this.draw(); });
-    void this.lib.load(["grass", "dirt", "sand", "forest", "stone", "snow", "water", "ice"]).then(() => {
-      this.libReady = true;
-      this.terrainKey = "";
-      this.draw();
-    });
+      .load(["rock", "tree-green", "ice-spike", "brambles", "flowers", "daisy",
+             "fern", "mushroom", "pebbles", "crystal"])
+      .then(() => { this.ready = true; this.terrainKey = ""; this.draw(); });
     void this.chars.load(ALL_CHAR_KEYS).then(() => this.draw());
     // Les modèles ne font PLUS de billboard : ils sont orientés selon leur
     // Facing (fx/fy) MONDE — un sens au début du combat puis pivot au
@@ -122,7 +110,7 @@ class CombatWorld {
     if (this.fxRaf) cancelAnimationFrame(this.fxRaf);
     this.unsubBeauty();
     this.skyTex.dispose();
-    this.lib.dispose();
+    this.smooth.dispose();
     this.propsLib.dispose();
     this.chars.dispose();
     for (const t of this.textures.values()) t.dispose();
@@ -145,7 +133,7 @@ class CombatWorld {
       const text = (h.kind === "heal" ? "+" : "−") + h.amount;
       const sprite = makeLabel(text, color, 0.34);
       const x = u.x + (n % 2 === 0 ? -0.12 : 0.12) * (n > 0 ? 1 : 0);
-      const y0 = this.heightAt(u.x, u.y) + 2.0;
+      const y0 = this.surfaceY(u.x, u.y) + 1.0;
       sprite.position.set(x, y0, u.y);
       sprite.material.opacity = 0;
       this.fx.add(sprite);
@@ -187,9 +175,15 @@ class CombatWorld {
     return t;
   }
 
+  // hauteur de MARCHE (logique) sous une case — inchangée (champ serveur)
   private heightAt(x: number, y: number): number {
     const c = this.combat;
     return c ? c.heights[y * c.gridW + x] || 0 : 0;
+  }
+  // Y de la SURFACE lissée sous une case (props/unités/overlays s'y posent) : la
+  // pente voxel arrondie remplace le sommet du cube (= heightAt+1 avant le lissage).
+  private surfaceY(x: number, y: number): number {
+    return this.smooth.mesh ? this.smooth.heightAt(x, y) : this.heightAt(x, y) + 1;
   }
 
   onTap(cssX: number, cssY: number) {
@@ -202,11 +196,14 @@ class CombatWorld {
         bus.emit(EV.CombatUnitClick, { unitId });
         return;
       }
-      const cells = this.lookup.get(h.object);
-      if (cells && h.instanceId !== undefined) {
-        const cell = cells[h.instanceId];
-        bus.emit(EV.CombatTileClick, { x: cell.x, y: cell.y });
-        return;
+      // clic sur le SOL lissé (mesh unique) → case = arrondi du point d'impact
+      if (this.smooth.mesh && h.object === this.smooth.mesh && h.point) {
+        const cx = Math.round(h.point.x), cy = Math.round(h.point.z);
+        if (cx >= 0 && cy >= 0 && cx < c.gridW && cy < c.gridH) {
+          bus.emit(EV.CombatTileClick, { x: cx, y: cy });
+          return;
+        }
+        continue;
       }
     }
   }
@@ -214,84 +211,61 @@ class CombatWorld {
   draw() {
     const c = this.combat;
     const engine = this.engine;
-    if (!c || !this.libReady) return;
+    if (!c || !this.ready) return;
 
-    // terrain : reconstruit par combat — ARÈNE PAR BIOME (lot C1) : sol du
-    // biome, colonnes d'eau, plaques de glace ; obstacles/ronces en props
+    // terrain reconstruit par combat : SOL en PENTES VOXEL lissées (comme la carte,
+    // fini les gros cubes) + SOCLE-ÎLE lisse ; obstacles/décor en props par-dessus.
     if (this.terrainKey !== c.id) {
       if (this.terrain) engine.scene.remove(this.terrain);
-      const floor = COMBAT_FLOOR[c.biome] ?? COMBAT_FLOOR[2];
+      if (this.smooth.mesh) {
+        engine.scene.remove(this.smooth.mesh);
+        this.smooth.mesh.geometry.dispose();
+      }
+      const group = new THREE.Group();
       const cellAt = (x: number, y: number) => c.cells?.[y * c.gridW + x];
-      const cells: TerrainCell[] = [];
-      for (let y = 0; y < c.gridH; y++) {
-        for (let x = 0; x < c.gridW; x++) {
-          const cc = cellAt(x, y);
-          let block = floor.block;
-          if (cc?.hazard === "water") block = "water";
-          else if (cc?.hazard === "ice") block = "ice";
-          cells.push({ x, y, block, under: floor.under, levels: this.heightAt(x, y) + 1 });
-        }
-      }
-      const built = buildTerrain(this.lib, cells);
-      this.terrain = built.group;
-      this.lookup = built.lookup;
 
-      // SOCLE d'île flottante : l'arène ne flotte plus dans le vide — un bloc de
-      // terre/roche descend sous chaque case, en pyramide inversée (côtés rocheux),
-      // avec un liseré d'1 case autour → diorama posé, pas dalle suspendue.
-      const baseItems: StackItem[] = [];
-      const BASE_DEPTH = 5;
-      for (let d = 1; d <= BASE_DEPTH; d++) {
-        const inset = Math.floor((d - 1) / 2) - (d === 1 ? 1 : 0); // -1 (liseré), 0,0,1,1
-        const blk = d <= 2 ? floor.under ?? "dirt" : "stone";
-        for (let y = inset; y < c.gridH - inset; y++)
-          for (let x = inset; x < c.gridW - inset; x++)
-            baseItems.push({ x, y, level: -d, block: blk });
-      }
-      built.group.add(buildStacks(this.lib, baseItems).group);
+      // 1) SOL lissé : biome de l'arène, cases d'eau creusées ; marches FIDÈLES
+      //    (heightScale 1, ni roulis ni micro-relief → plateaux plats et lisibles).
+      const src = {
+        width: c.gridW,
+        height: c.gridH,
+        tiles: Array.from({ length: c.gridW * c.gridH }, (_, i) => {
+          const cc = c.cells?.[i];
+          return {
+            biome: cc?.hazard === "water" ? 0 : c.biome,
+            height: this.heightAt(i % c.gridW, (i / c.gridW) | 0),
+            discovered: true,
+          };
+        }),
+      };
+      const floorMesh = this.smooth.build(src, null, (t) => t.height, { heightScale: 1, rollAmp: 0, micro: 0 });
+      floorMesh.castShadow = floorMesh.receiveShadow = true;
+      group.add(floorMesh);
 
-      // BRASEROS d'angle : 4 vasques posées sur le liseré, flamme self-lit qui
-      // RAYONNE (calque bloom) — cadre l'arène façon FFTA2 et anime la lumière.
-      for (const [bx, by] of [[-1, -1], [c.gridW, -1], [-1, c.gridH], [c.gridW, c.gridH]] as const) {
+      const cxm = (c.gridW - 1) / 2, cym = (c.gridH - 1) / 2;
+      // 2) SOCLE-ÎLE : tronc de pyramide LISSE (pas de cubes) sous l'arène.
+      const topR = (Math.max(c.gridW, c.gridH) / 2 + 0.35) * Math.SQRT2;
+      const plinth = new THREE.Mesh(new THREE.CylinderGeometry(topR, topR * 0.72, 5, 4, 1), PLINTH_MAT);
+      plinth.rotation.y = Math.PI / 4; // faces parallèles aux bords de l'arène
+      plinth.position.set(cxm, -2.5, cym); // sommet ≈ y=0
+      plinth.castShadow = plinth.receiveShadow = true;
+      group.add(plinth);
+
+      // 3) BRASEROS d'angle (flamme self-lit sur le calque bloom → rayonne en beauté).
+      for (const [bx, by] of [[-0.6, -0.6], [c.gridW - 0.4, -0.6], [-0.6, c.gridH - 0.4], [c.gridW - 0.4, c.gridH - 0.4]] as const) {
         const bowl = new THREE.Mesh(BRAZIER_GEOM, BRAZIER_MAT);
         bowl.castShadow = true;
-        bowl.position.set(bx, 0.17, by); // sur le dessus du liseré (y=0)
-        built.group.add(bowl);
+        bowl.position.set(bx, 0.17, by);
+        group.add(bowl);
         const fire = new THREE.Mesh(FIRE_GEOM, FIRE_MAT);
         fire.position.set(bx, 0.42, by);
         fire.layers.enable(BLOOM_LAYER);
-        built.group.add(fire);
+        group.add(fire);
       }
 
-      // DÉCOR : herbe/fleurs/champignons épars sur les cases vides (ni relief, ni
-      // obstacle, ni danger) — de la vie, sans gêner la lecture tactique.
-      const deco = DECO_BY_BIOME[c.biome] ?? DECO_BY_BIOME[2];
-      for (let y = 0; y < c.gridH; y++) {
-        for (let x = 0; x < c.gridW; x++) {
-          const cc = cellAt(x, y);
-          if (cc?.blocked || cc?.hazard || this.heightAt(x, y) > 0) continue;
-          const h = (x * 73856093) ^ (y * 19349663);
-          if (((h >>> 0) % 100) >= 38) continue; // ~38 % des cases plates
-          const id = deco[((h >>> 3) >>> 0) % deco.length];
-          const geom = this.propsLib.get(id, ((h >>> 5) >>> 0) % 3);
-          if (!geom) continue;
-          const glow = id === "crystal" || id === "ice-spike";
-          const m = new THREE.Mesh(geom, glow ? GLOW_VC_MAT : ARENA_PROP_MAT);
-          m.castShadow = !glow;
-          m.receiveShadow = !glow;
-          if (glow) m.layers.enable(BLOOM_LAYER);
-          const jx = (((h >>> 7) % 40) / 100) - 0.2;
-          const jy = (((h >>> 11) % 40) / 100) - 0.2;
-          m.position.set(x + jx, 1 - 0.02, y + jy);
-          m.rotation.y = ((h >>> 2) % 8) * (Math.PI / 4);
-          m.scale.setScalar(0.34 + ((h >>> 9) % 20) / 100);
-          built.group.add(m);
-        }
-      }
-
-      // obstacles (rocher/arbre/pic selon biome) et ronces posés SUR les cases
+      // 4) OBSTACLES (cases bloquées) + ronces — posés sur la surface lissée.
       const obstacleId = c.biome === 3 || c.biome === 2 ? "tree-green" : c.biome === 5 ? "ice-spike" : "rock";
-      for (let y = 0; y < c.gridH; y++) {
+      for (let y = 0; y < c.gridH; y++)
         for (let x = 0; x < c.gridW; x++) {
           const cc = cellAt(x, y);
           const propId = cc?.blocked ? obstacleId : cc?.hazard === "brambles" ? "brambles" : null;
@@ -300,21 +274,47 @@ class CombatWorld {
           if (!geom) continue;
           const mesh = new THREE.Mesh(geom, ARENA_PROP_MAT);
           mesh.castShadow = mesh.receiveShadow = true;
-          mesh.position.set(x, this.heightAt(x, y) + 1 - 0.02, y);
+          mesh.position.set(x, this.surfaceY(x, y) - 0.02, y);
           mesh.rotation.y = ((x * 31 + y * 17) % 4) * (Math.PI / 2);
           mesh.scale.setScalar(cc?.blocked ? 0.95 : 0.8);
-          built.group.add(mesh);
+          group.add(mesh);
         }
-      }
-      engine.scene.add(built.group);
+
+      // 5) DÉCOR CURÉ : RARE (~12 %, le sol lissé a déjà ses pointillés d'herbe) et
+      //    joli — fleurs/champignons/galets épars sur les cases plates vides.
+      const deco = DECO_BY_BIOME[c.biome] ?? DECO_BY_BIOME[2];
+      for (let y = 0; y < c.gridH; y++)
+        for (let x = 0; x < c.gridW; x++) {
+          const cc = cellAt(x, y);
+          if (cc?.blocked || cc?.hazard || this.heightAt(x, y) > 0) continue;
+          const hh = ((x * 73856093) ^ (y * 19349663)) >>> 0;
+          if (hh % 100 >= 12) continue;
+          const id = deco[(hh >>> 3) % deco.length];
+          const geom = this.propsLib.get(id, (hh >>> 5) % 3);
+          if (!geom) continue;
+          const glow = id === "crystal";
+          const m = new THREE.Mesh(geom, glow ? GLOW_VC_MAT : ARENA_PROP_MAT);
+          m.castShadow = !glow;
+          m.receiveShadow = !glow;
+          if (glow) m.layers.enable(BLOOM_LAYER);
+          const jx = ((hh >>> 7) % 40) / 100 - 0.2, jy = ((hh >>> 11) % 40) / 100 - 0.2;
+          m.position.set(x + jx, this.surfaceY(x, y) - 0.02, y + jy);
+          m.rotation.y = ((hh >>> 2) % 8) * (Math.PI / 4);
+          m.scale.setScalar(0.3 + ((hh >>> 9) % 16) / 100);
+          group.add(m);
+        }
+
+      engine.scene.add(group);
+      this.terrain = group;
       this.terrainKey = c.id;
     }
+    this.smooth.setTime(performance.now() / 1000); // shader d'eau (cases d'eau) sur les frames rendues
 
     clearOwned(this.overlays);
     clearOwned(this.sprites);
     this.unitOf.clear();
 
-    const topOf = (x: number, y: number) => this.heightAt(x, y) + 1;
+    const topOf = (x: number, y: number) => this.surfaceY(x, y);
     const quad = (x: number, y: number, color: number, opacity: number) => {
       const m = new THREE.Mesh(
         CQUAD_GEOM,

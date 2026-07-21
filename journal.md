@@ -6,6 +6,31 @@
 
 ---
 
+## 2026-07-21 (58) — Arène de combat : sol en pentes voxel lissées (fini les gros cubes) + décor curé
+
+### Fait (retour utilisateur : « les herbes trop nombreuses/moches, et les blocs pas beaux — autre chose que des blocs serait sympa »)
+- **Fini les gros cubes** : le sol de l'arène est désormais rendu en **pentes voxel
+  LISSÉES** (le même `SmoothTerrain` que la carte du monde), au lieu du `buildTerrain`
+  en blocs 32³. `SmoothTerrain.build` prend un `opts {heightScale, rollAmp, micro}` :
+  la carte amplifie/roule, le **combat** passe `{1, 0, 0}` → marches fidèles, plateaux
+  plats et lisibles, pentes arrondies. Cases d'eau (hazard) → biome 0 creusé (shader
+  d'eau `setTime` sur les frames). `heightAt` (logique serveur) inchangé ; nouveau
+  `surfaceY()` = sommet lissé où se posent overlays/unités/props/dégâts flottants.
+- **Socle-île LISSE** : tronc de pyramide (`CylinderGeometry` 4 faces, `PLINTH_MAT`)
+  sous l'arène — plus de blocs empilés, une seule forme propre.
+- **Décor curé** : densité **38 % → 12 %**, plus de « touffes d'herbe » (retirées) —
+  fleurs/champignons/fougères/galets épars par biome (`DECO_BY_BIOME` nettoyé) ; le
+  sol lissé apporte déjà ses pointillés d'herbe. Cristaux sur le calque bloom.
+- **Picking réécrit** : plus de `lookup` instance→case (blocs) ; un clic sur le mesh
+  lissé unique → case = arrondi du point d'impact (`Math.round(point.x/z)`). Vérifié.
+- Braseros d'angle conservés (flamme self-lit sur calque bloom → glow en beauté).
+
+### Fonctionnel (vérifié)
+- `tsc` + `npm run build` OK ; perf voxel **12/12** (carte/ville inchangées). Rendus :
+  `combat-smooth-beauty`/`combat-smooth-fit` (île lissée + braseros, arène lisible),
+  overlays tactiques (cases vertes/anneaux) alignés. **Picking** e2e : projection de
+  la case (2,3) → `onTap` → `CombatTileClick {2,3}` ✓.
+
 ## 2026-07-21 (57) — Arène de combat : diorama-île, braseros lumineux, ciel crépusculaire
 
 ### Fait (retour utilisateur : « améliore la carte des combats pour qu'elle soit bien plus jolie »)

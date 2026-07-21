@@ -103,8 +103,19 @@ export class SmoothTerrain {
     return this.cols[cy * this.gw + cx];
   }
 
-  build(game: TerrainSource, palettes: Palettes | null, renderHeight: (t: TerrainSource["tiles"][number]) => number): THREE.Mesh {
+  build(
+    game: TerrainSource,
+    palettes: Palettes | null,
+    renderHeight: (t: TerrainSource["tiles"][number]) => number,
+    // Options : la CARTE amplifie les hauteurs et fait rouler les plaines ; le
+    // COMBAT veut des marches FIDÈLES et des plateaux plats (heightScale 1, roll 0,
+    // micro 0) tout en gardant les pentes voxel arrondies.
+    opts: { heightScale?: number; rollAmp?: number; micro?: number } = {},
+  ): THREE.Mesh {
     void palettes; // l'extraction isotiles reste l'affaire des blocs
+    const heightScale = opts.heightScale ?? HEIGHT_SCALE;
+    const rollAmp = opts.rollAmp ?? ROLL_AMP;
+    const micro = opts.micro ?? MICRO;
     const W = game.width, H = game.height;
     const gw = (this.gw = W * R), gh = (this.gh = H * R);
 
@@ -118,7 +129,7 @@ export class SmoothTerrain {
       // en buttes de marches au lieu d'un grand aplat) — le sable près de
       // l'eau ondule moins pour garder des plages basses
       const rollScale = t.biome === 1 ? 0.35 : 1;
-      return renderHeight(t) * HEIGHT_SCALE + (rollNoise(tx, ty) - 0.5) * ROLL_AMP * rollScale;
+      return renderHeight(t) * heightScale + (rollNoise(tx, ty) - 0.5) * rollAmp * rollScale;
     };
     const cornerH = (cx: number, cy: number): number => {
       let sum = 0, cnt = 0;
@@ -145,7 +156,7 @@ export class SmoothTerrain {
         const smooth = h00 + (h10 - h00) * sx + (h01 + (h11 - h01) * sx - (h00 + (h10 - h00) * sx)) * sy;
         let hgt = terrace(smooth);
         const t = tileAt(tx, ty);
-        if (!(t?.discovered && t.biome === 0)) hgt += (hash01(cx, cy, 7) - 0.5) * 2 * MICRO;
+        if (micro > 0 && !(t?.discovered && t.biome === 0)) hgt += (hash01(cx, cy, 7) - 0.5) * 2 * micro;
         cols[cy * gw + cx] = Math.round((hgt + 1) / VS) * VS; // +1 : sol des blocs
       }
     }
