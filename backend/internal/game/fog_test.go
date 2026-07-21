@@ -45,6 +45,37 @@ func TestClientViewRedactsUndiscovered(t *testing.T) {
 	}
 }
 
+// DEBUG « lever le brouillard » : RevealAll fait passer TOUTE la carte (tuiles
+// marquées découvertes, monstres inclus) sans toucher au vrai jeu de tuiles.
+func TestRevealAllShowsWholeMapWithoutMutating(t *testing.T) {
+	g := &GameState{Width: 4, Height: 4, Seed: 1234, Monsters: map[string]*Monster{}}
+	g.Tiles = make([]Tile, 16)
+	for i := range g.Tiles {
+		g.Tiles[i] = Tile{Biome: Biome(3), Height: 5, Resources: 2}
+	}
+	g.Monsters["hidden"] = &Monster{ID: "hidden", X: 3, Y: 3, Count: 4}
+	g.TileAt(3, 3).MonsterID = "hidden"
+
+	g.RevealAll = true
+	cv := g.ClientView()
+	if got := cv.TileAt(3, 3); !got.Discovered || got.Biome != Biome(3) || got.Height != 5 {
+		t.Fatalf("with RevealAll every tile must be sent discovered, got %+v", got)
+	}
+	if _, ok := cv.Monsters["hidden"]; !ok {
+		t.Fatalf("with RevealAll every monster must be sent")
+	}
+	// L'état réel n'est PAS modifié : la tuile (3,3) reste non découverte côté serveur.
+	if g.TileAt(3, 3).Discovered {
+		t.Fatalf("RevealAll must not mutate the real explored set")
+	}
+
+	// Le remettre restaure la vraie occultation.
+	g.RevealAll = false
+	if got := g.ClientView().TileAt(3, 3); got.Discovered {
+		t.Fatalf("clearing RevealAll must restore the fog, got %+v", got)
+	}
+}
+
 // Exploration au contact (2026-07-19) : un héros normal ne révèle que SA case ;
 // seul l'Éclaireur voit une case à l'avance.
 func TestContactExplorationVision(t *testing.T) {

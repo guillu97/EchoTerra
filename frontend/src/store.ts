@@ -214,6 +214,7 @@ interface StoreState {
   ruinExplore: () => Promise<void>; // fouiller le donjon déblayé (2 PA)
   advance: () => Promise<void>;
   skipDay: () => Promise<void>;
+  revealFog: (on: boolean) => Promise<void>;
   startCombat: () => Promise<void>;
   setCombatMode: (m: CombatMode) => void;
   selectCombatSkill: (idx: number) => void; // arme (ou lance si sur soi) une compétence iso
@@ -954,6 +955,18 @@ export const useStore = create<StoreState>((set, get) => {
         const lw = next.lastWave;
         pushLog(`⏩ Jour ${next.day} — ${lw ? `vague ${lw.wave} : -${lw.townDamage} PV ville` : "avancé"}.`);
         if (lw?.gameOver) pushLog("💀 La ville est tombée…");
+        renderMap();
+      }),
+
+    // DEBUG : lève (on) ou remet (off) le brouillard de guerre côté serveur. La vraie
+    // carte explorée n'est pas modifiée — remettre le brouillard rend l'état réel.
+    revealFog: (on) =>
+      withBusy(async () => {
+        const { game } = get();
+        if (!game) return;
+        const next = await api.revealFog(game.id, on);
+        set({ game: next });
+        pushLog(on ? "👁️ Brouillard levé (debug) — carte entière révélée." : "🌫️ Brouillard remis.");
         renderMap();
       }),
 

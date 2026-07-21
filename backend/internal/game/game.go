@@ -41,12 +41,12 @@ type Item struct {
 
 // Tile is one cell of the global orthogonal map.
 type Tile struct {
-	Biome      Biome `json:"biome"`
-	Height     int   `json:"height"`     // cosmetic elevation on the global map
-	Resources  int   `json:"resources"`  // remaining successful searches (0 => depleted)
+	Biome      Biome  `json:"biome"`
+	Height     int    `json:"height"`    // cosmetic elevation on the global map
+	Resources  int    `json:"resources"` // remaining successful searches (0 => depleted)
 	MonsterID  string `json:"monsterId,omitempty"`
 	RuinID     string `json:"ruinId,omitempty"` // ruine-donjon posée sur la case (voir ruins.go)
-	Discovered bool  `json:"discovered"` // fog of war: revealed once a hero has seen it (shared by all players)
+	Discovered bool   `json:"discovered"`       // fog of war: revealed once a hero has seen it (shared by all players)
 }
 
 // Hero is a controllable unit on the global map.
@@ -143,7 +143,7 @@ type GameState struct {
 	Wave     int                 `json:"wave"`
 	// Lobby / multiplayer (see lobby.go). A game is created in status "lobby" and only
 	// becomes "active" once the host launches it with at least MinPlayers players.
-	JoinCode   string    `json:"joinCode,omitempty"` // short shareable code to join the lobby
+	JoinCode   string    `json:"joinCode,omitempty"`   // short shareable code to join the lobby
 	Visibility string    `json:"visibility,omitempty"` // "private" (default) | "public" (see lobby.go)
 	MinPlayers int       `json:"minPlayers"`
 	MaxPlayers int       `json:"maxPlayers"`
@@ -154,11 +154,11 @@ type GameState struct {
 	// player ids. A strict majority of the other human players removes the target.
 	KickVotes map[string][]string `json:"kickVotes,omitempty"`
 	// Horde / wave scheduling (server-authoritative).
-	WaveNumber int          `json:"waveNumber"` // total waves resolved so far
-	NextWaveAt time.Time    `json:"nextWaveAt"` // when the next wave hits the town
-	LastBotAt  time.Time    `json:"lastBotAt,omitzero"` // last lazy bot round (serverless catch-up, see bots.go)
-	Status     string       `json:"status"`     // "lobby" | "active" | "gameover"
-	LastWave   *WaveReport  `json:"lastWave,omitempty"`
+	WaveNumber int         `json:"waveNumber"`         // total waves resolved so far
+	NextWaveAt time.Time   `json:"nextWaveAt"`         // when the next wave hits the town
+	LastBotAt  time.Time   `json:"lastBotAt,omitzero"` // last lazy bot round (serverless catch-up, see bots.go)
+	Status     string      `json:"status"`             // "lobby" | "active" | "gameover"
+	LastWave   *WaveReport `json:"lastWave,omitempty"`
 	Town       struct {
 		X         int             `json:"x"`
 		Y         int             `json:"y"`
@@ -185,6 +185,10 @@ type GameState struct {
 	Combats      map[string]*Combat `json:"combats,omitempty"`
 	// Ruins are the biome-specific ruined buildings → dungeons (see ruins.go).
 	Ruins map[string]*Ruin `json:"ruins,omitempty"`
+	// RevealAll is a DEBUG flag: when set, ClientView stops redacting the fog and
+	// sends the whole map (tiles marked discovered) — the real explored set is left
+	// untouched, so clearing the flag restores the genuine fog. See fog.go.
+	RevealAll bool `json:"revealAll,omitempty"`
 }
 
 // TileAt returns a pointer to the tile at (x,y), or nil if out of bounds.

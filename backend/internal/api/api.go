@@ -213,6 +213,7 @@ func (s *Server) Router() http.Handler {
 			r.Post("/bots", s.addBot)
 			r.Get("/world", s.getWorld)
 			r.Post("/advance", s.advance)
+			r.Post("/reveal", s.reveal)
 			r.Post("/town/action", s.townAction)
 			r.Post("/town/deposit", s.townDeposit)
 			r.Post("/town/craft", s.townCraft)
@@ -962,6 +963,22 @@ func (s *Server) advance(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, gs)
 }
 
+// reveal is a DEBUG toggle for the fog of war: {on:true} sends the whole map,
+// {on:false} restores the genuine explored-only fog (see game.RevealAll / fog.go).
+func (s *Server) reveal(w http.ResponseWriter, r *http.Request) {
+	gs := s.mustGame(w, r)
+	if gs == nil {
+		return
+	}
+	var body struct {
+		On bool `json:"on"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&body)
+	gs.RevealAll = body.On
+	s.persist(gs)
+	writeJSON(w, http.StatusOK, gs)
+}
+
 func (s *Server) townAction(w http.ResponseWriter, r *http.Request) {
 	gs := s.mustGame(w, r)
 	if gs == nil {
@@ -1292,4 +1309,3 @@ func idsOf(units []*game.CombatUnit) []string {
 	}
 	return out
 }
-
