@@ -243,6 +243,8 @@ const seedRecipes = (): RecipeDef[] => [
   { id: "healing_potion", name: "Potion de soin", icon: "🧪", category: "potion", building: "kitchen", buildingLevel: 1, field: true, pa: 1, ingredients: [{ name: "Herbe médicinale", qty: 2 }], output: { type: "consommable", name: "Potion de soin", qty: 1 }, effects: "+8 PV, retire Blessé" },
   { id: "iron_blade", name: "Lame de fer", icon: "🗡️", category: "forge", building: "workshop", buildingLevel: 1, field: false, pa: 2, ingredients: [{ name: "Minerai de fer", qty: 2 }, { name: "Bois", qty: 1 }], output: { type: "arme", name: "Lame de fer", qty: 1 }, effects: "Arme : +3 force en combat" },
   { id: "wooden_totem", name: "Totem de bois", icon: "🗿", category: "deco", building: "workshop", buildingLevel: 1, field: false, pa: 1, ingredients: [{ name: "Bois", qty: 3 }], output: { type: "deco", name: "Totem de bois", qty: 1 }, effects: "Décoration (moral de la ville)" },
+  { id: "recycle_wood", name: "Recyclage → Bois", icon: "♻️", category: "forge", building: "workshop", buildingLevel: 1, field: false, pa: 1, ingredients: [{ name: "Débris", qty: 3 }], output: { type: "objet", name: "Bois", qty: 1 }, effects: "Recycle 3 débris en 1 Bois" },
+  { id: "recycle_stone", name: "Recyclage → Pierre", icon: "♻️", category: "forge", building: "workshop", buildingLevel: 1, field: false, pa: 1, ingredients: [{ name: "Débris", qty: 3 }], output: { type: "minerai", name: "Pierre", qty: 1 }, effects: "Recycle 3 débris en 1 Pierre" },
 ];
 
 const seedClasses = (): HeroClassDef[] => [
