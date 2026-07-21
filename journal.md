@@ -9,17 +9,17 @@
 ## 2026-07-21 (62) — Plans de chantier à TROUVER + hauteur des biomes + oliviers + cheat vague sûre
 
 ### Fait
-- **Plans de construction lootables (retour : « je ne loot pas assez de bois/pierre pour bâtir »)** :
-  la construction NEUVE (niveau 1) d'un site ne coûte plus de matériaux bruts — elle exige un **plan
-  (blueprint) trouvé** dans la Banque, consommé à la POSE. `buildingPlanItem` (townhall→Plan de la
-  Mairie, tower→Plan de la Tour, kitchen→Plan de la Cuisine, recyclerie→Plan de la Recyclerie),
-  `BuildReq.Plan`, `buildingCost` (Materials vide au niv.1 + Plan), pose gatée/consommée dans
-  `TownAction`. Les **améliorations** (niv.2/3) gardent leurs matériaux. Plans droppés par les **ruines**
-  (repurpose des « Plan ancien : X ») et la **fouille de terrain** (poids faible, thématique par biome).
-  Résout le bootstrap Recyclerie (elle transforme Débris→Bois/Pierre mais était incraftable faute de
-  bois/pierre). Front : `BuildReq.plan`, StructureTab affiche « 📐 <plan> 0/1 » et gate « Poser le
-  plan », ItemGrid emoji 📐 pour les Plans. Tests : `build_test.go` (blueprint gate, recyclerie sans
-  matériaux, plans lootables), `design_test.go`/`build` mis à jour.
+- **Plan à trouver + matériaux + PA (retour : « je ne loot pas assez de bois/pierre pour bâtir » →
+  affiné : « besoin du plan PUIS des resources et des PA ; les plans de bâtiments simples faciles à
+  trouver »)** : la construction NEUVE (niveau 1) d'un site exige EN PLUS un **plan (blueprint) trouvé**
+  dans la Banque, requis+consommé à la POSE (gate SUPPLÉMENTAIRE, pas un remplacement — matériaux niv.1
+  toujours requis à l'investissement). `buildingPlanItem` (Mairie/Tour/Cuisine/Recyclerie), `BuildReq.Plan`,
+  `buildingCost` (Materials niv.1 + Plan), pose gatée/consommée dans `TownAction`. Améliorations (niv.2/3)
+  sans plan. **Plans des bâtiments SIMPLES (recyclerie, cuisine) COMMUNS** dans les biomes proches de la
+  ville (sable/prairie, poids 2-3) ; avancés (tour/mairie) modérés (forêt/montagne, poids 1). Aussi droppés
+  par les **ruines** (repurpose des « Plan ancien : X »). Front : `BuildReq.plan`, StructureTab affiche
+  « 📐 <plan> 0/1 » + matériaux et gate « Poser le plan » (pose = plan seul ; invest = matériaux), ItemGrid
+  emoji 📐. Tests : `build_test.go` (plan+matériaux, recyclerie, plans communs vérifiés), `design_test.go`.
 - **Hauteur/taille des biomes augmentée sur la carte** : `smoothTerrain HEIGHT_SCALE 1.9→2.6`
   (montagnes/collines plus hautes, terrasses marquées ; carte seule — combat `heightScale:1`, ville
   intacte), arbres `VoxelMapView 1.3→1.6`.

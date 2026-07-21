@@ -62,12 +62,15 @@ var Terrains = map[Biome]TerrainDef{
 	// le bois, la MONTAGNE/NEIGE la pierre et les minerais.
 	BiomeSand: {Searchable: true, ResourcesMin: 3, ResourcesMax: 6, Drops: []DropDef{
 		{"plante", "Fleur", 1, 1}, {"animal", "Viande", 1, 1}, {"objet", "Débris", 1, 1}, {"aliment", "Poisson", 1, 1},
-		{"objet", "Plan de la Recyclerie", 1, 1}, // plans de chantier trouvables à la fouille (poids faible)
+		// Plans de chantier trouvables à la fouille. Les bâtiments SIMPLES (recyclerie,
+		// cuisine) ont des plans COMMUNS dans les biomes proches de la ville (sable/prairie) ;
+		// les avancés (tour/mairie) restent modérés (forêt/montagne).
+		{"objet", "Plan de la Recyclerie", 1, 3}, {"objet", "Plan de la Cuisine", 1, 1},
 	}},
 	BiomeGrass: {Searchable: true, ResourcesMin: 3, ResourcesMax: 6, Drops: []DropDef{
 		{"plante", "Fleur", 1, 1}, {"animal", "Viande", 1, 1}, {"objet", "Débris", 1, 1},
 		{"plante", "Baie sauvage", 1, 2}, {"plante", "Fibre végétale", 1, 2},
-		{"objet", "Plan de la Cuisine", 1, 1},
+		{"objet", "Plan de la Cuisine", 1, 3}, {"objet", "Plan de la Recyclerie", 1, 2},
 	}},
 	BiomeForest: {Searchable: true, ResourcesMin: 3, ResourcesMax: 6, Drops: []DropDef{
 		// la forêt est LA source de bois (poids fort) — le reste en appoint

@@ -105,20 +105,20 @@ func (g *GameState) buildingCost(b *TownBuilding) BuildReq {
 	if w := g.buildingByID("workshop"); w != nil && w != b && w.Built && w.Level >= 2 && pa > 1 {
 		pa-- // Workshop niv.2 : coût PA des chantiers -1
 	}
-	// Fresh site (level-1 build): the found Plan replaces the raw-material cost — you
-	// only need the blueprint in the Bank plus the collective PA. Upgrades keep their
-	// per-level crafted materials (you'll have production going by then).
-	if !b.Built {
-		if plan := buildingPlanItem(b.ID); plan != "" {
-			return BuildReq{PA: pa, Materials: []Item{}, Plan: plan}
-		}
-	}
 	var mats []Item
 	if lv := buildingLevelDef(b.ID, target); lv != nil {
 		mats = make([]Item, len(lv.Materials))
 		copy(mats, lv.Materials)
 	}
-	return BuildReq{PA: pa, Materials: mats}
+	// A fresh site ALSO needs its lootable Plan (blueprint) in the Bank to lay the
+	// chantier — on TOP of the level-1 materials and PA (the plan is an extra gate,
+	// consumed at plan-laying; upgrades need no plan). Simple buildings' plans drop
+	// commonly (see design.go / ruins.go) so this doesn't stall the early game.
+	plan := ""
+	if !b.Built {
+		plan = buildingPlanItem(b.ID)
+	}
+	return BuildReq{PA: pa, Materials: mats, Plan: plan}
 }
 
 // checkBuildRequires validates a site's tech-tree prerequisites (from the design)
