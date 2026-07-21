@@ -18651,8 +18651,8 @@
         },
         {
           "id": "p-recyclerie-1",
-          "cx": 36,
-          "cy": 48,
+          "cx": 34,
+          "cy": 40,
           "asset": {
             "cat": "buildings",
             "file": "bld-recyclerie"
