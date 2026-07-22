@@ -63,6 +63,7 @@ class CombatWorld {
   overlays = new THREE.Group();
   sprites = new THREE.Group();
   fx = new THREE.Group(); // étiquettes flottantes (C2) — survivent aux redraws
+  deaths = new THREE.Group(); // rigs vaincus en train de s'effondrer (survivent aux redraws)
   unitOf = new Map<THREE.Object3D, string>(); // sprite → unitId (picking)
   textures = new Map<string, THREE.Texture>();
   animator: UnitAnimator; // rigs animés (idle/attaque/compétence/touché)
@@ -92,6 +93,7 @@ class CombatWorld {
     engine.scene.add(this.overlays);
     engine.scene.add(this.sprites);
     engine.scene.add(this.fx);
+    engine.scene.add(this.deaths);
     // passe beauté (tone mapping + bloom sélectif sur les flammes) — la vue garde
     // SON fond crépusculaire (keepBackground) ; suit le réglage à chaud.
     const beautyOn = () => useStore.getState().settings.voxelBeauty;
@@ -129,6 +131,25 @@ class CombatWorld {
       }
     }
     if (actor) this.animator.trigger(actor, kind);
+  }
+
+  /** Unités passées de vivantes (prev) à vaincues (now) → rig qui s'effondre. */
+  spawnDeaths(prev: CombatUnit[]) {
+    const now = this.combat;
+    if (!now) return;
+    for (const u of prev) {
+      if (u.hp <= 0) continue;
+      const after = now.units.find((x) => x.id === u.id);
+      if (after && after.hp > 0 && !after.fled) continue; // toujours en vie
+      const tex = u.side === "hero" ? (u.appearance || heroTexKey(u.kind)) : monsterTexKey(u.kind, u.appearance);
+      const rig = tex ? this.chars.makeRig(tex) : undefined;
+      if (!rig) continue;
+      const span = u.size && u.size > 1 ? u.size : 1;
+      rig.root.scale.multiplyScalar(span);
+      this.deaths.add(rig.root);
+      const faceY = u.fx || u.fy ? Math.atan2(u.fx, u.fy) : this.engine.azimuthNow;
+      this.animator.playDeath(rig, u.x + (span - 1) / 2, this.surfaceY(u.x, u.y), u.y + (span - 1) / 2, faceY);
+    }
   }
 
   dispose() {
@@ -518,6 +539,7 @@ export function VoxelCombatView() {
         threatUnitId?: string;
       }) => {
         const changed = world.combat?.id !== p.combat.id;
+        const prevUnits = changed ? [] : world.combat?.units ?? []; // pour diff des morts
         world.combat = p.combat;
         world.current = p.current;
         world.mode = p.mode;
@@ -533,6 +555,7 @@ export function VoxelCombatView() {
           world.spawnHits(hits);
           world.draw(); // (re)crée les rigs + les enregistre avant de déclencher l'anim
           world.animateAction(hits, world.pendingActor?.unitId, world.pendingActor?.kind ?? "attack");
+          world.spawnDeaths(prevUnits); // unités tombées à 0 PV → effondrement
           world.pendingActor = undefined;
           return;
         }

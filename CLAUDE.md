@@ -610,7 +610,10 @@ détecte les déplacements (lerp de pose + arc → walk), joue les one-shots, UN
 qu'il reste des unités (onglet visible). `CharLibrary.makeRig(key)` (géométries découpées en cache) +
 `setRigOpacity` (héros des autres, translucides). Carte : rigs face caméra (idle + marche au pas) ; Combat :
 rigs orientés Facing, l'action du JOUEUR émet `EV.CombatAnim{unitId,kind}` (lunge/cast précis), recul des
-cibles depuis `lastHits`, acteur ENNEMI déduit (unité active adverse ou la plus proche d'une cible). **La
+cibles depuis `lastHits`, acteur ENNEMI déduit (unité active adverse ou la plus proche d'une cible).
+**MORT** : `UnitAnimator.playDeath` fait s'effondrer (bascule arrière) + fondre + enfoncer un rig vaincu sur
+850 ms puis le retire ; `VoxelCombatView.spawnDeaths` diffe les unités passées à 0 PV entre deux `seq` (groupe
+`deaths` survivant aux redraws). **La
 VILLE anime aussi les héros** (rigs voxel, respiration à l'arrêt — `CharLibrary`+`UnitAnimator`, fallback
 billboard). **Bras & armes des HÉROS = vraies parties** (2026-07-22) : `char-recipe.mjs` tague un canal de
 PARTIE (`Grid.curPart` 0 corps/1 legL/2 legR/3 armL/4 armR, l'arme tenue suit son bras), stocké dans un chunk
