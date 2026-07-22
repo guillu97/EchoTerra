@@ -10,6 +10,9 @@ export type VoxModel = {
   data: Uint8Array;
   /** [r,g,b] 0-255 ; l'indice voxel k lit palette[k-1] */
   palette: [number, number, number][];
+  /** canal de PARTIE (rig) OPTIONNEL : 0 corps, 1 legL, 2 legR, 3 armL, 4 armR ;
+   *  même indexation que `data`. Présent seulement pour les héros (chunk nPRT). */
+  parts?: Uint8Array;
 };
 
 export function decodeVox(bytes: Uint8Array): VoxModel {
@@ -20,6 +23,7 @@ export function decodeVox(bytes: Uint8Array): VoxModel {
   let size: { sx: number; sy: number; sz: number } | null = null;
   let voxels: Uint8Array | null = null;
   let palette: [number, number, number][] | null = null;
+  let partBytes: Uint8Array | null = null; // canal de partie (nPRT), même ordre que XYZI
   let pos = 8;
   while (pos + 12 <= bytes.byteLength) {
     const id = String.fromCharCode(bytes[pos], bytes[pos + 1], bytes[pos + 2], bytes[pos + 3]);
@@ -33,15 +37,21 @@ export function decodeVox(bytes: Uint8Array): VoxModel {
     } else if (id === "RGBA") {
       palette = [];
       for (let i = 0; i < 255; i++) palette.push([bytes[start + i * 4], bytes[start + i * 4 + 1], bytes[start + i * 4 + 2]]);
+    } else if (id === "nPRT") {
+      const n = dv.getInt32(start, true);
+      partBytes = bytes.subarray(start + 4, start + 4 + n);
     }
     pos = start + content;
   }
   if (!size || !voxels) throw new Error(".vox incomplet");
   const data = new Uint8Array(size.sx * size.sy * size.sz);
-  for (let i = 0; i < voxels.length; i += 4) {
-    data[voxels[i] + voxels[i + 1] * size.sx + voxels[i + 2] * size.sx * size.sy] = voxels[i + 3];
+  const parts = partBytes ? new Uint8Array(size.sx * size.sy * size.sz) : undefined;
+  for (let i = 0, k = 0; i < voxels.length; i += 4, k++) {
+    const idx = voxels[i] + voxels[i + 1] * size.sx + voxels[i + 2] * size.sx * size.sy;
+    data[idx] = voxels[i + 3];
+    if (parts && partBytes) parts[idx] = partBytes[k];
   }
-  return { ...size, data, palette: palette ?? [] };
+  return { ...size, data, palette: palette ?? [], parts };
 }
 
 export async function fetchVox(url: string): Promise<VoxModel> {
