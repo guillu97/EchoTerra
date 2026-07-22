@@ -41,6 +41,13 @@ const ASSET_TO_BUILDING: Record<string, string> = {
 };
 const GRASS_FILES = new Set(["grass", "jungle", "darkgrass", "fallgrass", "mossy"]);
 
+// Gonds (pivots) des vantaux du portail, en coordonnées LOCALES du mesh (repère
+// mesher, avant le scale du groupe) : X = faceExterne_fine/30 − 0.5. Battant
+// gauche = fine x9 (−0.2), droit = fine x23 (+0.2667) ; profondeur centrée (Z=0).
+// Cf. bldGateDoor dans scripts/voxel/gen-props.mjs.
+const GATE_HINGE = { lx: -0.2, rx: 0.2667, z: 0 };
+const GATE_OPEN_ANGLE = 1.75; // rad (~100°) — vantaux grands ouverts
+
 function getDoc(): MapDoc {
   const d = townJson as unknown as MapDoc;
   d.cells = d.cells.map((c) => normalizeCell({ ...(c as Cell) }));
@@ -163,28 +170,80 @@ export function VoxelTownView({
     // SELF-LIT : l'ombrage des faces est déjà CUIT par le mesher — sous le
     // Lambert les façades cumulaient deux ombrages et viraient au gris
     const BLD_MAT = new THREE.MeshBasicMaterial({ vertexColors: true });
+
+    // --- animation d'ouverture du portail --------------------------------------
+    // `gateAnim.current` (0 fermé → 1 ouvert) est lissé image par image et
+    // PERSISTE entre les reconstructions de drawBuildings ; `gatePivots` porte
+    // les deux groupes-gonds recréés à chaque reconstruction ; `gateTarget` suit
+    // l'état serveur `open` (partagé par tous les joueurs → même porte pour tous).
+    const gateAnim = { current: 0 };
+    let gatePivots: { l: THREE.Group; r: THREE.Group } | null = null;
+    let gateTarget = 0;
+    const applyGateAngle = () => {
+      if (!gatePivots) return;
+      const a = gateAnim.current * GATE_OPEN_ANGLE;
+      gatePivots.l.rotation.y = -a; // les deux battants s'ouvrent en s'écartant
+      gatePivots.r.rotation.y = a;
+    };
+
     const drawBuildings = () => {
       bldGroup.clear();
       spriteBuildingOf.current.clear();
+      gatePivots = null;
       const g = useStore.getState().game;
       const list: Spot[] = [];
       for (const pl of bldPlacements) {
         const b = g?.town.buildings?.find((x) => x.id === pl.bid);
         if (!b || (!b.built && !b.underConstruction)) continue; // site sans plan : herbe nue
-        let geom;
-        if (!b.built) {
-          geom = propsLib.get("bld-chantier", 0); // chantier : échafaudage
-        } else {
-          const ratio = b.maxDurability > 0 ? b.durability / b.maxDurability : 1;
-          geom = propsLib.get(`bld-${pl.bid}`, ratio >= 0.66 ? 0 : ratio >= 0.33 ? 1 : 2);
+        // ×2.3 : le modèle est normalisé sur sa grille de 20 mais le bâtiment
+        // n'en occupe que ~14 — sans ce facteur il paraît minuscule vs le billboard
+        const S = pl.w * 2.3;
+        const variant = b.built
+          ? (() => { const r = b.maxDurability > 0 ? b.durability / b.maxDurability : 1; return r >= 0.66 ? 0 : r >= 0.33 ? 1 : 2; })()
+          : 0;
+
+        // PORTAIL construit : maçonnerie + deux vantaux animés autour des gonds
+        if (pl.bid === "gate" && b.built) {
+          const grp = new THREE.Group();
+          grp.position.set(pl.wx, pl.lvl, pl.wy);
+          grp.scale.setScalar(S);
+          grp.rotation.y = Math.PI; // façades (y bas du modèle) vers la caméra
+          const frame = propsLib.get("bld-gate", variant);
+          if (frame) {
+            const m = new THREE.Mesh(frame, BLD_MAT);
+            m.castShadow = m.receiveShadow = true;
+            grp.add(m);
+            spriteBuildingOf.current.set(m, "gate");
+          }
+          const mkLeaf = (side: -1 | 1): THREE.Group | null => {
+            const geom = propsLib.get(side < 0 ? "bld-gate-door-l" : "bld-gate-door-r", variant);
+            if (!geom) return null;
+            const hx = side < 0 ? GATE_HINGE.lx : GATE_HINGE.rx;
+            const pivot = new THREE.Group();
+            pivot.position.set(hx, 0, GATE_HINGE.z); // gond = axe vertical du battant
+            const m = new THREE.Mesh(geom, BLD_MAT);
+            m.castShadow = m.receiveShadow = true;
+            m.position.set(-hx, 0, -GATE_HINGE.z); // annule le gond → aligné à angle 0
+            pivot.add(m);
+            grp.add(pivot);
+            spriteBuildingOf.current.set(m, "gate");
+            return pivot;
+          };
+          const lp = mkLeaf(-1), rp = mkLeaf(1);
+          gatePivots = lp && rp ? { l: lp, r: rp } : null;
+          gateTarget = b.open ? 1 : 0;
+          applyGateAngle(); // pose l'angle courant lissé sans clignotement
+          bldGroup.add(grp);
+          list.push({ buildingId: "gate", world: new THREE.Vector3(pl.wx, pl.lvl + pl.w * 2.6, pl.wy) });
+          continue;
         }
+
+        const geom = b.built ? propsLib.get(`bld-${pl.bid}`, variant) : propsLib.get("bld-chantier", 0);
         if (!geom) continue;
         const mesh = new THREE.Mesh(geom, BLD_MAT);
         mesh.castShadow = mesh.receiveShadow = true;
         mesh.position.set(pl.wx, pl.lvl, pl.wy);
-        // ×2.3 : le modèle est normalisé sur sa grille de 20 mais le bâtiment
-        // n'en occupe que ~14 — sans ce facteur il paraît minuscule vs le billboard
-        mesh.scale.setScalar(pl.w * 2.3);
+        mesh.scale.setScalar(S);
         mesh.rotation.y = Math.PI; // façades (y bas du modèle) vers la caméra par défaut
         bldGroup.add(mesh);
         spriteBuildingOf.current.set(mesh, pl.bid);
@@ -197,7 +256,8 @@ export function VoxelTownView({
     let clouds: Clouds | null = null;
     void propsLib
       .load(["bld-well", "bld-panel", "bld-bank", "bld-workshop", "bld-gate", "bld-tower",
-             "bld-townhall", "bld-kitchen", "bld-wall", "bld-recyclerie", "bld-chantier", "cloud"])
+             "bld-townhall", "bld-kitchen", "bld-wall", "bld-recyclerie", "bld-chantier",
+             "bld-gate-door-l", "bld-gate-door-r", "cloud"])
       .then(() => {
         drawBuildings();
         // nuages au-dessus de la ville : plus hauts, plus lents que la carte
@@ -211,13 +271,25 @@ export function VoxelTownView({
         engine.scene.add(clouds.group);
       });
 
-    // animation CONTINUE des nuages tant que le Home est monté et la page visible
+    // animation CONTINUE des nuages + ouverture des vantaux tant que le Home est
+    // monté et la page visible
     let raf = 0;
     const animate = () => {
       raf = requestAnimationFrame(animate);
-      if (!clouds || document.visibilityState !== "visible") return;
-      clouds.setTime(performance.now() / 1000);
-      engine.invalidate();
+      if (document.visibilityState !== "visible") return;
+      let moved = false;
+      // vantaux : lissage exponentiel doux vers l'état ouvert/fermé
+      if (gatePivots && Math.abs(gateTarget - gateAnim.current) > 0.001) {
+        gateAnim.current += (gateTarget - gateAnim.current) * 0.14;
+        if (Math.abs(gateTarget - gateAnim.current) <= 0.001) {
+          gateAnim.current = gateTarget;
+          engine.refreshShadows(); // fin de course → ombres des vantaux à jour
+        }
+        applyGateAngle();
+        moved = true;
+      }
+      if (clouds) { clouds.setTime(performance.now() / 1000); moved = true; }
+      if (moved) engine.invalidate();
     };
     raf = requestAnimationFrame(animate);
 
