@@ -587,7 +587,12 @@ homonyme, hotspots raycast + pastilles DOM projetées, héros sur l'herbe, LOD 1
 tris ; **2026-07-19 : bâtiments VOXEL à états** — recettes `bld-*` + `bld-chantier`, 3
 variantes par DURABILITÉ (v0 intact / v1 abîmé / v2 ruine, passe `damagePass` : morsures
 visant le toit + carbonisation + gravats), groupe dynamique reconstruit à chaque état,
-site sans plan = herbe nue, matériau SELF-LIT — l'ombrage cuit + Lambert grisait tout) ; **Phase 5** personnages voxel (`char-recipe.mjs` gabarit
+site sans plan = herbe nue, matériau SELF-LIT — l'ombrage cuit + Lambert grisait tout ; **2026-07-22 :
+PORTAIL à vantaux ANIMÉS** — `bld-gate` = maçonnerie seule, deux battants séparés `bld-gate-door-l/-r`
+[`bldGateDoor`, même grille pleine → repère partagé] pivotant chacun autour de son gond [`GATE_HINGE`
+local X ∓, `GATE_OPEN_ANGLE` 1.75 rad] ; `VoxelTownView` lisse `gateAnim` vers `b.open` dans la boucle
+rAF → la porte s'ouvre/se ferme en douceur, état `open` server-authoritative donc IDENTIQUE pour tous
+les joueurs) ; **Phase 5** personnages voxel (`char-recipe.mjs` gabarit
 chibi paramétré 7 classes + `monster-recipe.mjs` 9 silhouettes de monstres, couleurs
 échantillonnées des PNG par `gen-characters.mjs`/`gen-monsters.mjs` → `voxels/chars/*.vox`,
 `characters.ts` CharLibrary : modèle voxel quand il existe sinon billboard, rotation.y = azimut

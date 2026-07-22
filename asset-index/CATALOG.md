@@ -471,7 +471,7 @@ To find an asset in a later session, grep this file or `catalog.json` by title /
 - **Structure tab icon** `nav-structure` — `assets/ui/nav-structure.png` · tags: bottomnav, button, hud, icon, interface, structure, tab, ui
 - **skull (currently 💀 emoji)** `skull` — `assets/ui/skull.png` · tags: button, currently, emoji, gameover, hud, icon, interface, screen, skull, ui
 
-## voxels (178)
+## voxels (184)
 
 - **ash** `vox-16-ash-v0` — `voxels/16/ash-v0.vox` · tags: 16, 3d, ash, biome, block, cube, lod, magicavoxel, terrain, vox, voxel, voxels
 - **ash** `vox-16-ash-v1` — `voxels/16/ash-v1.vox` · tags: 16, 3d, ash, biome, block, cube, lod, magicavoxel, terrain, vox, voxel, voxels
@@ -518,6 +518,9 @@ To find an asset in a later session, grep this file or `catalog.json` by title /
 - **grass** `vox-16-grass-v0` — `voxels/16/grass-v0.vox` · tags: 16, 3d, biome, block, cube, grass, lod, magicavoxel, terrain, vox, voxel, voxels
 - **grass** `vox-16-grass-v1` — `voxels/16/grass-v1.vox` · tags: 16, 3d, biome, block, cube, grass, lod, magicavoxel, terrain, vox, voxel, voxels
 - **grass** `vox-16-grass-v2` — `voxels/16/grass-v2.vox` · tags: 16, 3d, biome, block, cube, grass, lod, magicavoxel, terrain, vox, voxel, voxels
+- **ice** `vox-16-ice-v0` — `voxels/16/ice-v0.vox` · tags: 16, 3d, biome, block, cube, ice, lod, magicavoxel, terrain, vox, voxel, voxels
+- **ice** `vox-16-ice-v1` — `voxels/16/ice-v1.vox` · tags: 16, 3d, biome, block, cube, ice, lod, magicavoxel, terrain, vox, voxel, voxels
+- **ice** `vox-16-ice-v2` — `voxels/16/ice-v2.vox` · tags: 16, 3d, biome, block, cube, ice, lod, magicavoxel, terrain, vox, voxel, voxels
 - **jungle** `vox-16-jungle-v0` — `voxels/16/jungle-v0.vox` · tags: 16, 3d, biome, block, cube, jungle, lod, magicavoxel, terrain, vox, voxel, voxels
 - **jungle** `vox-16-jungle-v1` — `voxels/16/jungle-v1.vox` · tags: 16, 3d, biome, block, cube, jungle, lod, magicavoxel, terrain, vox, voxel, voxels
 - **jungle** `vox-16-jungle-v2` — `voxels/16/jungle-v2.vox` · tags: 16, 3d, biome, block, cube, jungle, lod, magicavoxel, terrain, vox, voxel, voxels
@@ -615,6 +618,9 @@ To find an asset in a later session, grep this file or `catalog.json` by title /
 - **grass** `vox-grass-v0` — `voxels/grass-v0.vox` · tags: 32, 3d, biome, block, cube, grass, magicavoxel, terrain, vox, voxel, voxels
 - **grass** `vox-grass-v1` — `voxels/grass-v1.vox` · tags: 32, 3d, biome, block, cube, grass, magicavoxel, terrain, vox, voxel, voxels
 - **grass** `vox-grass-v2` — `voxels/grass-v2.vox` · tags: 32, 3d, biome, block, cube, grass, magicavoxel, terrain, vox, voxel, voxels
+- **ice** `vox-ice-v0` — `voxels/ice-v0.vox` · tags: 32, 3d, biome, block, cube, ice, magicavoxel, terrain, vox, voxel, voxels
+- **ice** `vox-ice-v1` — `voxels/ice-v1.vox` · tags: 32, 3d, biome, block, cube, ice, magicavoxel, terrain, vox, voxel, voxels
+- **ice** `vox-ice-v2` — `voxels/ice-v2.vox` · tags: 32, 3d, biome, block, cube, ice, magicavoxel, terrain, vox, voxel, voxels
 - **jungle** `vox-jungle-v0` — `voxels/jungle-v0.vox` · tags: 32, 3d, biome, block, cube, jungle, magicavoxel, terrain, vox, voxel, voxels
 - **jungle** `vox-jungle-v1` — `voxels/jungle-v1.vox` · tags: 32, 3d, biome, block, cube, jungle, magicavoxel, terrain, vox, voxel, voxels
 - **jungle** `vox-jungle-v2` — `voxels/jungle-v2.vox` · tags: 32, 3d, biome, block, cube, jungle, magicavoxel, terrain, vox, voxel, voxels

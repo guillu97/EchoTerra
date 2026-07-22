@@ -6,6 +6,35 @@
 
 ---
 
+## 2026-07-22 (64) — Portail voxel : vantaux ANIMÉS + état ouvert/fermé visible par tous
+
+### Fait (retour utilisateur : « animer l'ouverture de la porte en voxel, état visible pour tous »)
+- **Vantaux séparés du portail** : `bldGate` (scripts/voxel/gen-props.mjs) ne contient plus les deux
+  battants — c'est désormais la MAÇONNERIE SEULE (tours + arche + bannière). Deux modèles voxel
+  distincts `bld-gate-door-l` / `bld-gate-door-r` (fonction `bldGateDoor(side, seed)`) construits dans
+  la MÊME grille pleine 30×30×45 → une fois meshés ils partagent exactement le repère de la maçonnerie
+  (posés au même transform, ils tombent pile dans l'ouverture). 3 variantes de dégâts comme le portail
+  mais SANS gravats épars (`damagePass(..., noLumps=true)`).
+- **Animation d'ouverture** (`VoxelTownView.tsx`) : la vue Home compose le portail construit en
+  maçonnerie + 2 groupes-gonds (`GATE_HINGE` = faces externes fine x9/x23 → local X −0.2 / +0.2667,
+  profondeur Z=0). Chaque vantail pivote autour de son gond ; `gateAnim.current` (0 fermé → 1 ouvert)
+  est lissé image par image dans la boucle rAF des nuages (easing exponentiel ×0.14) vers
+  `gateTarget = b.open ? 1 : 0`, angle max `GATE_OPEN_ANGLE = 1.75` rad (~100°). L'angle courant
+  PERSISTE entre les reconstructions de `drawBuildings` (pas de flash au poll). Ombres re-cuites en fin
+  de course.
+- **Visible par tous** : `TownBuilding.open` est déjà server-authoritative et repoussé à tous les
+  joueurs (poll 20 s) — le rendu suit simplement `b.open`, donc tous voient la même porte ouverte/fermée.
+
+### Vérifié
+- `.vox` déterministes : re-run gen-props ne diffe QUE le portail + les 2 vantaux (extents décodés :
+  door-l fine x9..16, door-r x15..22, gond ✓). `tsc -b` OK, `npm run build` OK. Rendu logiciel de la
+  porte FERMÉE (frame+vantaux fusionnés) : battants alignés dans l'arche entre les tours.
+- Catalogue régénéré (`build-catalog.mjs`, 612 assets).
+
+### À faire / notes
+- La carte de ville CLASSIQUE (Phaser/TownMap billboards PNG) ne montre pas l'état porte — hors périmètre
+  (le voxel est le rendu par défaut).
+
 ## 2026-07-22 (63) — Horde : scaling INFINI par vague + fusion des packs en migration
 
 ### Fait (retour utilisateur)

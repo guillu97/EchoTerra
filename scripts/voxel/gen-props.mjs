@@ -1046,7 +1046,7 @@ function prismRoof(g, x0, x1, y0, y1, z0, rgb, over = 1) {
 // PASSE DE DÉGÂTS : ratio 0 = intact ; ~0.35 = abîmé ; ~0.68 = ruine.
 // Morsures sphériques (70 % visent le haut — le toit part d'abord), pourtours
 // carbonisés, gravats au pied. Opère sur les voxels FINS du modèle fini.
-function damagePass(g, ratio, seed) {
+function damagePass(g, ratio, seed, noLumps = false) {
   if (ratio <= 0) return;
   const rnd = makeRng(seed);
   const { fsx, fsy, fsz } = g;
@@ -1074,6 +1074,7 @@ function damagePass(g, ratio, seed) {
     }
   }
   // gravats au pied (coords grossières pour l'ellipsoïde partagé)
+  if (noLumps) return; // vantaux animés : pas de débris épars sur la grille
   const lumps = Math.round(2 + ratio * 4);
   for (let i = 0; i < lumps; i++) {
     const bx = 3 + rnd() * (fsx / g.fs - 6), by = 3 + rnd() * (fsy / g.fs - 6);
@@ -1140,6 +1141,9 @@ function bldWorkshop(seed) {
   return g;
 }
 
+// GATE : la maçonnerie SEULE (tours + arche + bannière). Les deux vantaux sont
+// des modèles SÉPARÉS (bld-gate-door-l/-r), rendus et ANIMÉS par VoxelTownView
+// autour de leurs gonds → la porte s'ouvre/se ferme selon l'état serveur `open`.
 function bldGate(seed) {
   const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz, FINE);
   const rnd = makeRng(seed); void rnd;
@@ -1148,10 +1152,27 @@ function bldGate(seed) {
     for (let x = x0; x <= x0 + 4; x += 2) g.box(x, x + 1, 7.5, 12.5, 10, 11, STONE_W); // créneaux
   }
   g.box(6, 14, 8, 12, 6, 9, shade(STONE_W, 1.02)); // arche
-  g.box(6.5, 9.7, 8.4, 11.6, 0, 6, shade(WOOD_W, 0.95)); // vantaux
-  g.box(10.3, 13.5, 8.4, 11.6, 0, 6, shade(WOOD_W, 0.88));
-  g.set(10, 8.2, 4, [212, 176, 96]); // heurtoir doré
   g.box(9.4, 10.6, 7.9, 8.1, 9, 10.6, [122, 186, 202]); // bannière
+  return g;
+}
+
+// Un vantail (leaf) construit dans la grille PLEINE du portail (mêmes SIZE/FINE),
+// afin de partager exactement le repère de `bldGate` une fois meshé : posé au
+// même transform que la maçonnerie, il tombe pile dans l'ouverture. `side` −1 =
+// gauche (gond à x=6), +1 = droite (gond à x=14). Les gonds servent de pivot à
+// l'animation d'ouverture (voir GATE_HINGE dans VoxelTownView).
+function bldGateDoor(side, seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz, FINE);
+  const rnd = makeRng(seed); void rnd;
+  const wood = shade(WOOD_W, side < 0 ? 0.95 : 0.88);
+  const x0 = side < 0 ? 6 : 10, x1 = side < 0 ? 10 : 14; // se rejoignent à x=10
+  g.box(x0, x1, 9.5, 10.5, 0, 6, wood); // le battant, fin en profondeur
+  // planches verticales : rainures sombres sur la face
+  for (let x = x0 + 1; x < x1; x += 1.4) g.box(x, x + 0.15, 9.4, 9.5, 0, 6, shade(DARK_W, 1.3));
+  // ferrures horizontales (bandes de fer)
+  for (const z of [1, 5]) g.box(x0, x1, 9.4, 10.6, z, z + 0.4, shade(DARK_W, 1.5));
+  // heurtoir/poignée doré près du battant central
+  g.set(side < 0 ? 9.4 : 10.6, 9.4, 3.4, [212, 176, 96]);
   return g;
 }
 
@@ -1362,6 +1383,16 @@ async function main() {
       make: (v) => {
         const g = mk(1001 + bi * 31);
         damagePass(g, v === 0 ? 0 : v === 1 ? 0.35 : 0.68, 2001 + bi * 31 + v * 7);
+        return fin(g);
+      },
+    })),
+    // vantaux du portail (séparés → animés autour des gonds par VoxelTownView) ;
+    // 3 variantes de DÉGÂTS comme le portail, mais SANS gravats épars (noLumps)
+    ...[["bld-gate-door-l", -1], ["bld-gate-door-r", 1]].map(([id, side], di) => ({
+      id,
+      make: (v) => {
+        const g = bldGateDoor(side, 1401 + di * 31);
+        damagePass(g, v === 0 ? 0 : v === 1 ? 0.35 : 0.68, 2401 + di * 31 + v * 7, true);
         return fin(g);
       },
     })),
