@@ -6,6 +6,28 @@
 
 ---
 
+## 2026-07-22 (63) — Horde : scaling INFINI par vague + fusion des packs en migration
+
+### Fait (retour utilisateur)
+- **Scaling infini par vague** : `spawnWaveMonsters` perd son plafond de 20 packs (`4+waveNumber`,
+  borné en pratique par la saturation des tuiles) ; `spawnWeightedPack` empile la croissance de vague
+  (`waveNumber/2`) SANS clamp au PackMax (le PackMax ne borne plus que la taille de départ). Résultat :
+  la taille des packs grandit sans borne → intensification réellement infinie.
+- **Fusion des packs qui avancent** : `migrateMonstersTowardTown` — quand le pas d'un pack vers la ville
+  est bloqué par un AUTRE pack (aucune case libre plus proche), les deux **fusionnent** (`mergePacks` :
+  effectifs additionnés, le groupe le plus nombreux impose espèce/apparence/stats/PV ; le mobile
+  disparaît dans le pack resté en place). Snapshot des IDs + `acted` : chaque pack ne joue qu'une fois,
+  un survivant de fusion ne rebouge pas ; un pack en combat ne migre/fusionne pas.
+
+### Vérifié
+- `go test ./...` OK (nouveaux : `TestMigrationMergesBlockedPacks`, `TestMergeBiggerGroupImposesSpecies`,
+  `TestPackGrowthUnbounded`).
+- Simulation API (safe waves) : créatures 7 → 916 de la vague 0 à 30, packs consolidés ~21, max pack 186
+  (≫ PackMax) — scaling + fusion confirmés.
+
+### Notes
+- Pas de changement front (le teint de danger clampe au rouge à 6+ ; combat plafonne les unités à 4).
+
 ## 2026-07-21 (62) — Plans de chantier à TROUVER + hauteur des biomes + oliviers + cheat vague sûre
 
 ### Fait
