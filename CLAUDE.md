@@ -624,7 +624,9 @@ EXACTEMENT par ce canal (monstres = bandes géométriques). **Attaque SPÉCIFIQU
 monstres n'ont pas de canal de partie (bandes). 7 `.vox` héros régénérés ; monstres inchangés.
 **Phase 6 (2026-07-17)** : le voxel est le rendu **PAR DÉFAUT** (`voxelMap: true` dans
 `DEFAULT_SETTINGS` ; « Classique » dans les Réglages rebascule sur Phaser, qui n'est pas
-encore retiré du bundle). **Détails du monde** (`WORLD-DETAILS-PLAN.md`, lots D1+D2 faits
+encore retiré du bundle). **2026-07-22** : `voxelBeauty: true` (mode CINÉMATIQUE — ACES + bloom
++ ciel/brume) et `quality: "Very high"` sont aussi des DÉFAUTS ; migration unique `RENDER_PRESET`
+dans `loadSettings` qui bascule les installs déjà sauvegardées une fois (opt-out ultérieur respecté). **Détails du monde** (`WORLD-DETAILS-PLAN.md`, lots D1+D2 faits
 2026-07-18) : 37 props ×3 variantes (`scripts/voxel/gen-props.mjs` → `voxels/props/`) et
 **`frontend/src/voxel/scatter.ts`** = scatter PARTAGÉ carte/banc, pur (sans THREE) — tables
 par biome, règles « près de » (voisinage 8 : bord d'eau, eau calme, pied de falaise, sommet,
