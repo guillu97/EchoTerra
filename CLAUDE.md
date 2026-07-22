@@ -289,12 +289,20 @@ voir les monstres masqués par les reliefs.
 durability (**an open Gate = 0**, a construction site = 0); `overflow = horde - defense` → town HP loss +
 random building durability damage; defensive buildings also wear. Heroes **outside** town are hit individually
 (`Blessé`); **hidden** heroes skipped; **in-town** heroes safe. PA regen each wave; the **Well refills +10**;
-new monsters spawn **selon les biomes d'apparition des espèces** (packs dans [PackMin, PackMax] du design,
-gonflés par les vagues mais bornés au PackMax ; **les BOSS — Roi Gobelin, Arbre Vivant Ancien — n'entrent
-dans le pool qu'à partir de la vague 4**, `bossWaveThreshold`). Défense des bâtiments = valeur PAR NIVEAU du
-design (wall 10/15/20, gate 8/12/16 fermée, tower 6/9/12) × ratio de durabilité. **Game over** when town HP
-hits 0 (`status:"gameover"`).
-`POST /advance` = force a wave now (dev/testing).
+new monsters spawn **selon les biomes d'apparition des espèces** — **scaling INFINI par vague (2026-07-22)** :
+le nombre de packs posés (`spawnWaveMonsters` : `4+waveNumber`, PLUS de plafond — borné en pratique par la
+saturation des tuiles) ET la taille des packs croissent sans borne (`spawnWeightedPack` : la croissance de
+vague `waveNumber/2` s'empile SANS clamp au PackMax — le PackMax ne borne plus que la taille de départ). Les
+**BOSS** (Roi Gobelin, Arbre Vivant Ancien) n'entrent dans le pool qu'à partir de la vague 4
+(`bossWaveThreshold`) et ne reçoivent pas la croissance. **Fusion des packs en migration** :
+`migrateMonstersTowardTown` fait avancer chaque pack d'un pas vers la ville ; quand le pas est bloqué par un
+AUTRE pack (aucune case libre plus proche), les deux **fusionnent** (`mergePacks` — effectifs additionnés, le
+groupe le plus nombreux impose espèce/apparence/stats/PV ; le mobile disparaît dans le pack resté en place).
+Résultat : la horde se consolide en packs de plus en plus gros en convergeant (constaté : ~900 créatures en
+~20 packs, max ~186, à la vague 30). Un pack en combat ne migre/fusionne pas ; chaque pack ne joue qu'une
+fois par vague. Défense des bâtiments = valeur PAR NIVEAU du design (wall 10/15/20, gate 8/12/16 fermée,
+tower 6/9/12) × ratio de durabilité. **Game over** when town HP hits 0 (`status:"gameover"`).
+`POST /advance` = force a wave now (dev/testing ; `{safe:true}` = sans dégâts ville).
 
 **Town buildings & construction** — built at start: **gate, wall, bank, well, workshop, panel**.
 Construction sites (Built=false): **townhall (renamed from House — revive), tower, kitchen**.

@@ -111,12 +111,11 @@ func (g *GameState) spawnWeightedPack(waveNumber int, includeBosses bool) bool {
 			continue
 		}
 		m := NewMonster(sp.Name, x, y)
-		// les packs de la horde grossissent au fil des vagues, dans la plage de l'espèce.
+		// les packs de la horde grossissent au fil des vagues — SANS PLAFOND (retour :
+		// scaling infini par vague). Le PackMax du design ne borne plus que la taille de
+		// DÉPART ; la croissance de vague s'empile par-dessus indéfiniment.
 		if grow := waveNumber / 2; grow > 0 && !sp.Boss {
 			m.Count += grow
-			if m.Count > sp.PackMax {
-				m.Count = sp.PackMax
-			}
 		}
 		g.Monsters[m.ID] = m
 		t.MonsterID = m.ID

@@ -351,10 +351,11 @@ func (g *GameState) attackHeroesOutside(waveNumber int, r *WaveReport) {
 const bossWaveThreshold = 4
 
 func (g *GameState) spawnWaveMonsters(waveNumber int) int {
+	// Le nombre de packs posés croît SANS PLAFOND avec la vague (retour : la horde
+	// doit scaler à l'infini). En pratique la saturation des tuiles praticables borne
+	// naturellement le nombre de packs ; la taille des packs, elle, grandit sans borne
+	// (spawnWeightedPack) — c'est ce qui rend l'intensification réellement infinie.
 	count := 4 + waveNumber
-	if count > 20 {
-		count = 20
-	}
 	includeBosses := waveNumber >= bossWaveThreshold
 	// Apparition PONDÉRÉE (loin de la ville / près des ruines / croissant par vague) —
 	// voir spawnChance/spawnWeightedPack. Les nouveaux packs naissent au loin puis
@@ -370,23 +371,36 @@ func (g *GameState) spawnWaveMonsters(waveNumber int) int {
 
 // migrateMonstersTowardTown fait AVANCER chaque pack survivant d'un pas vers la
 // ville à chaque vague (règle : les monstres non tués se rapprochent). Un pack en
-// plein combat, ou sans case libre plus proche, reste sur place. Les monstres
-// n'occupent jamais la case ville elle-même — ils encerclent ses abords.
+// plein combat reste sur place. Les monstres n'occupent jamais la case ville
+// elle-même — ils encerclent ses abords. Quand le pas vers la ville est BLOQUÉ par
+// un autre pack (aucune case libre plus proche), les deux packs **fusionnent** : ils
+// se retrouvent sur la même case et forment un seul pack plus gros (le groupe le plus
+// nombreux impose son espèce), ce qui consolide la horde à mesure qu'elle converge.
 func (g *GameState) migrateMonstersTowardTown() {
-	busy := map[[2]int]bool{} // cases d'un combat actif : ne pas téléporter leurs monstres
+	busy := map[[2]int]bool{} // cases d'un combat actif : ne pas déplacer/fusionner leurs monstres
 	for _, c := range g.Combats {
 		if c.Status == "active" {
 			busy[[2]int{c.TileX, c.TileY}] = true
 		}
 	}
-	for _, m := range g.Monsters {
-		if busy[[2]int{m.X, m.Y}] {
+	// Snapshot des IDs : on supprime des packs (fusion) en cours de route, et chaque
+	// pack ne joue qu'UNE fois par vague (acted) — un survivant de fusion ne rebouge pas.
+	ids := make([]string, 0, len(g.Monsters))
+	for id := range g.Monsters {
+		ids = append(ids, id)
+	}
+	acted := map[string]bool{}
+	for _, id := range ids {
+		m := g.Monsters[id]
+		if m == nil || acted[id] || busy[[2]int{m.X, m.Y}] {
 			continue
 		}
 		dx, dy := signI(g.Town.X-m.X), signI(g.Town.Y-m.Y)
 		if dx == 0 && dy == 0 {
 			continue
 		}
+		var mergeInto *Monster // premier pack rencontré sur un pas praticable vers la ville
+		moved := false
 		for _, step := range [][2]int{{dx, dy}, {dx, 0}, {0, dy}} {
 			if step[0] == 0 && step[1] == 0 {
 				continue
@@ -396,15 +410,56 @@ func (g *GameState) migrateMonstersTowardTown() {
 				continue // s'agglutiner autour, pas SUR la ville
 			}
 			t := g.TileAt(nx, ny)
-			if t == nil || !t.Biome.Walkable() || t.MonsterID != "" {
+			if t == nil || !t.Biome.Walkable() {
 				continue
 			}
-			if old := g.TileAt(m.X, m.Y); old != nil && old.MonsterID == m.ID {
-				old.MonsterID = ""
+			if t.MonsterID == "" {
+				// case libre : on avance dessus (priorité à l'étalement vers la ville).
+				if old := g.TileAt(m.X, m.Y); old != nil && old.MonsterID == m.ID {
+					old.MonsterID = ""
+				}
+				m.X, m.Y = nx, ny
+				t.MonsterID = m.ID
+				moved = true
+				break
 			}
-			m.X, m.Y = nx, ny
-			t.MonsterID = m.ID
-			break
+			// case occupée par un AUTRE pack (pas en combat) : candidat à la fusion.
+			if mergeInto == nil {
+				if other := g.Monsters[t.MonsterID]; other != nil && other.ID != m.ID &&
+					!acted[other.ID] && !busy[[2]int{other.X, other.Y}] {
+					mergeInto = other
+				}
+			}
+		}
+		if moved {
+			acted[m.ID] = true
+			continue
+		}
+		// Aucune case libre plus proche : si un pas vers la ville butait sur un pack,
+		// les deux fusionnent (le mobile disparaît dans le pack cible resté en place).
+		if mergeInto != nil {
+			g.mergePacks(mergeInto, m)
+			acted[mergeInto.ID] = true
+			acted[m.ID] = true
 		}
 	}
+}
+
+// mergePacks fusionne le pack `gone` (qui avançait) DANS le pack `keep` (déjà en
+// place, sur sa case) : les effectifs s'additionnent et le groupe le PLUS NOMBREUX
+// impose son espèce/apparence/stats/PV au pack fusionné. `gone` est retiré de la
+// carte et du registre.
+func (g *GameState) mergePacks(keep, gone *Monster) {
+	if gone.Count > keep.Count {
+		keep.Species = gone.Species
+		keep.Appearance = gone.Appearance
+		keep.Stats = gone.Stats
+		keep.HP = gone.HP
+		keep.MaxHP = gone.MaxHP
+	}
+	keep.Count += gone.Count
+	if old := g.TileAt(gone.X, gone.Y); old != nil && old.MonsterID == gone.ID {
+		old.MonsterID = ""
+	}
+	delete(g.Monsters, gone.ID)
 }

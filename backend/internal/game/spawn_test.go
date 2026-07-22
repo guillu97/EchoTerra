@@ -76,6 +76,95 @@ func TestMigrationNeverEntersTownTile(t *testing.T) {
 	}
 }
 
+// When an advancing pack's only step toward town is blocked by another pack, the two
+// MERGE: effectives are summed and the bigger group imposes its species.
+func TestMigrationMergesBlockedPacks(t *testing.T) {
+	g := grassWorld(5, 5) // town (2,2)
+	// The stationary pack B sits right beside town (1,2): its only step toward town is
+	// the town tile itself, so it never moves — A must merge into it.
+	b := NewMonster("Goblin Pillard", 1, 2)
+	b.Count = 5
+	g.Monsters[b.ID] = b
+	g.TileAt(1, 2).MonsterID = b.ID
+	// A advances from (0,2): its lone step toward town lands on B (dy=0 → no side-step).
+	a := NewMonster("Slime Vorace", 0, 2)
+	a.Count = 2
+	g.Monsters[a.ID] = a
+	g.TileAt(0, 2).MonsterID = a.ID
+
+	g.migrateMonstersTowardTown()
+
+	if _, ok := g.Monsters[a.ID]; ok {
+		t.Fatal("the advancing pack should have merged away")
+	}
+	if g.Monsters[b.ID] == nil {
+		t.Fatal("the stationary pack should remain")
+	}
+	if b.Count != 7 {
+		t.Fatalf("merged pack must sum effectives (2+5=7), got %d", b.Count)
+	}
+	if b.Species != "Goblin Pillard" {
+		t.Fatalf("the bigger group's species must win, got %q", b.Species)
+	}
+	if g.TileAt(0, 2).MonsterID != "" {
+		t.Fatal("the advancing pack's old tile must be vacated")
+	}
+	if g.TileAt(1, 2).MonsterID != b.ID {
+		t.Fatal("the surviving pack must still occupy its tile")
+	}
+}
+
+// The smaller group merging into a bigger advancing one: the mover's species wins when
+// it is more numerous than the pack it lands on.
+func TestMergeBiggerGroupImposesSpecies(t *testing.T) {
+	g := grassWorld(5, 5)
+	b := NewMonster("Goblin Pillard", 1, 2) // stationary beside town, count small
+	b.Count = 2
+	g.Monsters[b.ID] = b
+	g.TileAt(1, 2).MonsterID = b.ID
+	a := NewMonster("Slime Vorace", 0, 2) // advancing, count big
+	a.Count = 9
+	g.Monsters[a.ID] = a
+	g.TileAt(0, 2).MonsterID = a.ID
+
+	g.migrateMonstersTowardTown()
+
+	if b.Count != 11 {
+		t.Fatalf("merged pack must sum effectives (9+2=11), got %d", b.Count)
+	}
+	if b.Species != "Slime Vorace" {
+		t.Fatalf("the bigger (advancing) group's species must win, got %q", b.Species)
+	}
+}
+
+// The horde scales without ceiling: pack sizes keep growing past the design PackMax
+// as waves climb (no more clamp).
+func TestPackGrowthUnbounded(t *testing.T) {
+	g := grassWorld(9, 9)
+	sp := SpeciesByName("Slime Vorace")
+	if sp == nil {
+		t.Fatal("slime species missing")
+	}
+	// A high wave must be able to produce a pack larger than the species' PackMax.
+	big := false
+	for i := 0; i < 200 && !big; i++ {
+		g.Monsters = map[string]*Monster{}
+		for j := range g.Tiles {
+			g.Tiles[j].MonsterID = ""
+		}
+		g.spawnWaveMonsters(40) // grow = 20 → counts land well over any PackMax
+		for _, m := range g.Monsters {
+			if m.Count > sp.PackMax {
+				big = true
+				break
+			}
+		}
+	}
+	if !big {
+		t.Fatalf("late-wave packs must exceed the design PackMax (%d) — growth is uncapped", sp.PackMax)
+	}
+}
+
 func TestMigrationSkipsMonstersInCombat(t *testing.T) {
 	g := grassWorld(21, 21)
 	m := NewMonster("Slime Vorace", 3, 3)
