@@ -87,6 +87,8 @@ export function specForKey(key: string): Spec {
   return SPECS[key] ?? SPECS["mob-slime"]; // défaut : corps entier qui rebondit
 }
 
+export type LimbRole = "leg" | "arm" | "wing";
+
 // --- géométries découpées (mise en cache par clé) --------------------------
 export type RiggedGeom = {
   kind: AnimKind;
@@ -94,19 +96,56 @@ export type RiggedGeom = {
   axis: "x" | "z";
   swing: number;
   body: THREE.BufferGeometry;
-  limbs: { name: string; geom: THREE.BufferGeometry; pivot: THREE.Vector3; phase: number }[];
+  limbs: { name: string; role: LimbRole; side: number; geom: THREE.BufferGeometry; pivot: THREE.Vector3; phase: number }[];
 };
 
-/** Découpe un modèle voxel en corps + membres selon sa spec. */
+// canal de PARTIE des héros (recette) : id → membre + rôle
+const PART_LIMB: Record<number, { name: string; role: LimbRole; side: number }> = {
+  1: { name: "legL", role: "leg", side: -1 },
+  2: { name: "legR", role: "leg", side: 1 },
+  3: { name: "armL", role: "arm", side: -1 },
+  4: { name: "armR", role: "arm", side: 1 },
+};
+
+/** Découpe un modèle voxel en corps + membres. Héros : canal de PARTIE exact
+ *  (recette, arms/jambes + arme tenue) ; monstres : bandes géométriques (spec). */
 export function splitRig(model: VoxModel, key: string, worldHeight: number): RiggedGeom {
   const spec = specForKey(key);
-  const { sx, sy, sz, data } = model;
-  const limbSpecs = spec.limbs(sx, sy, sz);
+  const { sx, sy, sz, data, parts } = model;
   const scale = worldHeight / (sz / sx);
   const toLocal = (fx: number, fy: number, fz: number) =>
     new THREE.Vector3(fx / sx - 0.5, fz / sx, fy / sx - 0.5);
+  const meshSubset = (keep: (i: number) => boolean): THREE.BufferGeometry => {
+    const sub = new Uint8Array(sx * sy * sz);
+    for (let i = 0; i < sub.length; i++) if (data[i] && keep(i)) sub[i] = data[i];
+    return meshVoxModel({ ...model, data: sub }, sx).geometry;
+  };
 
-  // masque d'appartenance : chaque voxel → indice de membre (ou −1 = corps)
+  // ── HÉROS : découpe par le canal de partie (arms/jambes exacts) ──────────
+  if (parts && key.startsWith("char-")) {
+    const f = sx / 20; // CHAR_SIZE.sx = 20 → facteur fin
+    // pivots aux ATTACHES connues de la recette (hanche z≈4, épaule z≈11)
+    const PIV: Record<number, [number, number, number]> = {
+      1: [7, 6, 4.4], 2: [12, 6, 4.4], 3: [4, 6, 11], 4: [16, 6, 11],
+    };
+    const present = new Set<number>();
+    for (let i = 0; i < parts.length; i++) if (data[i] && parts[i]) present.add(parts[i]);
+    const body = meshSubset((i) => !parts[i]);
+    const limbs = [...present].sort().map((pid) => {
+      const info = PART_LIMB[pid];
+      const [px, py, pz] = PIV[pid];
+      return {
+        ...info,
+        geom: meshSubset((i) => parts[i] === pid),
+        pivot: toLocal(px * f, py * f, pz * f),
+        phase: info.role === "leg" ? (info.side < 0 ? 0 : Math.PI) : (info.side < 0 ? Math.PI : 0),
+      };
+    });
+    return { kind: "biped", scale, axis: "x", swing: 0.7, body, limbs };
+  }
+
+  // ── MONSTRES : bandes géométriques (spec) ────────────────────────────────
+  const limbSpecs = spec.limbs(sx, sy, sz);
   const owner = new Int8Array(sx * sy * sz).fill(-1);
   if (limbSpecs.length) {
     for (let z = 0; z < sz; z++)
@@ -118,16 +157,11 @@ export function splitRig(model: VoxModel, key: string, worldHeight: number): Rig
             if (limbSpecs[li].test(x, y, z)) { owner[idx] = li; break; }
         }
   }
-
-  const meshSubset = (keep: (i: number) => boolean): THREE.BufferGeometry => {
-    const sub = new Uint8Array(sx * sy * sz);
-    for (let i = 0; i < sub.length; i++) if (data[i] && keep(i)) sub[i] = data[i];
-    return meshVoxModel({ ...model, data: sub }, sx).geometry;
-  };
-
   const body = meshSubset((i) => owner[i] === -1);
   const limbs = limbSpecs.map((l, li) => ({
     name: l.name,
+    role: (spec.kind === "winged" ? "wing" : "leg") as LimbRole,
+    side: l.pivot[0] < sx / 2 ? -1 : 1,
     geom: meshSubset((i) => owner[i] === li),
     pivot: toLocal(l.pivot[0], l.pivot[1], l.pivot[2]),
     phase: l.phase,
@@ -139,7 +173,7 @@ export function splitRig(model: VoxModel, key: string, worldHeight: number): Rig
 export type Rig = {
   root: THREE.Group;        // position/rotation.y/scale posés par la vue
   tilt: THREE.Group;        // rebond/penché/lunge (procédural, échelle modèle)
-  limbGroups: { group: THREE.Group; phase: number }[];
+  limbGroups: { group: THREE.Group; phase: number; role: LimbRole; side: number }[];
   kind: AnimKind;
   axis: "x" | "z";
   swing: number;
@@ -168,7 +202,7 @@ export function buildRig(rg: RiggedGeom): Rig {
     const m = addMesh(l.geom, pivot);
     m.position.set(-l.pivot.x, -l.pivot.y, -l.pivot.z); // annule le pivot → aligné à angle 0
     tilt.add(pivot);
-    return { group: pivot, phase: l.phase };
+    return { group: pivot, phase: l.phase, role: l.role, side: l.side };
   });
   return { root, tilt, limbGroups, kind: rg.kind, axis: rg.axis, swing: rg.swing, mats };
 }
@@ -202,28 +236,49 @@ export function applyAnim(rig: Rig, state: AnimState, t: number, clock: number, 
     // élémentaire : tourne sur lui-même + ondule
     tilt.rotation.y = clock * 2.2;
     tilt.position.y = Math.sin(clock * 3) * 0.04 + (walking ? 0.06 : 0);
+  } else if (kind === "winged") {
+    // battement d'ailes permanent (plus rapide en vol/déplacement), en MIROIR
+    const flap = Math.sin(clock * (walking ? 16 : 9)) * rig.swing;
+    limbGroups.forEach((l, i) => { l.group.rotation.set(0, 0, 0); l.group.rotation.z = (i === 0 ? flap : -flap); });
+    tilt.position.y = 0.1 + Math.sin(clock * 3) * 0.05; // plane
   } else {
-    // membres (bipède/quadrupède/critter/ailé)
-    if (kind === "winged") {
-      // battement d'ailes permanent (plus rapide en vol/déplacement) : les deux
-      // ailes battent en MIROIR (gauche +, droite −)
-      const flap = Math.sin(clock * (walking ? 16 : 9)) * rig.swing;
-      limbGroups.forEach((l, i) => { l.group.rotation.set(0, 0, 0); l.group.rotation.z = (i === 0 ? flap : -flap); });
-      tilt.position.y = 0.1 + Math.sin(clock * 3) * 0.05; // plane
-    } else if (walking) {
-      const amp = rig.swing;
-      // pas DISCRET (déplacement d'une case) : une foulée nette (0→π) par case,
-      // pic au milieu ; sinon marche continue au gait libre
-      const phase = moveT < 1 ? moveT * Math.PI : gait;
+    // bipède/quadrupède/critter (jambes + éventuels bras des héros)
+    const arms = limbGroups.filter((l) => l.role === "arm");
+    const legs = limbGroups.filter((l) => l.role !== "arm");
+    if (walking) {
+      const phase = moveT < 1 ? moveT * Math.PI : gait; // foulée nette par case
       const s = Math.sin(phase);
-      for (const l of limbGroups) setLimb(l.group, Math.sin(phase + l.phase) * amp);
-      tilt.position.y = Math.abs(s) * 0.07;                    // rebond de foulée
-      tilt.rotation.z = s * 0.05;                              // léger roulis
-      tilt.rotation.x = -0.1 * (moveT < 1 ? s : 1);            // penché en avant
+      for (const l of legs) setLimb(l.group, Math.sin(phase + l.phase) * rig.swing);
+      // bras : contre-balancement des jambes (opposition naturelle), amplitude moindre
+      for (const l of arms) setLimb(l.group, Math.sin(phase + l.phase) * rig.swing * 0.6);
+      tilt.position.y = Math.abs(s) * 0.07;
+      tilt.rotation.z = s * 0.05;
+      tilt.rotation.x = -0.1 * (moveT < 1 ? s : 1);
     } else {
-      // idle : respiration + micro-balancement des membres
-      for (const l of limbGroups) setLimb(l.group, Math.sin(clock * 1.6 + l.phase) * 0.06);
+      // idle : respiration + micro-balancement
+      for (const l of legs) setLimb(l.group, Math.sin(clock * 1.6 + l.phase) * 0.05);
+      for (const l of arms) setLimb(l.group, Math.sin(clock * 1.6 + l.phase) * 0.05);
       tilt.position.y = Math.sin(clock * 2) * 0.015;
+    }
+  }
+
+  // bras des héros pour les actions (par-dessus la marche/idle) : le bras ARMÉ
+  // (droit) frappe, l'autre contre-balance
+  const armList = limbGroups.filter((l) => l.role === "arm");
+  if (armList.length && (state === "attack" || state === "skill")) {
+    const rightArm = armList.find((l) => l.side > 0) ?? armList[0];
+    const leftArm = armList.find((l) => l.side < 0);
+    if (state === "attack") {
+      const d = Math.min(1, t / 0.45);
+      // armé haut (anticipation) puis abat vers l'avant
+      const swing = d < 0.35 ? -1.4 * (d / 0.35) : -1.4 + 2.4 * ((d - 0.35) / 0.65);
+      rightArm.group.rotation.set(0, 0, 0); rightArm.group.rotation.x = swing;
+      if (leftArm) { leftArm.group.rotation.set(0, 0, 0); leftArm.group.rotation.x = -swing * 0.3; }
+    } else {
+      // compétence : les deux bras se lèvent (invocation)
+      const d = Math.min(1, t / 0.7);
+      const up = Math.sin(Math.min(d, 0.5) / 0.5 * Math.PI) * 2.3;
+      for (const l of armList) { l.group.rotation.set(0, 0, 0); l.group.rotation.x = -up; }
     }
   }
 

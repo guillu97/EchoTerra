@@ -27,6 +27,10 @@ export class Grid {
     this.fsy = Math.round(sy * fineScale);
     this.fsz = Math.round(sz * fineScale);
     this.data = new Uint8Array(this.fsx * this.fsy * this.fsz);
+    // canal de PARTIE (rig) : 0 = corps, 1 legL, 2 legR, 3 armL, 4 armR — tagué
+    // pendant le dessin via `curPart`, exporté pour le découpage voxel côté client.
+    this.partData = new Uint8Array(this.fsx * this.fsy * this.fsz);
+    this.curPart = 0;
     this.palette = [];
     this._keys = new Map();
   }
@@ -39,7 +43,9 @@ export class Grid {
   /** voxel FIN brut (indexation directe) */
   setFine(x, y, z, rgb) {
     if (x < 0 || y < 0 || z < 0 || x >= this.fsx || y >= this.fsy || z >= this.fsz) return;
-    this.data[x + y * this.fsx + z * this.fsx * this.fsy] = this.color(rgb);
+    const i = x + y * this.fsx + z * this.fsx * this.fsy;
+    this.data[i] = this.color(rgb);
+    this.partData[i] = this.curPart;
   }
   /** bornes fines [début, fin] d'une cellule grossière */
   cell(c) {
@@ -103,22 +109,28 @@ export function generateCharacter(key, pal) {
   const { skin, hair, outfit, outfit2, accent } = pal;
   const boot = shade(outfit2, 0.6);
 
-  // jambes courtes (bottes)
+  // jambes courtes (bottes) — TAGUÉES legL(1)/legR(2) pour le rig
+  g.curPart = 1;
   g.box(cx - 4, cx - 2, cy - 2, cy + 1, 0, 4, shade(outfit, 0.8));
-  g.box(cx + 1, cx + 3, cy - 2, cy + 1, 0, 4, shade(outfit, 0.8));
   g.box(cx - 4, cx - 2, cy - 2, cy + 2, 0, 1, boot);
+  g.curPart = 2;
+  g.box(cx + 1, cx + 3, cy - 2, cy + 1, 0, 4, shade(outfit, 0.8));
   g.box(cx + 1, cx + 3, cy - 2, cy + 2, 0, 1, boot);
+  g.curPart = 0;
 
   // corps trapu (tunique + ceinture accent)
   g.roundedBox(cx - 5, cx + 4, cy - 3, cy + 2, 5, 12, outfit);
   g.box(cx - 5, cx + 4, cy - 3, cy + 2, 6, 6, accent); // ceinture
   g.box(cx - 3, cx + 2, cy + 2, cy + 2, 8, 11, outfit2); // plastron/tablier côté face
 
-  // bras le long du corps, mains peau
+  // bras le long du corps, mains peau — TAGUÉS armL(3)/armR(4)
+  g.curPart = 3;
   g.box(cx - 7, cx - 6, cy - 2, cy + 1, 5, 11, shade(outfit, 0.9));
-  g.box(cx + 5, cx + 6, cy - 2, cy + 1, 5, 11, shade(outfit, 0.9));
   g.box(cx - 7, cx - 6, cy - 2, cy + 1, 4, 4, skin);
+  g.curPart = 4;
+  g.box(cx + 5, cx + 6, cy - 2, cy + 1, 5, 11, shade(outfit, 0.9));
   g.box(cx + 5, cx + 6, cy - 2, cy + 1, 4, 4, skin);
+  g.curPart = 0;
 
   // GROSSE tête chibi
   g.roundedBox(cx - 6, cx + 5, cy - 4, cy + 3, 13, 24, skin);
@@ -147,32 +159,40 @@ export function generateCharacter(key, pal) {
     g.box(cx - 6, cx + 5, cy - 4, cy + 3, 22, 25, accent); // casque de chantier
     g.box(cx - 6, cx + 5, cy + 3, cy + 4, 21, 22, accent); // visière
   } else if (acc === "arc") {
+    g.curPart = 4; // arc tenu à la main DROITE → suit le bras
     for (let z = 4; z <= 20; z++) {
       const bend = Math.round(2 * Math.sin(((z - 4) / 16) * Math.PI));
       g.set(cx + 8, cy - 1 + bend, z, wood); // arc courbé au flanc droit
     }
-    g.box(cx - 8, cx - 7, cy - 3, cy - 2, 8, 16, wood); // carquois dos gauche
+    g.curPart = 0;
+    g.box(cx - 8, cx - 7, cy - 3, cy - 2, 8, 16, wood); // carquois dos gauche (corps)
   } else if (acc === "heaume") {
     g.roundedBox(cx - 6, cx + 5, cy - 4, cy + 3, 20, 25, metal); // heaume
     g.box(cx - 6, cx + 5, cy + 3, cy + 3, 20, 21, shade(metal, 0.7));
     g.box(cx - 1, cx + 0, cy + 3, cy + 4, 22, 25, accent); // cimier
+    g.curPart = 4; // épée main DROITE
     for (let z = 2; z <= 14; z++) g.set(cx + 8, cy, z, metal); // épée au flanc
     g.box(cx + 7, cx + 9, cy, cy, 5, 5, wood); // garde
+    g.curPart = 0;
   } else if (acc === "sac") {
     g.roundedBox(cx - 4, cx + 3, cy - 7, cy - 4, 6, 13, wood); // gros sac à dos
     g.box(cx - 4, cx + 3, cy - 7, cy - 4, 9, 9, accent); // sangle
   } else if (acc === "capuche") {
     g.roundedBox(cx - 6, cx + 5, cy - 4, cy + 3, 21, 26, accent); // capuche
     g.box(cx - 6, cx + 5, cy - 4, cy - 2, 14, 25, accent);
+    g.curPart = 3; // bâton main GAUCHE
     for (let z = 2; z <= 22; z++) g.set(cx - 8, cy + 1, z, wood); // bâton
     g.set(cx - 8, cy + 1, 23, accent); // gemme
+    g.curPart = 0;
   } else if (acc === "chapeau") {
     g.box(cx - 7, cx + 6, cy - 5, cy + 4, 22, 23, accent); // large bord
     g.box(cx - 4, cx + 3, cy - 3, cy + 2, 24, 26, accent);
     g.box(cx - 2, cx + 1, cy - 2, cy + 1, 27, 28, accent); // pointe
+    g.curPart = 4; // bâton main DROITE
     for (let z = 2; z <= 22; z++) g.set(cx + 8, cy + 1, z, wood); // bâton
     g.set(cx + 8, cy + 1, 23, [126, 220, 255]); // gemme
+    g.curPart = 0;
   }
 
-  return { sx: g.fsx, sy: g.fsy, sz: g.fsz, size: g.fsx, data: g.data, palette: g.palette };
+  return { sx: g.fsx, sy: g.fsy, sz: g.fsz, size: g.fsx, data: g.data, palette: g.palette, parts: g.partData };
 }

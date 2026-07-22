@@ -18,7 +18,7 @@ import type { Cell, MapDoc, Placement } from "../editor/types";
 import { normalizeCell } from "../editor/types";
 import { ISO } from "../editor/isoRender";
 import { TOWN_BUILDINGS } from "../data/buildings";
-import { heroAssetUrl, libUrl } from "../assets";
+import { heroAssetUrl, heroTexKey, libUrl } from "../assets";
 import { myTeamHeroes } from "../townUtils";
 import { useStore } from "../store";
 import { durColor } from "../tabs/HomeTab";
@@ -27,6 +27,10 @@ import { VoxelControls } from "./controls";
 import { BlockLibrary, buildStacks, type StackItem } from "./terrain";
 import { makeClouds, type Clouds } from "./clouds";
 import { makeLabel } from "./labels";
+import { ALL_CHAR_KEYS, CharLibrary } from "./characters";
+import { UnitAnimator } from "./unitAnim";
+
+const HERO_KEYS = ALL_CHAR_KEYS.filter((k) => k.startsWith("char-"));
 
 // Mêmes mappings que TownMap.
 const ASSET_TO_BUILDING: Record<string, string> = {
@@ -96,6 +100,9 @@ export function VoxelTownView({
       if (s.settings.voxelBeauty !== prev.settings.voxelBeauty) engine.setBeauty(s.settings.voxelBeauty);
     });
     const controls = new VoxelControls(engine);
+    // héros voxel ANIMÉS (respiration à l'arrêt) — remplacent les billboards
+    const chars = new CharLibrary();
+    const animator = new UnitAnimator(engine);
     // LOD 16³ aussi pour la ville : 575 cellules × 32³ pesaient 6,1 M tris —
     // en 16³ le style voxel reste lisible de près et le budget retombe ~4×.
     const lib = new BlockLibrary("/voxels/16");
@@ -310,14 +317,14 @@ export function VoxelTownView({
         grass.push({ x: cx, y: cy, lvl: topLvl });
       }
     }
-    // cache par URL : drawHeroes tourne à chaque changement d'état — recharger
-    // la texture et recréer le matériau à chaque passe fuyait GPU-side
+    // cache par URL : fallback billboard si le modèle voxel manque
     const heroTexCache = new Map<string, THREE.Texture>();
     const drawHeroes = () => {
       clearOwned(heroGroup);
+      animator.beginFrame();
       const g = useStore.getState().game;
       const pid = useStore.getState().playerId;
-      if (!g || !grass.length) return;
+      if (!g || !grass.length) { animator.endFrame(); return; }
       const inTown = myTeamHeroes(g, pid).filter((h) => h.hp > 0 && h.x === g.town.x && h.y === g.town.y);
       const usedIdx = new Set<number>();
       const hash = (s: string) => { let n = 0; for (let i = 0; i < s.length; i++) n = (n * 31 + s.charCodeAt(i)) >>> 0; return n; };
@@ -326,27 +333,32 @@ export function VoxelTownView({
         while (usedIdx.has(idx)) idx = (idx + 29) % grass.length;
         usedIdx.add(idx);
         const gpos = grass[idx];
-        const url = heroAssetUrl(h.class);
-        let tex = heroTexCache.get(url);
-        if (!tex) {
-          tex = texLoader.load(url, () => engine.invalidate());
-          tex.colorSpace = THREE.NoColorSpace;
-          heroTexCache.set(url, tex);
-          textures.push(tex);
+        const rig = chars.makeRig(heroTexKey(h.class));
+        if (rig) {
+          rig.root.scale.multiplyScalar(1.8); // ~taille de l'ancien billboard
+          rig.root.position.set(gpos.x, gpos.lvl, gpos.y);
+          heroGroup.add(rig.root);
+          animator.sync(h.id, rig, gpos.x, gpos.lvl, gpos.y, { faceCamera: true });
+        } else {
+          const url = heroAssetUrl(h.class);
+          let tex = heroTexCache.get(url);
+          if (!tex) { tex = texLoader.load(url, () => engine.invalidate()); tex.colorSpace = THREE.NoColorSpace; heroTexCache.set(url, tex); textures.push(tex); }
+          const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, alphaTest: 0.35, transparent: true }));
+          spr.userData.ownMat = true;
+          spr.scale.set(1.1, 1.1, 1);
+          spr.center.set(0.5, 0.02);
+          spr.position.set(gpos.x, gpos.lvl, gpos.y);
+          heroGroup.add(spr);
         }
-        const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, alphaTest: 0.35, transparent: true }));
-        spr.userData.ownMat = true;
-        spr.scale.set(1.1, 1.1, 1);
-        spr.center.set(0.5, 0.02);
-        spr.position.set(gpos.x, gpos.lvl, gpos.y);
-        heroGroup.add(spr);
         const lbl = makeLabel(h.name, "#fff6d8", 0.3);
         lbl.center.set(0.5, 0);
         lbl.position.set(gpos.x, gpos.lvl + 1.18, gpos.y);
         heroGroup.add(lbl);
       }
+      animator.endFrame();
       engine.refreshShadows(); // héros ajoutés/retirés → ombres à jour
     };
+    void chars.load(HERO_KEYS).then(() => drawHeroes()); // modèles prêts → rigs animés
 
     // pastilles DOM projetées à chaque frame (imperatif — pas de re-render React)
     engine.onFrame = () => {
@@ -398,6 +410,8 @@ export function VoxelTownView({
       unsub();
       unsubBeauty();
       cancelAnimationFrame(raf);
+      animator.dispose();
+      chars.dispose();
       clouds?.dispose();
       controls.dispose();
       lib.dispose();

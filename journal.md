@@ -6,6 +6,29 @@
 
 ---
 
+## 2026-07-22 (66) — Bras/armes séparés (héros) + animation d'attente en ville
+
+### Fait (retour : « ajoute l'idle en ville, et bras/armes séparés pour les héros »)
+- **Bras & armes des héros = vraies parties riggées.** La découpe géométrique depuis le maillage cuit
+  était impossible (accessoires étalés sur plein de tranches z). Solution : **canal de PARTIE tagué au
+  niveau de la recette** — `Grid.curPart` (0 corps / 1 legL / 2 legR / 3 armL / 4 armR), `setFine` écrit
+  `partData`, `generateCharacter` tague jambes/bras + **l'arme tenue** (épée/arc/bâton → bras qui la porte).
+  Stocké dans un **chunk maison `nPRT`** du `.vox` (1 octet/voxel, MagicaVoxel l'ignore ; `vox.ts` +
+  `vox-format.mjs` le lisent → `VoxModel.parts`). `splitRig` : héros = découpe EXACTE par ce canal (pivots
+  aux attaches connues hanche/épaule), monstres = bandes géométriques (inchangé). `applyAnim` : à la marche
+  les bras contre-balancent les jambes ; à l'**attaque** le bras ARMÉ (droit) s'arme puis abat vers l'avant
+  (l'arme suit), l'autre contre-balance ; à la **compétence** les deux bras se lèvent (invocation). 7 `.vox`
+  héros régénérés (`gen-characters.mjs`).
+- **Idle en ville** (`VoxelTownView`) : les héros de la place ne sont plus des billboards mais des **rigs
+  voxel animés** (respiration à l'arrêt) — `CharLibrary` + `UnitAnimator` (faceCamera), fallback billboard si
+  le modèle manque.
+
+### Vérifié (Playwright, sondes sur les transforms)
+- Héros = **4 membres** (legL/legR/armL/armR) sur la carte, en combat ET en ville.
+- Combat, attaque du héros : **bras droit (épée) balance −1.24 rad**, bras gauche +0.37 (contre), jambes ±0.05.
+- Ville : rigs héros à 4 membres, `tilt.y` oscille (idle actif) ; rendu intact (capture Home).
+- `tsc -b` OK, `npm run build` OK ; seuls les 7 `.vox` héros changent (monstres/prévisualisations inchangés).
+
 ## 2026-07-22 (65) — Personnages & monstres ANIMÉS (rig à membres + anims procédurales)
 
 ### Fait (retour : « animer les personnages et les monstres — déplacements, attaques, compétences »)

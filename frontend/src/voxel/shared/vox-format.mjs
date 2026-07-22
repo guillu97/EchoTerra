@@ -43,11 +43,23 @@ export function encodeVox(model) {
     if (c) { rgba[i * 4] = c[0]; rgba[i * 4 + 1] = c[1]; rgba[i * 4 + 2] = c[2]; rgba[i * 4 + 3] = 255; }
   }
 
-  const children = new Uint8Array([
-    ...chunk("SIZE", sizeC),
-    ...chunk("XYZI", xyzi),
-    ...chunk("RGBA", rgba),
-  ]);
+  // canal de PARTIE (rig) OPTIONNEL : chunk maison "nPRT" = 1 octet par voxel
+  // occupé, dans le MÊME ordre que XYZI. MagicaVoxel l'ignore ; notre décodeur le lit.
+  const chunks = [chunk("SIZE", sizeC), chunk("XYZI", xyzi), chunk("RGBA", rgba)];
+  if (model.parts) {
+    const prt = new Uint8Array(4 + count);
+    new DataView(prt.buffer).setInt32(0, count, true);
+    let p = 4;
+    for (let z = 0; z < sz; z++)
+      for (let y = 0; y < sy; y++)
+        for (let x = 0; x < sx; x++) {
+          const idx = x + y * sx + z * sx * sy;
+          if (data[idx]) prt[p++] = model.parts[idx] || 0;
+        }
+    chunks.push(chunk("nPRT", prt));
+  }
+  const children = new Uint8Array(chunks.reduce((n, c) => n + c.length, 0));
+  { let off = 0; for (const c of chunks) { children.set(c, off); off += c.length; } }
   const main = chunk("MAIN", new Uint8Array(0), children);
   const out = new Uint8Array(8 + main.length);
   const dv = new DataView(out.buffer);
