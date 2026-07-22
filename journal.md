@@ -6,6 +6,20 @@
 
 ---
 
+## 2026-07-22 (67) — Attaques SPÉCIFIQUES À L'ARME (héros)
+
+### Fait (loop « pousser plus loin »)
+Le geste d'attaque du héros dépend maintenant de son **arme** (`weaponFor(key)` dans `rig.ts` → `RiggedGeom.weapon`
++ `weaponSide`, propagé au `Rig`) : **mêlée** (chevalier/défaut) = arme haute puis fauchage du bras armé ;
+**arc** (chasseur) = l'arc reste tendu à l'avant, la MAIN LIBRE arme la corde (recul) puis relâche d'un coup ;
+**bâton** (mage à droite, soigneur à gauche) = poussée sèche du bras armé vers l'avant. La compétence lève les
+deux bras (le bâton monte plus haut). `applyAnim` branche sur `rig.weapon`/`rig.weaponSide`.
+
+### Vérifié (Playwright, `applyAnim` piloté directement)
+- knight melee : bras armé −1.38 (fauchage), contre 0.41 ; archer bow : bras arc −0.50 stable, **main libre +1.08**
+  (tir) ; wizard/healer staff : bras armé −1.60 (poussée). Détection d'arme correcte par classe.
+- `tsc -b` OK.
+
 ## 2026-07-22 (66) — Bras/armes séparés (héros) + animation d'attente en ville
 
 ### Fait (retour : « ajoute l'idle en ville, et bras/armes séparés pour les héros »)

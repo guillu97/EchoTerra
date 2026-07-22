@@ -615,9 +615,10 @@ VILLE anime aussi les héros** (rigs voxel, respiration à l'arrêt — `CharLib
 billboard). **Bras & armes des HÉROS = vraies parties** (2026-07-22) : `char-recipe.mjs` tague un canal de
 PARTIE (`Grid.curPart` 0 corps/1 legL/2 legR/3 armL/4 armR, l'arme tenue suit son bras), stocké dans un chunk
 `.vox` maison `nPRT` (lu par `vox.ts`/`vox-format.mjs` → `VoxModel.parts`) ; `splitRig` découpe les héros
-EXACTEMENT par ce canal (monstres = bandes géométriques) → à l'attaque le bras armé s'arme et abat, à la
-compétence les deux bras se lèvent. Seuls les monstres n'ont pas de canal de partie (bandes). 7 `.vox` héros
-régénérés ; monstres inchangés.
+EXACTEMENT par ce canal (monstres = bandes géométriques). **Attaque SPÉCIFIQUE À L'ARME** (`weaponFor(key)`
+→ `Rig.weapon`/`weaponSide`) : mêlée = fauchage du bras armé ; arc = main libre qui arme la corde puis relâche
+(arc tendu à l'avant) ; bâton = poussée sèche du bras armé ; compétence = les deux bras se lèvent. Seuls les
+monstres n'ont pas de canal de partie (bandes). 7 `.vox` héros régénérés ; monstres inchangés.
 **Phase 6 (2026-07-17)** : le voxel est le rendu **PAR DÉFAUT** (`voxelMap: true` dans
 `DEFAULT_SETTINGS` ; « Classique » dans les Réglages rebascule sur Phaser, qui n'est pas
 encore retiré du bundle). **Détails du monde** (`WORLD-DETAILS-PLAN.md`, lots D1+D2 faits
