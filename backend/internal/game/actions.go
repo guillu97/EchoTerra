@@ -371,6 +371,12 @@ func (g *GameState) JoinCombat(combatID, playerID string) (*Combat, error) {
 		return nil, ActionError{"aucun de tes héros ne participe à ce combat"}
 	}
 	c.AddParticipant(playerID)
+	// le combat peut devenir PARTAGÉ (≥2 présents) alors qu'on est déjà en pause
+	// sur un tour humain → armer le minuteur du tour courant (sinon il ne le serait
+	// qu'au prochain changement de tour, laissant ce tour-ci sans limite).
+	if u := c.CurrentUnit(); u != nil && u.Side == "hero" && !c.unitIsAuto(u) {
+		c.armTurnTimer(u)
+	}
 	return c, nil
 }
 

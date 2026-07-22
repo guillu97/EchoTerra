@@ -4,9 +4,16 @@ import (
 	"fmt"
 	"math/rand"
 	"sort"
+	"time"
 
 	"github.com/google/uuid"
 )
+
+// TurnLimit : temps réel MAX qu'un joueur humain PRÉSENT a pour jouer son tour
+// de combat avant que le serveur ne le résolve automatiquement (anti-blocage
+// multijoueur). Ne s'applique qu'aux combats à ≥2 joueurs présents. Surchargé
+// par ECHOTERRA_TURN_SECONDS (voir cmd/server).
+var TurnLimit = 60 * time.Second
 
 // CombatUnit is a hero or monster instantiated on the isometric battle grid.
 type CombatUnit struct {
@@ -231,6 +238,10 @@ type Combat struct {
 	Wave          int  `json:"wave,omitempty"`
 	ReinforceAt   int  `json:"reinforceAt,omitempty"`
 	ReinforceDone bool `json:"reinforceDone,omitempty"`
+	// TurnDeadline : instant limite pour que le joueur humain PRÉSENT dont c'est
+	// le tour agisse (multijoueur ≥2 présents). nil = pas de minuteur (tour d'IA,
+	// de monstre, ou combat solo). À l'expiration, EnforceTurnTimer résout le tour.
+	TurnDeadline *time.Time `json:"turnDeadline,omitempty"`
 }
 
 // hasParticipant reports whether a player is present in the combat.
@@ -1300,6 +1311,7 @@ func (c *Combat) endTurn() {
 
 // advanceTurn moves to the next living unit in initiative order, ticking states.
 func (c *Combat) advanceTurn() {
+	c.TurnDeadline = nil // nouveau tour : le minuteur humain est réarmé au besoin
 	for i := 0; i < len(c.Order)+1; i++ {
 		c.TurnIdx++
 		if c.TurnIdx >= len(c.Order) {
@@ -1343,7 +1355,8 @@ func (c *Combat) advanceUntilHeroOrEnd() {
 		}
 		if u.Side == "hero" {
 			if !c.unitIsAuto(u) {
-				return // un joueur PRÉSENT contrôle cette unité : on attend ses ordres
+				c.armTurnTimer(u) // joueur présent : arme le minuteur si multijoueur
+				return            // on attend ses ordres
 			}
 			// Héros d'un joueur absent (bot, ou humain n'ayant pas rejoint le
 			// combat) : l'IA joue son tour comme celui d'un monstre.
@@ -1357,6 +1370,57 @@ func (c *Combat) advanceUntilHeroOrEnd() {
 		}
 		c.advanceTurn()
 	}
+}
+
+// sharedHumanCombat : ≥2 joueurs humains PRÉSENTS (participants) dans le combat.
+// C'est la seule situation où un tour peut faire attendre quelqu'un → minuteur.
+// (Un seul présent = expérience solo, pas de course ; les héros des absents sont
+// déjà joués par l'IA.)
+func (c *Combat) sharedHumanCombat() bool {
+	return len(c.Participants) >= 2
+}
+
+// armTurnTimer pose l'échéance du tour pour un héros contrôlé par un humain
+// présent, uniquement en combat partagé (≥2 présents) et si non déjà armé.
+func (c *Combat) armTurnTimer(u *CombatUnit) {
+	if u.OwnerID == "" || c.TurnDeadline != nil || !c.sharedHumanCombat() {
+		return
+	}
+	d := time.Now().Add(TurnLimit)
+	c.TurnDeadline = &d
+}
+
+// EnforceTurnTimer résout automatiquement le tour courant si le joueur présent
+// dont c'est le tour a laissé son échéance expirer (anti-blocage multijoueur) :
+// l'IA joue son héros puis le tour passe. Renvoie true si l'état a changé.
+func (c *Combat) EnforceTurnTimer(now time.Time) bool {
+	if c.Status != "active" || c.TurnDeadline == nil || now.Before(*c.TurnDeadline) {
+		return false
+	}
+	u := c.CurrentUnit()
+	if u == nil || u.Side != "hero" || c.unitIsAuto(u) {
+		c.TurnDeadline = nil // échéance obsolète (l'unité a changé) : on la purge
+		return false
+	}
+	c.logf("%s a dépassé le temps de réflexion — l'action est jouée automatiquement.", u.Name)
+	c.LastHits = nil
+	c.heroAutoAct(u) // l'IA joue le tour du joueur AFK
+	c.Seq++          // les clients diffent Seq → ils rafraîchissent/animent
+	c.endTurn()      // avance (réarme le minuteur du prochain humain)
+	return true
+}
+
+// EnforceCombatTimers applique le minuteur de tour à tous les combats actifs de
+// la partie (scheduler + accès HTTP paresseux). Renvoie true si un combat a
+// changé → l'appelant doit persister.
+func (gs *GameState) EnforceCombatTimers(now time.Time) bool {
+	changed := false
+	for _, c := range gs.Combats {
+		if c != nil && c.EnforceTurnTimer(now) {
+			changed = true
+		}
+	}
+	return changed
 }
 
 // monsterTurn runs the monster AI: pick an attack (a special ~35% of the time),
