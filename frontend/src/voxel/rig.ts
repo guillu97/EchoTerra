@@ -17,6 +17,17 @@ import { meshVoxModel } from "./mesher";
 
 export type AnimKind = "biped" | "quadruped" | "critter" | "winged" | "blob" | "float" | "vortex" | "static";
 export type AnimState = "idle" | "walk" | "attack" | "skill" | "hit";
+export type Weapon = "melee" | "bow" | "staff";
+
+// Arme par classe (char-*) → geste d'attaque distinct. L'archer TIRE (main libre
+// qui arme la corde puis relâche), le mage/soigneur LANCE (bâton levé + poussée),
+// les autres FRAPPENT (fauchage du bras armé). weaponSide = bras qui tient l'arme.
+function weaponFor(key: string): { weapon: Weapon; side: number } {
+  if (key === "char-archer") return { weapon: "bow", side: 1 };
+  if (key === "char-wizard") return { weapon: "staff", side: 1 };
+  if (key === "char-healer") return { weapon: "staff", side: -1 };
+  return { weapon: "melee", side: 1 };
+}
 
 const CHAR_MAT = new THREE.MeshLambertMaterial({ vertexColors: true });
 
@@ -95,6 +106,8 @@ export type RiggedGeom = {
   scale: number;
   axis: "x" | "z";
   swing: number;
+  weapon: Weapon;
+  weaponSide: number;
   body: THREE.BufferGeometry;
   limbs: { name: string; role: LimbRole; side: number; geom: THREE.BufferGeometry; pivot: THREE.Vector3; phase: number }[];
 };
@@ -141,7 +154,8 @@ export function splitRig(model: VoxModel, key: string, worldHeight: number): Rig
         phase: info.role === "leg" ? (info.side < 0 ? 0 : Math.PI) : (info.side < 0 ? Math.PI : 0),
       };
     });
-    return { kind: "biped", scale, axis: "x", swing: 0.7, body, limbs };
+    const { weapon, side } = weaponFor(key);
+    return { kind: "biped", scale, axis: "x", swing: 0.7, weapon, weaponSide: side, body, limbs };
   }
 
   // ── MONSTRES : bandes géométriques (spec) ────────────────────────────────
@@ -166,7 +180,7 @@ export function splitRig(model: VoxModel, key: string, worldHeight: number): Rig
     pivot: toLocal(l.pivot[0], l.pivot[1], l.pivot[2]),
     phase: l.phase,
   }));
-  return { kind: spec.kind, scale, axis: spec.axis, swing: spec.swing, body, limbs };
+  return { kind: spec.kind, scale, axis: spec.axis, swing: spec.swing, weapon: "melee", weaponSide: 1, body, limbs };
 }
 
 // --- instance montée dans la scène -----------------------------------------
@@ -177,6 +191,8 @@ export type Rig = {
   kind: AnimKind;
   axis: "x" | "z";
   swing: number;
+  weapon: Weapon;
+  weaponSide: number;
   mats: THREE.MeshLambertMaterial[]; // matériaux (clone pour translucidité)
 };
 
@@ -204,7 +220,7 @@ export function buildRig(rg: RiggedGeom): Rig {
     tilt.add(pivot);
     return { group: pivot, phase: l.phase, role: l.role, side: l.side };
   });
-  return { root, tilt, limbGroups, kind: rg.kind, axis: rg.axis, swing: rg.swing, mats };
+  return { root, tilt, limbGroups, kind: rg.kind, axis: rg.axis, swing: rg.swing, weapon: rg.weapon, weaponSide: rg.weaponSide, mats };
 }
 
 // --- animation ------------------------------------------------------------
@@ -262,23 +278,36 @@ export function applyAnim(rig: Rig, state: AnimState, t: number, clock: number, 
     }
   }
 
-  // bras des héros pour les actions (par-dessus la marche/idle) : le bras ARMÉ
-  // (droit) frappe, l'autre contre-balance
+  // bras des héros pour les actions (par-dessus la marche/idle) — geste PROPRE À
+  // L'ARME : fauchage (mêlée), tir à l'arc, incantation au bâton
   const armList = limbGroups.filter((l) => l.role === "arm");
   if (armList.length && (state === "attack" || state === "skill")) {
-    const rightArm = armList.find((l) => l.side > 0) ?? armList[0];
-    const leftArm = armList.find((l) => l.side < 0);
-    if (state === "attack") {
+    const wArm = armList.find((l) => l.side === rig.weaponSide) ?? armList[0]; // bras qui tient l'arme
+    const offArm = armList.find((l) => l !== wArm);
+    const set = (l: typeof armList[number] | undefined, rx: number) => { if (l) { l.group.rotation.set(0, 0, 0); l.group.rotation.x = rx; } };
+    if (state === "attack" && rig.weapon === "bow") {
+      // TIR : la main libre arme la corde (recul) puis relâche d'un coup
+      const d = Math.min(1, t / 0.5);
+      set(wArm, -0.5);                                  // arc tendu vers l'avant, ~stable
+      const draw = d < 0.55 ? 1.1 * (d / 0.55) : 1.1 * (1 - (d - 0.55) / 0.45); // arme puis lâche
+      set(offArm, draw);
+    } else if (state === "attack" && rig.weapon === "staff") {
+      // FRAPPE DE BÂTON : le bras armé pointe vers l'avant en poussée sèche
+      const d = Math.min(1, t / 0.5);
+      const push = d < 0.4 ? -1.6 * (d / 0.4) : -1.6 + 1.4 * ((d - 0.4) / 0.6);
+      set(wArm, push);
+      set(offArm, 0.2);
+    } else if (state === "attack") {
+      // MÊLÉE : arme haute (anticipation) puis fauche vers l'avant
       const d = Math.min(1, t / 0.45);
-      // armé haut (anticipation) puis abat vers l'avant
       const swing = d < 0.35 ? -1.4 * (d / 0.35) : -1.4 + 2.4 * ((d - 0.35) / 0.65);
-      rightArm.group.rotation.set(0, 0, 0); rightArm.group.rotation.x = swing;
-      if (leftArm) { leftArm.group.rotation.set(0, 0, 0); leftArm.group.rotation.x = -swing * 0.3; }
+      set(wArm, swing);
+      set(offArm, -swing * 0.3);
     } else {
-      // compétence : les deux bras se lèvent (invocation)
+      // COMPÉTENCE : les deux bras se lèvent (invocation) — le bâton monte plus haut
       const d = Math.min(1, t / 0.7);
-      const up = Math.sin(Math.min(d, 0.5) / 0.5 * Math.PI) * 2.3;
-      for (const l of armList) { l.group.rotation.set(0, 0, 0); l.group.rotation.x = -up; }
+      const up = Math.sin(Math.min(d, 0.5) / 0.5 * Math.PI) * (rig.weapon === "staff" ? 2.6 : 2.3);
+      for (const l of armList) set(l, -up);
     }
   }
 
