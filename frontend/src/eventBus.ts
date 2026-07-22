@@ -28,6 +28,7 @@ export const EV = {
   MapRender: "map:render", // { game, selectedHeroId }
   MapFocusHero: "map:focusHero", // { x, y } — recentre la caméra sur un héros
   CombatRender: "combat:render", // { resp, mode }
+  CombatAnim: "combat:anim", // { unitId, kind: "attack"|"skill" } — anime l'acteur d'une action
   CombatFocusUnit: "combat:focusUnit", // { x, y } — recentre la caméra de combat sur une unité
   ShowScene: "scene:show", // "map" | "combat"
   // Phaser -> React

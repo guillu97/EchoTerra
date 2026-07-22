@@ -1027,6 +1027,7 @@ export const useStore = create<StoreState>((set, get) => {
             targetId: current!.unitId,
             playerId,
           });
+          bus.emit(EV.CombatAnim, { unitId: current!.unitId, kind: "skill" });
           set({ combatMode: "move", combatSkillIdx: 0 });
           applyCombat(resp);
         });
@@ -1075,6 +1076,7 @@ export const useStore = create<StoreState>((set, get) => {
           targetId: unitId,
           playerId,
         });
+        bus.emit(EV.CombatAnim, { unitId: current.unitId, kind: combatMode === "skill" ? "skill" : "attack" });
         set({ combatMode: "move", combatSkillIdx: 0 });
         applyCombat(resp);
       }),

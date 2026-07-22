@@ -22,7 +22,8 @@ import { BlockLibrary, buildTerrain, type TerrainCell } from "./terrain";
 import { SmoothTerrain } from "./smoothTerrain";
 import { PROP_KEYS, scatterProps } from "./scatter";
 import { buildCascade, findCascadeSite, type Cascade } from "./cascade";
-import { ALL_CHAR_KEYS, CharLibrary } from "./characters";
+import { ALL_CHAR_KEYS, CharLibrary, setRigOpacity } from "./characters";
+import { UnitAnimator } from "./unitAnim";
 import { makeLabel } from "./labels";
 import { heroTexKey as heroKey } from "../assets";
 import { useStore } from "../store";
@@ -70,6 +71,7 @@ class MapWorld {
   lib = new BlockLibrary("/voxels/16");
   chars = new CharLibrary(); // modèles voxel des héros (fallback billboard)
   charMeshes: THREE.Mesh[] = []; // orientés face caméra à chaque frame
+  animator: UnitAnimator; // rigs animés (idle/marche/attaque) — pose + rotation gérées ici
   libReady = false;
   terrain: THREE.Group | null = null;
   terrainKey = "";
@@ -101,6 +103,7 @@ class MapWorld {
 
   constructor(readonly engine: VoxelEngine) {
     engine.enableLighting({ shadowSpan: 45 }); // passe beauté : lumière pastel + ombres
+    this.animator = new UnitAnimator(engine);
     engine.scene.add(this.overlays);
     engine.scene.add(this.sprites);
     void this.lib
@@ -144,6 +147,7 @@ class MapWorld {
   }
 
   dispose() {
+    this.animator.dispose();
     this.lib.dispose();
     this.chars.dispose();
     this.smooth.dispose();
@@ -350,6 +354,7 @@ class MapWorld {
     clearOwned(this.overlays);
     clearOwned(this.sprites);
     this.charMeshes = [];
+    this.animator.beginFrame();
     const quad = (x: number, y: number, top: number, color: number, opacity: number) => {
       const m = new THREE.Mesh(
         QUAD_GEOM,
@@ -483,14 +488,14 @@ class MapWorld {
       if (!t?.discovered) continue; // cachés dans la brume
       const top = topOf(m.x, m.y);
       const tex = monsterTexKey(m.species, m.appearance);
-      const mesh = tex ? this.chars.make(tex) : undefined;
+      const rig = tex ? this.chars.makeRig(tex) : undefined;
       const mScale = bossAppearance(m.species) ? 1.8 : MONSTER_SCALE[tex ?? ""] ?? 1;
-      if (mesh) {
-        mesh.scale.multiplyScalar(mScale); // taille par espèce (limace ≪ boss)
-        mesh.position.set(m.x, top, m.y);
-        mesh.rotation.y = engine.azimuthNow;
-        this.sprites.add(mesh);
-        this.charMeshes.push(mesh);
+      if (rig) {
+        rig.root.scale.multiplyScalar(mScale); // taille par espèce (limace ≪ boss)
+        rig.root.position.set(m.x, top, m.y);
+        rig.root.rotation.y = engine.azimuthNow;
+        this.sprites.add(rig.root);
+        this.animator.sync(id, rig, m.x, top, m.y, { faceCamera: true });
       } else if (tex) billboard(libUrl("monsters", tex), m.x, m.y, { size: 0.6 * mScale });
       // badge de danger : icône + taille du pack, teinte jaune (peu) → rouge (beaucoup)
       const danger = Math.min(Math.max((m.count - 1) / 5, 0), 1);
@@ -525,20 +530,16 @@ class MapWorld {
         ring.position.set(h.x + ox, topOf(h.x, h.y) + 0.03, h.y + oy);
         this.overlays.add(ring);
       }
-      // Phase 5 : modèle voxel de la classe quand il existe (il tourne avec la
-      // caméra), billboard PNG sinon — bascule progressive par modèle.
-      const mesh = this.chars.make(heroKey(h.class));
+      // Phase 5 : modèle voxel de la classe quand il existe (rig animé qui tourne
+      // avec la caméra), billboard PNG sinon — bascule progressive par modèle.
+      const mesh = this.chars.makeRig(heroKey(h.class));
       if (mesh) {
-        mesh.position.set(h.x + ox, topOf(h.x, h.y), h.y + oy);
-        mesh.rotation.y = engine.azimuthNow;
-        if (!mine) {
-          mesh.material = (mesh.material as THREE.MeshBasicMaterial).clone();
-          (mesh.material as THREE.MeshBasicMaterial).transparent = true;
-          (mesh.material as THREE.MeshBasicMaterial).opacity = OTHER_ALPHA;
-          mesh.userData.ownMat = true; // le clone translucide nous appartient
-        }
-        this.sprites.add(mesh);
-        this.charMeshes.push(mesh);
+        const by = topOf(h.x, h.y);
+        mesh.root.position.set(h.x + ox, by, h.y + oy);
+        mesh.root.rotation.y = engine.azimuthNow;
+        if (!mine) setRigOpacity(mesh, OTHER_ALPHA); // héros des autres : translucides
+        this.sprites.add(mesh.root);
+        this.animator.sync(h.id, mesh, h.x + ox, by, h.y + oy, { faceCamera: true });
         if (mine) {
           const lbl = makeLabel(h.name, "#fff6d8", 0.2);
           lbl.center.set(0.5, 0);
@@ -552,6 +553,8 @@ class MapWorld {
         });
       }
     }
+
+    this.animator.endFrame(); // oublie les unités disparues, garde l'état des présentes
 
     this.engine.refreshShadows(); // le contenu a pu changer (terrain/props/sprites)
 
