@@ -42,11 +42,12 @@ const ASSET_TO_BUILDING: Record<string, string> = {
 const GRASS_FILES = new Set(["grass", "jungle", "darkgrass", "fallgrass", "mossy"]);
 
 // Gonds (pivots) des vantaux du portail, en coordonnées LOCALES du mesh (repère
-// mesher, avant le scale du groupe) : X = faceExterne_fine/30 − 0.5. Battant
-// gauche = fine x9 (−0.2), droit = fine x23 (+0.2667) ; profondeur centrée (Z=0).
-// Cf. bldGateDoor dans scripts/voxel/gen-props.mjs.
-const GATE_HINGE = { lx: -0.2, rx: 0.2667, z: 0 };
-const GATE_OPEN_ANGLE = 1.75; // rad (~100°) — vantaux grands ouverts
+// mesher, avant le scale du groupe) : X = faceExterne_fine/30 − 0.5, Z = centre
+// de profondeur des battants (posés au FRONT de l'arche, y≈8 → Z≈−0.067). Battant
+// gauche = fine x9 (−0.2), droit = fine x23 (+0.2667). Cf. bldGateDoor dans
+// scripts/voxel/gen-props.mjs.
+const GATE_HINGE = { lx: -0.2, rx: 0.2667, z: -0.0667 };
+const GATE_OPEN_ANGLE = 1.4; // rad (~80°) — vantaux grands ouverts vers l'avant
 
 function getDoc(): MapDoc {
   const d = townJson as unknown as MapDoc;
@@ -182,8 +183,8 @@ export function VoxelTownView({
     const applyGateAngle = () => {
       if (!gatePivots) return;
       const a = gateAnim.current * GATE_OPEN_ANGLE;
-      gatePivots.l.rotation.y = -a; // les deux battants s'ouvrent en s'écartant
-      gatePivots.r.rotation.y = a;
+      gatePivots.l.rotation.y = a; // les deux battants s'ouvrent vers l'avant
+      gatePivots.r.rotation.y = -a;
     };
 
     const drawBuildings = () => {

@@ -31,6 +31,16 @@
   porte FERMÉE (frame+vantaux fusionnés) : battants alignés dans l'arche entre les tours.
 - Catalogue régénéré (`build-catalog.mjs`, 612 assets).
 
+### Correctif (retour : « je ferme la porte et je ne vois pas d'animation »)
+- Diagnostic par Playwright headless (partie solo → Home voxel, toggle porte, échantillonnage de
+  `gatePivots.rotation.y`) : l'état S'ANIMAIT bien (rotations lissées dans les deux sens), mais les
+  vantaux étaient **BAS et au fond de l'arche → masqués par les tours en vue iso**, donc la fermeture
+  était imperceptible au zoom normal (captures ouvert/fermé quasi identiques).
+- Fix : vantaux **HAUTS (z 0→9, ~hauteur des tours)** et posés **AU FRONT de l'ouverture (y≈8)**,
+  gonds Z au front (`GATE_HINGE.z −0.0667`), swing **vers l'avant** (signes inversés) à `GATE_OPEN_ANGLE`
+  1.4 rad (~80°). Rendu Playwright : ouvert = deux battants écartés bien visibles, mi-course = ~45°,
+  fermé = battants rabattus au front → animation nette même dézoomé.
+
 ### À faire / notes
 - La carte de ville CLASSIQUE (Phaser/TownMap billboards PNG) ne montre pas l'état porte — hors périmètre
   (le voxel est le rendu par défaut).

@@ -1161,18 +1161,23 @@ function bldGate(seed) {
 // même transform que la maçonnerie, il tombe pile dans l'ouverture. `side` −1 =
 // gauche (gond à x=6), +1 = droite (gond à x=14). Les gonds servent de pivot à
 // l'animation d'ouverture (voir GATE_HINGE dans VoxelTownView).
+//
+// Battants HAUTS (z 0→9, ~toute la hauteur des tours) et au FRONT de l'ouverture
+// (y≈8) : posés au fond de l'arche et bas, ils étaient masqués par les tours en
+// vue iso → la fermeture ne se voyait pas. Hauts + à l'avant + swing large vers
+// l'avant, le mouvement est net même dézoomé.
 function bldGateDoor(side, seed) {
   const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz, FINE);
   const rnd = makeRng(seed); void rnd;
-  const wood = shade(WOOD_W, side < 0 ? 0.95 : 0.88);
+  const wood = shade(WOOD_W, side < 0 ? 1.0 : 0.9);
   const x0 = side < 0 ? 6 : 10, x1 = side < 0 ? 10 : 14; // se rejoignent à x=10
-  g.box(x0, x1, 9.5, 10.5, 0, 6, wood); // le battant, fin en profondeur
-  // planches verticales : rainures sombres sur la face
-  for (let x = x0 + 1; x < x1; x += 1.4) g.box(x, x + 0.15, 9.4, 9.5, 0, 6, shade(DARK_W, 1.3));
+  g.box(x0, x1, 7.7, 8.7, 0, 9, wood); // battant haut, au front, fin en profondeur
+  // planches verticales : rainures sombres sur la face avant
+  for (let x = x0 + 1; x < x1; x += 1.4) g.box(x, x + 0.15, 7.5, 7.7, 0, 9, shade(DARK_W, 1.3));
   // ferrures horizontales (bandes de fer)
-  for (const z of [1, 5]) g.box(x0, x1, 9.4, 10.6, z, z + 0.4, shade(DARK_W, 1.5));
+  for (const z of [1.5, 7.5]) g.box(x0, x1, 7.5, 8.8, z, z + 0.5, shade(DARK_W, 1.5));
   // heurtoir/poignée doré près du battant central
-  g.set(side < 0 ? 9.4 : 10.6, 9.4, 3.4, [212, 176, 96]);
+  g.box(side < 0 ? 9.3 : 10.4, side < 0 ? 9.7 : 10.7, 7.4, 7.7, 4.5, 5.2, [212, 176, 96]);
   return g;
 }
 
