@@ -6,6 +6,44 @@
 
 ---
 
+## 2026-07-22 (65) — Personnages & monstres ANIMÉS (rig à membres + anims procédurales)
+
+### Fait (retour : « animer les personnages et les monstres — déplacements, attaques, compétences »)
+Système d'animation d'unités voxel, SANS régénérer aucun asset : les `.vox` monolithiques sont
+**découpés au chargement** par bandes de voxels (jambes/pattes/ailes proprement séparables ; le reste
+= corps), et un petit squelette THREE fait pivoter chaque membre autour de son articulation (même
+astuce que les vantaux du portail). Les créatures SANS membres reçoivent une anim « logique » du corps
+entier.
+- **`rig.ts`** : `SPECS` par clé de modèle (héros=bipède, goblin/orc=bipède, wolf=quadrupède, spider=critter,
+  bat=ailé ; slime/mushroom=blob squash&stretch, ghost=flottement, windelemental=rotation) ; `splitRig`
+  découpe (corps + membres avec pivots en coords locales du mesh), `buildRig` assemble root→tilt→membres,
+  `applyAnim` mute les transforms selon l'état (idle respiration / walk foulée / attack lunge+piqué /
+  skill accroupi→jaillit+pulse / hit recul).
+- **`unitAnim.ts`** (`UnitAnimator`) : registre par id survivant aux reconstructions de draw, détecte les
+  DÉPLACEMENTS (lerp de pose + arc de saut → walk), joue les one-shots (attaque/compétence/touché), une
+  seule boucle rAF qui invalide le moteur tant qu'il reste des unités et l'onglet visible.
+- **`characters.ts`** : `makeRig(key)` (géométries découpées en cache) + `setRigOpacity` (héros des autres,
+  translucides).
+- **Carte** (`VoxelMapView`) : héros/monstres = rigs animés (idle + marche au déplacement d'une case),
+  face caméra ; **Combat** (`VoxelCombatView`) : rigs orientés selon leur Facing ; l'action du JOUEUR émet
+  `EV.CombatAnim {unitId,kind}` (lunge d'attaque / cast précis), le recul des cibles vient de `lastHits`,
+  l'acteur ENNEMI est déduit (unité active du camp opposé, sinon la plus proche d'une cible).
+
+### Vérifié (Playwright headless, sondes sur les transforms des rigs)
+- Carte : slime **squash** (scale.y 0.92→0.82), ghost **flotte** (tilt.y), élémentaire **tourne**
+  (rot.y 48→52°), goblin **jambes qui balancent** en contre-phase ; héros **marche** au déplacement
+  (jambes ±0.17, penché −0.08, saut +0.03).
+- Combat : **attaque** = lunge (z −0.32) + piqué (rot.x 0.50 vers la cible) ; **compétence** = jaillit
+  (y +0.28) + pulse d'échelle (1.14). Rigs rendus sans crash, idle actif.
+- `tsc -b` OK, `npm run build` OK.
+
+### À faire / notes
+- La VILLE (Home voxel) rend encore les héros en **billboards** (pas de rig) — anim d'attente à ajouter
+  si voulu. Les vues Phaser classiques ne sont pas concernées (voxel par défaut).
+- Bras/armes des héros restent dans le CORPS (le lunge/piqué les emporte) : segmentation des bras
+  bloquée par les accessoires cuits sur de nombreuses tranches z — évolution possible via parties au
+  niveau de la recette.
+
 ## 2026-07-22 (64) — Portail voxel : vantaux ANIMÉS + état ouvert/fermé visible par tous
 
 ### Fait (retour utilisateur : « animer l'ouverture de la porte en voxel, état visible pour tous »)

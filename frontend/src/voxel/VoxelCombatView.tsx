@@ -51,6 +51,7 @@ const FACING_GEOM = (() => {
 })();
 import { makeLabel } from "./labels";
 import { ALL_CHAR_KEYS, CharLibrary } from "./characters";
+import { UnitAnimator } from "./unitAnim";
 
 class CombatWorld {
   smooth = new SmoothTerrain(); // sol en PENTES VOXEL lissées (comme la carte) — plus de gros cubes
@@ -64,6 +65,7 @@ class CombatWorld {
   fx = new THREE.Group(); // étiquettes flottantes (C2) — survivent aux redraws
   unitOf = new Map<THREE.Object3D, string>(); // sprite → unitId (picking)
   textures = new Map<string, THREE.Texture>();
+  animator: UnitAnimator; // rigs animés (idle/attaque/compétence/touché)
   fitted = false;
 
   combat: Combat | null = null;
@@ -73,6 +75,7 @@ class CombatWorld {
   threats: CombatThreat[] = []; // cases menacées par ennemi (télégraphie C2)
   threatUnitId?: string;
   lastSeq = -1; // dernier combat.seq animé (diff → dégâts flottants)
+  pendingActor?: { unitId: string; kind: "attack" | "skill" }; // acteur de l'action du joueur, en attente du prochain render
   private fxAnims: { sprite: THREE.Sprite; x: number; y0: number; z: number; start: number; dur: number }[] = [];
   private fxRaf = 0;
 
@@ -80,6 +83,7 @@ class CombatWorld {
   private unsubBeauty: () => void;
 
   constructor(readonly engine: VoxelEngine) {
+    this.animator = new UnitAnimator(engine);
     engine.enableLighting({ shadowSpan: 12 }); // arène + socle : ombres serrées
     // fond : dégradé crépusculaire (indigo profond → mauve chaud) au lieu du à-plat
     // → profondeur atmosphérique, l'arène-diorama ne flotte plus dans un vide plat.
@@ -106,7 +110,29 @@ class CombatWorld {
     // déplacement/à l'attaque. Ce cap étant en espace-monde, il reste correct
     // quand la caméra tourne (on peut voir un dos), donc aucun onFrame à câbler.
   }
+  /** Anime l'ACTEUR d'une action (lunge d'attaque / cast) + le recul des cibles. */
+  animateAction(hits: CombatHit[], actorId?: string, kind: "attack" | "skill" = "attack") {
+    const c = this.combat;
+    if (!c) return;
+    for (const h of hits) this.animator.trigger(h.unitId, "hit"); // recul des touchés
+    // acteur : fourni (action du joueur) sinon déduit — l'unité du camp OPPOSÉ aux
+    // cibles, active de préférence, sinon la plus proche d'une cible (tour ennemi)
+    let actor = actorId;
+    if (!actor && hits.length) {
+      const tgt = c.units.find((u) => u.id === hits[0].unitId);
+      if (tgt) {
+        const side = tgt.side === "hero" ? "monster" : "hero";
+        const cands = c.units.filter((u) => u.side === side && u.hp > 0);
+        const active = c.units.find((u) => u.id === c.order[c.turnIdx]);
+        actor = (active && active.side === side ? active
+          : cands.sort((a, b) => (Math.hypot(a.x - tgt.x, a.y - tgt.y) - Math.hypot(b.x - tgt.x, b.y - tgt.y)))[0])?.id;
+      }
+    }
+    if (actor) this.animator.trigger(actor, kind);
+  }
+
   dispose() {
+    this.animator.dispose();
     if (this.fxRaf) cancelAnimationFrame(this.fxRaf);
     this.unsubBeauty();
     this.skyTex.dispose();
@@ -313,6 +339,7 @@ class CombatWorld {
     clearOwned(this.overlays);
     clearOwned(this.sprites);
     this.unitOf.clear();
+    this.animator.beginFrame();
 
     const topOf = (x: number, y: number) => this.surfaceY(x, y);
     const quad = (x: number, y: number, color: number, opacity: number) => {
@@ -400,13 +427,15 @@ class CombatWorld {
       // leur sens de déplacement/d'attaque. Le modèle regarde +Z au repos, donc
       // atan2(fx, fy) le tourne vers (fx,fy) ; à défaut de cap, il fait face caméra.
       const faceY = u.fx || u.fy ? Math.atan2(u.fx, u.fy) : this.engine.azimuthNow;
-      const mesh = tex ? this.chars.make(tex) : undefined;
-      if (mesh) {
-        mesh.position.set(ux, top, uy);
-        mesh.rotation.y = faceY;
-        mesh.scale.multiplyScalar(span);
-        this.sprites.add(mesh);
-        this.unitOf.set(mesh, u.id);
+      const rig = tex ? this.chars.makeRig(tex) : undefined;
+      if (rig) {
+        rig.root.position.set(ux, top, uy);
+        rig.root.rotation.y = faceY;
+        rig.root.scale.multiplyScalar(span);
+        this.sprites.add(rig.root);
+        // le picking cible chaque mesh du rig → mappe-les tous vers l'unité
+        rig.root.traverse((o) => { if ((o as THREE.Mesh).isMesh) this.unitOf.set(o, u.id); });
+        this.animator.sync(u.id, rig, ux, top, uy, { faceCamera: !(u.fx || u.fy), facingY: faceY });
       } else {
         const url = libUrl(u.side === "hero" ? "characters" : "monsters", tex || "char-scout");
         const mat = new THREE.SpriteMaterial({ map: this.texture(url), alphaTest: 0.35, transparent: true });
@@ -449,6 +478,7 @@ class CombatWorld {
         this.sprites.add(st);
       }
     }
+    this.animator.endFrame();
 
     if (!this.fitted) {
       // vise un peu plus BAS et dézoome légèrement pour montrer le socle-île (le
@@ -499,7 +529,12 @@ export function VoxelCombatView() {
           world.lastSeq = p.combat.seq; // ne pas rejouer les coups d'un combat rechargé
         } else if (p.combat.seq !== world.lastSeq) {
           world.lastSeq = p.combat.seq;
-          world.spawnHits(p.combat.lastHits ?? []);
+          const hits = p.combat.lastHits ?? [];
+          world.spawnHits(hits);
+          world.draw(); // (re)crée les rigs + les enregistre avant de déclencher l'anim
+          world.animateAction(hits, world.pendingActor?.unitId, world.pendingActor?.kind ?? "attack");
+          world.pendingActor = undefined;
+          return;
         }
         world.draw();
       },
@@ -510,6 +545,10 @@ export function VoxelCombatView() {
       engine.target.set(p.x, engine.target.y, p.y);
       engine.invalidate();
     });
+    // acteur de l'action du JOUEUR (précis) — consommé au prochain render seq++
+    const offAnim = bus.on(EV.CombatAnim, (p: { unitId: string; kind: "attack" | "skill" }) => {
+      world.pendingActor = p;
+    });
     // au montage (le view vient de passer en combat) : demander l'état courant
     useStore.getState().syncScene();
 
@@ -517,6 +556,7 @@ export function VoxelCombatView() {
     return () => {
       off();
       offFocus();
+      offAnim();
       controls.dispose();
       world.dispose();
       engine.dispose();

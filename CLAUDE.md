@@ -599,7 +599,19 @@ chibi paramétré 7 classes + `monster-recipe.mjs` 9 silhouettes de monstres, co
 caméra chaque frame SUR LA CARTE ; **en COMBAT (2026-07-20) les modèles ne billboardent PLUS** : ils
 s'orientent selon leur Facing monde `rotation.y = atan2(fx, fy)` — les unités se font face au début puis
 pivotent au déplacement/attaque (FFTA2), stable quand la caméra tourne). Catalogue : `build-catalog.mjs`
-énumère `voxels/**` (catégorie `voxels`).
+énumère `voxels/**` (catégorie `voxels`). **Phase 7 (2026-07-22) — ANIMATION DES UNITÉS** (`rig.ts` +
+`unitAnim.ts`) : les `.vox` monolithiques sont **découpés au CHARGEMENT** en corps + membres (bandes de
+voxels : jambes/pattes/ailes proprement séparables — `SPECS` par clé), un squelette THREE fait pivoter
+chaque membre autour de son articulation (`buildRig` root→tilt→pivots, offset `-pivot` comme les vantaux
+du portail) ; les sans-membres (slime/mushroom=squash, ghost=flottement, windelemental=rotation) animent
+le corps entier. `applyAnim(rig,state,…)` : idle respiration / **walk** foulée+saut / **attack** lunge+piqué
+/ **skill** accroupi→jaillit+pulse / **hit** recul. `UnitAnimator` = registre par id survivant aux redraws,
+détecte les déplacements (lerp de pose + arc → walk), joue les one-shots, UNE boucle rAF qui invalide tant
+qu'il reste des unités (onglet visible). `CharLibrary.makeRig(key)` (géométries découpées en cache) +
+`setRigOpacity` (héros des autres, translucides). Carte : rigs face caméra (idle + marche au pas) ; Combat :
+rigs orientés Facing, l'action du JOUEUR émet `EV.CombatAnim{unitId,kind}` (lunge/cast précis), recul des
+cibles depuis `lastHits`, acteur ENNEMI déduit (unité active adverse ou la plus proche d'une cible). La
+VILLE rend encore les héros en billboards (pas de rig). Aucun asset régénéré.
 **Phase 6 (2026-07-17)** : le voxel est le rendu **PAR DÉFAUT** (`voxelMap: true` dans
 `DEFAULT_SETTINGS` ; « Classique » dans les Réglages rebascule sur Phaser, qui n'est pas
 encore retiré du bundle). **Détails du monde** (`WORLD-DETAILS-PLAN.md`, lots D1+D2 faits
