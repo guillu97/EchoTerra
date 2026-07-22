@@ -20,12 +20,17 @@ type Unit = {
   facingY: number;                            // cap fixe (combat) si !faceCamera
 };
 
+// unité vaincue en train de s'effondrer (détachée du registre vivant)
+type Dying = { rig: Rig; start: number; mats: THREE.Material[]; y: number };
+
 const MOVE_MS = 320;
 const HOP = 0.12;
+const DEATH_MS = 850;
 const easeInOut = (t: number) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2);
 
 export class UnitAnimator {
   private units = new Map<string, Unit>();
+  private dying: Dying[] = [];
   private seen = new Set<string>();
   private raf = 0;
   private clockHash = 0;
@@ -76,7 +81,7 @@ export class UnitAnimator {
   /** Fin de passe : oublie les unités disparues de la scène. */
   endFrame() {
     for (const id of [...this.units.keys()]) if (!this.seen.has(id)) this.units.delete(id);
-    if (!this.units.size && this.raf) { cancelAnimationFrame(this.raf); this.raf = 0; }
+    if (!this.units.size && !this.dying.length && this.raf) { cancelAnimationFrame(this.raf); this.raf = 0; }
   }
 
   /** Déclenche une animation ponctuelle (attaque/compétence/touché). */
@@ -88,6 +93,26 @@ export class UnitAnimator {
   }
 
   private stateDur(s: AnimState) { return s === "attack" ? 450 : s === "skill" ? 700 : s === "hit" ? 300 : 0; }
+
+  /** Joue la MORT d'une unité : le rig (déjà ajouté à la scène par l'appelant)
+   *  s'effondre en arrière + se fond + s'enfonce, puis est retiré et libéré.
+   *  L'animator prend possession du rig (détaché du registre vivant). */
+  playDeath(rig: Rig, x: number, baseY: number, z: number, facingY: number) {
+    rig.root.position.set(x, baseY, z);
+    rig.root.rotation.y = facingY;
+    const mats: THREE.Material[] = [];
+    rig.root.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (m.isMesh && m.material) {
+        const c = (m.material as THREE.MeshLambertMaterial).clone();
+        c.transparent = true;
+        m.material = c;
+        mats.push(c);
+      }
+    });
+    this.dying.push({ rig, start: this.now(), mats, y: baseY });
+    this.ensureLoop();
+  }
 
   private ensureLoop() { if (!this.raf) this.raf = requestAnimationFrame(this.tick); }
 
@@ -127,9 +152,34 @@ export class UnitAnimator {
       }
       applyAnim(u.rig, state, st, clock + u.clock0, moveT);
     }
+
+    // unités vaincues : bascule en arrière + fondu + enfoncement, puis retrait
+    for (let i = this.dying.length - 1; i >= 0; i--) {
+      const d = this.dying[i];
+      const p = (t - d.start) / DEATH_MS;
+      if (p >= 1) {
+        d.rig.root.parent?.remove(d.rig.root);
+        for (const m of d.mats) m.dispose();
+        this.dying.splice(i, 1);
+        continue;
+      }
+      const e = easeInOut(Math.min(1, p * 1.3)); // s'effondre un peu avant la fin
+      d.rig.tilt.rotation.set(0, 0, 0);
+      d.rig.tilt.rotation.x = -(Math.PI / 2) * e;      // tombe sur le dos
+      d.rig.root.position.y = d.y - 0.12 * e;          // s'enfonce
+      for (const m of d.mats) (m as THREE.Material).opacity = 1 - p; // se fond
+    }
+
     this.engine.invalidate();
-    this.raf = requestAnimationFrame(this.tick);
+    // continuer tant qu'il reste des unités vivantes OU une mort en cours
+    this.raf = this.units.size || this.dying.length ? requestAnimationFrame(this.tick) : 0;
   };
 
-  dispose() { if (this.raf) cancelAnimationFrame(this.raf); this.raf = 0; this.units.clear(); }
+  dispose() {
+    if (this.raf) cancelAnimationFrame(this.raf);
+    this.raf = 0;
+    this.units.clear();
+    for (const d of this.dying) { d.rig.root.parent?.remove(d.rig.root); for (const m of d.mats) m.dispose(); }
+    this.dying = [];
+  }
 }

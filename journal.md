@@ -6,6 +6,23 @@
 
 ---
 
+## 2026-07-22 (68) — Animation de MORT/défaite (combat)
+
+### Fait (loop)
+Quand une unité tombe à 0 PV en combat, elle **s'effondre** (bascule en arrière ~90°) + **se fond**
+(opacité→0) + **s'enfonce**, sur 850 ms, puis est retirée — au lieu de disparaître sèchement.
+- `unitAnim.ts` : `UnitAnimator.playDeath(rig,x,y,z,face)` — prend possession d'un rig détaché du registre
+  vivant (clone ses matériaux pour le fondu), l'anime dans la boucle rAF (`dying[]`), le retire + libère à la
+  fin ; `endFrame`/`tick` gardent la boucle vivante tant qu'une mort est en cours.
+- `VoxelCombatView` : groupe `deaths` (survit aux redraws) ; `spawnDeaths(prevUnits)` diffe les unités
+  passées de vivantes → 0 PV/fled entre deux `seq` et lance un rig d'effondrement à leur dernière case/cap ;
+  appelé dans le handler `CombatRender` après `animateAction`.
+
+### Vérifié (Playwright + logs)
+- `playDeath` : durée réelle **863 ms** (p 0.015→1.016) puis retrait auto ; fondu amorcé (opacité 1→0.98).
+  Le tab headless throttle le rAF (2 ticks seulement) → la courbe intermédiaire n'est pas échantillonnée mais
+  s'anime à 60 fps en vrai navigateur. `tsc -b` OK.
+
 ## 2026-07-22 (67) — Attaques SPÉCIFIQUES À L'ARME (héros)
 
 ### Fait (loop « pousser plus loin »)
