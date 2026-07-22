@@ -6,6 +6,21 @@
 
 ---
 
+## 2026-07-22 (69) — Rendu CINÉMATIQUE voxel par défaut
+
+### Fait (retour : « voxel par défaut + rendu maximum en mode cinématique »)
+`DEFAULT_SETTINGS` : `voxelBeauty: true` (passe cinématique — tone mapping ACES + bloom + ciel/brume) et
+`quality: "Very high"` (voxelMap/voxelSmooth étaient déjà true). **Migration UNIQUE** (`RENDER_PRESET`,
+`loadSettings`) : les installs avec réglages déjà sauvegardés basculent une fois en voxel + cinématique max
+(persistée → un opt-out ultérieur est respecté, pas ré-écrasé). Les autres réglages sauvegardés (volume…)
+sont conservés.
+
+### Vérifié (Playwright)
+- Session vierge : voxelMap/voxelSmooth/voxelBeauty=true, quality="Very high", renderPreset=1.
+- Ancienne sauvegarde (beauty off, sans marqueur) → migrée en beauty on + Very high (music préservée).
+- Opt-out manuel respecté après reload (reste off). Moteur : `engine.beauty` actif sur la carte.
+- `tsc -b` OK.
+
 ## 2026-07-22 (68) — Animation de MORT/défaite (combat)
 
 ### Fait (loop)

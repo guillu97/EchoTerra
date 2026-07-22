@@ -83,25 +83,41 @@ export interface Settings {
   notif: { loot: boolean; wave: boolean; actionPoint: boolean; communication: boolean };
   voxelMap: boolean; // carte monde en voxel 3D (expérimental — VOXEL-PLAN Phase 2)
   voxelSmooth: boolean; // carte : terrain CONTINU lissé (true) ou blocs discrets (false)
-  voxelBeauty: boolean; // passe beauté Tier 1 : tone mapping ACES + bloom + ciel/brume (expérimental)
+  voxelBeauty: boolean; // passe beauté Tier 1 : tone mapping ACES + bloom + ciel/brume (mode CINÉMATIQUE)
+  renderPreset?: number; // marqueur de migration des défauts de rendu (voir RENDER_PRESET)
 }
+
+// Bump pour (re)forcer UNE FOIS les défauts de rendu — voxel + cinématique max —
+// même sur les installs qui avaient déjà des réglages sauvegardés.
+const RENDER_PRESET = 1;
 
 const DEFAULT_SETTINGS: Settings = {
   music: 80,
   sfx: 80,
   fps: 60,
-  quality: "Medium",
+  quality: "Very high", // rendu maximum par défaut
   language: "Français",
   notif: { loot: true, wave: true, actionPoint: true, communication: false },
-  voxelMap: true, // Phase 6 (décision utilisateur 2026-07-17) : le voxel est le rendu par défaut
+  voxelMap: true, // le voxel est le rendu par défaut (Phase 6, 2026-07-17)
   voxelSmooth: true,
-  voxelBeauty: false, // opt-in (coût GPU du bloom aux redraws) — Réglages « Rendu beauté »
+  voxelBeauty: true, // mode CINÉMATIQUE (bloom + ACES) activé par défaut — décision utilisateur 2026-07-22
+  renderPreset: RENDER_PRESET,
 };
 
 function loadSettings(): Settings {
   try {
     const raw = localStorage.getItem(LS_SETTINGS);
-    if (raw) return { ...DEFAULT_SETTINGS, ...JSON.parse(raw) };
+    if (raw) {
+      const saved = JSON.parse(raw) as Partial<Settings>;
+      let s: Settings = { ...DEFAULT_SETTINGS, ...saved };
+      // migration UNIQUE : bascule voxel + rendu cinématique max sur les réglages
+      // déjà sauvegardés (persistée pour ne pas réécraser un opt-out ultérieur).
+      if (saved.renderPreset !== RENDER_PRESET) {
+        s = { ...s, voxelMap: true, voxelSmooth: true, voxelBeauty: true, quality: "Very high", renderPreset: RENDER_PRESET };
+        try { localStorage.setItem(LS_SETTINGS, JSON.stringify(s)); } catch { /* ignore */ }
+      }
+      return s;
+    }
   } catch {
     /* ignore */
   }
