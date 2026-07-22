@@ -9,6 +9,7 @@ import { MapHeroBar } from "../components/MapHeroBar";
 import { CombatHeroBar } from "../components/CombatHeroBar";
 import { mapSkillsForHero } from "../skills";
 import { myActiveCombat } from "../combatUtils";
+import { useTurnRemaining } from "../useWave";
 
 // Radial action menu (Hordes-style) that pops at the selected hero when tapped on the map.
 function ActionMenu() {
@@ -280,6 +281,13 @@ function CombatControls() {
         : current?.attackTargets ?? [];
   const estimates = combatMode === "skill" ? activeSkill?.estimates : current?.attackEstimates;
   const onBottomEdge = !!curUnit && curUnit.y === combat.gridH - 1;
+  const turnLeft = useTurnRemaining(combat); // secondes avant résolution auto (multi)
+  const turnTimer =
+    turnLeft === null ? null : (
+      <strong className="turn-timer" style={{ color: turnLeft <= 10 ? "#ff6b5e" : "#ffd166" }}>
+        &nbsp;⏱ {turnLeft}s
+      </strong>
+    );
 
   return (
     <div className="map-controls">
@@ -297,14 +305,14 @@ function CombatControls() {
 
       {!ended && curUnit && curUnit.side === "hero" && !myTurn && (
         <div className="line" style={{ color: "#9fb2c9" }}>
-          ⏳ Tour de <strong>&nbsp;{curUnit.name}</strong> (autre joueur)…
+          ⏳ Tour de <strong>&nbsp;{curUnit.name}</strong> (autre joueur)…{turnTimer}
         </div>
       )}
 
       {!ended && curUnit && myTurn && (
         <>
           <div className="line" style={{ fontSize: 12, color: "#cbd6e6" }}>
-            Tour de <strong>&nbsp;{curUnit.name}</strong> — clique une case verte pour bouger.
+            Tour de <strong>&nbsp;{curUnit.name}</strong> — clique une case verte pour bouger.{turnTimer}
           </div>
           <div className="line">
             <button className={`small ${combatMode === "attack" ? "red" : ""}`} disabled={busy} onClick={() => setCombatMode("attack")}>

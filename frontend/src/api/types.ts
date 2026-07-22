@@ -336,6 +336,7 @@ export interface Combat {
   wave?: number;
   reinforceAt?: number;
   reinforceDone?: boolean;
+  turnDeadline?: string; // instant limite du tour humain courant (multi ≥2 présents) — anti-blocage
 }
 
 // Objet du sac utilisable en combat (lot C3) — servi par combatResponse.

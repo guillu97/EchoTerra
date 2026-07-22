@@ -43,6 +43,11 @@ func main() {
 			game.WaveInterval = time.Duration(n) * time.Second
 		}
 	}
+	if v := os.Getenv("ECHOTERRA_TURN_SECONDS"); v != "" { // délai max d'un tour de combat (multi)
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			game.TurnLimit = time.Duration(n) * time.Second
+		}
+	}
 
 	st, err := store.Open(dsn)
 	if err != nil {

@@ -61,7 +61,8 @@ fixed seed (`--seed N`, e.g. 42) is used for cohesion across the library.
 
 ```bash
 # Backend (:8080). Env: ECHOTERRA_ADDR (:8080), ECHOTERRA_DB (echoterra.db),
-#                       ECHOTERRA_WAVE_SECONDS (wave interval, default 600; use 60 to test waves).
+#                       ECHOTERRA_WAVE_SECONDS (wave interval, default 600; use 60 to test waves),
+#                       ECHOTERRA_TURN_SECONDS (combat turn limit multi, default 60 ; game.TurnLimit).
 go -C backend run ./cmd/server
 
 # Frontend (:5173, proxies /api -> :8080)
@@ -281,7 +282,12 @@ bloquées seulement pour les héros ENGAGÉS (`g.heroInCombat(heroID)`), plusieu
 (`StartCombat` refuse juste un héros déjà au combat, `FinishCombat` ne nettoie que le sien). Client :
 `combatUtils.myActiveCombat` scanne tous les combats actifs (bouton « Rejoindre » + marqueur ⚔ par case).
 Vue de DESSUS en combat : `engine.setTopDown` (bouton 🔼/🎥 de VoxelCombatView) plonge la caméra (~78°) pour
-voir les monstres masqués par les reliefs.
+voir les monstres masqués par les reliefs. **MINUTEUR DE TOUR (2026-07-22, anti-blocage multi)** : en combat
+PARTAGÉ (`sharedHumanCombat` = ≥2 participants présents), le tour d'un héros d'humain présent est minuté
+(`Combat.TurnDeadline`, `game.TurnLimit` 60 s / `ECHOTERRA_TURN_SECONDS`) ; à l'expiration `EnforceTurnTimer`
+fait jouer le héros par l'IA (`heroAutoAct`) et passe le tour. Armé dans `advanceUntilHeroOrEnd`/`JoinCombat`,
+purgé par `advanceTurn` ; enforcement paresseux (`getCombat`, `tick`) + scheduler (`waveScheduler`). Solo/
+legacy = pas de limite. Front : `useTurnRemaining` → badge « ⏱ Ns » dans `CombatControls`.
 
 **Waves / horde (Hordes-like)** — `nextWaveAt` is **server-driven**; the client only shows the countdown
 (`useWaveRemaining`). Resolved lazily on access (`tick`) AND by a 15s scheduler goroutine.

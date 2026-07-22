@@ -6,6 +6,29 @@
 
 ---
 
+## 2026-07-22 (70) — Minuteur de tour en combat (anti-blocage multijoueur)
+
+### Fait (retour : « en combat, un temps max de fin de tour pour ne pas bloquer à plusieurs »)
+Un tour de combat laissé en souffrance par un joueur AFK est résolu automatiquement — UNIQUEMENT en
+combat PARTAGÉ (≥2 joueurs présents ; en solo/legacy aucune limite).
+- **`combat.go`** : `TurnLimit` (var, 60 s, surchargée par `ECHOTERRA_TURN_SECONDS`) ; `Combat.TurnDeadline
+  *time.Time` (`json:"turnDeadline,omitempty"`). `advanceTurn` purge l'échéance (nouveau tour) ;
+  `advanceUntilHeroOrEnd` l'arme à la pause sur un héros d'humain présent via `armTurnTimer` (gaté par
+  `sharedHumanCombat` = `len(Participants) >= 2`) ; `JoinCombat` l'arme aussi (le combat peut devenir
+  partagé pendant un tour en cours). `EnforceTurnTimer(now)` : si dépassé, `heroAutoAct` (l'IA joue le
+  héros) + `Seq++` + `endTurn` (réarme le prochain). `GameState.EnforceCombatTimers(now)`.
+- **`api.go`** : enforcement paresseux dans `getCombat` (le poll combat 3 s du client) et le `tick`
+  serverless, + proactif dans `waveScheduler` (toutes les 15 s, sous le verrou). `main.go` : env
+  `ECHOTERRA_TURN_SECONDS`.
+- **Front** : DTO `Combat.turnDeadline` ; hook `useTurnRemaining(combat)` (secondes, null si pas de
+  minuteur) ; badge « ⏱ Ns » sur le tour courant dans `CombatControls` (le mien ET celui d'un autre
+  joueur), rouge sous 10 s.
+
+### Vérifié
+- `game` : minuteur NON armé en solo ; armé après jonction du 2e joueur ; `EnforceTurnTimer` expiré →
+  tour avancé + `Seq++` + réarmé. `api` : GET combat après échéance dépassée → tour AFK résolu (`Seq`
+  bump). Toute la suite Go verte, `go vet` OK, `tsc -b` + `npm run build` OK.
+
 ## 2026-07-22 (69) — Rendu CINÉMATIQUE voxel par défaut
 
 ### Fait (retour : « voxel par défaut + rendu maximum en mode cinématique »)

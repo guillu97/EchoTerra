@@ -129,6 +129,9 @@ func (s *Server) tick(gs *game.GameState) {
 	if s.stateless && gs.BotCatchUp(now) {
 		changed = true
 	}
+	if gs.EnforceCombatTimers(now) { // résout les tours AFK des combats en cours
+		changed = true
+	}
 	gs.Recompute()
 	if changed {
 		_ = s.store.Save(gs)
@@ -156,6 +159,9 @@ func (s *Server) waveScheduler() {
 		for _, g := range games {
 			unlock := s.lockGame(g.ID)
 			changed := g.CatchUpWaves(now)
+			if g.EnforceCombatTimers(now) { // multijoueur : résout les tours AFK
+				changed = true
+			}
 			if tickNo%botEvery == 0 && g.BotAct() {
 				changed = true
 			}
@@ -1125,6 +1131,14 @@ func (s *Server) getCombat(w http.ResponseWriter, r *http.Request) {
 	if c == nil {
 		writeErr(w, http.StatusNotFound, "combat introuvable")
 		return
+	}
+	// anti-blocage : si le joueur dont c'est le tour a dépassé le délai, on
+	// résout son tour ICI (le poll de combat toutes les 3 s déclenche cette voie).
+	if c.EnforceTurnTimer(time.Now()) {
+		if c.Status != "active" {
+			gs.FinishCombat(c)
+		}
+		s.persist(gs)
 	}
 	writeJSON(w, http.StatusOK, combatResponse(gs, c))
 }
