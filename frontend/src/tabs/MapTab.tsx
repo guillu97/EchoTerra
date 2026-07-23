@@ -138,10 +138,13 @@ function MapControls() {
   const { game, showOthers, toggleOthers, playerId, joinCombat, busy } = useStore();
   if (!game) return null;
   const multiplayer = (game.players?.length ?? 0) > 1;
-  // Un combat actif (parmi TOUS ceux en cours — ils peuvent être plusieurs) où
-  // figurent MES héros, que je n'ai pas encore rejoint → « Rejoindre le combat ».
+  // Un combat actif (parmi TOUS ceux en cours) où figurent MES héros → bouton
+  // « Rejoindre le combat ». On l'affiche même si je suis DÉJÀ participant : un
+  // joueur qui a quitté le site en plein combat reste inscrit dans `participants`
+  // mais n'est plus dans l'arène — il doit pouvoir y retourner. (MapControls ne
+  // s'affiche que HORS combat, donc `mine` non nul ⇒ je suis sur la carte.)
   const mine = myActiveCombat(game, playerId);
-  const canJoin = !!mine && !!playerId && !mine.participants?.includes(playerId);
+  const canJoin = !!mine; // multi (playerId) OU solo legacy (héros = les miens)
   // « Forcer la vague » a déménagé dans le panneau de triche (🔧). Cette barre ne
   // garde que les actions de terrain (rejoindre un combat, masquer les autres).
   if (!canJoin && !multiplayer) return null;

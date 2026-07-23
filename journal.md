@@ -6,6 +6,25 @@
 
 ---
 
+## 2026-07-22 (72) — Reprise EN COMBAT après avoir quitté le site
+
+### Fait (retour : « si je quitte le site en plein combat, je dois pouvoir rejoindre l'arène/le combat engagé »)
+Le backend supportait déjà `JoinCombat` (idempotent) et le payload de partie porte `combats`, mais le front
+laissait le joueur bloqué : `adoptGame` (reprise) posait toujours `view:"map"` + `combat:undefined`, et le
+bouton « Rejoindre » était gaté par `!participants.includes(playerId)` — un participant revenu (déjà inscrit,
+jamais retiré côté serveur) ne pouvait donc JAMAIS le voir.
+- **`store.ts`** : `adoptGame` détecte `myActiveCombat(game, pid)` → pose `view:"combat"` + `combat` (depuis
+  le payload) et, en async, (ré)ouvre l'arène (`api.joinCombat` en multi / `api.getCombat` en solo legacy
+  sans playerId) pour récupérer le tour courant. `enterActiveGame` bascule sur l'onglet **Map** si on reprend
+  en combat (l'arène y vit) au lieu de forcer Home. `joinCombat` gère aussi le solo legacy (GET au lieu de POST).
+- **`MapTab.tsx`** : bouton « Rejoindre le combat » affiché dès qu'un de mes héros est engagé (`canJoin = !!mine`),
+  même si je suis DÉJÀ participant (filet de sécurité pour le retour après déconnexion).
+
+### Vérifié (Playwright, bout en bout)
+- Engager un combat → recharger la page → « Reprendre » : on revient AUTOMATIQUEMENT dans l'arène, MÊME
+  combat (`combatId` identique), `view:"combat"`, `tab:"map"`, `current` rempli, `VoxelCombatView` monté,
+  contrôles de tour présents (capture). Reprise HORS combat inchangée (Home). `tsc -b` + `npm run build` OK.
+
 ## 2026-07-22 (71) — Fix : la lueur des braseros de combat traversait les blocs
 
 ### Fait (retour : « le coin en haut à gauche, la torche se voit à travers les blocs »)
