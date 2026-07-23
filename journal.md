@@ -6,6 +6,21 @@
 
 ---
 
+## 2026-07-22 (71) — Fix : la lueur des braseros de combat traversait les blocs
+
+### Fait (retour : « le coin en haut à gauche, la torche se voit à travers les blocs »)
+Bloom SÉLECTIF mal occlus (`engine.ts`) : la passe bloom rendait UNIQUEMENT le calque lumineux
+(`camera.layers.set(BLOOM_LAYER)`) → aucun occludeur n'écrivait la profondeur → la lueur des flammes
+d'angle traversait le décor. Passé à la technique standard « darken non-bloomed » : la passe bloom rend
+la scène ENTIÈRE mais tout ce qui n'est pas lumineux est peint en NOIR (meshes → `darkMat`, qui écrit la
+profondeur et occlut la lueur ; sprites → masqués), puis restauré avant la passe finale. `bloomLayers`
+(THREE.Layers) teste l'appartenance au calque ; `darkenNonBloomed`/`restoreAfterBloom`.
+
+### Vérifié
+- Combat (bloom on par défaut) : les 4 braseros rayonnent toujours mais la lueur est OCCLUSE par les
+  terrasses (2 angles capturés). Rendu normal (pas de scène noire). `tsc -b` + `npm run build` OK. Le fix
+  vaut pour toutes les vues voxel (carte : cristaux/lucioles ne bavent plus non plus).
+
 ## 2026-07-22 (70) — Minuteur de tour en combat (anti-blocage multijoueur)
 
 ### Fait (retour : « en combat, un temps max de fin de tour pour ne pas bloquer à plusieurs »)
