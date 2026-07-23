@@ -325,19 +325,36 @@ export const useStore = create<StoreState>((set, get) => {
     if (playerId) localStorage.setItem(lsPlayerKey(game.id), playerId);
     const pid = playerId ?? localStorage.getItem(lsPlayerKey(game.id)) ?? undefined;
     const myFirstHero = game.players?.find((p) => p.id === pid)?.heroIds?.[0];
+    // Reprise EN COMBAT : si un de mes héros est engagé dans un combat actif
+    // (j'ai quitté le site en plein combat), on rentre DIRECT dans l'arène au lieu
+    // d'atterrir sur la carte sans moyen d'y retourner.
+    const mine = myActiveCombat(game, pid);
     set({
       game,
       playerId: pid,
-      view: "map",
-      combat: undefined,
-      current: undefined,
+      view: mine ? "combat" : "map",
+      combat: mine, // affiche l'arène tout de suite depuis le payload
+      current: undefined, // le tour courant est récupéré par le rejoin ci-dessous
+      combatMode: "move",
+      combatSkillIdx: 0,
       selectedHeroId: myFirstHero ?? game.heroes[0]?.id,
     });
+    if (mine) {
+      // multi : (ré)enregistre ma présence (JoinCombat idempotent) ; solo legacy
+      // (sans playerId) : lit juste le combat pour récupérer le tour courant.
+      const fetch = pid ? api.joinCombat(game.id, mine.id, pid) : api.getCombat(game.id, mine.id);
+      void fetch.then(applyCombat).catch(() => {
+        /* le bouton « Rejoindre le combat » de la carte reste un filet de sécurité */
+      });
+    }
   };
 
   const enterActiveGame = async () => {
     await loadCatalogs();
-    set({ appScreen: "game", tab: "home", settingsScreen: null });
+    // reprise EN COMBAT (adoptGame a posé view:"combat") → onglet Map (l'arène y
+    // vit) ; sinon onglet Home par défaut.
+    const inCombat = get().view === "combat" && !!get().combat;
+    set({ appScreen: "game", tab: inCombat ? "map" : "home", settingsScreen: null });
   };
 
   // My team's hero ids in a multiplayer game (empty in legacy solo games).
@@ -1120,7 +1137,10 @@ export const useStore = create<StoreState>((set, get) => {
         const { game, playerId } = get();
         const mine = myActiveCombat(game, playerId);
         if (!game || !mine) return;
-        const resp = await api.joinCombat(game.id, mine.id, playerId);
+        // multi : POST join (présence) ; solo legacy sans playerId : GET du combat.
+        const resp = playerId
+          ? await api.joinCombat(game.id, mine.id, playerId)
+          : await api.getCombat(game.id, mine.id);
         set({ view: "combat", combatMode: "move", tab: "map" });
         pushLog("⚔️ Tu rejoins le combat !");
         applyCombat(resp);
