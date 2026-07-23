@@ -95,6 +95,13 @@ export class VoxelEngine {
   private bloomComposer: EffectComposer | null = null;
   private finalComposer: EffectComposer | null = null;
   private bloomPass: UnrealBloomPass | null = null;
+  // Bloom sélectif OCCLUS : pendant la passe bloom, tout ce qui n'est pas sur le
+  // calque lumineux est peint en NOIR (les meshes écrivent la profondeur → la
+  // lueur ne traverse plus les blocs ; les sprites sont masqués), puis restauré.
+  private darkMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+  private bloomLayers = new THREE.Layers();
+  private savedMat: { obj: THREE.Mesh; mat: THREE.Material | THREE.Material[] }[] = [];
+  private hiddenSprites: THREE.Sprite[] = [];
 
   private azimuth = azimuthFor(0);
   private sun: THREE.DirectionalLight | null = null;
@@ -193,8 +200,29 @@ export class VoxelEngine {
    *    noir → seuls cristaux/lucioles apparaissent) puis applique le flou-bloom ;
    *  - finalComposer : rend la scène NORMALE (ciel/brume compris), puis un shader
    *    de mélange ADDITIONNE la texture de bloom, puis OutputPass (tone mapping). */
+  // Passe bloom : noircit tout ce qui n'est pas lumineux (meshes → matériau noir
+  // qui écrit la profondeur ; sprites → masqués) pour OCCLURE correctement la
+  // lueur, puis `restoreAfterBloom` remet tout en place avant la passe finale.
+  private darkenNonBloomed = (obj: THREE.Object3D) => {
+    const mesh = obj as THREE.Mesh;
+    if (mesh.isMesh && !this.bloomLayers.test(mesh.layers)) {
+      this.savedMat.push({ obj: mesh, mat: mesh.material });
+      mesh.material = this.darkMat;
+    } else if ((obj as THREE.Sprite).isSprite && obj.visible) {
+      this.hiddenSprites.push(obj as THREE.Sprite);
+      obj.visible = false;
+    }
+  };
+  private restoreAfterBloom() {
+    for (const s of this.savedMat) s.obj.material = s.mat;
+    this.savedMat.length = 0;
+    for (const s of this.hiddenSprites) s.visible = true;
+    this.hiddenSprites.length = 0;
+  }
+
   private buildComposers() {
     if (this.bloomComposer) return;
+    this.bloomLayers.set(BLOOM_LAYER); // uniquement le calque lumineux
     const size = new THREE.Vector2(this.cssW, this.cssH);
     const bloomPass = new UnrealBloomPass(size, 1.1, 0.55, 0.0); // seuil 0 : le fond est déjà noir
     const bloomComposer = new EffectComposer(this.renderer);
@@ -435,17 +463,18 @@ export class VoxelEngine {
         }
       }
       if (this.beauty && this.bloomComposer && this.finalComposer) {
-        // 1) passe bloom : caméra restreinte au calque lumineux, fond/brume retirés
-        //    (sinon le ciel clair bloomerait) → texture de halos.
-        const mask = this.camera.layers.mask;
+        // 1) passe bloom : fond/brume retirés (sinon le ciel bloomerait) et tout
+        //    ce qui n'est PAS lumineux peint en noir — la scène ENTIÈRE est rendue
+        //    (les occludeurs écrivent la profondeur), donc la lueur ne traverse
+        //    plus les blocs → texture de halos correctement OCCLUS.
         const bg = this.scene.background;
         const fog = this.scene.fog;
         this.scene.background = null;
         this.scene.fog = null;
-        this.camera.layers.set(BLOOM_LAYER);
+        this.scene.traverse(this.darkenNonBloomed);
         this.bloomComposer.render();
+        this.restoreAfterBloom();
         // 2) passe finale : scène normale + ciel + brume, additionnée du bloom.
-        this.camera.layers.mask = mask;
         this.scene.background = bg;
         this.scene.fog = fog;
         this.finalComposer.render();
