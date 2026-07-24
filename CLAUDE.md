@@ -779,6 +779,26 @@ inspecteur), `designer.css`. **Export JSON** (tout ou par onglet, `echoterra-des
 l'utilisateur me redonne le fichier pour implémentation serveur ; import accepte doc complet ou
 partiel. ♻️ Reset = re-seed depuis les valeurs du jeu.
 
+## 7c-bis. Studio Personnages (dev tool — `frontend/src/charstudio/`, 2026-07-24)
+
+**But** : visualiser, designer et ANIMER les personnages/monstres voxel — bouton titre « 🎭 Persos »
+ou hash `#charstudio` (`appScreen === "charstudio"`, hors shell). Viewport 3D (VoxelEngine, orbite
+libre, plateau d'exposition, ombres), liste Héros (7 `char-*`) / Monstres (9 `mob-*`), 🔄 turntable.
+**Les animations passent par LE VRAI code du jeu** (`splitRig` → `buildRig` → `applyAnim`) : boutons
+Idle / Marche / Attaque / Compétence / Touché / Mort (chorégraphie de `UnitAnimator.playDeath`
+reproduite), vitesse ×0.25–×2 — ce qu'on voit est ce qui joue en partie. **Vue 🦴 Parties** : corps
+gris + membres colorés par rôle/côté + billes rouges sur les pivots (contrôle visuel de la découpe du
+rig). **Deux sources** : 🎮 les `.vox` du jeu (`public/voxels/chars/`) ou 🧪 la **recette live** —
+`char-recipe.mjs`/`monster-recipe.mjs` vivent maintenant dans **`frontend/src/voxel/shared/`** (JS pur,
+importées par le studio ET par les scripts Node) → régénération dans le navigateur, **éditer une
+recette sous Vite HMR met à jour le modèle** (LA boucle de design pour Claude). Palettes éditables par
+rôle (départ fidèle : `frontend/src/charstudio/palettes.json`, figé par `scripts/voxel/gen-palettes.mjs`
+qui importe les samplers exportés de gen-characters/gen-monsters — leurs `main()` sont gardés par un
+garde d'entrée CLI). Export ⬇ `.vox` (canal nPRT préservé pour les héros). Panneau Modèle (dims,
+voxels, kind, arme, membres) + HUD. Hook DEV **`window.__cs`** `{select, play, setSource, setParts,
+setSpeed, setTurntable, state, engine}` — pilotable en headless (vérif Playwright : poll par
+`page.evaluate`, jamais `waitForFunction`).
+
 ## 8. Conventions & gotchas
 
 - **CSS class collision**: do NOT use `town` as a tag/utility modifier — it collides with `.town

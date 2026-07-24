@@ -8,7 +8,7 @@ import { writeFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import sharp from "sharp";
-import { Grid, shade } from "./char-recipe.mjs";
+import { Grid, shade } from "../../frontend/src/voxel/shared/char-recipe.mjs";
 import { makeRng } from "../../frontend/src/voxel/shared/recipes.mjs";
 import { encodeVox } from "../../frontend/src/voxel/shared/vox-format.mjs";
 import { renderModel } from "./render-iso.mjs";

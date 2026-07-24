@@ -70,7 +70,7 @@ function slotForGame(g: { visibility?: string; players?: { bot: boolean }[] }): 
 type View = "map" | "combat";
 type CombatMode = "move" | "attack" | "skill" | "push";
 
-export type AppScreen = "loading" | "title" | "cinematic" | "game" | "editor" | "designer" | "voxelbench" | "voxeledit" | "lobby" | "account";
+export type AppScreen = "loading" | "title" | "cinematic" | "game" | "editor" | "designer" | "voxelbench" | "voxeledit" | "charstudio" | "lobby" | "account";
 export type Tab = "home" | "map" | "stock" | "structure" | "craft";
 export type SettingsScreen = "menu" | "setting" | "language" | "notifications";
 

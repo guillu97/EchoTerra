@@ -6,6 +6,43 @@
 
 ---
 
+## 2026-07-24 (73) — Studio Personnages voxel (#charstudio)
+
+### Fait (demande : « studio voxel pour visualiser les personnages et les monstres, pour que tu
+### puisses les designer et les animer » — doc Claude Design « Refonte Personnages Voxel » INACCESSIBLE
+### depuis la session distante [403 / pas d'autorisation design] : implémenté d'après la demande + l'existant ;
+### à réaligner si le doc contient des choix précis)
+Nouvel outil dev plein écran **`#charstudio`** (bouton titre « 🎭 Persos », `frontend/src/charstudio/`) :
+- **Viewport 3D** (VoxelEngine, orbite libre à la souris/doigt, molette/pinch, plateau d'exposition,
+  ombres) ; liste Héros (7) / Monstres (9) ; bouton 🔄 turntable.
+- **Animations = LE VRAI CODE DU JEU** : le studio charge le modèle, le découpe (`splitRig`), monte le
+  squelette (`buildRig`) et joue `applyAnim` — boutons Idle / Marche / Attaque / Compétence / Touché /
+  Mort (chorégraphie de `UnitAnimator.playDeath` reproduite : bascule + fondu + enfoncement, puis retour
+  idle), curseur de vitesse ×0.25–×2. Ce qu'on voit ici est ce qui joue en partie.
+- **Vue 🦴 Parties** : corps gris + membres colorés par rôle/côté (jambes bleues, bras oranges, ailes
+  violettes) + billes rouges sur les PIVOTS — pour vérifier la découpe du rig d'un coup d'œil.
+- **🧪 Recette live** : `char-recipe.mjs`/`monster-recipe.mjs` **déplacées dans
+  `frontend/src/voxel/shared/`** (JS pur, comme recipes.mjs — les scripts Node les importent de là
+  désormais) et importées par le studio → régénération DANS le navigateur ; **éditer la recette sous
+  Vite HMR met à jour le modèle**. Palettes éditables par rôle (peau/cheveux/tenue/tenue 2/accent —
+  corps/accent pour les monstres) avec départ fidèle : `scripts/voxel/gen-palettes.mjs` fige les
+  palettes échantillonnées des PNG dans `frontend/src/charstudio/palettes.json` (samplers exportés de
+  gen-characters/gen-monsters, `main()` gardé par un garde d'entrée CLI). Export **⬇ .vox** (avec canal
+  de partie nPRT pour les héros).
+- Panneau Modèle (dims, voxels, kind du rig, arme, membres) + HUD (draw/tris/ms). Hook DEV
+  **`window.__cs`** `{select, play, setSource, setParts, setSpeed, setTurntable, state, engine}` —
+  pilotable en headless (c'est comme ça que la session l'a vérifié).
+
+### Vérifié (Playwright, captures)
+- Gardien idle/marche/attaque (lunge), vue Parties (4 membres + pivots), loup en marche quadrupède,
+  archer régénéré par la recette live (arc, capuche verte échantillonnée), mort du slime (fondu +
+  enfoncement). `.vox` régénérés par gen-characters/gen-monsters **identiques octet à octet** après le
+  déplacement des recettes (git diff vide). `tsc -b` + `npm run build` OK.
+
+### À faire
+- Récupérer le doc « Refonte Personnages Voxel » (Canva/Claude Design) et aligner le studio dessus.
+- Édition de la FORME dans le studio (aujourd'hui : couleurs + code de recette sous HMR).
+
 ## 2026-07-22 (72) — Reprise EN COMBAT après avoir quitté le site
 
 ### Fait (retour : « si je quitte le site en plein combat, je dois pouvoir rejoindre l'arène/le combat engagé »)
