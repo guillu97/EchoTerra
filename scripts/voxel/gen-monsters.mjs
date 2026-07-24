@@ -7,9 +7,9 @@
 
 import { writeFile, mkdir } from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import sharp from "sharp";
-import { generateMonster, MONSTER_TEMPLATES } from "./monster-recipe.mjs";
+import { generateMonster, MONSTER_TEMPLATES } from "../../frontend/src/voxel/shared/monster-recipe.mjs";
 import { encodeVox } from "../../frontend/src/voxel/shared/vox-format.mjs";
 import { renderModel } from "./render-iso.mjs";
 
@@ -22,7 +22,7 @@ const lum = ([r, g, b]) => 0.299 * r + 0.587 * g + 0.114 * b;
 const dist2 = (a, b) => (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2;
 
 // corps = cluster dominant ; accent = cluster le plus couvrant NETTEMENT distinct
-async function samplePalette(key) {
+export async function samplePalette(key) {
   const { data, info } = await sharp(path.join(MONSTERS, `${key}.png`))
     .resize(160, 160, { fit: "inside" })
     .raw().ensureAlpha().toBuffer({ resolveWithObject: true });
@@ -73,4 +73,7 @@ async function main() {
   console.log("OK — previews dans asset-index/voxels/chars/");
 }
 
-main().catch((e) => { console.error(e); process.exit(1); });
+// exécuté seulement en CLI direct (gen-palettes.mjs importe samplePalette)
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((e) => { console.error(e); process.exit(1); });
+}

@@ -9,9 +9,9 @@
 
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import sharp from "sharp";
-import { generateCharacter } from "./char-recipe.mjs";
+import { generateCharacter } from "../../frontend/src/voxel/shared/char-recipe.mjs";
 import { encodeVox } from "../../frontend/src/voxel/shared/vox-format.mjs";
 import { renderModel } from "./render-iso.mjs";
 
@@ -20,7 +20,7 @@ const CHARS = path.join(ROOT, "frontend", "public", "assets", "characters");
 const OUT_VOX = path.join(ROOT, "frontend", "public", "voxels", "chars");
 const OUT_PREVIEW = path.join(ROOT, "asset-index", "voxels", "chars");
 
-const KEYS = ["char-scout", "char-builder", "char-archer", "char-knight", "char-merchant", "char-healer", "char-wizard"];
+export const KEYS = ["char-scout", "char-builder", "char-archer", "char-knight", "char-merchant", "char-healer", "char-wizard"];
 
 const lum = ([r, g, b]) => 0.299 * r + 0.587 * g + 0.114 * b;
 const sat = ([r, g, b]) => { const mx = Math.max(r, g, b), mn = Math.min(r, g, b); return mx ? (mx - mn) / mx : 0; };
@@ -52,7 +52,7 @@ function zoneColor(px, bbox, fx0, fx1, fy0, fy1, filter = () => true) {
   return best ? [Math.round(best.r / best.n), Math.round(best.g / best.n), Math.round(best.b / best.n)] : null;
 }
 
-async function samplePalette(key) {
+export async function samplePalette(key) {
   const { data, info } = await sharp(path.join(CHARS, `${key}.png`))
     .resize(200, 200, { fit: "inside" })
     .raw().ensureAlpha().toBuffer({ resolveWithObject: true });
@@ -133,4 +133,7 @@ async function main() {
   console.log("Contact sheet → asset-index/voxels/chars/SHEET.png");
 }
 
-main().catch((e) => { console.error(e); process.exit(1); });
+// exécuté seulement en CLI direct (gen-palettes.mjs importe samplePalette)
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((e) => { console.error(e); process.exit(1); });
+}

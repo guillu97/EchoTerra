@@ -1,0 +1,190 @@
+/* Studio Personnages — dev tool plein écran, hors du shell téléphone. */
+
+.charstudio {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  grid-template-columns: 168px 1fr 190px;
+  grid-template-areas:
+    "top top top"
+    "list viewport side"
+    "bottom bottom bottom";
+  background: #1c202a;
+  color: #e8e4d8;
+  font-family: system-ui, sans-serif;
+  font-size: 13px;
+  z-index: 50;
+}
+
+.charstudio button {
+  background: #3a4152;
+  color: #e8e4d8;
+  border: 1px solid #555d72;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+}
+.charstudio button.on {
+  background: #5a7d4a;
+  border-color: #7ba368;
+}
+
+.cs-top {
+  grid-area: top;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 8px;
+  background: #232837;
+  border-bottom: 1px solid #3a4152;
+  flex-wrap: wrap;
+}
+.cs-title {
+  font-weight: 700;
+  margin-right: 8px;
+}
+
+.cs-list {
+  grid-area: list;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  background: #20242f;
+  border-right: 1px solid #3a4152;
+}
+.cs-group {
+  font-weight: 700;
+  opacity: 0.7;
+  margin: 6px 0 2px;
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+}
+.cs-key {
+  display: block;
+  font-size: 10px;
+  opacity: 0.55;
+}
+
+.cs-viewport {
+  grid-area: viewport;
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+}
+
+.cs-side {
+  grid-area: side;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  background: #20242f;
+  border-left: 1px solid #3a4152;
+}
+.cs-panel {
+  background: #262b38;
+  border: 1px solid #3a4152;
+  border-radius: 10px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.cs-h {
+  font-weight: 700;
+  font-size: 12px;
+}
+.cs-h em {
+  font-weight: 400;
+  opacity: 0.6;
+  font-style: normal;
+  font-size: 10px;
+}
+.cs-color {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cs-color input[type="color"] {
+  width: 34px;
+  height: 24px;
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+}
+.cs-reset {
+  margin-top: 4px;
+}
+.cs-info {
+  font-size: 12px;
+  line-height: 1.5;
+}
+.cs-hud {
+  opacity: 0.6;
+  font-size: 11px;
+}
+
+.cs-bottom {
+  grid-area: bottom;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 8px;
+  background: #232837;
+  border-top: 1px solid #3a4152;
+  flex-wrap: wrap;
+}
+.cs-speed {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+.cs-speed input {
+  width: 120px;
+}
+
+/* Mobile : listes en tiroirs compacts au-dessus/en-dessous du viewport */
+@media (max-width: 760px) {
+  .charstudio {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto 1fr auto auto;
+    grid-template-areas:
+      "top"
+      "list"
+      "viewport"
+      "side"
+      "bottom";
+  }
+  .cs-list {
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+    border-right: none;
+    border-bottom: 1px solid #3a4152;
+  }
+  .cs-list button {
+    white-space: nowrap;
+  }
+  .cs-group {
+    align-self: center;
+    margin: 0 4px;
+  }
+  .cs-side {
+    flex-direction: row;
+    overflow-x: auto;
+    border-left: none;
+    border-top: 1px solid #3a4152;
+  }
+  .cs-panel {
+    min-width: 180px;
+  }
+}

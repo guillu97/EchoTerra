@@ -14,6 +14,7 @@ const applyHash = () => {
   if (h === "designer") useStore.getState().setScreen("designer");
   if (h === "voxel-bench") useStore.getState().setScreen("voxelbench");
   if (h === "voxeledit") useStore.getState().setScreen("voxeledit");
+  if (h === "charstudio") useStore.getState().setScreen("charstudio");
 };
 window.addEventListener("hashchange", applyHash);
 // Defer one tick so the store is initialized before we flip the screen.

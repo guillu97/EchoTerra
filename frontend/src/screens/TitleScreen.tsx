@@ -111,6 +111,9 @@ export function TitleScreen() {
           <button className="pill dev-pill" onClick={() => setScreen("voxeledit")}>
             🧊 Voxels
           </button>
+          <button className="pill dev-pill" onClick={() => setScreen("charstudio")}>
+            🎭 Persos
+          </button>
         </div>
       </div>
 
