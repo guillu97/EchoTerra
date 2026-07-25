@@ -400,6 +400,15 @@ export function CharStudioScreen() {
       </div>
 
       <div className="cs-list">
+        {/* mobile : la liste en colonne ne tient pas — dropdown natif à la place */}
+        <select className="cs-select" value={key} onChange={(e) => selectKey(e.target.value)}>
+          <optgroup label="Héros">
+            {HEROES.map(([k, label]) => <option key={k} value={k}>{label} ({k.replace("char-", "")})</option>)}
+          </optgroup>
+          <optgroup label="Monstres">
+            {MONSTERS.map(([k, label]) => <option key={k} value={k}>{label} ({k.replace("mob-", "")})</option>)}
+          </optgroup>
+        </select>
         <div className="cs-group">Héros</div>
         {HEROES.map(([k, label]) => (
           <button key={k} className={k === key ? "on" : ""} onClick={() => selectKey(k)}>

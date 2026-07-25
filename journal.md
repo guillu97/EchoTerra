@@ -39,6 +39,13 @@ Nouvel outil dev plein écran **`#charstudio`** (bouton titre « 🎭 Persos »,
   enfoncement). `.vox` régénérés par gen-characters/gen-monsters **identiques octet à octet** après le
   déplacement des recettes (git diff vide). `tsc -b` + `npm run build` OK.
 
+### Fix mobile (même jour, retour : « le menu disparaît sur la droite »)
+Sur téléphone (≤760px), la liste héros/monstres était une bande horizontale à scroll caché — coupée au
+bord droit, monstres invisibles. Remplacée par un **dropdown natif** (`.cs-select`, optgroups
+Héros/Monstres) pleine largeur ; les panneaux Palette/Modèle se PARTAGENT la largeur (`flex:1 1 0;
+min-width:0` — plus de débordement à 420px sur un écran de 390). Vérifié Playwright 390×844 / 844×390 /
+820×1180 : `scrollWidth == largeur` partout, capture OK.
+
 ### À faire
 - Récupérer le doc « Refonte Personnages Voxel » (Canva/Claude Design) et aligner le studio dessus.
 - Édition de la FORME dans le studio (aujourd'hui : couleurs + code de recette sous HMR).

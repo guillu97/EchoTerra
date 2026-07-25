@@ -152,7 +152,20 @@
   width: 120px;
 }
 
-/* Mobile : listes en tiroirs compacts au-dessus/en-dessous du viewport */
+/* Sélecteur mobile (dropdown natif) — caché sur desktop où la liste suffit */
+.cs-select {
+  display: none;
+  background: #3a4152;
+  color: #e8e4d8;
+  border: 1px solid #555d72;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 14px;
+  width: 100%;
+}
+
+/* Mobile : la colonne de gauche ne tient pas → dropdown natif ; panneaux côte à
+   côte qui SE PARTAGENT la largeur (pas de scroll horizontal caché). */
 @media (max-width: 760px) {
   .charstudio {
     grid-template-columns: 1fr;
@@ -165,26 +178,23 @@
       "bottom";
   }
   .cs-list {
-    flex-direction: row;
-    overflow-x: auto;
-    overflow-y: hidden;
     border-right: none;
     border-bottom: 1px solid #3a4152;
   }
-  .cs-list button {
-    white-space: nowrap;
+  .cs-select {
+    display: block;
   }
-  .cs-group {
-    align-self: center;
-    margin: 0 4px;
+  .cs-list button,
+  .cs-list .cs-group {
+    display: none;
   }
   .cs-side {
     flex-direction: row;
-    overflow-x: auto;
     border-left: none;
     border-top: 1px solid #3a4152;
   }
   .cs-panel {
-    min-width: 180px;
+    flex: 1 1 0;
+    min-width: 0;
   }
 }
