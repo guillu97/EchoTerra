@@ -1,4 +1,5 @@
 import { useStore } from "../store";
+import { Overlay } from "../ui/Overlay";
 import type { Settings } from "../store";
 
 const LANGUAGES = ["English", "Deutsch", "Italian", "Portugues", "Chinese", "Français", "Spanish", "Japanese"];
@@ -6,7 +7,11 @@ const FPS_OPTS: Settings["fps"][] = [30, 60, 120];
 const QUALITY_OPTS: Settings["quality"][] = ["Normal", "Medium", "High", "Very high"];
 
 function Banner({ title }: { title: string }) {
-  return <div className="banner">{title}</div>;
+  return (
+    <div className="banner" id="settings-title">
+      {title}
+    </div>
+  );
 }
 
 export function SettingsOverlay() {
@@ -15,7 +20,7 @@ export function SettingsOverlay() {
   const inGame = appScreen === "game";
 
   const Menu = (
-    <div className="panel-card">
+    <div className="settings-pane">
       <Banner title="Paramètres" />
       <div className="settings-menu">
         <button className="pill" onClick={() => openSettings("setting")}>Jeu</button>
@@ -45,7 +50,7 @@ export function SettingsOverlay() {
   );
 
   const Setting = (
-    <div className="panel-card">
+    <div className="settings-pane">
       <Banner title="Réglages du jeu" />
       <div className="row">
         <span className="lbl">Volume — Musique ({settings.music}%)</span>
@@ -144,14 +149,14 @@ export function SettingsOverlay() {
           </span>
         </div>
       )}
-      <button className="pill green" style={{ width: "100%", marginTop: 8 }} onClick={() => openSettings("menu")}>
+      <button className="pill green ov-close" onClick={() => openSettings("menu")}>
         Retour
       </button>
     </div>
   );
 
   const Language = (
-    <div className="panel-card">
+    <div className="settings-pane">
       <Banner title="Langue" />
       <div className="langgrid">
         {LANGUAGES.map((l) => (
@@ -161,7 +166,7 @@ export function SettingsOverlay() {
           </label>
         ))}
       </div>
-      <button className="pill green" style={{ width: "100%", marginTop: 12 }} onClick={() => openSettings("menu")}>
+      <button className="pill green ov-close" onClick={() => openSettings("menu")}>
         Retour
       </button>
     </div>
@@ -174,7 +179,7 @@ export function SettingsOverlay() {
     { key: "communication", t: "Messages", d: "Me notifier quand un ami envoie un message privé." },
   ];
   const Notifications = (
-    <div className="panel-card">
+    <div className="settings-pane">
       <Banner title="Notifications" />
       {notifRows.map((r) => (
         <div className="toggle-row" key={r.key}>
@@ -189,20 +194,25 @@ export function SettingsOverlay() {
           />
         </div>
       ))}
-      <button className="pill green" style={{ width: "100%", marginTop: 8 }} onClick={() => openSettings("menu")}>
+      <button className="pill green ov-close" onClick={() => openSettings("menu")}>
         Retour
       </button>
     </div>
   );
 
   return (
-    <div className="settings" onClick={() => (inGame ? closeSettings() : undefined)}>
-      <div onClick={(e) => e.stopPropagation()} style={{ margin: "auto", width: "100%", display: "flex" }}>
+    <Overlay
+      onClose={inGame ? () => closeSettings() : undefined}
+      closeOnBackdrop={inGame}
+      cardClassName="settings-card"
+      labelledBy="settings-title"
+    >
+      <>
         {settingsScreen === "menu" && Menu}
         {settingsScreen === "setting" && Setting}
         {settingsScreen === "language" && Language}
         {settingsScreen === "notifications" && Notifications}
-      </div>
-    </div>
+      </>
+    </Overlay>
   );
 }

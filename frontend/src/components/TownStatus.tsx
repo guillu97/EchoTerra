@@ -1,4 +1,5 @@
 import { useStore } from "../store";
+import { Overlay } from "../ui/Overlay";
 import { useWaveRemaining, formatHMS } from "../useWave";
 import { buildingIcon, buildingName } from "../data/buildings";
 import { durColor } from "../tabs/HomeTab";
@@ -19,9 +20,8 @@ export function TownStatus() {
   const defensive = t.buildings.filter((b) => DEFENSIVE.includes(b.id));
 
   return (
-    <div className="settings sheet" onClick={() => close(false)}>
-      <div className="panel-card" onClick={(e) => e.stopPropagation()}>
-        <div className="banner">🏰 État de la ville</div>
+    <Overlay variant="sheet" onClose={() => close(false)} title="🏰 État de la ville">
+      <>
 
         <div className="ts-hp">
           <span>🏰 PV ville {t.hp}/{t.maxHp}</span>
@@ -92,10 +92,10 @@ export function TownStatus() {
           </>
         )}
 
-        <button className="pill green" style={{ width: "100%", marginTop: 12 }} onClick={() => close(false)}>
+        <button className="pill green ov-close" onClick={() => close(false)}>
           Fermer
         </button>
-      </div>
-    </div>
+      </>
+    </Overlay>
   );
 }

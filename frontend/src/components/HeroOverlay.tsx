@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useStore } from "../store";
+import { Overlay } from "../ui/Overlay";
 import type { Stats } from "../api/types";
 import { assetUrl, type AssetKey } from "../assets";
 
@@ -85,10 +86,10 @@ export function HeroOverlay() {
   );
 
   return (
-    <div className="settings" onClick={() => close()}>
-      <div className="panel-card hero-card-screen" onClick={(e) => e.stopPropagation()}>
+    <Overlay onClose={() => close()} cardClassName="hero-card-screen" labelledBy="hero-ov-title">
+      <>
         <div className="hero-screen-head">
-          <span className="hss-title">Personnage</span>
+          <span className="hss-title" id="hero-ov-title">Personnage</span>
           <button className="hero-close" onClick={() => close()}>✕</button>
         </div>
 
@@ -97,7 +98,7 @@ export function HeroOverlay() {
           <button className="hero-arrow" onClick={() => cycle(-1)} aria-label="précédent">◀</button>
           <div className="hero-portrait">
             {assetUrl(heroAssetKey(h.classId))
-              ? <img src={assetUrl(heroAssetKey(h.classId))} alt="🔥" className="portrait-img" />
+              ? <img src={assetUrl(heroAssetKey(h.classId))} alt="" className="portrait-img" />
               : "🔥"}
           </div>
           <div className="hero-id">
@@ -176,10 +177,10 @@ export function HeroOverlay() {
           <div className="map-hint">Aucune classe — explore, combats et collecte pour débloquer une évolution.</div>
         )}
 
-        <button className="pill" style={{ width: "100%", marginTop: 12 }} onClick={() => close()}>
-          Return
+        <button className="pill ov-close" onClick={() => close()}>
+          Retour
         </button>
-      </div>
-    </div>
+      </>
+    </Overlay>
   );
 }

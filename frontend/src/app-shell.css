@@ -1520,10 +1520,37 @@ body {
 .settings {
   position: absolute;
   inset: 0;
-  z-index: 60;
-  background: rgba(20, 16, 10, 0.5);
+  z-index: var(--z-overlay);
+  background: var(--backdrop);
   display: flex;
   flex-direction: column;
+  /* Les overlays ignoraient totalement les encoches : en paysage, la carte
+     passait sous le bord arrondi. */
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+/* Titre injecté par <Overlay title=…> quand le contenu n'en fournit pas déjà
+   un (les panneaux existants gardent leur `.banner`). */
+.ov-title {
+  font-family: var(--font-title);
+  font-weight: 800;
+  font-size: var(--t-2xl);
+  color: var(--ink);
+  margin: 0 0 var(--s-5);
+}
+
+/* Bouton de fermeture en pied de carte — remplace le
+   `style={{width:"100%", marginTop:12}}` répété dans six fichiers. */
+.ov-close {
+  width: 100%;
+  margin-top: var(--s-5);
+}
+
+/* Les sous-écrans des Réglages fournissaient chacun leur propre .panel-card ;
+   c'est maintenant l'Overlay qui la porte, ils ne sont plus que du contenu. */
+.settings-pane {
+  display: contents;
 }
 .settings .panel-card {
   box-sizing: border-box; /* padding compté DANS width/max-height : sinon width:100%
