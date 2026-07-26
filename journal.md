@@ -6,6 +6,66 @@
 
 ---
 
+## 2026-07-26 (75) — Refonte complète de la ville (onglet Ville + case ville de la carte)
+
+### Contexte
+Demande : « il faut changer complétement TOUT le design de la ville. Sur la ville c'est un gros
+temple, et ce qui s'affiche sur l'onglet ville n'est pas très cohérent. »
+
+Les deux reproches portaient sur deux endroits différents, tous deux fondés :
+- **le « gros temple »** : la case ville de la CARTE rendait un `temple` — un temple grec complet
+  (parvis dallé, 14 colonnes cannelées, frise à triglyphes), modèle qui n'existe nulle part ailleurs
+  dans le jeu et ne ressemble en rien au village médiéval de l'onglet Ville. Deux architectures pour
+  un même lieu. (Dans l'onglet Ville, le `gate` posé à l'échelle 3.0 en pierre quasi blanche faisait
+  la même impression de masse de temple.)
+- **l'incohérence de l'onglet Ville** : mesurée, pas supposée (voir ci-dessous).
+
+### Ce que l'audit a mesuré
+- `town-map.json` (54×59, 575 cellules, 1167 blocs) n'avait d'emplacement que pour **8 des 10
+  bâtiments** : `wall` et `kitchen` n'apparaissaient NULLE PART. La muraille est pourtant construite,
+  s'abîme (20/100 au départ) et compte dans la défense.
+- Le rendu sautait en plus les sites non lancés (« herbe nue ») : mairie, tour, cuisine, recyclerie.
+  **Six bâtiments sur dix étaient donc introuvables depuis la Ville** en début de partie — seules 5
+  pastilles s'affichaient.
+- Terrain : 346 sandstone, 106 sand, 80 redsand, **zéro bloc d'herbe**. Un plateau désertique.
+- Bâtiments posés par décalages en PIXELS d'éditeur (un `dx` de 726px ≈ 24 tuiles de dérive), et
+  `rot`/`flipX` d'auteur **ignorés** au rendu (tout à `rotation.y = π`).
+- **5 chevauchements** entre les 5 pastilles affichées.
+
+### Fait
+- **`voxel/townLayout.ts`** (nouveau) : le plan est une FONCTION de l'état de jeu. Village fortifié
+  15×15 — muraille sur le pourtour (segments de 2 cellules), portail dans la face avant, tour
+  d'angle, place dallée autour du puits, allée depuis le portail, **une parcelle par bâtiment du
+  serveur**. Décor déterministe (arbres/buissons/fleurs) sur les cellules libres, emplacements de
+  héros triés par proximité de la place (l'équipe se tient ensemble au lieu de se disperser).
+- **Sites non lancés** : parcelle en terre battue + pastille conservée. On voit où ira le bâtiment et
+  on peut ouvrir le chantier — c'était LE défaut de cohérence principal.
+- **Échelle** : `fitScale()` dimensionne chaque modèle d'après sa boîte englobante réelle pour
+  occuper une emprise voulue en CELLULES. L'ancien `×2.3` (hérité de l'échelle d'auteur) donnait des
+  tailles incohérentes d'un bâtiment à l'autre.
+- **Pastilles** : marqueur ICÔNE par défaut, nom déplié uniquement sur la sélection. À dix bâtiments,
+  dix pastilles texte se chevauchaient 19 fois et masquaient la ville qu'elles annotent.
+- **Case ville de la carte** : le temple grec est remplacé par le MÊME village en réduction (mairie
+  + portail + pans de muraille), avec les mêmes modèles `bld-*`. `TEMPLE_MAT` → `TOWN_MAT`.
+
+### Fonctionnel (vérifié)
+- `npx tsc -b`, `npm run build`, `go test ./...` verts ; **`npm run test:perf` 13/13**, payload PNG
+  inchangé (23,23 Mo) — les modèles `bld-*` étaient déjà chargés côté ville, la carte en précharge
+  trois de plus et n'a plus besoin de `temple`.
+- Captures Playwright des deux onglets : les **10 bâtiments** ont une pastille (Muraille, Portail,
+  Tour, Mairie, Banque, Atelier, Cuisine, Recyclerie, Puits, Panneau), **0 chevauchement** mesuré
+  (contre 5 avant, 19 au pire pendant la mise au point).
+
+### À faire
+- **Le rendu « Classique » (`components/TownMap.tsx`) garde l'ancienne ville** : il lit toujours
+  `town-map.json`, donc le plateau de grès à 8 bâtiments. Si ce mode reste supporté, il faut soit le
+  brancher sur `townLayout`, soit le retirer. C'est la seule incohérence restante.
+- Les modèles `bld-*` sont en pierre très claire (`STONE_W = [222,212,196]`) : à distance le village
+  tire vers le blanc. Une passe de palette sur `gen-props.mjs` (toits plus contrastés) aiderait.
+- La muraille à 20 % de durabilité rend la variante « ruine » sur tout le pourtour : correct et
+  informatif, mais visuellement proche d'une palissade cassée.
+
+
 ## 2026-07-26 (74) — Revue UI/UX complète : tokens, barre du bas, overlays, français
 
 ### Contexte
