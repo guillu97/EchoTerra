@@ -25,7 +25,6 @@ export function TopBar() {
   const openSettings = useStore((s) => s.openSettings);
   const toggleTownStatus = useStore((s) => s.toggleTownStatus);
   const toggleTownJournal = useStore((s) => s.toggleTownJournal);
-  const toggleCheat = useStore((s) => s.toggleCheat);
   const game = useStore((s) => s.game);
   const playerId = useStore((s) => s.playerId);
   const selectedHeroId = useStore((s) => s.selectedHeroId);
@@ -44,7 +43,7 @@ export function TopBar() {
   const portrait = assetUrl(portraitKey(selHero?.classId));
 
   return (
-    <div className="topbar">
+    <header className="topbar">
       <button className="avatar" title="Mes personnages" onClick={() => setHeroMenu((o) => !o)}>
         {portrait ? <img src={portrait} alt="🙂" /> : "🙂"}
       </button>
@@ -52,28 +51,39 @@ export function TopBar() {
       {/* NOT className="town": the Home container's `.town { position:absolute;
           inset:0 }` rule stretches it over the avatar and eats its clicks. */}
       <span className="town-name">{game?.name || "Echo Terra"}</span>
-      <button className={`chip ${hpClass}`} onClick={() => toggleTownStatus(true)} title="État de la ville">
-        🏰 {hpPct}%
+
+      {/* PV de la ville et PA d'équipe fusionnés en UN chip. À huit éléments sur
+          un écran de 390px la barre débordait et le compteur de PA passait à la
+          ligne ; ce sont deux faces du même « état de mon camp », et ils ouvrent
+          le même panneau. */}
+      <button
+        className={`chip status ${hpClass}`}
+        onClick={() => toggleTownStatus(true)}
+        title="État de la ville — PV et PA de ton équipe"
+      >
+        <span className="st-hp">🏰 {hpPct}%</span>
+        <span className="st-sep" aria-hidden="true" />
+        <span className="st-pa">⚡ {totalPA}</span>
       </button>
+
       {game?.status === "active" && (
-        <button className="chip wave" onClick={() => toggleTownStatus(true)} title="Prochaine vague — état de la ville">
+        <button
+          className="chip wave"
+          onClick={() => toggleTownStatus(true)}
+          title="Prochaine vague — état de la ville"
+        >
           🌊 {formatHMS(waveRemaining)}
         </button>
       )}
-      <span className="chip pa" title="PA cumulés de ton équipe">
-        ⚡ {totalPA} PA
-      </span>
+
       {inTown && (
         <button className="iconbtn" title="Journal de la ville" onClick={() => toggleTownJournal(true)}>
           📋
         </button>
       )}
-      <button className="iconbtn" title="Triche (dev)" onClick={toggleCheat}>
-        🔧
-      </button>
       <button className="iconbtn" title="Paramètres" onClick={() => openSettings("menu")}>
         ⚙️
       </button>
-    </div>
+    </header>
   );
 }

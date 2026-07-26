@@ -1,6 +1,7 @@
 import { useStore } from "../store";
+import { Overlay } from "../ui/Overlay";
 import { useWaveRemaining, formatHMS } from "../useWave";
-import { buildingIcon } from "../data/buildings";
+import { buildingIcon, buildingName } from "../data/buildings";
 import { durColor } from "../tabs/HomeTab";
 
 const DEFENSIVE = ["wall", "gate", "tower"];
@@ -19,9 +20,8 @@ export function TownStatus() {
   const defensive = t.buildings.filter((b) => DEFENSIVE.includes(b.id));
 
   return (
-    <div className="settings sheet" onClick={() => close(false)}>
-      <div className="panel-card" onClick={(e) => e.stopPropagation()}>
-        <div className="banner">🏰 État de la ville</div>
+    <Overlay variant="sheet" onClose={() => close(false)} title="🏰 État de la ville">
+      <>
 
         <div className="ts-hp">
           <span>🏰 PV ville {t.hp}/{t.maxHp}</span>
@@ -48,7 +48,7 @@ export function TownStatus() {
               : `+${b.defense}`;
             return (
               <div className="ts-defrow" key={b.id}>
-                <span className="ts-dn">{buildingIcon(b.id)} {b.name}</span>
+                <span className="ts-dn">{buildingIcon(b.id)} {buildingName(b.id, b.name)}</span>
                 <span className={`ts-dval ${b.built && val.startsWith("+") ? "" : "muted"}`}>{val}</span>
                 <span className="ts-dur" style={{ color: durColor(ratio) }}>
                   {b.built ? `🛡 ${Math.round(ratio * 100)}%` : "—"}
@@ -64,7 +64,7 @@ export function TownStatus() {
           {t.buildings.map((b) => (
             <div className="ts-b" key={b.id}>
               <span className="ts-name">
-                {b.built ? buildingIcon(b.id) : "🏗️"} {b.name}{" "}
+                {b.built ? buildingIcon(b.id) : "🏗️"} {buildingName(b.id, b.name)}{" "}
                 {b.built ? <span className="lvl">Lv {b.level}</span> : <span className="muted">chantier</span>}
                 {b.defense > 0 && <span className="ts-defbadge">🛡+{b.defense}</span>}
               </span>
@@ -92,10 +92,10 @@ export function TownStatus() {
           </>
         )}
 
-        <button className="pill green" style={{ width: "100%", marginTop: 12 }} onClick={() => close(false)}>
+        <button className="pill green ov-close" onClick={() => close(false)}>
           Fermer
         </button>
-      </div>
-    </div>
+      </>
+    </Overlay>
   );
 }

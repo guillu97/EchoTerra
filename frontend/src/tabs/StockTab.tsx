@@ -8,8 +8,8 @@ const CATS = [
   { id: "all", label: "Tout", types: [] as string[] },
   { id: "conso", label: "Consommable", types: ["aliment", "eau", "consommable"] },
   { id: "plante", label: "Plante", types: ["plante"] },
-  { id: "mineral", label: "Mineral", types: ["minerai"] },
-  { id: "object", label: "Object", types: ["objet"] },
+  { id: "mineral", label: "Minerai", types: ["minerai"] },
+  { id: "object", label: "Objet", types: ["objet"] },
   { id: "animal", label: "Animal", types: ["animal"] },
   { id: "arme", label: "Arme", types: ["arme"] },
 ];

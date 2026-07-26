@@ -468,21 +468,15 @@ export function VoxelTownView({
           );
         })}
       </div>
-      <div style={{ position: "absolute", top: 8, right: 8, display: "flex", gap: 6 }}>
-        <button style={rotBtn} onClick={() => engineRef.current?.rotate(-1)}>↺</button>
-        <button style={rotBtn} onClick={() => engineRef.current?.rotate(1)}>↻</button>
+      <div className="view-rot">
+        <button className="iconbtn" aria-label="Pivoter la vue à gauche" onClick={() => engineRef.current?.rotate(-1)}>
+          ↺
+        </button>
+        <button className="iconbtn" aria-label="Pivoter la vue à droite" onClick={() => engineRef.current?.rotate(1)}>
+          ↻
+        </button>
       </div>
     </div>
   );
 }
 
-const rotBtn: React.CSSProperties = {
-  background: "rgba(30,34,46,.78)",
-  color: "#f3efdf",
-  border: "1px solid rgba(255,255,255,.25)",
-  borderRadius: 10,
-  width: 40,
-  height: 40,
-  fontSize: 19,
-  cursor: "pointer",
-};

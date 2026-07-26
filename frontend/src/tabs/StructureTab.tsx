@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useStore } from "../store";
-import { buildingIcon } from "../data/buildings";
+import { buildingIcon, buildingName } from "../data/buildings";
 import { TownWorker, useWorkerPA } from "../components/TownWorker";
 import { heroesInTown } from "../townUtils";
 import { durColor } from "./HomeTab";
@@ -26,10 +26,11 @@ export function StructureTab() {
   const groups = useMemo(() => {
     const list = [...(game?.town.buildings ?? [])];
     if (sort !== "status") {
-      list.sort((a, b) => (sort === "level" ? b.level - a.level : a.name.localeCompare(b.name)));
+      list.sort((a, b) => (sort === "level" ? b.level - a.level : buildingName(a.id, a.name).localeCompare(buildingName(b.id, b.name))));
       return [{ key: "all", title: "", items: list }];
     }
-    const byName = (a: TownBuilding, b: TownBuilding) => a.name.localeCompare(b.name);
+    const byName = (a: TownBuilding, b: TownBuilding) =>
+    buildingName(a.id, a.name).localeCompare(buildingName(b.id, b.name));
     return [
       { key: "chantier", title: "🏗️ Chantiers en cours", items: list.filter((b) => b.underConstruction).sort(byName) },
       { key: "plan", title: "📐 Plans à poser", items: list.filter((b) => !b.built && !b.underConstruction).sort(byName) },
@@ -85,7 +86,7 @@ export function StructureTab() {
             : maxed
             ? "Niveau maximum atteint"
             : unmet.length > 0
-            ? `Requiert ${unmet.map((r) => `${game?.town.buildings.find((x) => x.id === r.building)?.name ?? r.building} niv.${r.level}`).join(", ")}`
+            ? `Requiert ${unmet.map((r) => `${buildingName(r.building)} niv.${r.level}`).join(", ")}`
             : !open && !hasPlan
             ? `Trouve « ${plan} » et dépose-le à la Banque pour poser ce chantier`
             : open && !enoughMats
@@ -100,7 +101,7 @@ export function StructureTab() {
               <div className="ps-ic">{b.built ? buildingIcon(b.id) : "🏗️"}</div>
               <div className="ps-main">
                 <div className="ps-title">
-                  <span className="nm">{b.name}</span>
+                  <span className="nm">{buildingName(b.id, b.name)}</span>
                   {b.built ? (
                     <>
                       <span className="lvl">Lv {b.level}</span>
@@ -114,7 +115,7 @@ export function StructureTab() {
                   {open && b.built && <span className="tag-type ttown">amélioration Lv {b.level + 1}</span>}
                   {unmet.length > 0 && (
                     <span className="tag-type miss">
-                      🔒 requiert {unmet.map((r) => `${game?.town.buildings.find((x) => x.id === r.building)?.name ?? r.building} niv.${r.level}`).join(", ")}
+                      🔒 requiert {unmet.map((r) => `${buildingName(r.building)} niv.${r.level}`).join(", ")}
                     </span>
                   )}
                 </div>

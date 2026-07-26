@@ -9,8 +9,12 @@
   /* Thème parchemin — tokens extraits du design Claude (design/EchoTerra.dc.html). */
   --ink: #2a2114; /* titres / texte fort */
   --ink-2: #3a2e20; /* texte courant */
-  --ink-soft: #7a6440; /* texte secondaire */
-  --ink-muted: #9a8a6c; /* texte estompé / placeholders */
+  /* `--ink-soft` est le token le PLUS utilisé du fichier (19 sites) et il
+     tombait à ~4.3:1 sur crème à 11px ; `--ink-muted` était à ~2.7:1, sous le
+     seuil AA. Assombris juste ce qu'il faut pour passer 4.5:1 en gardant la
+     chaleur du parchemin. */
+  --ink-soft: #6b5733; /* texte secondaire (était #7a6440) */
+  --ink-muted: #8a7a5c; /* texte estompé / placeholders (était #9a8a6c) */
   --parch-0: #fbf5e6; /* parchemin haut */
   --parch: #f2e7cd; /* parchemin milieu */
   --parch-2: #e7d6b2; /* parchemin bas */
@@ -25,14 +29,83 @@
   --navy: #27324c; /* boutons bleu nuit */
   --navy-hi: #3a4664;
   --sky-1: #bfe1f4;
-  --sky-2: #dcecf7;
-  --green: #8bbf5a;
   --green-2: #6fa544;
   --green-ink: #3f6a1e;
   --glass: rgba(20, 28, 42, 0.55);
   --glass-2: rgba(20, 28, 42, 0.78);
   --font-title: "Baloo 2", "Segoe UI", system-ui, sans-serif;
   --font-body: "Nunito Sans", "Segoe UI", system-ui, sans-serif;
+
+  /* --- Traits sur parchemin -------------------------------------------------
+     `--line` / `--line-2` ci-dessus + celui-ci absorbent les 21 alphas de
+     rgba(90,62,27,α) / rgba(120,86,40,α) éparpillés dans le fichier : c'est un
+     seul concept (« hairline gravée »), pas 21 décisions. */
+  --line-strong: rgba(90, 62, 27, 0.4);
+
+  /* --- Voiles & ombres ------------------------------------------------------
+     Nommés par USAGE, pas par valeur : leur alpha porte du sens. */
+  --veil-hi: rgba(255, 255, 255, 0.4); /* liseré lumineux (inset haut) */
+  --veil: rgba(255, 255, 255, 0.16);
+  --veil-soft: rgba(255, 255, 255, 0.08);
+  --shade: rgba(0, 0, 0, 0.18); /* creux (inset bas) */
+  --shade-strong: rgba(0, 0, 0, 0.28);
+  --backdrop: rgba(20, 16, 10, 0.5); /* fond des overlays */
+
+  /* --- Échelle d'espacement (valeurs dominantes relevées à l'audit) -------- */
+  --s-1: 4px;
+  --s-2: 6px;
+  --s-3: 8px;
+  --s-4: 10px;
+  --s-5: 12px;
+  --s-6: 16px;
+  --s-7: 22px;
+
+  /* --- Rayons (12px ×19 et 8px ×16 dominaient ; 7/9/11/15 étaient du bruit) */
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 18px;
+  --r-pill: 999px;
+
+  /* --- Typo : le paquet 10-14px du fichier se réduit à 4 crans ------------- */
+  --t-xs: 11px;
+  --t-sm: 12px;
+  --t-md: 13px;
+  --t-lg: 15px;
+  --t-xl: 18px;
+  --t-2xl: 22px;
+  --lh-tight: 1.2;
+  --lh-body: 1.45;
+
+  /* --- Ombres (32 valeurs distinctes → 6) ---------------------------------- */
+  --sh-card: 0 2px 6px rgba(90, 62, 27, 0.12);
+  --sh-raised: 0 3px 10px rgba(90, 62, 27, 0.22);
+  --sh-pill: inset 0 1.5px 0 var(--veil), inset 0 -3px 0 var(--shade-strong),
+    0 6px 16px -4px rgba(20, 26, 43, 0.5);
+  --sh-pill-red: inset 0 1.5px 0 var(--veil-hi), inset 0 -3px 0 var(--shade),
+    0 8px 20px -4px rgba(192, 57, 43, 0.5);
+  --sh-nav: 0 -5px 16px rgba(90, 62, 27, 0.16);
+  --sh-overlay: 0 30px 60px rgba(0, 0, 0, 0.4);
+
+  /* --- Couches (remplace 21 z-index ad hoc et les patchs « +1 ») ----------- */
+  --z-map: 10;
+  --z-chrome: 20;
+  --z-float: 30;
+  --z-overlay: 60;
+  --z-toast: 80;
+  --z-modal-top: 120;
+
+  /* --- Motion (tout est coupé par prefers-reduced-motion, voir plus bas) --- */
+  --dur-fast: 0.12s;
+  --dur: 0.2s;
+  --dur-slow: 0.35s;
+  --ease: cubic-bezier(0.2, 0.7, 0.3, 1);
+
+  /* --- Cibles tactiles (iOS 44px / Android 48dp) --------------------------- */
+  --tap: 44px;
+  --tap-lg: 48px;
+
+  /* Paliers responsive (les media queries ne lisent pas les variables — ils
+     sont ici pour documenter la seule série autorisée) : 480 / 768 / 1024. */
 }
 
 html,
@@ -48,6 +121,56 @@ body {
   -webkit-font-smoothing: antialiased;
   color: var(--ink);
   overflow: hidden;
+}
+
+/* ----- socle d'accessibilité ----------------------------------------------
+   Le jeu n'avait AUCUN anneau de focus (0 `:focus-visible` dans 3225 lignes) :
+   au clavier, on naviguait à l'aveugle. Un seul anneau doré, défini une fois,
+   pour tout ce qui est interactif. */
+:where(button, a, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+  border-radius: var(--r-sm);
+}
+
+/* Cible tactile minimale — appliquée aux familles de boutons de CHROME, pas à
+   tous les `button` : les grilles denses (objets, timeline d'initiative, picker
+   d'évolution) sont des damiers dont un plancher de 44px casserait la maille.
+   Pour ces cas-là, `.tap-safe` élargit la zone tapable SANS toucher au visuel. */
+.pill,
+.chip,
+.iconbtn,
+.bottom-nav button,
+.lobby-row,
+.hero-close {
+  min-height: var(--tap);
+}
+
+.tap-safe {
+  position: relative;
+}
+.tap-safe::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: max(100%, var(--tap));
+  height: max(100%, var(--tap));
+}
+
+/* Respecte le réglage système : les 3 animations infinies du fichier (dont
+   `et-pulse` sur le CTA principal) ne doivent pas tourner en boucle pour qui a
+   demandé moins de mouvement. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* ----- app shell ----------------------------------------------------------
@@ -235,8 +358,16 @@ body {
   filter: drop-shadow(0 6px 6px rgba(0, 0, 0, 0.15));
   animation: bob 2.4s ease-in-out infinite;
 }
+/* `.bird img` était déclaré DEUX fois, à ~560 lignes d'écart et dans deux
+   sections sans rapport (oiseau de l'écran titre / oiseau de bâtiment) : comme
+   le sélecteur est identique, les deux s'appliquaient partout et la seconde
+   gagnait. Fusionné ici. */
 .bird img {
   display: block;
+  width: 76px;
+  height: 76px;
+  object-fit: contain;
+  filter: drop-shadow(0 8px 8px rgba(90, 62, 27, 0.2));
 }
 @keyframes bob {
   0%,
@@ -341,6 +472,36 @@ body {
   width: 100%;
 }
 
+/* Cible plein écran des écrans « taper pour continuer ». C'est un vrai <button>
+   (le <div onClick> d'avant était injoignable au clavier) mais il ne doit rien
+   ajouter visuellement. */
+.screen-tap {
+  appearance: none;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: inherit;
+  gap: var(--s-5);
+}
+.parchment > .screen-tap {
+  width: 100%;
+  flex: 0 0 auto;
+}
+.cinematic > .screen-tap {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  justify-content: flex-end;
+}
+
 .cinematic {
   background: linear-gradient(180deg, #1a1622, #0b0910);
   color: #fff;
@@ -407,11 +568,13 @@ body {
 /* top bar — bandeau parchemin du design */
 .topbar {
   position: relative;
-  z-index: 20;
+  z-index: var(--z-chrome);
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: max(14px, env(safe-area-inset-top)) 13px 10px;
+  gap: var(--s-2);
+  padding: max(var(--s-5), env(safe-area-inset-top)) var(--s-5) var(--s-4);
+  padding-left: max(var(--s-5), env(safe-area-inset-left));
+  padding-right: max(var(--s-5), env(safe-area-inset-right));
   background: linear-gradient(180deg, #fbf3e0, #f0e2c4);
   border-bottom: 2px solid var(--gold);
   box-shadow: 0 5px 16px rgba(90, 62, 27, 0.2);
@@ -441,29 +604,73 @@ body {
 .topbar .avatar:hover {
   filter: brightness(1.06);
 }
+/* Sur téléphone la barre porte plus d'éléments que de place, et un nom réduit à
+   « E… » n'apprend rien à personne : on le masque. C'est l'information la moins
+   utile en jeu — on sait dans quelle ville on est, on ne sait pas quand tombe la
+   vague. Il reste affiché en entier dès la tablette, et dans le panneau
+   « État de la ville ». */
+@media (max-width: 560px) {
+  .topbar .town-name {
+    display: none;
+  }
+}
 .topbar .town-name {
   font-family: var(--font-title);
   font-weight: 800;
-  font-size: 16px;
+  font-size: var(--t-lg);
   color: var(--ink);
-  flex: 1;
+  flex: 1 1 0;
+  /* `min-width:0` est indispensable : sans lui l'élément refuse de descendre
+     sous sa largeur de contenu et pousse le bouton ⚙️ hors de l'écran. */
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Chiffres à chasse fixe : le compte à rebours ne doit pas faire danser la
+   barre à chaque seconde. */
+.chip.wave,
+.chip.status {
+  font-variant-numeric: tabular-nums;
+}
 .chip {
   background: #fff;
   color: #b6472a;
-  border-radius: 999px;
-  padding: 5px 11px;
-  font-size: 12px;
+  border-radius: var(--r-pill);
+  padding: 5px var(--s-4);
+  font-size: var(--t-sm);
   font-weight: 800;
+  white-space: nowrap; /* « 18 PA » passait à la ligne une fois le chip à 44px */
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  border: 1.5px solid rgba(120, 86, 40, 0.25);
-  box-shadow: 0 1px 3px rgba(90, 62, 27, 0.12);
+  gap: var(--s-1);
+  border: 1.5px solid var(--line-2);
+  box-shadow: var(--sh-card);
   cursor: pointer;
+}
+
+/* Chip d'état fusionné : PV de la ville + PA de l'équipe. */
+.chip.status {
+  gap: var(--s-2);
+  color: var(--ink-2);
+}
+.chip.status .st-hp {
+  color: #b6472a;
+}
+.chip.status.warn .st-hp {
+  color: #a8600f;
+}
+.chip.status.alert .st-hp {
+  color: #fff;
+}
+.chip.status .st-pa {
+  color: #9a6a12;
+}
+.chip.status .st-sep {
+  width: 1px;
+  align-self: stretch;
+  margin: 3px 0;
+  background: var(--line);
 }
 .chip.alert {
   background: #d23b32;
@@ -486,16 +693,28 @@ body {
   letter-spacing: 0.02em;
 }
 .iconbtn {
-  width: 30px;
-  height: 30px;
-  border-radius: 9px;
+  /* 30×30 était sous le minimum tactile (44px iOS / 48dp Android). */
+  width: var(--tap);
+  height: var(--tap);
+  border-radius: var(--r-md);
   background: #fff;
-  border: 1.5px solid rgba(120, 86, 40, 0.25);
+  border: 1.5px solid var(--line-2);
   color: var(--ink-soft);
   display: grid;
   place-items: center;
   cursor: pointer;
-  font-size: 14px;
+  font-size: var(--t-xl);
+  box-shadow: var(--sh-card);
+  transition: background var(--dur-fast) var(--ease);
+}
+.iconbtn:hover {
+  background: var(--parch-0);
+}
+/* État enfoncé (ex. vue de dessus en combat). */
+.iconbtn.on {
+  background: linear-gradient(180deg, #fff4d6, #f4e2af);
+  border-color: var(--gold);
+  color: #7a5410;
 }
 
 .chat-bubble {
@@ -718,84 +937,6 @@ body {
   font-size: 11px;
   color: #9fb0c8;
 }
-/* Isometric tile platform. A centred zero-size origin point; tiles & buildings are
-   positioned by px offsets (iso projection) relative to it, and depth-sorted by z-index. */
-.iso-stage {
-  position: absolute;
-  left: 50%;
-  top: 47%;
-  transform: translate(-50%, -50%);
-  width: 0;
-  height: 0;
-}
-.iso-tile {
-  position: absolute;
-  /* Anchor the cube's top-diamond centre at (left, top). */
-  transform: translate(-50%, -40%);
-  pointer-events: none;
-  user-select: none;
-}
-/* Render layers: ground tiles below, buildings above. Each layer is a zero-size origin
-   at the stage centre; its children are positioned by px offsets (iso projection). */
-.iso-layer {
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: 0;
-  height: 0;
-}
-.iso-tiles {
-  z-index: 1;
-}
-.iso-buildings {
-  z-index: 2;
-}
-
-/* Square stage holding the islands + bridges (legacy archipelago — unused by iso Home). */
-.archipelago {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  width: min(680px, 98%);
-  aspect-ratio: 1 / 1;
-}
-/* Each island: left/top (% of the stage) and width/height (px) are set inline. */
-.town .island {
-  position: absolute;
-  transform: translate(-50%, -50%);
-  font-size: 90px;
-  filter: drop-shadow(0 14px 16px rgba(0, 0, 0, 0.3));
-  display: grid;
-  place-items: center;
-  z-index: 1;
-}
-.island-img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-/* Bridges sit behind the islands; width (% of stage) + rotation are set inline. */
-.bridge {
-  position: absolute;
-  height: auto;
-  transform-origin: center;
-  z-index: 0;
-  pointer-events: none;
-  filter: drop-shadow(0 8px 8px rgba(0, 0, 0, 0.28));
-}
-.building-img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  display: block;
-}
-.bird img {
-  width: 76px;
-  height: 76px;
-  object-fit: contain;
-  filter: drop-shadow(0 8px 8px rgba(90, 62, 27, 0.2));
-}
 .building {
   position: absolute;
   /* Anchor near the base so the building stands on its iso tile's top-centre point. */
@@ -820,50 +961,26 @@ body {
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);
   border: 1px solid rgba(0, 0, 0, 0.1);
 }
-/* Built buildings render as transparent sprites sitting directly on the island
-   (no white chip), so the town reads as one cohesive scene. */
-.building .ic.has-img {
-  width: 58px;
-  height: 58px;
-  position: relative;
-  background: none;
-  box-shadow: none;
-  border: none;
-  /* Tight, low shadow so the sprite reads as grounded rather than floating. */
-  filter: drop-shadow(0 2px 1.5px rgba(0, 0, 0, 0.3));
-}
-/* Soft elliptical contact shadow on the ground, under the building's base. */
-.building .ic.has-img::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  bottom: 7%;
-  width: 66%;
-  height: 15%;
-  transform: translateX(-50%);
-  background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0) 72%);
-  z-index: -1;
-  pointer-events: none;
-}
-.building .ic.has-img .building-img {
-  image-rendering: auto;
-}
+/* (Les règles `.building .ic.has-img*` et `.building-img` ont été retirées :
+   ni `has-img` ni `building-img` n'apparaissent nulle part dans le TS/TSX —
+   vérifié, y compris pour une construction par template literal. Elles
+   dataient du Home en archipel, remplacé par le rendu voxel.) */
+
 /* The name label is a hover/selected affordance — keep it out of the way otherwise. */
+/* (`.building .nm` était déclaré deux fois de suite — fusionné.) */
 .building .nm {
   opacity: 0;
-  transition: opacity 0.12s ease;
-}
-.building:hover .nm,
-.building.active .nm {
-  opacity: 1;
-}
-.building .nm {
+  transition: opacity var(--dur-fast) ease;
   font-size: 10px;
   font-weight: 700;
   color: #1c2a3a;
   background: rgba(255, 255, 255, 0.7);
   padding: 0 5px;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
+}
+.building:hover .nm,
+.building.active .nm {
+  opacity: 1;
 }
 .town.dim .building:not(.active) {
   opacity: 0.35;
@@ -884,9 +1001,9 @@ body {
 }
 
 /* compact Structure list (fits short viewports, less scrolling) */
-.ps-head > strong {
-  flex: 1;
-}
+/* (`.ps-head > strong` était déclaré deux fois, à 700 lignes d'écart — `flex:1`
+   ici et la typo plus bas. Fusionné dans la déclaration de la section
+   panel-screen.) */
 .sortbar-inline {
   display: flex;
   gap: 4px;
@@ -1189,78 +1306,300 @@ body {
   flex-direction: column;
   gap: 6px;
 }
+/* Les pastilles de héros étaient en verre sombre sur une scène parchemin : le
+   seul îlot bleu nuit de l'écran Ville. Repassées sur le système (crème, liseré
+   doré, encre), comme dans le prototype de design. */
 .hero-chips .hc {
   display: flex;
   align-items: center;
-  gap: 6px;
-  background: var(--glass);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 999px;
-  padding: 3px 10px 3px 3px;
-  color: #fff;
-  font-size: 12px;
-  font-weight: 700;
+  gap: var(--s-2);
+  background: linear-gradient(180deg, #fffaf0, #f3e7ce);
+  border: 1.5px solid var(--gold);
+  border-radius: var(--r-pill);
+  padding: 3px var(--s-5) 3px 3px;
+  color: var(--ink-2);
+  font-size: var(--t-sm);
+  font-weight: 800;
   cursor: pointer;
+  box-shadow: var(--sh-raised);
+  transition: transform var(--dur-fast) var(--ease);
+}
+.hero-chips .hc:active {
+  transform: translateY(1px);
 }
 .hero-chips .hc.sel {
-  outline: 2px solid #ffe066;
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 .hero-chips .hc .dot {
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #8ec5ff, #3a7bd5);
+  background: linear-gradient(135deg, #ffd27d, #e08a4a);
+  border: 1px solid var(--gold);
+  color: #5a3a12;
   display: grid;
   place-items: center;
-  font-size: 11px;
+  font-size: var(--t-xs);
+  font-weight: 900;
 }
 .hero-chips .hc .star {
-  color: #ffd54a;
+  color: #c9902b;
 }
 
-/* bottom nav */
+/* Contrôle de rotation de vue (Ville / Carte voxel). */
+.view-rot {
+  position: absolute;
+  top: var(--s-3);
+  right: var(--s-3);
+  display: flex;
+  gap: var(--s-2);
+  z-index: var(--z-float);
+}
+
+/* ----- bottom nav ---------------------------------------------------------
+   Onglets gravés dans le bandeau parchemin + Carte en pastille centrale
+   surélevée. L'ancien état actif (pilule rouge pleine) criait plus fort que le
+   contenu de l'écran ; ici l'actif se marque par l'encre, un fond crème discret
+   et un liseré doré SOUS l'onglet — le rouge est réservé au bouton central et
+   aux alertes. */
 .bottom-nav {
   position: relative;
-  z-index: 20;
+  z-index: var(--z-chrome);
   display: flex;
   justify-content: space-around;
-  align-items: center;
-  padding: 8px 4px max(11px, env(safe-area-inset-bottom));
+  align-items: flex-end;
+  padding: var(--s-3) var(--s-1) max(var(--s-5), env(safe-area-inset-bottom));
+  padding-left: max(var(--s-1), env(safe-area-inset-left));
+  padding-right: max(var(--s-1), env(safe-area-inset-right));
   background: linear-gradient(180deg, #fbf3e0, #ecdfc0);
   border-top: 2px solid var(--gold);
-  box-shadow: 0 -5px 16px rgba(90, 62, 27, 0.16);
+  box-shadow: var(--sh-nav);
 }
-.bottom-nav button {
+
+.nav-tab {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
   background: none;
   border: none;
-  color: #8a6a3a;
+  color: var(--ink-soft);
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 2px;
-  font-size: 10px;
-  font-weight: 700;
+  font-family: var(--font-body);
+  font-size: var(--t-xs);
+  font-weight: 800;
   cursor: pointer;
-  padding: 6px 11px;
-  border-radius: 12px;
+  padding: var(--s-2) var(--s-1);
+  min-height: var(--tap-lg);
+  border-radius: var(--r-md);
+  transition: color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
 }
-.bottom-nav button .ni {
-  font-size: 21px;
+.nav-tab .ni {
+  font-size: 22px;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  height: 26px;
 }
-.bottom-nav button.active {
-  color: #fff;
+.nav-tab .ni img {
+  height: 26px;
+  width: auto;
+  max-width: 34px;
+  object-fit: contain;
+  display: block;
+  /* Au repos les icônes peintes s'effacent un peu ; l'onglet actif les rend à
+     pleine densité. */
+  opacity: 0.78;
+  filter: saturate(0.85);
+  transition: opacity var(--dur-fast) var(--ease), filter var(--dur-fast) var(--ease);
+}
+.nav-tab.active .ni img {
+  opacity: 1;
+  filter: none;
+}
+.nav-tab .nl {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Actif : encre franche + fond crème + liseré doré posé sous l'onglet. */
+.nav-tab.active {
+  color: var(--ink);
+  background: rgba(255, 253, 246, 0.75);
+}
+.nav-tab.active::after {
+  content: "";
+  position: absolute;
+  left: 22%;
+  right: 22%;
+  bottom: 2px;
+  height: 3px;
+  border-radius: var(--r-pill);
+  background: var(--gold);
+}
+
+/* Verrouillé : lisible mais manifestement inerte. Reste focusable — le tap
+   déclenche un toast qui explique le verrou. */
+.nav-tab.locked {
+  color: var(--ink-muted);
+  cursor: not-allowed;
+}
+
+/* Badge « quelque chose à faire ici ». */
+.nav-tab .nb {
+  position: absolute;
+  top: 2px;
+  right: 50%;
+  transform: translateX(22px);
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: var(--r-pill);
   background: linear-gradient(180deg, var(--red-hi), var(--red));
-  box-shadow: 0 3px 8px rgba(192, 57, 43, 0.35);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 17px;
+  text-align: center;
+  box-shadow: var(--sh-card);
+}
+
+/* ----- bouton central : la Carte ------------------------------------------ */
+.nav-tab.nav-center {
+  flex: 0 0 auto;
+  margin-top: -26px;
+  padding: 0;
+  gap: 3px;
+  background: none;
+  color: var(--ink-soft);
+}
+.nav-tab.nav-center .ni {
+  width: 60px;
+  height: 60px;
+  display: grid;
+  place-items: center;
+  font-size: 28px;
+  overflow: hidden;
+  border-radius: 50%;
+  border: 2px solid var(--gold);
+  background: linear-gradient(180deg, #fffaf0, #f0e2c4);
+  box-shadow: var(--sh-raised);
+  transition: transform var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
+}
+.nav-tab.nav-center.active {
+  background: none;
+  color: var(--ink);
+}
+.nav-tab.nav-center.active .ni {
+  background: linear-gradient(180deg, var(--red-hi), var(--red));
+  box-shadow: var(--sh-pill-red);
+}
+/* Le liseré doré générique n'a pas de sens sous une pastille ronde. */
+.nav-tab.nav-center.active::after {
+  content: none;
+}
+.nav-tab.nav-center:active .ni {
+  transform: translateY(2px);
+}
+.nav-tab.nav-center .nb {
+  transform: translateX(26px);
+}
+.nav-tab.nav-center .ni img {
+  height: 38px;
+  max-width: 44px;
+  opacity: 1;
+  filter: none;
+}
+.nav-tab.nav-center.active .ni img {
+  /* Sur le fond rouge de l'onglet actif, l'icône peinte a besoin d'un léger
+     détourage clair pour ne pas se noyer. */
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.35));
 }
 
 /* =========================  SETTINGS overlay  ============================= */
 .settings {
   position: absolute;
   inset: 0;
-  z-index: 60;
-  background: rgba(20, 16, 10, 0.5);
+  z-index: var(--z-overlay);
+  background: var(--backdrop);
   display: flex;
   flex-direction: column;
+  /* Les overlays ignoraient totalement les encoches : en paysage, la carte
+     passait sous le bord arrondi. */
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+/* Titre injecté par <Overlay title=…> quand le contenu n'en fournit pas déjà
+   un (les panneaux existants gardent leur `.banner`). */
+.ov-title {
+  font-family: var(--font-title);
+  font-weight: 800;
+  font-size: var(--t-2xl);
+  color: var(--ink);
+  margin: 0 0 var(--s-5);
+}
+
+/* Bouton de fermeture en pied de carte — remplace le
+   `style={{width:"100%", marginTop:12}}` répété dans six fichiers. */
+.ov-close {
+  width: 100%;
+  margin-top: var(--s-5);
+}
+
+/* Les sous-écrans des Réglages fournissaient chacun leur propre .panel-card ;
+   c'est maintenant l'Overlay qui la porte, ils ne sont plus que du contenu. */
+.settings-pane {
+  display: contents;
+}
+
+/* ----- écran de secours (ErrorBoundary) ---------------------------------- */
+.crash-card {
+  margin: auto;
+  max-width: 420px;
+  width: 100%;
+  background: var(--cream);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: var(--s-7);
+  box-shadow: var(--sh-overlay);
+  text-align: center;
+}
+.crash-ic {
+  font-size: 52px;
+  line-height: 1;
+}
+.crash-title {
+  font-family: var(--font-title);
+  font-weight: 800;
+  font-size: var(--t-2xl);
+  color: var(--ink);
+  margin: var(--s-5) 0 var(--s-3);
+}
+.crash-text {
+  font-size: var(--t-md);
+  line-height: var(--lh-body);
+  color: var(--ink-soft);
+  margin: 0 0 var(--s-5);
+}
+.crash-detail {
+  font-size: var(--t-xs);
+  text-align: left;
+  color: #8a3323;
+  background: rgba(192, 57, 43, 0.08);
+  border: 1px solid rgba(192, 57, 43, 0.25);
+  border-radius: var(--r-sm);
+  padding: var(--s-4);
+  margin: 0;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 .settings .panel-card {
   box-sizing: border-box; /* padding compté DANS width/max-height : sinon width:100%
@@ -1480,14 +1819,20 @@ body {
   position: static; /* pilotée par le flux du conteneur, pas ancrée elle-même */
 }
 
-/* ===== Barre de sélection des héros sur la carte ===== */
+/* ===== Barre de sélection des héros sur la carte =====
+   Passée du verre bleu nuit au parchemin : c'était, avec les pastilles de
+   héros, le dernier îlot sombre posé sur une interface crème. */
 .map-herobar {
-  background: var(--glass-2);
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  padding: 6px 8px 4px;
+  background: linear-gradient(180deg, rgba(251, 243, 224, 0.96), rgba(240, 226, 196, 0.96));
+  border-top: 2px solid var(--gold);
+  color: var(--ink-2);
+  padding: var(--s-2) var(--s-3) var(--s-1);
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--s-1);
+  /* Le bouton central de la barre du bas déborde de 26px vers le haut : sans
+     cette réserve il rognait la ligne d'aide. */
+  padding-bottom: 30px;
 }
 .mhb-row {
   display: flex;
@@ -1504,16 +1849,17 @@ body {
   min-width: 104px;
   display: flex;
   align-items: stretch;
-  background: rgba(255, 255, 255, 0.06);
-  border: 2px solid transparent;
-  border-radius: 12px;
+  background: var(--cream);
+  border: 2px solid var(--line-2);
+  border-radius: var(--r-md);
+  box-shadow: var(--sh-card);
   overflow: hidden;
   transition: border-color 0.12s, background 0.12s;
 }
 .mhb-chip.sel {
-  border-color: #ffe066;
-  background: rgba(255, 224, 102, 0.14);
-  box-shadow: 0 0 10px rgba(255, 224, 102, 0.35);
+  border-color: var(--accent);
+  background: #fff6ea;
+  box-shadow: 0 0 0 2px rgba(217, 96, 59, 0.18), var(--sh-card);
 }
 .mhb-chip.dead {
   opacity: 0.45;
@@ -1526,7 +1872,7 @@ body {
   padding: 5px 6px;
   background: none;
   border: none;
-  color: #fff;
+  color: var(--ink-2);
   cursor: pointer;
   text-align: left;
   min-width: 0;
@@ -1539,9 +1885,9 @@ body {
   width: 38px;
   height: 38px;
   flex: 0 0 auto;
-  border-radius: 9px;
+  border-radius: var(--r-sm);
   overflow: hidden;
-  background: rgba(0, 0, 0, 0.25);
+  background: rgba(120, 86, 40, 0.14);
 }
 .mhb-portrait img {
   width: 100%;
@@ -1562,8 +1908,8 @@ body {
   bottom: -2px;
   font-size: 11px;
   line-height: 1;
-  background: rgba(16, 14, 28, 0.85);
-  border-radius: 6px;
+  background: rgba(42, 33, 20, 0.85);
+  border-radius: var(--s-2);
   padding: 1px 2px;
 }
 .mhb-badge.warn {
@@ -1586,47 +1932,48 @@ body {
 .mhb-hpbar {
   height: 5px;
   border-radius: 3px;
-  background: rgba(255, 255, 255, 0.14);
+  background: rgba(120, 86, 40, 0.18);
   overflow: hidden;
 }
 .mhb-hpbar i {
   display: block;
   height: 100%;
-  background: #5df08a;
+  background: var(--green-2);
 }
 .mhb-hpbar i.warn {
-  background: #ffd166;
+  background: #d9a017;
 }
 .mhb-hpbar i.low {
   background: #e24b4b;
 }
 .mhb-pa {
-  font-size: 11px;
-  color: #cfe0ff;
+  font-size: var(--t-xs);
+  font-weight: 800;
+  color: #9a6a12;
 }
 .mhb-sheet {
   flex: 0 0 auto;
-  width: 26px;
-  background: rgba(255, 255, 255, 0.05);
+  width: 28px;
+  background: rgba(120, 86, 40, 0.06);
   border: none;
-  border-left: 1px solid rgba(255, 255, 255, 0.08);
-  color: #9fb2c9;
-  font-size: 14px;
+  border-left: 1px solid var(--line);
+  color: var(--ink-soft);
+  font-size: var(--t-md);
   cursor: pointer;
 }
 .mhb-sheet:hover {
-  background: rgba(255, 255, 255, 0.12);
-  color: #fff;
+  background: rgba(120, 86, 40, 0.14);
+  color: var(--ink);
 }
 .mhb-hint {
-  font-size: 11px;
-  color: #cbd6e6;
+  font-size: var(--t-xs);
+  color: var(--ink-soft);
   text-align: center;
-  padding: 1px 4px;
-  line-height: 1.3;
+  padding: 1px var(--s-1);
+  line-height: var(--lh-body);
 }
 .mhb-hint strong {
-  color: #fff;
+  color: var(--ink);
 }
 .map-controls .line {
   display: flex;
@@ -1655,57 +2002,75 @@ body {
   color: #14310a;
   border: none;
 }
-.dpad-mini {
-  display: grid;
-  grid-template-columns: repeat(3, 34px);
-  grid-auto-rows: 30px;
-  gap: 3px;
-}
-.dpad-mini button {
-  background: rgba(255, 255, 255, 0.12);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  color: #fff;
-  border-radius: 6px;
-  cursor: pointer;
-}
-.dpad-mini .sp {
-  visibility: hidden;
-}
 
-.stub {
+/* ----- toasts -------------------------------------------------------------
+   Remplace l'ancien `.toast` (une seule chaîne `error`, écrasée par l'action
+   suivante) par une pile empilable et auto-effaçable. */
+.toasts {
   position: absolute;
-  inset: 0;
+  left: 50%;
+  bottom: calc(84px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: var(--z-toast);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--s-2);
   align-items: center;
-  justify-content: center;
-  color: #fff;
-  text-align: center;
-  padding: 24px;
+  width: max-content;
+  max-width: min(92%, 460px);
+  pointer-events: none;
 }
-.stub .big {
-  font-size: 56px;
+.toast-item {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  text-align: left;
+  padding: var(--s-4) var(--s-5);
+  border-radius: var(--r-md);
+  border: 1px solid var(--line-2);
+  background: var(--cream);
+  color: var(--ink-2);
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: var(--t-sm);
+  line-height: var(--lh-body);
+  box-shadow: var(--sh-overlay);
+  cursor: pointer;
+  animation: et-rise var(--dur-slow) var(--ease) both;
 }
-.stub .muted {
-  color: #b9cbe4;
-  font-size: 13px;
+.toast-item .ti-ic {
+  font-size: var(--t-xl);
+  flex: 0 0 auto;
 }
-
-.toast {
-  position: absolute;
-  bottom: 70px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 40;
-  background: #3a1f1a;
-  border: 1px solid #6b3328;
-  color: #ffd7cd;
-  padding: 8px 14px;
-  border-radius: 10px;
-  font-size: 12px;
-  max-width: 86%;
-  text-align: center;
+.toast-item .ti-msg {
+  flex: 1;
+  min-width: 0;
+}
+.toast-item.error {
+  background: #fdecea;
+  border-color: rgba(192, 57, 43, 0.35);
+  color: #8a3323;
+}
+.toast-item.ok {
+  background: #eef7e6;
+  border-color: rgba(111, 165, 68, 0.4);
+  color: var(--green-ink);
+}
+.toast-item.warn {
+  background: #fdf3dd;
+  border-color: var(--gold);
+  color: #7a5410;
+}
+@keyframes et-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* =========================  TOWN PA / building extras  =================== */
@@ -1727,12 +2092,14 @@ body {
 }
 .tb-chip {
   background: var(--cream);
-  border: 1.5px solid rgba(120, 86, 40, 0.25);
-  border-radius: 999px;
-  padding: 3px 10px;
-  font-size: 12px;
+  border: 1.5px solid var(--line-2);
+  border-radius: var(--r-pill);
+  padding: 3px var(--s-4);
+  font-size: var(--t-sm);
   font-weight: 800;
   color: #5a4a30;
+  flex: 0 0 auto; /* jamais compressé par la bande de catégories voisine */
+  white-space: nowrap;
 }
 .tb-chip.pa {
   background: linear-gradient(180deg, #fff4d6, #f4e2af);
@@ -1744,15 +2111,9 @@ body {
   color: #9fd0ff;
   font-weight: 700;
 }
-.bottom-nav button.locked {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-.pa-note {
-  font-size: 11px;
-  color: #ffd166;
-  margin-top: 6px;
-}
+/* (l'ancien `.bottom-nav button.locked { opacity:.4 }` a été retiré : à 40 %
+   d'opacité le libellé passait sous le seuil de contraste, et le verrou est
+   désormais porté par `.nav-tab.locked` + le toast d'explication au tap.) */
 
 /* =========================  panel-screen tabs (thème parchemin)  ========== */
 .panel-screen {
@@ -1773,9 +2134,11 @@ body {
   border-bottom: 2px solid var(--gold);
 }
 .ps-head > strong {
+  flex: 1 1 auto;
+  min-width: 0;
   font-family: var(--font-title);
   font-weight: 800;
-  font-size: 17px;
+  font-size: var(--t-xl);
   color: var(--ink);
 }
 .ps-head .seg {
@@ -1805,9 +2168,22 @@ body {
 }
 .tabs-scroll {
   display: flex;
-  gap: 6px;
+  gap: var(--s-2);
   overflow-x: auto;
-  flex: 1;
+  flex: 1 1 auto;
+  /* Sans `min-width:0`, un conteneur flex refuse de descendre sous la largeur de
+     son contenu : la bande de catégories poussait le chip de PA hors de l'écran
+     et les deux se chevauchaient. */
+  min-width: 0;
+  scrollbar-width: none;
+  /* Dégradé de sortie : sans lui, la dernière catégorie est coupée net au bord
+     et donne l'impression d'un bug de mise en page plutôt que d'un défilement. */
+  mask-image: linear-gradient(90deg, #000 calc(100% - 22px), transparent);
+  -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 22px), transparent);
+  padding-right: var(--s-2);
+}
+.tabs-scroll::-webkit-scrollbar {
+  display: none;
 }
 .sortbar {
   display: flex;
@@ -2029,17 +2405,6 @@ body {
   font-size: 12px;
   color: #9fb2c9;
 }
-.inv-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.inv-pill {
-  background: rgba(255, 255, 255, 0.08);
-  border-radius: 999px;
-  padding: 4px 10px;
-  font-size: 12px;
-}
 
 /* =========================  DESKTOP (≥1024px)  ==========================
    No frame anymore — the app is full-bleed; this block only re-tunes sizes. */
@@ -2069,11 +2434,16 @@ body {
     width: 100%;
     margin: 0 auto;
   }
-  .bottom-nav button {
-    font-size: 12px;
+  .nav-tab {
+    font-size: var(--t-sm);
   }
-  .bottom-nav button .ni {
+  .nav-tab .ni {
     font-size: 24px;
+  }
+  .nav-tab.nav-center .ni {
+    width: 66px;
+    height: 66px;
+    font-size: 30px;
   }
   .hero-chips .hc {
     font-size: 13px;
@@ -2296,51 +2666,6 @@ body {
 .tw-chip b {
   color: #9a6a12;
 }
-
-.hero-select {
-  display: flex;
-  gap: 6px;
-}
-.hsel {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  color: #fff;
-  border-radius: 8px;
-  padding: 5px 4px;
-  cursor: pointer;
-  font-size: 11px;
-}
-.hsel.sel {
-  outline: 2px solid #7cd0ff;
-  background: rgba(61, 165, 255, 0.18);
-}
-.hsel.dead {
-  opacity: 0.4;
-  text-decoration: line-through;
-}
-.hsel-name {
-  font-weight: 700;
-}
-.hsel-stat {
-  color: #cbd6e6;
-  font-size: 10px;
-}
-
-.stock-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 4px 10px;
-}
-.stock-head .dep {
-  font-size: 12px;
-}
 .ing.ok {
   color: #4f7a2e;
   font-weight: 700;
@@ -2450,33 +2775,6 @@ body {
   border-radius: 8px;
   cursor: pointer;
 }
-.hero-tabs {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  margin-bottom: 10px;
-}
-.hero-tabs button {
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  color: #eaf1f8;
-  border-radius: 8px;
-  padding: 6px 12px;
-  font-size: 13px;
-  cursor: pointer;
-}
-.hero-tabs button.on {
-  background: var(--accent);
-  color: #04121f;
-  border-color: var(--accent);
-  font-weight: 700;
-}
-.hero-tabs .hero-close {
-  margin-left: auto;
-  background: rgba(255, 255, 255, 0.06);
-  width: 32px;
-  padding: 6px 0;
-}
 .hero-top .hero-arrow {
   background: rgba(255, 255, 255, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.16);
@@ -2534,12 +2832,6 @@ body {
 }
 .attr-bonus {
   color: #4be36e;
-  font-weight: 700;
-}
-.attr-move {
-  margin-top: 6px;
-  font-size: 12px;
-  color: #9fd0ff;
   font-weight: 700;
 }
 .skill-ic {
@@ -2648,13 +2940,14 @@ body {
   color: #06333f;
 }
 .map-hint {
-  font-size: 11px;
-  color: #9fb2c9;
+  font-size: var(--t-xs);
+  color: var(--ink-soft);
   text-align: center;
+  line-height: var(--lh-body);
 }
 .map-hint.warn {
-  color: #ffd166;
-  font-weight: 700;
+  color: #9b5d0b;
+  font-weight: 800;
 }
 .am-stuck {
   color: #ffb454;

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useStore } from "../store";
+import { Overlay } from "../ui/Overlay";
 import { TOWN_BUILDINGS, type BuildingLayout } from "../data/buildings";
 import { TownMap } from "../components/TownMap";
 import { VoxelTownView } from "../voxel/VoxelTownView";
@@ -70,12 +71,12 @@ function BuildingMenu({ layout, b, onClose }: { layout: BuildingLayout; b: TownB
       : null;
 
   return (
-    <div className="settings" onClick={onClose}>
-      <div className="panel-card bmenu-modal" onClick={(e) => e.stopPropagation()}>
+    <Overlay onClose={onClose} cardClassName="bmenu-modal" labelledBy="bmenu-title">
+      <>
         <div className="bm-head">
           <span className="bm-icon">{layout.icon}</span>
           <div className="bm-title">
-            <strong>{layout.name}</strong> <span className="lvl">Lv {b.level}</span>
+            <strong id="bmenu-title">{layout.name}</strong> <span className="lvl">Lv {b.level}</span>
           </div>
           <button className="hero-close" onClick={onClose}>✕</button>
         </div>
@@ -140,8 +141,8 @@ function BuildingMenu({ layout, b, onClose }: { layout: BuildingLayout; b: TownB
           </button>
         </div>
         <TownWorker />
-      </div>
-    </div>
+      </>
+    </Overlay>
   );
 }
 
@@ -185,7 +186,7 @@ export function HomeTab() {
           <div className="face">🦊</div>
           <div className="msg">
             <div className="who">Shinki</div>
-            <div className="txt">Welcome to Echo Terra, traveler!</div>
+            <div className="txt">Bienvenue à Echo Terra, voyageuse ! La horde approche…</div>
           </div>
         </div>
       </div>

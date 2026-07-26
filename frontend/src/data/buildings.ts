@@ -50,17 +50,17 @@ export const BUILDING_SCALE = 0.34;
 // spread across three islands: core (civic), ne (defense), sw (production).
 export const TOWN_BUILDINGS: BuildingLayout[] = [
   // Core island — civic heart.
-  { id: "townhall", name: "Townhall", icon: "🏛️", assetKey: "building-townhall", blurb: "Cœur de la ville. Lit : ressuscite un héros épuisé.", primary: "Revive hero", island: "core", x: 50, y: 40 },
-  { id: "bank",     name: "Bank",     icon: "🏦",  assetKey: "building-bank",     blurb: "Stocke les ressources & matériaux communs.", primary: "Enter", island: "core", x: 32, y: 56 },
-  { id: "panel",    name: "Panel",    icon: "📋",  assetKey: "building-panel",    blurb: "Journal, sondage, membres.", primary: "Journal", island: "core", x: 68, y: 56 },
+  { id: "townhall", name: "Mairie", icon: "🏛️", assetKey: "building-townhall", blurb: "Cœur de la ville. Lit : ressuscite un héros épuisé.", primary: "Ressusciter un héros", island: "core", x: 50, y: 40 },
+  { id: "bank",     name: "Banque",   icon: "🏦",  assetKey: "building-bank",     blurb: "Stocke les ressources & matériaux communs.", primary: "Entrer", island: "core", x: 32, y: 56 },
+  { id: "panel",    name: "Panneau",  icon: "📋",  assetKey: "building-panel",    blurb: "Journal, sondage, membres.", primary: "Journal", island: "core", x: 68, y: 56 },
   // NE island — defense outpost.
-  { id: "wall",     name: "Wall",     icon: "🧱",  assetKey: "building-wall",     blurb: "Muraille défensive.", primary: "", island: "ne", x: 36, y: 38 },
-  { id: "tower",    name: "Tower",    icon: "🗼",  assetKey: "building-tower",    blurb: "Augmente vos dégâts contre la vague.", primary: "Evaluate attack", island: "ne", x: 60, y: 40 },
-  { id: "gate",     name: "Gate",     icon: "🚪",  assetKey: "building-gate",     blurb: "Grande porte de la ville.", primary: "Open / Close", island: "ne", x: 48, y: 60 },
+  { id: "wall",     name: "Muraille", icon: "🧱",  assetKey: "building-wall",     blurb: "Muraille défensive.", primary: "", island: "ne", x: 36, y: 38 },
+  { id: "tower",    name: "Tour",     icon: "🗼",  assetKey: "building-tower",    blurb: "Augmente vos dégâts contre la vague.", primary: "Évaluer l'attaque", island: "ne", x: 60, y: 40 },
+  { id: "gate",     name: "Portail",  icon: "🚪",  assetKey: "building-gate",     blurb: "Grande porte de la ville.", primary: "Ouvrir / Fermer", island: "ne", x: 48, y: 60 },
   // SW island — production yard.
-  { id: "well",     name: "Well",     icon: "💧",  assetKey: "building-well",     blurb: "Source d'eau de la ville.", primary: "Draw water", island: "sw", x: 36, y: 42 },
-  { id: "workshop", name: "Workshop", icon: "🔨",  assetKey: "building-workshop", blurb: "Menuiserie & forge — gère les constructions.", primary: "", island: "sw", x: 62, y: 42 },
-  { id: "kitchen",  name: "Kitchen",  icon: "🍳",  assetKey: "building-kitchen",  blurb: "Feu de camp / cuisine.", primary: "Cook", island: "sw", x: 50, y: 62 },
+  { id: "well",     name: "Puits",    icon: "💧",  assetKey: "building-well",     blurb: "Source d'eau de la ville.", primary: "Puiser de l'eau", island: "sw", x: 36, y: 42 },
+  { id: "workshop", name: "Atelier",  icon: "🔨",  assetKey: "building-workshop", blurb: "Menuiserie & forge — gère les constructions.", primary: "", island: "sw", x: 62, y: 42 },
+  { id: "kitchen",  name: "Cuisine",  icon: "🍳",  assetKey: "building-kitchen",  blurb: "Feu de camp / cuisine.", primary: "Cuisiner", island: "sw", x: 50, y: 62 },
   { id: "recyclerie", name: "Recyclerie", icon: "♻️", assetKey: "building-workshop", blurb: "Recycle les débris ramassés en matériaux de construction (Bois/Pierre).", primary: "", island: "sw", x: 38, y: 62 },
 ];
 
@@ -68,10 +68,21 @@ export function buildingIcon(id: string): string {
   return TOWN_BUILDINGS.find((b) => b.id === id)?.icon ?? "🏚️";
 }
 
+// Nom AFFICHÉ d'un bâtiment. Le serveur renvoie des noms anglais ("Kitchen",
+// "Tower"…) hérités du prototype ; ils ne servent qu'à l'affichage (toute la
+// logique passe par l'id), donc on les traduit ici plutôt que dans le backend —
+// ça évite de migrer les parties déjà enregistrées.
+export function buildingName(id: string, fallback?: string): string {
+  return TOWN_BUILDINGS.find((b) => b.id === id)?.name ?? fallback ?? id;
+}
+
+// Barre du bas. L'ordre place volontairement la CARTE au milieu : c'est l'écran
+// principal du jeu, et il est rendu en bouton central surélevé (voir BottomNav).
+// Libellés en français — le reste de l'app l'est, ces cinq-là ne l'étaient pas.
 export const NAV_TABS = [
-  { id: "home", label: "Home", icon: "🏠" },
-  { id: "map", label: "Map", icon: "🗺️" },
-  { id: "stock", label: "Stock", icon: "🎒" },
-  { id: "structure", label: "Structure", icon: "🏗️" },
-  { id: "craft", label: "Craft", icon: "⚒️" },
+  { id: "home", label: "Ville", icon: "🏠" },
+  { id: "stock", label: "Sac", icon: "🎒" },
+  { id: "map", label: "Carte", icon: "🗺️" },
+  { id: "structure", label: "Bâtir", icon: "🏗️" },
+  { id: "craft", label: "Atelier", icon: "⚒️" },
 ] as const;

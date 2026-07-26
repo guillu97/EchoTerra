@@ -2,8 +2,24 @@
 <html lang="fr">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Echo Terra — Prototype</title>
+    <!-- `viewport-fit=cover` manquait alors que l'app est full-bleed en 100dvh et
+         utilise env(safe-area-inset-*) : sans lui, les insets valent 0 et la
+         barre du bas passe sous le geste d'accueil sur iPhone. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Echo Terra</title>
+    <meta
+      name="description"
+      content="Echo Terra — survie coopérative asynchrone. Explorez, bâtissez votre ville et tenez face à la horde, sur plusieurs jours réels."
+    />
+    <meta name="theme-color" content="#f2e7cd" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Echo Terra" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta property="og:title" content="Echo Terra" />
+    <meta property="og:description" content="Survie coopérative asynchrone : explorez, bâtissez, tenez la horde." />
+    <meta property="og:type" content="website" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link

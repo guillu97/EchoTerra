@@ -82,7 +82,7 @@ export function HeroActionsMenu({ onClose }: { onClose: () => void }) {
                     🎯
                   </button>
                   {onMonster && (
-                    <button className="hm-act fight" title="Fight" disabled={busy} onClick={() => run(h, startCombat)}>
+                    <button className="hm-act fight" title="Combattre" disabled={busy} onClick={() => run(h, startCombat)}>
                       ⚔️
                     </button>
                   )}
@@ -114,7 +114,7 @@ export function HeroActionsMenu({ onClose }: { onClose: () => void }) {
                     <>
                       <button
                         className="hm-act"
-                        title="Search (-1 PA)"
+                        title="Fouiller (-1 PA)"
                         disabled={noPa || stuck || (tile?.resources ?? 0) <= 0}
                         onClick={() => run(h, search)}
                       >
@@ -131,7 +131,7 @@ export function HeroActionsMenu({ onClose }: { onClose: () => void }) {
                     </>
                   )}
                   {stuck && (
-                    <button className="hm-act" title="Escape (-1 PA)" disabled={noPa} onClick={() => run(h, escape)}>
+                    <button className="hm-act" title="S'échapper (-1 PA)" disabled={noPa} onClick={() => run(h, escape)}>
                       🏃
                     </button>
                   )}

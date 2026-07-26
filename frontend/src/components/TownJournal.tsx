@@ -1,4 +1,5 @@
 import { useStore } from "../store";
+import { Overlay } from "../ui/Overlay";
 
 // Town journal overlay (opened from the Panel building): every action performed IN
 // town — gate toggles, well draws, bank deposits, builds/repairs, town crafts —
@@ -16,9 +17,8 @@ export function TownJournal() {
   };
 
   return (
-    <div className="settings sheet" onClick={() => close(false)}>
-      <div className="panel-card" onClick={(e) => e.stopPropagation()}>
-        <div className="banner">📋 Journal de la ville</div>
+    <Overlay variant="sheet" onClose={() => close(false)} title="📋 Journal de la ville">
+      <>
 
         {entries.length === 0 ? (
           <div className="tj-empty">
@@ -38,10 +38,10 @@ export function TownJournal() {
           </div>
         )}
 
-        <button className="pill red" style={{ width: "100%", marginTop: 12 }} onClick={() => close(false)}>
+        <button className="pill red ov-close" onClick={() => close(false)}>
           Fermer
         </button>
-      </div>
-    </div>
+      </>
+    </Overlay>
   );
 }

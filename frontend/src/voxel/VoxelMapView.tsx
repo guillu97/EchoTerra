@@ -653,9 +653,13 @@ export function VoxelMapView({ active = true }: { active?: boolean }) {
     <>
       <div ref={hostRef} style={{ position: "absolute", inset: 0 }} />
       {/* la rotation 4 orientations — LA nouveauté 3D de la carte voxel */}
-      <div style={{ position: "absolute", top: 8, right: 8, display: "flex", gap: 6 }}>
-        <button className="small" style={rotBtn} onClick={() => engineRef.current?.rotate(-1)}>↺</button>
-        <button className="small" style={rotBtn} onClick={() => engineRef.current?.rotate(1)}>↻</button>
+      <div className="view-rot">
+        <button className="iconbtn" aria-label="Pivoter la vue à gauche" onClick={() => engineRef.current?.rotate(-1)}>
+          ↺
+        </button>
+        <button className="iconbtn" aria-label="Pivoter la vue à droite" onClick={() => engineRef.current?.rotate(1)}>
+          ↻
+        </button>
       </div>
     </>
   );
@@ -671,13 +675,3 @@ const GLOW_PROPS = ["firefly", "crystal", "ice-spike"]; // props posés sur le c
 // Lambert = double peine → petite émissive chaude pour garder le marbre clair
 const TEMPLE_MAT = new THREE.MeshLambertMaterial({ vertexColors: true, emissive: new THREE.Color(0x4a453e) });
 
-const rotBtn: React.CSSProperties = {
-  background: "rgba(30,34,46,.78)",
-  color: "#f3efdf",
-  border: "1px solid rgba(255,255,255,.25)",
-  borderRadius: 10,
-  width: 40,
-  height: 40,
-  fontSize: 19,
-  cursor: "pointer",
-};

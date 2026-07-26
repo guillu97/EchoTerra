@@ -11,6 +11,7 @@ import { DesignerScreen } from "./designer/DesignerScreen";
 import { VoxelBench } from "./voxel/VoxelBench";
 import { VoxelEditScreen } from "./voxeledit/VoxelEditScreen";
 import { CharStudioScreen } from "./charstudio/CharStudioScreen";
+import { ErrorBoundary } from "./ui/ErrorBoundary";
 
 // The app shell is full-bleed at every viewport size: `.device` is simply the
 // full-viewport container (see app-shell.css) — the old phone/tablet frame on
@@ -29,13 +30,16 @@ export default function App() {
   return (
     <div className="app-bg">
       <div className="device">
-        {appScreen === "loading" && <LoadingScreen />}
-        {appScreen === "title" && <TitleScreen />}
-        {appScreen === "cinematic" && <CinematicScreen />}
-        {appScreen === "lobby" && <LobbyScreen />}
-        {appScreen === "account" && <AccountScreen />}
-        {appScreen === "game" && <GameScreen />}
-        {settingsScreen && <SettingsOverlay />}
+        {/* Sans ce garde-fou, une exception de rendu laissait un écran BLANC. */}
+        <ErrorBoundary>
+          {appScreen === "loading" && <LoadingScreen />}
+          {appScreen === "title" && <TitleScreen />}
+          {appScreen === "cinematic" && <CinematicScreen />}
+          {appScreen === "lobby" && <LobbyScreen />}
+          {appScreen === "account" && <AccountScreen />}
+          {appScreen === "game" && <GameScreen />}
+          {settingsScreen && <SettingsOverlay />}
+        </ErrorBoundary>
       </div>
     </div>
   );

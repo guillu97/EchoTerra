@@ -2,7 +2,7 @@ import { useStore } from "../store";
 
 // Roster chips (left side, above the nav). Tapping selects the active hero. The
 // character screen is opened from the top-left avatar, not from here.
-const FALLBACK_ROLES = ["Pioneer", "Collector", "Scout"];
+const FALLBACK_ROLES = ["Pionnier", "Récupérateur", "Éclaireur"];
 
 export function HeroChips() {
   const game = useStore((s) => s.game);

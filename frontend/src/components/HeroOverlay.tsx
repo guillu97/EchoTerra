@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useStore } from "../store";
+import { Overlay } from "../ui/Overlay";
 import type { Stats } from "../api/types";
 import { assetUrl, type AssetKey } from "../assets";
 
@@ -21,12 +22,12 @@ const EVOLVE_DAY_INTERMEDIATE = 2;
 const EVOLVE_DAY_ADVANCED = 4;
 
 const ATTR_ROWS: { key: keyof Stats; label: string }[] = [
-  { key: "force", label: "Strength" },
-  { key: "dexterite", label: "Dexterity" },
-  { key: "precision", label: "Accuracy" },
-  { key: "agilite", label: "Agility" },
+  { key: "force", label: "Force" },
+  { key: "dexterite", label: "Dextérité" },
+  { key: "precision", label: "Précision" },
+  { key: "agilite", label: "Agilité" },
   { key: "endurance", label: "Endurance" },
-  { key: "athletisme", label: "Athleticism" },
+  { key: "athletisme", label: "Athlétisme" },
 ];
 
 function tierLabel(tier: number): string {
@@ -85,10 +86,10 @@ export function HeroOverlay() {
   );
 
   return (
-    <div className="settings" onClick={() => close()}>
-      <div className="panel-card hero-card-screen" onClick={(e) => e.stopPropagation()}>
+    <Overlay onClose={() => close()} cardClassName="hero-card-screen" labelledBy="hero-ov-title">
+      <>
         <div className="hero-screen-head">
-          <span className="hss-title">Personnage</span>
+          <span className="hss-title" id="hero-ov-title">Personnage</span>
           <button className="hero-close" onClick={() => close()}>✕</button>
         </div>
 
@@ -97,7 +98,7 @@ export function HeroOverlay() {
           <button className="hero-arrow" onClick={() => cycle(-1)} aria-label="précédent">◀</button>
           <div className="hero-portrait">
             {assetUrl(heroAssetKey(h.classId))
-              ? <img src={assetUrl(heroAssetKey(h.classId))} alt="🔥" className="portrait-img" />
+              ? <img src={assetUrl(heroAssetKey(h.classId))} alt="" className="portrait-img" />
               : "🔥"}
           </div>
           <div className="hero-id">
@@ -110,7 +111,7 @@ export function HeroOverlay() {
             disabled={maxed || !eligible || busy}
             onClick={() => setPickerOpen((v) => !v)}
           >
-            {maxed ? "Max" : eligible ? "Evolve" : `Jour ${requiredDay}`}
+            {maxed ? "Max" : eligible ? "Évoluer" : `Jour ${requiredDay}`}
           </button>
         </div>
 
@@ -145,7 +146,7 @@ export function HeroOverlay() {
           <span className={`tag-loc ${here ? "in" : "out"}`}>{here ? "en ville" : "en expédition"}</span>
         </div>
 
-        <h4>Attributes</h4>
+        <h4>Attributs</h4>
         <div className="attr-grid">
           {ATTR_ROWS.map(({ key, label }) => {
             const bonus = h.classBonuses[key] ?? 0;
@@ -161,13 +162,13 @@ export function HeroOverlay() {
           })}
         </div>
 
-        <h4>Unique skills</h4>
+        <h4>Compétences uniques</h4>
         {currentClass ? (
           currentClass.skills.map((sk) => (
             <div className="skill" key={sk.name}>
               <div className="skill-name">
                 <span className="skill-ic">{sk.scope === "map" ? "🗺️" : "⚔️"}</span>
-                {sk.name} <span className="tag-type">{sk.scope === "map" ? "Only Map" : "Only in fight"}</span>
+                {sk.name} <span className="tag-type">{sk.scope === "map" ? "Carte" : "Combat"}</span>
               </div>
               <div className="skill-desc">{sk.desc}</div>
             </div>
@@ -176,10 +177,10 @@ export function HeroOverlay() {
           <div className="map-hint">Aucune classe — explore, combats et collecte pour débloquer une évolution.</div>
         )}
 
-        <button className="pill" style={{ width: "100%", marginTop: 12 }} onClick={() => close()}>
-          Return
+        <button className="pill ov-close" onClick={() => close()}>
+          Retour
         </button>
-      </div>
-    </div>
+      </>
+    </Overlay>
   );
 }

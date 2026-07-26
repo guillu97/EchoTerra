@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Echo Terra">
+  <!-- Fond parchemin, mêmes tokens que app-shell.css (--parch-0 / --parch-2). -->
+  <defs>
+    <linearGradient id="p" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fbf5e6"/>
+      <stop offset="1" stop-color="#e7d6b2"/>
+    </linearGradient>
+    <linearGradient id="r" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e46a44"/>
+      <stop offset="1" stop-color="#c0392b"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#p)"/>
+  <rect x="1.5" y="1.5" width="61" height="61" rx="12.5" fill="none" stroke="#d9a441" stroke-width="3"/>
+  <!-- Tuile isométrique : la brique de base du jeu. -->
+  <path d="M32 20 L52 31 L32 42 L12 31 Z" fill="#8bbf5a"/>
+  <path d="M12 31 L32 42 L32 50 L12 39 Z" fill="#6fa544"/>
+  <path d="M52 31 L32 42 L32 50 L52 39 Z" fill="#3f6a1e"/>
+  <!-- Le foyer : la ville qu'on défend. -->
+  <path d="M32 12 L41 19 L41 27 L23 27 L23 19 Z" fill="url(#r)"/>
+  <rect x="29.5" y="21" width="5" height="6" rx="1" fill="#fbf5e6"/>
+</svg>
