@@ -120,7 +120,10 @@ class MapWorld {
       .then((p) => { this.palettes = p; this.terrainKey = ""; this.draw(); })
       .catch(() => undefined);
     void this.propsLib.load([
-      ...PROP_KEYS, "temple", "olive", "cloud",
+      ...PROP_KEYS, "olive", "cloud",
+      // la case ville rend un village miniature (mairie + portail + muraille),
+      // les mêmes modèles que l'onglet Ville — plus le temple grec d'avant
+      "bld-townhall", "bld-gate", "bld-wall",
       "site-ferme", "site-epave", "site-sanctuaire", "site-mine", "site-tour",
     ]).then(() => {
       this.terrainKey = "";
@@ -406,23 +409,39 @@ class MapWorld {
       }
     }
 
-    // ville : socle + TEMPLE VOXEL 3D (2026-07-19 — plus un billboard), centré
-    // sur sa case (modèle symétrique, le mesher ancre le centre du bloc)
-    quad(game.town.x, game.town.y, topOf(game.town.x, game.town.y), 0xffffff, 0.25);
-    const templeGeom = this.propsLib.get("temple", 0);
-    if (templeGeom) {
-      const m = new THREE.Mesh(templeGeom, TEMPLE_MAT);
-      m.castShadow = true;
-      m.receiveShadow = true;
-      m.position.set(game.town.x, topOf(game.town.x, game.town.y) - 0.03, game.town.y);
-      // repère central, mais le modèle inclut un PARVIS (grille 30) : trop gros, il
-      // débordait sur les cases voisines (et sous les losanges de déplacement).
-      m.scale.setScalar(1.6);
-      m.rotation.y = Math.PI; // parvis + porte face à la caméra par défaut
+    // ville : socle + VILLAGE MINIATURE.
+    //
+    // C'était un TEMPLE GREC (colonnes de marbre, parvis dallé) — un bâtiment
+    // qui n'existe nulle part ailleurs dans le jeu et qui n'avait aucun rapport
+    // avec ce qu'on voit dans l'onglet Ville (village fortifié médiéval :
+    // muraille, portail, mairie à beffroi). Deux architectures pour un même
+    // lieu. On rend désormais la MÊME ville en réduction : la mairie au centre,
+    // ceinte de quatre pans de muraille et de son portail côté caméra.
+    const townTop = topOf(game.town.x, game.town.y);
+    quad(game.town.x, game.town.y, townTop, 0xffffff, 0.25);
+    const townPiece = (id: string, dx: number, dz: number, cells: number, rotY: number) => {
+      const geom = this.propsLib.get(id, 0);
+      if (!geom) return false;
+      if (!geom.boundingBox) geom.computeBoundingBox();
+      const bb = geom.boundingBox!;
+      const w = Math.max(bb.max.x - bb.min.x, bb.max.z - bb.min.z) || 1;
+      const m = new THREE.Mesh(geom, TOWN_MAT);
+      m.castShadow = m.receiveShadow = true;
+      m.position.set(game.town.x + dx, townTop - 0.03, game.town.y + dz);
+      m.scale.setScalar(cells / w);
+      m.rotation.y = Math.PI + rotY;
       this.sprites.add(m);
-    } else {
-      billboard(libUrl("buildings", "bld-church"), game.town.x, game.town.y, { size: 1.15 });
-    }
+      return true;
+    };
+    // Mairie au centre, portail devant (côté caméra), trois pans de mur derrière.
+    const R = 0.42; // demi-emprise : tient dans la case sans déborder sur les voisines
+    const placed =
+      townPiece("bld-townhall", 0, -0.06, 0.62, 0) &&
+      townPiece("bld-gate", 0, R, 0.5, 0) &&
+      townPiece("bld-wall", -R, 0, 0.5, Math.PI / 2) &&
+      townPiece("bld-wall", R, 0, 0.5, Math.PI / 2) &&
+      townPiece("bld-wall", 0, -R, 0.5, 0);
+    if (!placed) billboard(libUrl("buildings", "bld-church"), game.town.x, game.town.y, { size: 1.15 });
     // couronne d'OLIVIERS autour du temple (déterministe par partie) — posés
     // sur la surface, jamais sur l'eau connue
     const oliveGeom = this.propsLib.get("olive", 0);
@@ -673,5 +692,8 @@ const GLOW_MAT = new THREE.MeshBasicMaterial({ vertexColors: true });
 const GLOW_PROPS = ["firefly", "crystal", "ice-spike"]; // props posés sur le calque bloom
 // le temple est surtout fait de FACES VERTICALES : ombrage cuit du mesher +
 // Lambert = double peine → petite émissive chaude pour garder le marbre clair
-const TEMPLE_MAT = new THREE.MeshLambertMaterial({ vertexColors: true, emissive: new THREE.Color(0x4a453e) });
+// Village de la case ville : surtout des faces verticales, dont l'ombrage est
+// déjà CUIT par le mesher — sans l'émissif le Lambert les assombrit une seconde
+// fois et le bourg vire au gris.
+const TOWN_MAT = new THREE.MeshLambertMaterial({ vertexColors: true, emissive: new THREE.Color(0x4a453e) });
 

@@ -1,22 +1,21 @@
 // Home (ville) en VOXEL (Phase 4 du VOXEL-PLAN) — mêmes props que TownMap :
 // HomeTab bascule TownMap ⇄ VoxelTownView selon `settings.voxelMap`.
 //
-// La ville reste LA CARTE AUTEUR de l'éditeur (town-map.json) : chaque
-// `Cell.blocks[niveau]` (asset isotile) devient une instance du bloc voxel
-// HOMONYME (générés avec les palettes de ces isotiles — les couleurs de la
-// carte sont préservées). Les bâtiments/props de l'éditeur sont des billboards
-// aux mêmes positions (dx/dy écran de l'éditeur inversés vers le monde), avec
-// **hotspots par raycast** (fini le hack elementFromPoint) + pastilles DOM
-// projetées (nom, durabilité, compat CSS .town-spot). MES héros en ville sont
-// des billboards sur l'herbe (mêmes règles que TownMap). Zoom/pan/pinch/
-// rotation = les contrôles du moteur.
+// La ville est un PLAN GÉNÉRÉ à partir de l'état de jeu (`voxel/townLayout.ts`),
+// plus la carte d'éditeur `town-map.json` : celle-ci n'avait d'emplacement que
+// pour 8 des 10 bâtiments (la muraille et la cuisine étaient invisibles et
+// intouchables), posait ses bâtiments par décalages en pixels d'éditeur — donc
+// dispersés — et son terrain était un plateau de grès sans un seul bloc
+// d'herbe. Le plan procédural donne un village fortifié : muraille sur le
+// pourtour, portail face caméra, place centrale autour du puits, une parcelle
+// par bâtiment du serveur. Les modèles sont mis à l'échelle d'après leur boîte
+// englobante réelle pour occuper l'emprise voulue en cellules (fini le facteur
+// magique ×2.3). Hotspots par raycast + pastilles DOM projetées ; MES héros en
+// ville sont des rigs voxel animés sur l'herbe. Zoom/pan/pinch/rotation = les
+// contrôles du moteur.
 
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
-import townJson from "../data/town-map.json";
-import type { Cell, MapDoc, Placement } from "../editor/types";
-import { normalizeCell } from "../editor/types";
-import { ISO } from "../editor/isoRender";
 import { TOWN_BUILDINGS } from "../data/buildings";
 import { heroAssetUrl, heroTexKey, libUrl } from "../assets";
 import { myTeamHeroes } from "../townUtils";
@@ -29,21 +28,9 @@ import { makeClouds, type Clouds } from "./clouds";
 import { makeLabel } from "./labels";
 import { ALL_CHAR_KEYS, CharLibrary } from "./characters";
 import { UnitAnimator } from "./unitAnim";
+import { buildTownLayout, TOWN_DECOR_PROPS, type TownPlot } from "./townLayout";
 
 const HERO_KEYS = ALL_CHAR_KEYS.filter((k) => k.startsWith("char-"));
-
-// Mêmes mappings que TownMap.
-const ASSET_TO_BUILDING: Record<string, string> = {
-  "bld-well": "well",
-  gate: "gate",
-  "bld-chapel": "townhall",
-  panel: "panel",
-  workshop: "workshop",
-  bank: "bank",
-  "bld-archerytower": "tower",
-  "bld-recyclerie": "recyclerie",
-};
-const GRASS_FILES = new Set(["grass", "jungle", "darkgrass", "fallgrass", "mossy"]);
 
 // Gonds (pivots) des vantaux du portail, en coordonnées LOCALES du mesh (repère
 // mesher, avant le scale du groupe) : X = faceExterne_fine/30 − 0.5, Z = centre
@@ -53,17 +40,17 @@ const GRASS_FILES = new Set(["grass", "jungle", "darkgrass", "fallgrass", "mossy
 const GATE_HINGE = { lx: -0.2, rx: 0.2667, z: -0.0667 };
 const GATE_OPEN_ANGLE = 1.4; // rad (~80°) — vantaux grands ouverts vers l'avant
 
-function getDoc(): MapDoc {
-  const d = townJson as unknown as MapDoc;
-  d.cells = d.cells.map((c) => normalizeCell({ ...(c as Cell) }));
-  return d;
-}
-
-// Offsets écran de l'éditeur (px au tileW courant) → offsets monde (unités
-// tuile) : sx=(x−y)·tileW/2, sy=(x+y)·tileH/2 ⇒ du=dx/tileW+dy/tileH,
-// dv=dy/tileH−dx/tileW.
-function screenOffsetToWorld(dx: number, dy: number): { du: number; dv: number } {
-  return { du: dx / ISO.tileW + dy / ISO.tileH, dv: dy / ISO.tileH - dx / ISO.tileW };
+// Échelle d'un modèle pour qu'il occupe `cells` cellules au sol. Les modèles
+// n'ont pas tous la même emprise dans leur grille (la muraille est un bandeau,
+// la mairie un pavé), donc on mesure la boîte englobante RÉELLE au lieu
+// d'appliquer un facteur commun — c'est ce que faisait l'ancien code (×2.3
+// hérité de l'échelle d'auteur), d'où des bâtiments de tailles incohérentes.
+function fitScale(geom: THREE.BufferGeometry, cells: number): number {
+  if (!geom.boundingBox) geom.computeBoundingBox();
+  const bb = geom.boundingBox;
+  if (!bb) return cells;
+  const w = Math.max(bb.max.x - bb.min.x, bb.max.z - bb.min.z);
+  return w > 1e-6 ? cells / w : cells;
 }
 
 type Spot = { buildingId: string; world: THREE.Vector3 };
@@ -109,68 +96,14 @@ export function VoxelTownView({
     // bâtiments VOXEL à états (2026-07-19) : v0 intact / v1 abîmé / v2 ruine
     // par DURABILITÉ réelle ; échafaudage pour les chantiers
     const propsLib = new BlockLibrary("/voxels/props");
-    const doc = getDoc();
 
-    // 1) terrain : toutes les piles de blocs occupées
-    const items: StackItem[] = [];
-    const used = new Set<string>();
-    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-    for (let cy = 0; cy < doc.gridH; cy++) {
-      for (let cx = 0; cx < doc.gridW; cx++) {
-        const cell = doc.cells[cy * doc.gridW + cx];
-        const blocks = cell?.blocks ?? [];
-        for (let lvl = 0; lvl < blocks.length; lvl++) {
-          const b = blocks[lvl];
-          if (!b) continue;
-          items.push({ x: cx, y: cy, level: lvl, block: b.file });
-          used.add(b.file);
-          minX = Math.min(minX, cx); maxX = Math.max(maxX, cx);
-          minY = Math.min(minY, cy); maxY = Math.max(maxY, cy);
-        }
-      }
-    }
-
-    // 2) bâtiments/props de l'éditeur → billboards + hotspots raycast
+    // 1) plan du village, dérivé de l'état de jeu (voir townLayout.ts)
+    const layout = buildTownLayout();
+    const items: StackItem[] = layout.terrain;
+    const used = new Set(layout.blocks);
+    const GROUND = layout.groundLevel;
     const texLoader = new THREE.TextureLoader();
     const textures: THREE.Texture[] = [];
-    const sprites = new THREE.Group();
-    const spots: Spot[] = [];
-    const bldPlacements: { bid: string; wx: number; wy: number; lvl: number; w: number }[] = [];
-    const occupied = new Set<string>();
-    for (const l of doc.layers) {
-      if (!l.visible) continue;
-      for (const p of l.placements as Placement[]) {
-        for (let dy = -1; dy <= 1; dy++)
-          for (let dx = -1; dx <= 1; dx++) occupied.add(`${p.cx + dx},${p.cy + dy}`);
-        const { du, dv } = screenOffsetToWorld(p.dx ?? 0, p.dy ?? 0);
-        const wx = p.cx + du;
-        const wy = p.cy + dv;
-        const cell = doc.cells[p.cy * doc.gridW + p.cx];
-        const lvl = (cell?.height ?? 0) + 1 + (p.lift ?? 0);
-        const bid = ASSET_TO_BUILDING[p.asset.file];
-        if (bid) {
-          // bâtiment de GAMEPLAY → mesh voxel piloté par l'état (groupe dynamique)
-          bldPlacements.push({ bid, wx, wy, lvl, w: ((p.scale ?? 1) * ISO.objW) / ISO.tileW });
-          continue;
-        }
-        // décor éventuel non mappé : billboard comme avant
-        const url = `/assets/${p.asset.cat}/${p.asset.file}.png`;
-        const tex = texLoader.load(url, (t) => {
-          const aspect = t.image ? t.image.height / t.image.width : 1;
-          const w = ((p.scale ?? 1) * ISO.objW) / ISO.tileW;
-          spr.scale.set(p.flipX ? -w : w, w * aspect, 1);
-          engine.invalidate();
-        });
-        tex.colorSpace = THREE.NoColorSpace;
-        textures.push(tex);
-        const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, alphaTest: 0.3, transparent: true }));
-        spr.center.set(0.5, 0.02);
-        spr.position.set(wx, lvl, wy);
-        sprites.add(spr);
-      }
-    }
-    void spots;
-    engine.scene.add(sprites);
 
     // --- groupe DYNAMIQUE des bâtiments voxel : reconstruit à chaque état ----
     const bldGroup = new THREE.Group();
@@ -194,28 +127,40 @@ export function VoxelTownView({
       gatePivots.r.rotation.y = -a;
     };
 
+    // Ancre de pastille pour une parcelle vide (pas de mesh à surmonter).
+    const spotAtGround = (pl: TownPlot) => new THREE.Vector3(pl.x, GROUND + 0.6, pl.y);
+
     const drawBuildings = () => {
       bldGroup.clear();
       spriteBuildingOf.current.clear();
       gatePivots = null;
       const g = useStore.getState().game;
       const list: Spot[] = [];
-      for (const pl of bldPlacements) {
+      for (const pl of layout.plots) {
         const b = g?.town.buildings?.find((x) => x.id === pl.bid);
-        if (!b || (!b.built && !b.underConstruction)) continue; // site sans plan : herbe nue
-        // ×2.3 : le modèle est normalisé sur sa grille de 20 mais le bâtiment
-        // n'en occupe que ~14 — sans ce facteur il paraît minuscule vs le billboard
-        const S = pl.w * 2.3;
+        if (!b) continue;
+        // Site dont le plan n'est pas encore posé : rien à dresser en 3D, mais
+        // la parcelle en terre battue reste visible ET on publie quand même sa
+        // pastille. Sans elle, quatre bâtiments sur dix (mairie, tour, cuisine,
+        // recyclerie en début de partie) étaient introuvables depuis la Ville —
+        // c'était le principal défaut de cohérence de l'onglet.
+        if (!b.built && !b.underConstruction) {
+          if (pl.primary) list.push({ buildingId: pl.bid, world: spotAtGround(pl) });
+          continue;
+        }
         const variant = b.built
           ? (() => { const r = b.maxDurability > 0 ? b.durability / b.maxDurability : 1; return r >= 0.66 ? 0 : r >= 0.33 ? 1 : 2; })()
           : 0;
+        const spotAt = (h: number) => new THREE.Vector3(pl.x, GROUND + h, pl.y);
 
         // PORTAIL construit : maçonnerie + deux vantaux animés autour des gonds
         if (pl.bid === "gate" && b.built) {
+          const frame0 = propsLib.get("bld-gate", variant);
+          const S = frame0 ? fitScale(frame0, pl.cells) : pl.cells;
           const grp = new THREE.Group();
-          grp.position.set(pl.wx, pl.lvl, pl.wy);
+          grp.position.set(pl.x, GROUND, pl.y);
           grp.scale.setScalar(S);
-          grp.rotation.y = Math.PI; // façades (y bas du modèle) vers la caméra
+          grp.rotation.y = Math.PI + (pl.rot ?? 0); // façades vers la caméra
           const frame = propsLib.get("bld-gate", variant);
           if (frame) {
             const m = new THREE.Mesh(frame, BLD_MAT);
@@ -242,7 +187,7 @@ export function VoxelTownView({
           gateTarget = b.open ? 1 : 0;
           applyGateAngle(); // pose l'angle courant lissé sans clignotement
           bldGroup.add(grp);
-          list.push({ buildingId: "gate", world: new THREE.Vector3(pl.wx, pl.lvl + pl.w * 2.6, pl.wy) });
+          if (pl.primary) list.push({ buildingId: "gate", world: spotAt(pl.cells * 0.9) });
           continue;
         }
 
@@ -250,12 +195,14 @@ export function VoxelTownView({
         if (!geom) continue;
         const mesh = new THREE.Mesh(geom, BLD_MAT);
         mesh.castShadow = mesh.receiveShadow = true;
-        mesh.position.set(pl.wx, pl.lvl, pl.wy);
-        mesh.scale.setScalar(S);
-        mesh.rotation.y = Math.PI; // façades (y bas du modèle) vers la caméra par défaut
+        mesh.position.set(pl.x, GROUND, pl.y);
+        mesh.scale.setScalar(fitScale(geom, pl.cells));
+        mesh.rotation.y = Math.PI + (pl.rot ?? 0);
         bldGroup.add(mesh);
         spriteBuildingOf.current.set(mesh, pl.bid);
-        list.push({ buildingId: pl.bid, world: new THREE.Vector3(pl.wx, pl.lvl + pl.w * 2.6, pl.wy) });
+        // La muraille a des dizaines de segments mais UNE pastille : seul le
+        // segment marqué `primary` en porte une.
+        if (pl.primary) list.push({ buildingId: pl.bid, world: spotAt(pl.cells * 0.9) });
       }
       spotsRef.current = list;
       setSpotList(list);
@@ -265,16 +212,16 @@ export function VoxelTownView({
     void propsLib
       .load(["bld-well", "bld-panel", "bld-bank", "bld-workshop", "bld-gate", "bld-tower",
              "bld-townhall", "bld-kitchen", "bld-wall", "bld-recyclerie", "bld-chantier",
-             "bld-gate-door-l", "bld-gate-door-r", "cloud"])
+             "bld-gate-door-l", "bld-gate-door-r", "cloud", ...TOWN_DECOR_PROPS])
       .then(() => {
         drawBuildings();
         // nuages au-dessus de la ville : plus hauts, plus lents que la carte
         clouds = makeClouds(propsLib, {
-          count: 5, cx: doc.gridW / 2, cy: doc.gridH / 2,
-          span: Math.max(doc.gridW, doc.gridH) + 16,
-          altitude: [14, 18], speed: [0.35, 0.7], scale: [3, 5],
+          count: 5, cx: layout.center, cy: layout.center,
+          span: layout.size + 12,
+          altitude: [13, 17], speed: [0.35, 0.7], scale: [2.5, 4],
           seed: 4242,
-          groundAt: () => 1.06, // niveau de la place — la tache glisse sur l'herbe
+          groundAt: () => GROUND, // niveau de la place — la tache glisse sur l'herbe
         });
         engine.scene.add(clouds.group);
       });
@@ -304,19 +251,9 @@ export function VoxelTownView({
     // 3) MES héros en ville, sur l'herbe (mêmes règles/hachage que TownMap)
     const heroGroup = new THREE.Group();
     engine.scene.add(heroGroup);
-    const grass: { x: number; y: number; lvl: number }[] = [];
-    for (let cy = 0; cy < doc.gridH; cy++) {
-      for (let cx = 0; cx < doc.gridW; cx++) {
-        const cell = doc.cells[cy * doc.gridW + cx];
-        const blocks = cell?.blocks ?? [];
-        let top: string | undefined;
-        let topLvl = 0;
-        for (let i = blocks.length - 1; i >= 0; i--)
-          if (blocks[i]) { top = blocks[i]!.file; topLvl = i + 1; break; }
-        if (!top || !GRASS_FILES.has(top) || occupied.has(`${cx},${cy}`)) continue;
-        grass.push({ x: cx, y: cy, lvl: topLvl });
-      }
-    }
+    // Emplacements d'herbe libres, triés par proximité de la place : les héros
+    // se rassemblent devant la mairie plutôt que de se disperser dans les coins.
+    const grass = layout.heroSlots;
     // cache par URL : fallback billboard si le modèle voxel manque
     const heroTexCache = new Map<string, THREE.Texture>();
     const drawHeroes = () => {
@@ -327,10 +264,12 @@ export function VoxelTownView({
       if (!g || !grass.length) { animator.endFrame(); return; }
       const inTown = myTeamHeroes(g, pid).filter((h) => h.hp > 0 && h.x === g.town.x && h.y === g.town.y);
       const usedIdx = new Set<number>();
-      const hash = (s: string) => { let n = 0; for (let i = 0; i < s.length; i++) n = (n * 31 + s.charCodeAt(i)) >>> 0; return n; };
-      for (const h of inTown) {
-        let idx = hash(h.id) % grass.length;
-        while (usedIdx.has(idx)) idx = (idx + 29) % grass.length;
+      // Les emplacements sont déjà triés du plus proche de la place au plus
+      // lointain : on sert dans l'ordre pour que l'équipe se tienne ensemble.
+      for (let i = 0; i < inTown.length; i++) {
+        const h = inTown[i];
+        let idx = i % grass.length;
+        while (usedIdx.has(idx)) idx = (idx + 1) % grass.length;
         usedIdx.add(idx);
         const gpos = grass[idx];
         const rig = chars.makeRig(heroTexKey(h.class));
@@ -385,19 +324,42 @@ export function VoxelTownView({
       onClearRef.current();
     };
 
-    // chargement des blocs puis construction + cadrage sur la zone occupée
+    // chargement des blocs puis construction + cadrage sur le village
     let terrain: THREE.Group | null = null;
     void lib.load([...used]).then(() => {
       const built = buildStacks(lib, items);
       terrain = built.group;
       engine.scene.add(built.group);
       engine.refreshShadows();
-      const cxm = (minX + maxX) / 2;
-      const cym = (minY + maxY) / 2;
-      engine.target.set(cxm, 0, cym);
-      const span = Math.max(maxX - minX, maxY - minY) + 6;
-      engine.zoom = Math.max(engine.minZoom, Math.min(engine.maxZoom, Math.min(host.clientWidth, host.clientHeight) / span * 1.6));
+      // Le village est carré et connu d'avance : on vise son centre et on cadre
+      // sur son côté. `+3` laisse respirer la muraille et les pastilles.
+      engine.target.set(layout.center, 0, layout.center);
+      // En projection dimétrique un carré de côté N occupe ~N·√2 en diagonale
+      // écran : cadrer sur N seul débordait des deux côtés. On cadre sur la
+      // DIAGONALE, avec une marge pour la muraille et les pastilles.
+      const span = (layout.size + 2) * 1.28;
+      const fit = Math.min(host.clientWidth, host.clientHeight) / span;
+      engine.zoom = Math.max(engine.minZoom, Math.min(engine.maxZoom, fit));
       drawHeroes();
+      engine.invalidate();
+    });
+
+    // décor : arbres, buissons et fleurs sur les cellules d'herbe libres — sans
+    // eux le village est une pelouse rase et les bâtiments flottent.
+    const decorGroup = new THREE.Group();
+    engine.scene.add(decorGroup);
+    void propsLib.load(TOWN_DECOR_PROPS).then(() => {
+      for (const d of layout.decor) {
+        const geom = propsLib.get(d.prop, (d.x + d.y) % 3);
+        if (!geom) continue;
+        const m = new THREE.Mesh(geom, BLD_MAT);
+        m.castShadow = m.receiveShadow = true;
+        m.position.set(d.x, GROUND, d.y);
+        m.scale.setScalar(fitScale(geom, d.scale));
+        m.rotation.y = ((d.x * 7 + d.y * 13) % 4) * (Math.PI / 2);
+        decorGroup.add(m);
+      }
+      engine.refreshShadows();
       engine.invalidate();
     });
 
@@ -442,18 +404,29 @@ export function VoxelTownView({
           const bs = buildingState(s.buildingId);
           if (!layout || !bs) return null;
           const site = !bs.built;
+          const sel = selected === s.buildingId;
+          // Marqueur ICÔNE par défaut, nom déplié seulement sur le bâtiment
+          // sélectionné : à dix bâtiments les pastilles texte se chevauchaient
+          // (19 collisions mesurées) et masquaient la ville qu'elles annotent.
           return (
             <button
               key={s.buildingId}
               data-bid={s.buildingId}
-              className={`town-spot ${selected === s.buildingId ? "sel" : ""} ${site ? "site" : ""}`}
+              className={`town-spot ${sel ? "sel" : ""} ${site ? "site" : ""}`}
               style={{ position: "absolute", pointerEvents: "auto" }}
               onClick={() => onBuildingClick(s.buildingId)}
-              title={site ? `${layout.name} — en construction` : layout.name}
+              aria-label={
+                site
+                  ? `${layout.name} — chantier à lancer`
+                  : `${layout.name} — durabilité ${Math.round(
+                      bs.maxDurability > 0 ? (bs.durability / bs.maxDurability) * 100 : 0,
+                    )} %`
+              }
             >
-              <span className="ts-pill">
-                {site ? "🏗️" : layout.icon} {layout.name}
+              <span className="ts-ic" aria-hidden="true">
+                {site ? "🏗️" : layout.icon}
               </span>
+              {sel && <span className="ts-name">{layout.name}</span>}
               {bs.built && (
                 <span className="ts-dur">
                   <i
