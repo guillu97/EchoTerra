@@ -129,6 +129,9 @@ frontend/src/
   screens/                      LoadingScreen, TitleScreen, CinematicScreen, GameScreen, LobbyScreen
   components/                   TopBar, BottomNav, HeroChips, Logo, TownWorker(+useWorkerPA),
                                 TownStatus, GameOver, HeroOverlay, ItemGrid
+  ui/                           Overlay.tsx (LA primitive de modale/feuille : Échap, piège à focus,
+                                retour du focus, role=dialog/aria-modal), Toasts.tsx (file aria-live),
+                                ErrorBoundary.tsx (écran de secours au lieu d'un écran blanc)
   tabs/                         HomeTab, MapTab, StockTab, StructureTab, CraftTab
   game/                         PhaserGame.tsx, MapScene.ts, CombatScene.ts, render.ts
   data/                         buildings.ts (TOWN_BUILDINGS layout, NAV_TABS)
@@ -434,14 +437,36 @@ POST /api/games/{id}/combat/{c}/action            {unitId, action: move|attack|s
 
 ## 7. Frontend UX (decisions that matter)
 
+**Design system (revue complète 2026-07-26).** `app-shell.css :root` porte maintenant, en plus de la
+palette parchemin : espacements `--s-1..7`, rayons `--r-sm/md/lg/pill`, typo `--t-xs..2xl` +
+`--lh-*`, ombres `--sh-*`, couches `--z-map/chrome/float/overlay/toast/modal-top` (remplacent 21
+z-index ad hoc), motion `--dur-*`/`--ease`, cibles `--tap`/`--tap-lg`, traits `--line*` et voiles
+`--veil-*`/`--shade*`/`--backdrop`. **Utiliser ces tokens plutôt que des littéraux.** Socle global :
+un anneau `:focus-visible` doré unique, un plancher de cible tactile sur les familles de boutons de
+chrome (`.pill/.chip/.iconbtn/.nav-tab`…) — PAS sur tous les `button`, les grilles denses sont des
+damiers — et une coupure `prefers-reduced-motion` qui neutralise toutes les animations. Les modales
+passent **obligatoirement** par `ui/Overlay.tsx` (ne pas recopier le couple
+`.settings` + `stopPropagation`) ; les retours d'action passent par `store.notify()` → `ui/Toasts.tsx`.
+L'app est **en français** : les chaînes anglaises restantes sont des bugs — SAUF celles qui portent
+de la logique de jeu (`"Ration d'eau"`, `"Plan "`, `"Tétanisé"`), à ne jamais traduire. Les noms de
+bâtiments s'affichent via `buildingName(id)` (`data/buildings.ts`), pas via `b.name` du serveur.
+
 - **App shell**: **full-bleed à toutes les tailles** — `.device` est simplement le conteneur plein
   viewport (100dvh) ; le cadre téléphone/tablette centré sur desktop a été SUPPRIMÉ (2026-07-13). Le
   breakpoint ≥1024px ne fait plus que des ajustements de tailles + plafonne les rangées larges
   (contenu de `.map-controls`, barres du loading) pour qu'elles ne s'étirent pas d'un bord à l'autre.
   Screen flow: loading → title → cinematic → game. In-game: TopBar + active tab + BottomNav.
-- **Bottom nav** (5 tabs): only **Home** is gated to having one of MY heroes in town (`TOWN_TABS = ["home"]`;
-  another player's hero in town doesn't open MY city screen).
-  **Map/Stock/Structure/Craft are always accessible.**
+- **Bottom nav** (5 tabs, refondue 2026-07-26) : onglets parchemin gravés **Ville · Sac · [Carte] ·
+  Bâtir · Atelier** (libellés FR dans `NAV_TABS`), avec la **Carte en pastille centrale surélevée**
+  (`.nav-center`, débord de 26px vers le haut — les barres posées au-dessus doivent réserver
+  ~30px, cf. `.map-herobar`). L'actif se marque par l'encre + un fond crème + un **liseré doré sous
+  l'onglet** (plus la pilule rouge pleine, qui criait plus fort que le contenu). Icônes = les PNG
+  peints `assets/ui/nav-*` (réduits à 160px par `scripts/downscale-ui.mjs` — en 1024² ils faisaient
+  dépasser le budget `test:perf`), emoji en repli. `role="tablist"` + `aria-selected`, cibles 48px.
+  Only **Home** is gated to having one of MY heroes in town (`TOWN_TABS = ["home"]`; another
+  player's hero in town doesn't open MY city screen) — l'onglet verrouillé reste **focusable**
+  (`aria-disabled`, pas `disabled`) et explique la raison par un **toast** au tap, le `title=` étant
+  invisible au doigt. **Map/Stock/Structure/Craft are always accessible.**
 - **TopBar**: l'avatar (🙂) ouvre le **dropdown des héros** (`HeroActionsMenu`) : une ligne par héros de
   MON équipe — le bouton nom/PV/PA ouvre la **fiche de personnage** (HeroOverlay), puis 🎯 sélectionne
   sur la carte (et bascule sur l'onglet Map), et les actions contextuelles du héros (⚔️ si monstre sur

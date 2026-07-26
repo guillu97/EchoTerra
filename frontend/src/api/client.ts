@@ -45,15 +45,31 @@ async function req<T>(method: string, url: string, body?: unknown): Promise<T> {
   if (body !== undefined) headers["Content-Type"] = "application/json";
   const token = getAuthToken();
   if (token) headers["Authorization"] = `Bearer ${token}`;
-  const res = await fetch(url, {
-    method,
-    headers: Object.keys(headers).length ? headers : undefined,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method,
+      headers: Object.keys(headers).length ? headers : undefined,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+  } catch {
+    // `fetch` rejette avec « Failed to fetch » (ou « Load failed » sur Safari) :
+    // illisible, et en anglais dans une interface française. Ce cas-là est en
+    // pratique toujours le même — plus de réseau, ou serveur injoignable.
+    throw new Error("Connexion au serveur perdue — vérifie ta connexion.");
+  }
   const text = await res.text();
-  const data = text ? JSON.parse(text) : null;
+  let data: any = null;
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      // Réponse non-JSON (page d'erreur d'un proxy, 502 HTML…).
+      if (!res.ok) throw new Error(`Le serveur a répondu ${res.status}.`);
+    }
+  }
   if (!res.ok) {
-    throw new Error((data && data.error) || `HTTP ${res.status}`);
+    throw new Error((data && data.error) || `Le serveur a répondu ${res.status}.`);
   }
   return data as T;
 }

@@ -1558,6 +1558,49 @@ body {
 .settings-pane {
   display: contents;
 }
+
+/* ----- écran de secours (ErrorBoundary) ---------------------------------- */
+.crash-card {
+  margin: auto;
+  max-width: 420px;
+  width: 100%;
+  background: var(--cream);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: var(--s-7);
+  box-shadow: var(--sh-overlay);
+  text-align: center;
+}
+.crash-ic {
+  font-size: 52px;
+  line-height: 1;
+}
+.crash-title {
+  font-family: var(--font-title);
+  font-weight: 800;
+  font-size: var(--t-2xl);
+  color: var(--ink);
+  margin: var(--s-5) 0 var(--s-3);
+}
+.crash-text {
+  font-size: var(--t-md);
+  line-height: var(--lh-body);
+  color: var(--ink-soft);
+  margin: 0 0 var(--s-5);
+}
+.crash-detail {
+  font-size: var(--t-xs);
+  text-align: left;
+  color: #8a3323;
+  background: rgba(192, 57, 43, 0.08);
+  border: 1px solid rgba(192, 57, 43, 0.25);
+  border-radius: var(--r-sm);
+  padding: var(--s-4);
+  margin: 0;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
 .settings .panel-card {
   box-sizing: border-box; /* padding compté DANS width/max-height : sinon width:100%
                              + 18px de padding débordait horizontalement du viewport */

@@ -6,6 +6,78 @@
 
 ---
 
+## 2026-07-26 (74) — Revue UI/UX complète : tokens, barre du bas, overlays, français
+
+### Contexte
+Demande : « revoir TOUT le design de l'application ». Le design system parchemin
+(`design/EchoTerra.dc.html`) avait été appliqué en 4 phases le 2026-07-15, puis ~15 commits de
+features avaient empilé de l'UI par-dessus sans y revenir. Audit d'abord (CSS + composants +
+historique), puis correction. Direction retenue par l'utilisateur : **garder le parchemin**, auditer
+toute l'app, et **refondre la barre de navigation du bas**.
+
+### Ce que l'audit a trouvé
+- `:root` n'avait que des couleurs + 2 polices : **rien** pour espacements, rayons, ombres, z-index,
+  motion, breakpoints. 133 `var(--)` contre **~219 littéraux de couleur**.
+- **0 `:focus-visible`** dans 3225 lignes (navigation clavier à l'aveugle), **0
+  `prefers-reduced-motion`** (3 animations infinies, dont celle du CTA principal), **0 `min-height`**
+  (cibles tactiles à 27-30px), 4 `aria-*` et **0 `role=`** dans toute l'app.
+- Le motif de modale copié-collé dans **7 fichiers**, aucun avec Échap / piège à focus / retour du
+  focus / aria-modal.
+- `error` était une chaîne unique écrasée à chaque action, et **`pushLog` (~30 appels) n'était rendu
+  par AUCUN composant** : le retour utilisateur partait à la poubelle.
+- UI **bilingue par accident** : tous les Réglages, toute la fiche héros, le menu d'action de carte,
+  les noms de bâtiments et les rôles de repli étaient en anglais.
+- ~200 lignes de CSS mort, 3 sélecteurs déclarés deux fois, 4 tokens jamais référencés.
+
+### Fait
+1. **Tokens** — échelles d'espacement/rayons/typo/ombres/couches/motion/cibles dérivées des valeurs
+   réellement dominantes du fichier (migration préservant le rendu), + socle a11y global.
+2. **Barre du bas refondue** — onglets parchemin gravés, **Carte en pastille centrale surélevée**,
+   libellés FR (Ville/Sac/Carte/Bâtir/Atelier), cibles 48px, `role="tablist"` + `aria-selected`,
+   badge de chantiers, verrou expliqué au tap (le `title=` était invisible au doigt).
+   **Les PNG `ui/nav-*` étaient dans le dépôt mais utilisés nulle part** — la barre affichait des
+   emoji ; elles sont maintenant rendues.
+3. **`ui/Overlay.tsx`** — une seule primitive : Échap, piège à focus, retour du focus au déclencheur,
+   `role="dialog"`/`aria-modal`/`aria-labelledby`, variantes modale et feuille. 5 sites migrés.
+4. **Toasts** (`ui/Toasts.tsx`) — file empilable auto-effacée en région `aria-live`, branchée sur les
+   échecs d'action. Messages réseau devenus humains et français côté `api/client.ts`.
+5. **ErrorBoundary** — une exception de rendu laissait un écran BLANC ; écran de secours parchemin.
+6. **Accessibilité** — contrastes AA (`--ink-soft`, le token le plus utilisé, était à ~4.3:1 ;
+   `--ink-muted` à ~2.7:1), `.iconbtn` 30→44px, écrans « taper pour continuer » passés de
+   `<div onClick>` à de vrais boutons, `<header>`/`<main>`, emoji retirés des `alt`.
+7. **Français** — Réglages, fiche héros, menu d'action, catégories du Stock, rôles, **noms de
+   bâtiments** (via un helper front `buildingName(id)` : les noms serveur ne servent qu'à
+   l'affichage, donc aucune migration des parties enregistrées).
+8. **Cohérence** — pastilles de héros, barre de héros de la carte et boutons de rotation étaient les
+   derniers îlots bleu nuit sur fond crème : repassés sur le système. `.tabs-scroll` manquait
+   `min-width:0` (la bande de catégories poussait le chip de PA hors écran).
+9. **Ménage** — CSS 3629→3403 lignes, sélecteurs dupliqués fusionnés, tokens morts retirés,
+   `TownBar.tsx` (mort) supprimé. `index.html` : titre, favicon SVG, theme-color, description, OG,
+   et **`viewport-fit=cover`** (sans lui `env(safe-area-inset-*)` vaut 0, alors que l'app est
+   full-bleed en 100dvh et s'appuie dessus).
+10. **`scripts/downscale-ui.mjs`** — les icônes de nav sortaient en 1024² pour un carré de 26px et
+    avaient fait dépasser le budget de payload PNG. Réduites à 160px : **2,09 Mo → 0,10 Mo**.
+
+### Fonctionnel (vérifié)
+- `npx tsc -b` et `npm run build` verts.
+- **`npm run test:perf` : 13/13**, payload PNG **23,23 Mo — sous les 23,2 Mo d'avant la refonte**.
+- Headless (Playwright, polling par `page.evaluate`) : **aucun débordement horizontal** à 360 / 390 /
+  820 / 1280 px sur les 4 onglets ; les 3 overlays testés exposent `role`/`aria-modal`/
+  `aria-labelledby`, reçoivent le focus et **se ferment par Échap** ; sous
+  `prefers-reduced-motion: reduce` **0 élément animé** ; backend coupé → toast lisible en français.
+- Le rendu 3D voxel n'est pas touché (contrainte du projet) — seuls les overlays DOM ont changé.
+
+### À faire
+- Les trois chantiers de la Phase 3 restent partiellement ouverts : thème sombre complet de la fiche
+  héros, HUD de combat du prototype (barres crème, journal, barre d'actions), et le panneau d'actions
+  bas de la carte proposé par le design (le menu radial reste non navigable au clavier).
+- Primitives restantes à extraire (`Button`, `Chip`, `Meter`, `SegmentedControl`) : les conventions
+  CSS existent, mais chaque fichier écrit encore `<button className="pill red">` à la main. Il y a
+  toujours 4 implémentations de barre de progression et 3 de contrôle segmenté.
+- Le `log` du store est encore affiché nulle part : sa place est le journal de combat du prototype.
+- `.map-controls` / menu radial : reste le dernier bloc au style hérité.
+
+
 ## 2026-07-24 (73) — Studio Personnages voxel (#charstudio)
 
 ### Fait (demande : « studio voxel pour visualiser les personnages et les monstres, pour que tu
