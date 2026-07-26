@@ -710,6 +710,12 @@ body {
 .iconbtn:hover {
   background: var(--parch-0);
 }
+/* État enfoncé (ex. vue de dessus en combat). */
+.iconbtn.on {
+  background: linear-gradient(180deg, #fff4d6, #f4e2af);
+  border-color: var(--gold);
+  color: #7a5410;
+}
 
 .chat-bubble {
   position: absolute;
@@ -1770,14 +1776,20 @@ body {
   position: static; /* pilotée par le flux du conteneur, pas ancrée elle-même */
 }
 
-/* ===== Barre de sélection des héros sur la carte ===== */
+/* ===== Barre de sélection des héros sur la carte =====
+   Passée du verre bleu nuit au parchemin : c'était, avec les pastilles de
+   héros, le dernier îlot sombre posé sur une interface crème. */
 .map-herobar {
-  background: var(--glass-2);
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  padding: 6px 8px 4px;
+  background: linear-gradient(180deg, rgba(251, 243, 224, 0.96), rgba(240, 226, 196, 0.96));
+  border-top: 2px solid var(--gold);
+  color: var(--ink-2);
+  padding: var(--s-2) var(--s-3) var(--s-1);
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--s-1);
+  /* Le bouton central de la barre du bas déborde de 26px vers le haut : sans
+     cette réserve il rognait la ligne d'aide. */
+  padding-bottom: 30px;
 }
 .mhb-row {
   display: flex;
@@ -1794,16 +1806,17 @@ body {
   min-width: 104px;
   display: flex;
   align-items: stretch;
-  background: rgba(255, 255, 255, 0.06);
-  border: 2px solid transparent;
-  border-radius: 12px;
+  background: var(--cream);
+  border: 2px solid var(--line-2);
+  border-radius: var(--r-md);
+  box-shadow: var(--sh-card);
   overflow: hidden;
   transition: border-color 0.12s, background 0.12s;
 }
 .mhb-chip.sel {
-  border-color: #ffe066;
-  background: rgba(255, 224, 102, 0.14);
-  box-shadow: 0 0 10px rgba(255, 224, 102, 0.35);
+  border-color: var(--accent);
+  background: #fff6ea;
+  box-shadow: 0 0 0 2px rgba(217, 96, 59, 0.18), var(--sh-card);
 }
 .mhb-chip.dead {
   opacity: 0.45;
@@ -1816,7 +1829,7 @@ body {
   padding: 5px 6px;
   background: none;
   border: none;
-  color: #fff;
+  color: var(--ink-2);
   cursor: pointer;
   text-align: left;
   min-width: 0;
@@ -1829,9 +1842,9 @@ body {
   width: 38px;
   height: 38px;
   flex: 0 0 auto;
-  border-radius: 9px;
+  border-radius: var(--r-sm);
   overflow: hidden;
-  background: rgba(0, 0, 0, 0.25);
+  background: rgba(120, 86, 40, 0.14);
 }
 .mhb-portrait img {
   width: 100%;
@@ -1852,8 +1865,8 @@ body {
   bottom: -2px;
   font-size: 11px;
   line-height: 1;
-  background: rgba(16, 14, 28, 0.85);
-  border-radius: 6px;
+  background: rgba(42, 33, 20, 0.85);
+  border-radius: var(--s-2);
   padding: 1px 2px;
 }
 .mhb-badge.warn {
@@ -1876,47 +1889,48 @@ body {
 .mhb-hpbar {
   height: 5px;
   border-radius: 3px;
-  background: rgba(255, 255, 255, 0.14);
+  background: rgba(120, 86, 40, 0.18);
   overflow: hidden;
 }
 .mhb-hpbar i {
   display: block;
   height: 100%;
-  background: #5df08a;
+  background: var(--green-2);
 }
 .mhb-hpbar i.warn {
-  background: #ffd166;
+  background: #d9a017;
 }
 .mhb-hpbar i.low {
   background: #e24b4b;
 }
 .mhb-pa {
-  font-size: 11px;
-  color: #cfe0ff;
+  font-size: var(--t-xs);
+  font-weight: 800;
+  color: #9a6a12;
 }
 .mhb-sheet {
   flex: 0 0 auto;
-  width: 26px;
-  background: rgba(255, 255, 255, 0.05);
+  width: 28px;
+  background: rgba(120, 86, 40, 0.06);
   border: none;
-  border-left: 1px solid rgba(255, 255, 255, 0.08);
-  color: #9fb2c9;
-  font-size: 14px;
+  border-left: 1px solid var(--line);
+  color: var(--ink-soft);
+  font-size: var(--t-md);
   cursor: pointer;
 }
 .mhb-sheet:hover {
-  background: rgba(255, 255, 255, 0.12);
-  color: #fff;
+  background: rgba(120, 86, 40, 0.14);
+  color: var(--ink);
 }
 .mhb-hint {
-  font-size: 11px;
-  color: #cbd6e6;
+  font-size: var(--t-xs);
+  color: var(--ink-soft);
   text-align: center;
-  padding: 1px 4px;
-  line-height: 1.3;
+  padding: 1px var(--s-1);
+  line-height: var(--lh-body);
 }
 .mhb-hint strong {
-  color: #fff;
+  color: var(--ink);
 }
 .map-controls .line {
   display: flex;
@@ -2883,13 +2897,14 @@ body {
   color: #06333f;
 }
 .map-hint {
-  font-size: 11px;
-  color: #9fb2c9;
+  font-size: var(--t-xs);
+  color: var(--ink-soft);
   text-align: center;
+  line-height: var(--lh-body);
 }
 .map-hint.warn {
-  color: #ffd166;
-  font-weight: 700;
+  color: #9b5d0b;
+  font-weight: 800;
 }
 .am-stuck {
   color: #ffb454;

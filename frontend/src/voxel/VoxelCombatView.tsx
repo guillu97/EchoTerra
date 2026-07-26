@@ -590,10 +590,10 @@ export function VoxelCombatView() {
   return (
     <>
       <div ref={hostRef} style={{ position: "absolute", inset: 0 }} />
-      <div style={{ position: "absolute", top: 8, right: 8, display: "flex", gap: 6 }}>
+      <div className="view-rot">
         <button
-          className="small"
-          style={{ ...rotBtn, ...(topDown ? rotBtnActive : null) }}
+          className={`iconbtn${topDown ? " on" : ""}`}
+          aria-pressed={topDown}
           title={topDown ? "Vue inclinée" : "Vue de dessus (voir les monstres masqués)"}
           onClick={() => {
             const v = !topDown;
@@ -603,25 +603,14 @@ export function VoxelCombatView() {
         >
           {topDown ? "🎥" : "🔼"}
         </button>
-        <button className="small" style={rotBtn} onClick={() => engineRef.current?.rotate(-1)}>↺</button>
-        <button className="small" style={rotBtn} onClick={() => engineRef.current?.rotate(1)}>↻</button>
+        <button className="iconbtn" aria-label="Pivoter la vue à gauche" onClick={() => engineRef.current?.rotate(-1)}>
+          ↺
+        </button>
+        <button className="iconbtn" aria-label="Pivoter la vue à droite" onClick={() => engineRef.current?.rotate(1)}>
+          ↻
+        </button>
       </div>
     </>
   );
 }
 
-const rotBtn: React.CSSProperties = {
-  background: "rgba(30,34,46,.78)",
-  color: "#f3efdf",
-  border: "1px solid rgba(255,255,255,.25)",
-  borderRadius: 10,
-  width: 40,
-  height: 40,
-  fontSize: 19,
-  cursor: "pointer",
-};
-const rotBtnActive: React.CSSProperties = {
-  background: "rgba(255,224,102,.85)",
-  color: "#1a1400",
-  border: "1px solid rgba(255,224,102,.9)",
-};
