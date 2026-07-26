@@ -104,7 +104,10 @@ class Block {
 // mosaïque de couleurs franches au lieu d'un dégradé d'une seule teinte.
 //
 // DIV = 0 rend le comportement d'origine.
-export const DIV = 0.9; // amplitude du parti pris divisionniste (0..1)
+// 0.9 rendait la ville criarde : parcelles de terre au rouille, muraille au
+// lilas bonbon. Le divisionnisme de Signac est LUMINEUX, pas saturé — la
+// division doit rester une VIBRATION autour de la couleur locale.
+export const DIV = 0.5; // amplitude du parti pris divisionniste (0..1)
 
 function rgb2hsvArr([r, g, b]) {
   const R = r / 255, G = g / 255, B = b / 255;
@@ -136,12 +139,32 @@ export function divisionize(rgb, k, amount = DIV) {
   const hsv = rgb2hsvArr(rgb);
   // suite déterministe, bien répartie sur le cercle chromatique mais courte :
   // on veut des voisins CONTRASTÉS, pas un arc-en-ciel qui détruit la lecture
-  const wheel = [0, 0.10, -0.085, 0.165, -0.15, 0.055, -0.04];
+  // Roue ANALOGUE-dominante. La première version montait à ±0.165 de teinte :
+  // sur un vert d'herbe ça bascule dans l'ORANGE et le ROUGE, et la pelouse se
+  // lisait comme un sous-bois d'automne. Signac ne fait pas ça — il divise
+  // autour de la couleur locale (un vert devient vert-jaune / vert-bleu) et ne
+  // réserve la complémentaire franche qu'à de rares touches d'accent.
+  const wheel = [0, 0.030, -0.026, 0.052, -0.044, 0.017, -0.013];
   const kk = ((k % wheel.length) + wheel.length) % wheel.length;
-  hsv[0] = (hsv[0] + wheel[kk] * amount + 1) % 1;
-  hsv[1] = Math.min(1, hsv[1] * (1 + 0.55 * amount) + 0.16 * amount);
+
+  // QUASI-GRIS (la pierre des bâtiments, la neige) : leur teinte de base est
+  // arbitraire et instable, donc la faire tourner ne divise rien — seule la
+  // saturation agit, et tout part uniformément vers le sable. On leur ASSIGNE
+  // à la place une teinte prise dans un accord froid/chaud alterné : mauve,
+  // bleu, crème, rosé. C'est exactement le traitement du blanc chez Signac —
+  // des touches pâles mais franchement colorées, jamais un aplat teinté.
+  const GREY_HUES = [0.74, 0.60, 0.11, 0.95, 0.66, 0.08, 0.80]; // mauve/bleu/crème/rosé
+  if (hsv[1] < 0.14) {
+    hsv[0] = GREY_HUES[kk % GREY_HUES.length];
+    hsv[1] = Math.min(0.19, hsv[1] + 0.13 * amount); // pâle : on teinte, on ne colorie pas
+  } else {
+    hsv[0] = (hsv[0] + wheel[kk] * amount + 1) % 1;
+    hsv[1] = Math.min(1, hsv[1] + (1 - hsv[1]) * 0.17 * amount);
+  }
   // la valeur vibre légèrement : c'est ce qui donne la matière peinte
-  hsv[2] = Math.max(0, Math.min(1, hsv[2] * (1 + (kk % 2 ? 0.085 : -0.075) * amount)));
+  // Vibration de valeur discrète : à ±8 % chaque palier ressortait comme un
+  // moucheté, ce qui bruite la surface au lieu de la faire vibrer.
+  hsv[2] = Math.max(0, Math.min(1, hsv[2] * (1 + (kk % 2 ? 0.038 : -0.034) * amount)));
   return hsv2rgbArr(hsv);
 }
 

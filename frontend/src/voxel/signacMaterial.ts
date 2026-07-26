@@ -67,14 +67,15 @@ const GLSL_TOUCH = /* glsl */ `
     float h1 = sg_hash(cell);
     float h2 = sg_hash(cell + 31.7);
     vec3 hsv = sg_rgb2hsv(diffuseColor.rgb);
-    // Un aplat sans couleur (la pierre quasi blanche des bâtiments) n'offre rien
-    // à diviser : on lui tire une teinte franche, comme Signac peint ses murs
-    // et ses voiles blancs — jamais en blanc.
+    // La DONNÉE porte désormais la division de teinte (divisionize() dans les
+    // recettes) : le shader ne doit plus la refaire, sinon les deux se cumulent
+    // et la surface part en bruit. Il ne garde qu'une vibration FINE, à une
+    // échelle plus serrée que la touche peinte — le grain de la matière, pas la
+    // touche elle-même.
     float flatness = 1.0 - smoothstep(0.05, 0.35, hsv.y);
-    hsv.x = fract(hsv.x + (h1 - 0.5) * uScatter * (1.0 + 5.0 * flatness));
-    hsv.y = clamp(hsv.y * uSat + 0.24 * flatness, 0.0, 1.0);
-    // la valeur vibre d'une touche à l'autre : c'est ce qui fait la matière
-    hsv.z = clamp(hsv.z * (0.86 + 0.28 * h2), 0.0, 1.0);
+    hsv.x = fract(hsv.x + (h1 - 0.5) * uScatter * (1.0 + 1.2 * flatness));
+    hsv.y = clamp(hsv.y * uSat + 0.06 * flatness, 0.0, 1.0);
+    hsv.z = clamp(hsv.z * (0.94 + 0.12 * h2), 0.0, 1.0);
     diffuseColor.rgb = mix(diffuseColor.rgb, sg_hsv2rgb(hsv), uSignac);
   }
 `;
@@ -137,8 +138,8 @@ export function signacify<T extends THREE.Material>(mat: T): T {
 export function setSignacEnabled(on: boolean, strength = 0.6) {
   const s = Math.max(0, Math.min(1, strength));
   signacUniforms.uSignac.value = on ? 0.5 + s * 0.5 : 0;
-  signacUniforms.uSat.value = 1.15 + s * 0.75;
-  signacUniforms.uScatter.value = 0.02 + s * 0.10;
+  signacUniforms.uSat.value = 1.06 + s * 0.34;
+  signacUniforms.uScatter.value = 0.008 + s * 0.035; // la donnée fait le gros du travail
   // touches plus larges quand on pousse l'intensité (mosaïque du Signac tardif)
   signacUniforms.uCell.value = 1 / (7.0 - s * 3.0);
 }
