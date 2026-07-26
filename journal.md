@@ -56,10 +56,20 @@ Les deux reproches portaient sur deux endroits différents, tous deux fondés :
   Tour, Mairie, Banque, Atelier, Cuisine, Recyclerie, Puits, Panneau), **0 chevauchement** mesuré
   (contre 5 avant, 19 au pire pendant la mise au point).
 
+### Suite (même jour) — le mode « Classique » aussi
+`components/TownMap.tsx` (rendu 2D de secours, `settings.voxelMap=false`) lisait encore
+`town-map.json` : il affichait donc TOUJOURS l'ancien plateau de grès à 8 bâtiments, une ville
+entièrement différente de la vue voxel. Il consomme maintenant `townDoc()` — le MÊME plan, converti
+au format `MapDoc` de l'éditeur. Une seule source de vérité pour la ville, deux rendus.
+`BUILDING_SPRITE` / `SPRITE_TO_BUILDING` (dans `townLayout.ts`) apparient les ids de bâtiment aux
+sprites de l'éditeur ; les sprites `townhall/bank/workshop/kitchen/well/panel/gate/tower/wall`
+existaient déjà à l'identique, la recyclerie emprunte `bld-warehouse` faute d'art dédié. Les
+segments de muraille ne sont pas replacés en 2D (le sprite iso `wall` ne se raccorde pas
+proprement et une cinquantaine de copies écraserait le dessin) : la muraille y est portée par
+l'anneau de pierre du sol. Marqueurs icône + nom sur sélection, comme la vue voxel.
+Vérifié : 9 pastilles (tout sauf `wall`), captures Playwright, test:perf 13/13.
+
 ### À faire
-- **Le rendu « Classique » (`components/TownMap.tsx`) garde l'ancienne ville** : il lit toujours
-  `town-map.json`, donc le plateau de grès à 8 bâtiments. Si ce mode reste supporté, il faut soit le
-  brancher sur `townLayout`, soit le retirer. C'est la seule incohérence restante.
 - Les modèles `bld-*` sont en pierre très claire (`STONE_W = [222,212,196]`) : à distance le village
   tire vers le blanc. Une passe de palette sur `gen-props.mjs` (toits plus contrastés) aiderait.
 - La muraille à 20 % de durabilité rend la variante « ruine » sur tout le pourtour : correct et

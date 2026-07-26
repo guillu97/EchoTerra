@@ -191,3 +191,85 @@ export function buildTownLayout(): TownLayout {
 
 /** Props de décor à précharger, en plus des `bld-*`. */
 export const TOWN_DECOR_PROPS = ["tree-green", "bush-dense", "flowers", "grass-tuft", "daisy", "fern"];
+
+// --- pont vers le rendu 2D « Classique » ------------------------------------
+// Le mode de secours (components/TownMap.tsx) dessine un `MapDoc` de l'éditeur.
+// Plutôt que de lui laisser l'ancienne carte d'auteur — qui n'avait que 8
+// bâtiments sur un plateau de grès —, on lui fabrique le MÊME plan que la vue
+// voxel. Une seule source de vérité pour la ville, deux rendus.
+
+/** Sprite de l'éditeur pour un bâtiment. `recyclerie` n'a pas d'art dédié. */
+export const BUILDING_SPRITE: Record<string, string> = {
+  townhall: "townhall",
+  bank: "bank",
+  workshop: "workshop",
+  kitchen: "kitchen",
+  recyclerie: "bld-warehouse",
+  well: "well",
+  panel: "panel",
+  gate: "gate",
+  tower: "tower",
+  wall: "wall",
+};
+
+/** Sprite → id de bâtiment (l'inverse, pour les hotspots du rendu 2D). */
+export const SPRITE_TO_BUILDING: Record<string, string> = Object.fromEntries(
+  Object.entries(BUILDING_SPRITE).map(([bid, file]) => [file, bid]),
+);
+
+type DocCell = { blocks: ({ cat: string; file: string } | null)[]; height: number };
+type DocPlacement = {
+  id: string;
+  cx: number;
+  cy: number;
+  asset: { cat: string; file: string };
+  scale?: number;
+};
+
+/**
+ * Le plan du village au format `MapDoc` de l'éditeur, pour le renderer 2D.
+ * Les segments de muraille sont laissés de côté : le sprite iso `wall` ne se
+ * raccorde pas proprement en 2D et une cinquantaine de copies écraserait le
+ * dessin. La muraille reste représentée par le sol de pierre du pourtour.
+ */
+export function townDoc(): {
+  version: number;
+  gridW: number;
+  gridH: number;
+  cells: DocCell[];
+  layers: { id: string; name: string; kind: "ground" | "object"; visible: boolean; placements: DocPlacement[] }[];
+} {
+  const l = buildTownLayout();
+  const cells: DocCell[] = Array.from({ length: l.size * l.size }, () => ({ blocks: [], height: 0 }));
+  for (const t of l.terrain) {
+    const c = cells[t.y * l.size + t.x];
+    while (c.blocks.length <= t.level) c.blocks.push(null);
+    c.blocks[t.level] = { cat: "isotiles", file: t.block };
+    c.height = Math.max(c.height, t.level);
+  }
+
+  const placements: DocPlacement[] = [];
+  for (const p of l.plots) {
+    if (p.bid === "wall") continue;
+    const file = BUILDING_SPRITE[p.bid];
+    if (!file) continue;
+    placements.push({
+      id: `plot-${p.bid}`,
+      cx: p.x,
+      cy: p.y,
+      asset: { cat: "buildings", file },
+      scale: p.cells / 2.2, // les sprites iso sont cadrés ~2 tuiles de large
+    });
+  }
+
+  return {
+    version: 1,
+    gridW: l.size,
+    gridH: l.size,
+    cells,
+    layers: [
+      { id: "sol", name: "Sol", kind: "ground", visible: true, placements: [] },
+      { id: "bat", name: "Bâtiments", kind: "object", visible: true, placements },
+    ],
+  };
+}
