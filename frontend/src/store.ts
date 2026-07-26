@@ -67,6 +67,11 @@ function slotForGame(g: { visibility?: string; players?: { bot: boolean }[] }): 
   return humans >= 2 ? "mp" : "solo";
 }
 
+// Toasts : un message éphémère, empilable, annoncé aux lecteurs d'écran.
+export type ToastTone = "info" | "ok" | "warn" | "error";
+export type Toast = { id: number; msg: string; tone: ToastTone };
+const TOAST_MS = 4000;
+
 type View = "map" | "combat";
 type CombatMode = "move" | "attack" | "skill" | "push";
 
@@ -163,6 +168,7 @@ interface StoreState {
   log: string[];
   busy: boolean;
   error?: string;
+  toasts: Toast[];
 
   // shell actions
   setScreen: (s: AppScreen) => void;
@@ -245,10 +251,22 @@ interface StoreState {
   endTurn: () => Promise<void>;
   returnToMap: () => void;
   pushLog: (msg: string) => void;
+  notify: (msg: string, tone?: ToastTone) => void;
+  dismissToast: (id: number) => void;
 }
 
 export const useStore = create<StoreState>((set, get) => {
   const pushLog = (msg: string) => set((s) => ({ log: [...s.log.slice(-40), msg] }));
+
+  // File de toasts. Avant, un échec d'action posait `error` (une seule chaîne,
+  // écrasée par l'action suivante) et `pushLog` écrivait dans un tableau que
+  // AUCUN composant ne rendait : le retour utilisateur partait à la poubelle.
+  let toastSeq = 0;
+  const notify = (msg: string, tone: ToastTone = "info") => {
+    const id = ++toastSeq;
+    set((s) => ({ toasts: [...s.toasts.slice(-3), { id, msg, tone }] }));
+    setTimeout(() => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })), TOAST_MS);
+  };
 
   const renderMap = () => {
     const { game, selectedHeroId, showOthers, playerId } = get();
@@ -307,6 +325,7 @@ export const useStore = create<StoreState>((set, get) => {
     } catch (e: any) {
       set({ error: e.message });
       pushLog("⚠️ " + e.message);
+      notify(e.message, "error");
     } finally {
       set({ busy: false });
     }
@@ -403,8 +422,11 @@ export const useStore = create<StoreState>((set, get) => {
     combatThreats: [],
     log: [],
     busy: false,
+    toasts: [],
 
     pushLog,
+    notify,
+    dismissToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
 
     setScreen: (s) => set({ appScreen: s }),
     setTab: (t) => {

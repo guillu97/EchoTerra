@@ -33,6 +33,77 @@
   --glass-2: rgba(20, 28, 42, 0.78);
   --font-title: "Baloo 2", "Segoe UI", system-ui, sans-serif;
   --font-body: "Nunito Sans", "Segoe UI", system-ui, sans-serif;
+
+  /* --- Traits sur parchemin -------------------------------------------------
+     `--line` / `--line-2` ci-dessus + celui-ci absorbent les 21 alphas de
+     rgba(90,62,27,α) / rgba(120,86,40,α) éparpillés dans le fichier : c'est un
+     seul concept (« hairline gravée »), pas 21 décisions. */
+  --line-strong: rgba(90, 62, 27, 0.4);
+
+  /* --- Voiles & ombres ------------------------------------------------------
+     Nommés par USAGE, pas par valeur : leur alpha porte du sens. */
+  --veil-hi: rgba(255, 255, 255, 0.4); /* liseré lumineux (inset haut) */
+  --veil: rgba(255, 255, 255, 0.16);
+  --veil-soft: rgba(255, 255, 255, 0.08);
+  --shade: rgba(0, 0, 0, 0.18); /* creux (inset bas) */
+  --shade-strong: rgba(0, 0, 0, 0.28);
+  --backdrop: rgba(20, 16, 10, 0.5); /* fond des overlays */
+
+  /* --- Échelle d'espacement (valeurs dominantes relevées à l'audit) -------- */
+  --s-1: 4px;
+  --s-2: 6px;
+  --s-3: 8px;
+  --s-4: 10px;
+  --s-5: 12px;
+  --s-6: 16px;
+  --s-7: 22px;
+
+  /* --- Rayons (12px ×19 et 8px ×16 dominaient ; 7/9/11/15 étaient du bruit) */
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 18px;
+  --r-pill: 999px;
+
+  /* --- Typo : le paquet 10-14px du fichier se réduit à 4 crans ------------- */
+  --t-xs: 11px;
+  --t-sm: 12px;
+  --t-md: 13px;
+  --t-lg: 15px;
+  --t-xl: 18px;
+  --t-2xl: 22px;
+  --lh-tight: 1.2;
+  --lh-body: 1.45;
+
+  /* --- Ombres (32 valeurs distinctes → 6) ---------------------------------- */
+  --sh-card: 0 2px 6px rgba(90, 62, 27, 0.12);
+  --sh-raised: 0 3px 10px rgba(90, 62, 27, 0.22);
+  --sh-pill: inset 0 1.5px 0 var(--veil), inset 0 -3px 0 var(--shade-strong),
+    0 6px 16px -4px rgba(20, 26, 43, 0.5);
+  --sh-pill-red: inset 0 1.5px 0 var(--veil-hi), inset 0 -3px 0 var(--shade),
+    0 8px 20px -4px rgba(192, 57, 43, 0.5);
+  --sh-nav: 0 -5px 16px rgba(90, 62, 27, 0.16);
+  --sh-overlay: 0 30px 60px rgba(0, 0, 0, 0.4);
+
+  /* --- Couches (remplace 21 z-index ad hoc et les patchs « +1 ») ----------- */
+  --z-map: 10;
+  --z-chrome: 20;
+  --z-float: 30;
+  --z-overlay: 60;
+  --z-toast: 80;
+  --z-modal-top: 120;
+
+  /* --- Motion (tout est coupé par prefers-reduced-motion, voir plus bas) --- */
+  --dur-fast: 0.12s;
+  --dur: 0.2s;
+  --dur-slow: 0.35s;
+  --ease: cubic-bezier(0.2, 0.7, 0.3, 1);
+
+  /* --- Cibles tactiles (iOS 44px / Android 48dp) --------------------------- */
+  --tap: 44px;
+  --tap-lg: 48px;
+
+  /* Paliers responsive (les media queries ne lisent pas les variables — ils
+     sont ici pour documenter la seule série autorisée) : 480 / 768 / 1024. */
 }
 
 html,
@@ -48,6 +119,56 @@ body {
   -webkit-font-smoothing: antialiased;
   color: var(--ink);
   overflow: hidden;
+}
+
+/* ----- socle d'accessibilité ----------------------------------------------
+   Le jeu n'avait AUCUN anneau de focus (0 `:focus-visible` dans 3225 lignes) :
+   au clavier, on naviguait à l'aveugle. Un seul anneau doré, défini une fois,
+   pour tout ce qui est interactif. */
+:where(button, a, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+  border-radius: var(--r-sm);
+}
+
+/* Cible tactile minimale — appliquée aux familles de boutons de CHROME, pas à
+   tous les `button` : les grilles denses (objets, timeline d'initiative, picker
+   d'évolution) sont des damiers dont un plancher de 44px casserait la maille.
+   Pour ces cas-là, `.tap-safe` élargit la zone tapable SANS toucher au visuel. */
+.pill,
+.chip,
+.iconbtn,
+.bottom-nav button,
+.lobby-row,
+.hero-close {
+  min-height: var(--tap);
+}
+
+.tap-safe {
+  position: relative;
+}
+.tap-safe::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: max(100%, var(--tap));
+  height: max(100%, var(--tap));
+}
+
+/* Respecte le réglage système : les 3 animations infinies du fichier (dont
+   `et-pulse` sur le CTA principal) ne doivent pas tourner en boucle pour qui a
+   demandé moins de mouvement. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* ----- app shell ----------------------------------------------------------
@@ -407,11 +528,13 @@ body {
 /* top bar — bandeau parchemin du design */
 .topbar {
   position: relative;
-  z-index: 20;
+  z-index: var(--z-chrome);
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: max(14px, env(safe-area-inset-top)) 13px 10px;
+  gap: var(--s-2);
+  padding: max(var(--s-5), env(safe-area-inset-top)) var(--s-5) var(--s-4);
+  padding-left: max(var(--s-5), env(safe-area-inset-left));
+  padding-right: max(var(--s-5), env(safe-area-inset-right));
   background: linear-gradient(180deg, #fbf3e0, #f0e2c4);
   border-bottom: 2px solid var(--gold);
   box-shadow: 0 5px 16px rgba(90, 62, 27, 0.2);
@@ -441,29 +564,71 @@ body {
 .topbar .avatar:hover {
   filter: brightness(1.06);
 }
+/* Sous ~380px (iPhone SE, Galaxy S mini) la barre porte plus d'éléments que de
+   place : le nom de la ville cède, c'est l'information la moins utile en jeu —
+   on sait dans quelle ville on est, on ne sait pas quand tombe la vague. */
+@media (max-width: 380px) {
+  .topbar .town-name {
+    display: none;
+  }
+}
 .topbar .town-name {
   font-family: var(--font-title);
   font-weight: 800;
-  font-size: 16px;
+  font-size: var(--t-lg);
   color: var(--ink);
-  flex: 1;
+  flex: 1 1 auto;
+  /* Plancher : plutôt tronquer le nom que le réduire à « E.. ». Sous ce seuil,
+     mieux vaut le masquer complètement (voir la requête ≤380px). */
+  min-width: 5ch;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Chiffres à chasse fixe : le compte à rebours ne doit pas faire danser la
+   barre à chaque seconde. */
+.chip.wave,
+.chip.status {
+  font-variant-numeric: tabular-nums;
+}
 .chip {
   background: #fff;
   color: #b6472a;
-  border-radius: 999px;
-  padding: 5px 11px;
-  font-size: 12px;
+  border-radius: var(--r-pill);
+  padding: 5px var(--s-4);
+  font-size: var(--t-sm);
   font-weight: 800;
+  white-space: nowrap; /* « 18 PA » passait à la ligne une fois le chip à 44px */
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  border: 1.5px solid rgba(120, 86, 40, 0.25);
-  box-shadow: 0 1px 3px rgba(90, 62, 27, 0.12);
+  gap: var(--s-1);
+  border: 1.5px solid var(--line-2);
+  box-shadow: var(--sh-card);
   cursor: pointer;
+}
+
+/* Chip d'état fusionné : PV de la ville + PA de l'équipe. */
+.chip.status {
+  gap: var(--s-2);
+  color: var(--ink-2);
+}
+.chip.status .st-hp {
+  color: #b6472a;
+}
+.chip.status.warn .st-hp {
+  color: #a8600f;
+}
+.chip.status.alert .st-hp {
+  color: #fff;
+}
+.chip.status .st-pa {
+  color: #9a6a12;
+}
+.chip.status .st-sep {
+  width: 1px;
+  align-self: stretch;
+  margin: 3px 0;
+  background: var(--line);
 }
 .chip.alert {
   background: #d23b32;
@@ -884,9 +1049,9 @@ body {
 }
 
 /* compact Structure list (fits short viewports, less scrolling) */
-.ps-head > strong {
-  flex: 1;
-}
+/* (`.ps-head > strong` était déclaré deux fois, à 700 lignes d'écart — `flex:1`
+   ici et la typo plus bas. Fusionné dans la déclaration de la section
+   panel-screen.) */
 .sortbar-inline {
   display: flex;
   gap: 4px;
@@ -1218,39 +1383,138 @@ body {
   color: #ffd54a;
 }
 
-/* bottom nav */
+/* ----- bottom nav ---------------------------------------------------------
+   Onglets gravés dans le bandeau parchemin + Carte en pastille centrale
+   surélevée. L'ancien état actif (pilule rouge pleine) criait plus fort que le
+   contenu de l'écran ; ici l'actif se marque par l'encre, un fond crème discret
+   et un liseré doré SOUS l'onglet — le rouge est réservé au bouton central et
+   aux alertes. */
 .bottom-nav {
   position: relative;
-  z-index: 20;
+  z-index: var(--z-chrome);
   display: flex;
   justify-content: space-around;
-  align-items: center;
-  padding: 8px 4px max(11px, env(safe-area-inset-bottom));
+  align-items: flex-end;
+  padding: var(--s-3) var(--s-1) max(var(--s-5), env(safe-area-inset-bottom));
+  padding-left: max(var(--s-1), env(safe-area-inset-left));
+  padding-right: max(var(--s-1), env(safe-area-inset-right));
   background: linear-gradient(180deg, #fbf3e0, #ecdfc0);
   border-top: 2px solid var(--gold);
-  box-shadow: 0 -5px 16px rgba(90, 62, 27, 0.16);
+  box-shadow: var(--sh-nav);
 }
-.bottom-nav button {
+
+.nav-tab {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
   background: none;
   border: none;
-  color: #8a6a3a;
+  color: var(--ink-soft);
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 2px;
-  font-size: 10px;
-  font-weight: 700;
+  font-family: var(--font-body);
+  font-size: var(--t-xs);
+  font-weight: 800;
   cursor: pointer;
-  padding: 6px 11px;
-  border-radius: 12px;
+  padding: var(--s-2) var(--s-1);
+  min-height: var(--tap-lg);
+  border-radius: var(--r-md);
+  transition: color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
 }
-.bottom-nav button .ni {
-  font-size: 21px;
+.nav-tab .ni {
+  font-size: 22px;
+  line-height: 1;
 }
-.bottom-nav button.active {
-  color: #fff;
+.nav-tab .nl {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Actif : encre franche + fond crème + liseré doré posé sous l'onglet. */
+.nav-tab.active {
+  color: var(--ink);
+  background: rgba(255, 253, 246, 0.75);
+}
+.nav-tab.active::after {
+  content: "";
+  position: absolute;
+  left: 22%;
+  right: 22%;
+  bottom: 2px;
+  height: 3px;
+  border-radius: var(--r-pill);
+  background: var(--gold);
+}
+
+/* Verrouillé : lisible mais manifestement inerte. Reste focusable — le tap
+   déclenche un toast qui explique le verrou. */
+.nav-tab.locked {
+  color: var(--ink-muted);
+  cursor: not-allowed;
+}
+
+/* Badge « quelque chose à faire ici ». */
+.nav-tab .nb {
+  position: absolute;
+  top: 2px;
+  right: 50%;
+  transform: translateX(22px);
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: var(--r-pill);
   background: linear-gradient(180deg, var(--red-hi), var(--red));
-  box-shadow: 0 3px 8px rgba(192, 57, 43, 0.35);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 17px;
+  text-align: center;
+  box-shadow: var(--sh-card);
+}
+
+/* ----- bouton central : la Carte ------------------------------------------ */
+.nav-tab.nav-center {
+  flex: 0 0 auto;
+  margin-top: -26px;
+  padding: 0;
+  gap: 3px;
+  background: none;
+  color: var(--ink-soft);
+}
+.nav-tab.nav-center .ni {
+  width: 60px;
+  height: 60px;
+  display: grid;
+  place-items: center;
+  font-size: 28px;
+  border-radius: 50%;
+  border: 2px solid var(--gold);
+  background: linear-gradient(180deg, #fffaf0, #f0e2c4);
+  box-shadow: var(--sh-raised);
+  transition: transform var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
+}
+.nav-tab.nav-center.active {
+  background: none;
+  color: var(--ink);
+}
+.nav-tab.nav-center.active .ni {
+  background: linear-gradient(180deg, var(--red-hi), var(--red));
+  box-shadow: var(--sh-pill-red);
+}
+/* Le liseré doré générique n'a pas de sens sous une pastille ronde. */
+.nav-tab.nav-center.active::after {
+  content: none;
+}
+.nav-tab.nav-center:active .ni {
+  transform: translateY(2px);
+}
+.nav-tab.nav-center .nb {
+  transform: translateX(26px);
 }
 
 /* =========================  SETTINGS overlay  ============================= */
@@ -1692,20 +1956,74 @@ body {
   font-size: 13px;
 }
 
-.toast {
+/* ----- toasts -------------------------------------------------------------
+   Remplace l'ancien `.toast` (une seule chaîne `error`, écrasée par l'action
+   suivante) par une pile empilable et auto-effaçable. */
+.toasts {
   position: absolute;
-  bottom: 70px;
   left: 50%;
+  bottom: calc(84px + env(safe-area-inset-bottom));
   transform: translateX(-50%);
-  z-index: 40;
-  background: #3a1f1a;
-  border: 1px solid #6b3328;
-  color: #ffd7cd;
-  padding: 8px 14px;
-  border-radius: 10px;
-  font-size: 12px;
-  max-width: 86%;
-  text-align: center;
+  z-index: var(--z-toast);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  align-items: center;
+  width: max-content;
+  max-width: min(92%, 460px);
+  pointer-events: none;
+}
+.toast-item {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  text-align: left;
+  padding: var(--s-4) var(--s-5);
+  border-radius: var(--r-md);
+  border: 1px solid var(--line-2);
+  background: var(--cream);
+  color: var(--ink-2);
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: var(--t-sm);
+  line-height: var(--lh-body);
+  box-shadow: var(--sh-overlay);
+  cursor: pointer;
+  animation: et-rise var(--dur-slow) var(--ease) both;
+}
+.toast-item .ti-ic {
+  font-size: var(--t-xl);
+  flex: 0 0 auto;
+}
+.toast-item .ti-msg {
+  flex: 1;
+  min-width: 0;
+}
+.toast-item.error {
+  background: #fdecea;
+  border-color: rgba(192, 57, 43, 0.35);
+  color: #8a3323;
+}
+.toast-item.ok {
+  background: #eef7e6;
+  border-color: rgba(111, 165, 68, 0.4);
+  color: var(--green-ink);
+}
+.toast-item.warn {
+  background: #fdf3dd;
+  border-color: var(--gold);
+  color: #7a5410;
+}
+@keyframes et-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* =========================  TOWN PA / building extras  =================== */
@@ -1727,12 +2045,14 @@ body {
 }
 .tb-chip {
   background: var(--cream);
-  border: 1.5px solid rgba(120, 86, 40, 0.25);
-  border-radius: 999px;
-  padding: 3px 10px;
-  font-size: 12px;
+  border: 1.5px solid var(--line-2);
+  border-radius: var(--r-pill);
+  padding: 3px var(--s-4);
+  font-size: var(--t-sm);
   font-weight: 800;
   color: #5a4a30;
+  flex: 0 0 auto; /* jamais compressé par la bande de catégories voisine */
+  white-space: nowrap;
 }
 .tb-chip.pa {
   background: linear-gradient(180deg, #fff4d6, #f4e2af);
@@ -1744,10 +2064,9 @@ body {
   color: #9fd0ff;
   font-weight: 700;
 }
-.bottom-nav button.locked {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
+/* (l'ancien `.bottom-nav button.locked { opacity:.4 }` a été retiré : à 40 %
+   d'opacité le libellé passait sous le seuil de contraste, et le verrou est
+   désormais porté par `.nav-tab.locked` + le toast d'explication au tap.) */
 .pa-note {
   font-size: 11px;
   color: #ffd166;
@@ -1773,9 +2092,11 @@ body {
   border-bottom: 2px solid var(--gold);
 }
 .ps-head > strong {
+  flex: 1 1 auto;
+  min-width: 0;
   font-family: var(--font-title);
   font-weight: 800;
-  font-size: 17px;
+  font-size: var(--t-xl);
   color: var(--ink);
 }
 .ps-head .seg {
@@ -1805,9 +2126,22 @@ body {
 }
 .tabs-scroll {
   display: flex;
-  gap: 6px;
+  gap: var(--s-2);
   overflow-x: auto;
-  flex: 1;
+  flex: 1 1 auto;
+  /* Sans `min-width:0`, un conteneur flex refuse de descendre sous la largeur de
+     son contenu : la bande de catégories poussait le chip de PA hors de l'écran
+     et les deux se chevauchaient. */
+  min-width: 0;
+  scrollbar-width: none;
+  /* Dégradé de sortie : sans lui, la dernière catégorie est coupée net au bord
+     et donne l'impression d'un bug de mise en page plutôt que d'un défilement. */
+  mask-image: linear-gradient(90deg, #000 calc(100% - 22px), transparent);
+  -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 22px), transparent);
+  padding-right: var(--s-2);
+}
+.tabs-scroll::-webkit-scrollbar {
+  display: none;
 }
 .sortbar {
   display: flex;
@@ -2069,11 +2403,16 @@ body {
     width: 100%;
     margin: 0 auto;
   }
-  .bottom-nav button {
-    font-size: 12px;
+  .nav-tab {
+    font-size: var(--t-sm);
   }
-  .bottom-nav button .ni {
+  .nav-tab .ni {
     font-size: 24px;
+  }
+  .nav-tab.nav-center .ni {
+    width: 66px;
+    height: 66px;
+    font-size: 30px;
   }
   .hero-chips .hc {
     font-size: 13px;

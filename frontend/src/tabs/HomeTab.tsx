@@ -185,7 +185,7 @@ export function HomeTab() {
           <div className="face">🦊</div>
           <div className="msg">
             <div className="who">Shinki</div>
-            <div className="txt">Welcome to Echo Terra, traveler!</div>
+            <div className="txt">Bienvenue à Echo Terra, voyageuse ! La horde approche…</div>
           </div>
         </div>
       </div>

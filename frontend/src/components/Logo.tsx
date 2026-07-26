@@ -5,7 +5,7 @@ export function Logo() {
       <div className="logo">
         Echo<span className="terra">Terra</span>
       </div>
-      <div className="tagline">EVERY ACT COUNTS</div>
+      <div className="tagline">CHAQUE ACTE COMPTE</div>
     </div>
   );
 }

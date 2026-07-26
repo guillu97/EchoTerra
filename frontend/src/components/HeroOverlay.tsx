@@ -21,12 +21,12 @@ const EVOLVE_DAY_INTERMEDIATE = 2;
 const EVOLVE_DAY_ADVANCED = 4;
 
 const ATTR_ROWS: { key: keyof Stats; label: string }[] = [
-  { key: "force", label: "Strength" },
-  { key: "dexterite", label: "Dexterity" },
-  { key: "precision", label: "Accuracy" },
-  { key: "agilite", label: "Agility" },
+  { key: "force", label: "Force" },
+  { key: "dexterite", label: "Dextérité" },
+  { key: "precision", label: "Précision" },
+  { key: "agilite", label: "Agilité" },
   { key: "endurance", label: "Endurance" },
-  { key: "athletisme", label: "Athleticism" },
+  { key: "athletisme", label: "Athlétisme" },
 ];
 
 function tierLabel(tier: number): string {
@@ -110,7 +110,7 @@ export function HeroOverlay() {
             disabled={maxed || !eligible || busy}
             onClick={() => setPickerOpen((v) => !v)}
           >
-            {maxed ? "Max" : eligible ? "Evolve" : `Jour ${requiredDay}`}
+            {maxed ? "Max" : eligible ? "Évoluer" : `Jour ${requiredDay}`}
           </button>
         </div>
 
@@ -145,7 +145,7 @@ export function HeroOverlay() {
           <span className={`tag-loc ${here ? "in" : "out"}`}>{here ? "en ville" : "en expédition"}</span>
         </div>
 
-        <h4>Attributes</h4>
+        <h4>Attributs</h4>
         <div className="attr-grid">
           {ATTR_ROWS.map(({ key, label }) => {
             const bonus = h.classBonuses[key] ?? 0;
@@ -161,13 +161,13 @@ export function HeroOverlay() {
           })}
         </div>
 
-        <h4>Unique skills</h4>
+        <h4>Compétences uniques</h4>
         {currentClass ? (
           currentClass.skills.map((sk) => (
             <div className="skill" key={sk.name}>
               <div className="skill-name">
                 <span className="skill-ic">{sk.scope === "map" ? "🗺️" : "⚔️"}</span>
-                {sk.name} <span className="tag-type">{sk.scope === "map" ? "Only Map" : "Only in fight"}</span>
+                {sk.name} <span className="tag-type">{sk.scope === "map" ? "Carte" : "Combat"}</span>
               </div>
               <div className="skill-desc">{sk.desc}</div>
             </div>

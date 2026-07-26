@@ -10,7 +10,7 @@ export function CinematicScreen() {
         ▶▶ Skip
       </button>
       <div className="art">🐈</div>
-      <div className="caption">Long time ago…</div>
+      <div className="caption">Il y a bien longtemps…</div>
     </div>
   );
 }

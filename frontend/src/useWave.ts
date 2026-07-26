@@ -1,12 +1,16 @@
 import { useEffect, useState } from "react";
 import type { Combat, GameState } from "./api/types";
 
+// Compte à rebours. Les heures ne s'affichent que si elles sont non nulles :
+// « 00:08:16 » occupait la moitié de la barre du haut sur un téléphone et
+// écrasait le nom de la ville, alors que les deux premiers chiffres étaient
+// presque toujours des zéros.
 export function formatHMS(totalSec: number): string {
   const s = Math.max(0, totalSec);
-  const hh = String(Math.floor(s / 3600)).padStart(2, "0");
+  const h = Math.floor(s / 3600);
   const mm = String(Math.floor((s % 3600) / 60)).padStart(2, "0");
   const ss = String(s % 60).padStart(2, "0");
-  return `${hh}:${mm}:${ss}`;
+  return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
 }
 
 // Seconds until the next wave, derived from the server-provided `nextWaveAt`.

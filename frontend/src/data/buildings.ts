@@ -68,10 +68,13 @@ export function buildingIcon(id: string): string {
   return TOWN_BUILDINGS.find((b) => b.id === id)?.icon ?? "🏚️";
 }
 
+// Barre du bas. L'ordre place volontairement la CARTE au milieu : c'est l'écran
+// principal du jeu, et il est rendu en bouton central surélevé (voir BottomNav).
+// Libellés en français — le reste de l'app l'est, ces cinq-là ne l'étaient pas.
 export const NAV_TABS = [
-  { id: "home", label: "Home", icon: "🏠" },
-  { id: "map", label: "Map", icon: "🗺️" },
-  { id: "stock", label: "Stock", icon: "🎒" },
-  { id: "structure", label: "Structure", icon: "🏗️" },
-  { id: "craft", label: "Craft", icon: "⚒️" },
+  { id: "home", label: "Ville", icon: "🏠" },
+  { id: "stock", label: "Sac", icon: "🎒" },
+  { id: "map", label: "Carte", icon: "🗺️" },
+  { id: "structure", label: "Bâtir", icon: "🏗️" },
+  { id: "craft", label: "Atelier", icon: "⚒️" },
 ] as const;

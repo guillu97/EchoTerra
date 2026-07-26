@@ -12,12 +12,12 @@ import { TownStatus } from "../components/TownStatus";
 import { TownJournal } from "../components/TownJournal";
 import { GameOver } from "../components/GameOver";
 import { CheatPanel } from "../components/CheatPanel";
+import { Toasts } from "../ui/Toasts";
 
 // In-game shell: persistent top bar + active tab + bottom navigation. Polls the server
 // so scheduled waves (town damage, spawns) show up without manual refresh.
 export function GameScreen() {
   const tab = useStore((s) => s.tab);
-  const error = useStore((s) => s.error);
   const refreshGame = useStore((s) => s.refreshGame);
 
   useEffect(() => {
@@ -28,7 +28,7 @@ export function GameScreen() {
   return (
     <div className="screen sky">
       <TopBar />
-      <div className="tab-body">
+      <main className="tab-body">
         {tab === "home" && <HomeTab />}
         {/* The Map tab stays mounted for the whole game session (hidden via CSS when
             inactive): unmounting it destroyed the Phaser instance — WebGL context,
@@ -40,14 +40,14 @@ export function GameScreen() {
         {tab === "stock" && <StockTab />}
         {tab === "structure" && <StructureTab />}
         {tab === "craft" && <CraftTab />}
-      </div>
+      </main>
       <BottomNav />
       <HeroOverlay />
       <TownStatus />
       <TownJournal />
       <GameOver />
       <CheatPanel />
-      {error && <div className="toast">⚠️ {error}</div>}
+      <Toasts />
     </div>
   );
 }

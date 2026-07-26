@@ -55,7 +55,7 @@ function ActionMenu() {
         </div>
         {onMonster && (
           <button className="am-fight" disabled={busy} onClick={() => run(startCombat)}>
-            ⚔️ Fight
+            ⚔️ Combattre
           </button>
         )}
         {/* Compétences de carte PAR CLASSE (remplacent la boule de feu universelle). */}
@@ -109,21 +109,21 @@ function ActionMenu() {
             {/* Fouille et cachette impossibles quand le héros est tenu par la horde
                 (Tétanisé) — le serveur les refuse aussi. */}
             <button disabled={noPa || stuck || (tile?.resources ?? 0) <= 0} onClick={() => run(search)}>
-              🔎 Search <i>-1</i>
+              🔎 Fouiller <i>-1</i>
             </button>
             <button
               disabled={noPa || stuck}
               title={stuck ? "Tétanisé — impossible de se cacher" : ""}
               onClick={() => run(hide)}
             >
-              🫥 Hide <i>-1</i>
+              🫥 Se cacher <i>-1</i>
             </button>
           </>
         )}
         {/* Escape only matters when the hero is stuck (Tétanisé) by the surrounding pack. */}
         {stuck && (
           <button disabled={noPa} onClick={() => run(escape)}>
-            🏃 Escape <i>-1</i>
+            🏃 S'échapper <i>-1</i>
           </button>
         )}
       </div>
