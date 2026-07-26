@@ -12,6 +12,7 @@
 // Le modèle fait face à +Z monde ; les vues posent root.rotation.y = cap.
 
 import * as THREE from "three";
+import { signacify } from "./signacMaterial";
 import type { VoxModel } from "./vox";
 import { meshVoxModel } from "./mesher";
 
@@ -29,7 +30,7 @@ function weaponFor(key: string): { weapon: Weapon; side: number } {
   return { weapon: "melee", side: 1 };
 }
 
-const CHAR_MAT = new THREE.MeshLambertMaterial({ vertexColors: true });
+const CHAR_MAT = signacify(new THREE.MeshLambertMaterial({ vertexColors: true }));
 
 // --- spécification de découpe par type ------------------------------------
 // Régions en coordonnées FINES du modèle chargé. Une région = un membre mobile

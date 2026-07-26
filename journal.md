@@ -45,9 +45,29 @@ un budget déjà documenté. À ne tenter qu'après mesure sur un biome témoin.
 ### Fonctionnel (vérifié)
 tsc, build, `test:perf` 13/13, `go test ./...` ; captures avant/après des onglets Ville et Carte.
 
+### Correction le même jour — la passe écran était la mauvaise réponse
+Retour utilisateur : « on dirait juste un filtre appliqué, et pas un rendu logique 3D », et c'est
+MOINS lisible. Fondé, et c'était un défaut de conception, pas un réglage : la trame était collée à
+l'ÉCRAN, donc elle ne suivait pas les surfaces, ne tournait pas avec la géométrie, ne se resserrait
+pas avec la distance, et stipplait indistinctement ciel, brouillard et bâtiments — d'où les
+silhouettes mangées.
+
+`voxel/signacPass.ts` est SUPPRIMÉ, remplacé par **`voxel/signacMaterial.ts`** : le divisionnisme vit
+maintenant dans les MATÉRIAUX (`onBeforeCompile` sur les Lambert/Basic existants, donc l'éclairage et
+les ombres continuent de fonctionner). La touche est indexée sur la POSITION MONDE :
+- elle est solidaire de la surface — elle tourne, s'incline et rétrécit avec elle ;
+- les arêtes restent NETTES, la couleur ne varie jamais au travers d'une silhouette : le rendu
+  GAGNE en lisibilité au lieu d'en perdre ;
+- le contraste chaud/froid est appliqué APRÈS éclairage, donc les ombres virent au violet parce que
+  la lumière le décide, pas parce qu'un filtre l'a plaqué.
+- **coût géométrique nul** : pas un triangle ajouté — c'est ce qui évite l'écueil du greedy meshing.
+
+Réglage `uCell` : à 1/16 (la maille du LOD voxel) la touche tombe sous le pixel dès qu'on dézoome et
+se lit comme du BRUIT. À ~1/5 de tuile elle devient une vraie mosaïque, comme le Signac tardif ; le
+curseur d'intensité élargit encore la touche. Le réglage ne dépend plus du rendu cinématique.
+Appliqué à : terrain (blocs + lissé), props, bâtiments, personnages, arène de combat.
+
 ### À faire
-- Les touches sont ancrées à l'ÉCRAN : le décor glisse derrière la trame quand la caméra pivote.
-  Assumé et documenté, mais si ça gêne, la seule vraie parade est la piste « palettes voxel » ci-dessus.
 - Le brouillard (tuiles non découvertes) est très pâle : sous la passe il devient une toile presque
   nue. Joli mais très vide — à retravailler si le rendu devient un défaut.
 - Coût GPU non mesuré (le moteur est on-demand, la passe ne tourne qu'aux redraws) : à vérifier sur

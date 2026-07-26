@@ -12,6 +12,7 @@
 // sur les marches). Réglage : Réglages → « Terrain voxel : Blocs / Pentes ».
 
 import * as THREE from "three";
+import { signacify } from "./signacMaterial";
 
 /** source structurelle : GameState convient, le banc fabrique la sienne */
 export type TerrainSource = {
@@ -325,7 +326,7 @@ export class SmoothTerrain {
     // (vaguelettes de luminosité qui glissent) selon l'uniform uTime, avancé
     // sur les frames RENDUES (rendu on-demand : l'eau vit pendant les
     // interactions/ticks, immobile au repos — pas de boucle continue).
-    const mat = new THREE.MeshLambertMaterial({ vertexColors: true });
+    const mat = signacify(new THREE.MeshLambertMaterial({ vertexColors: true }));
     const timeUniform = { value: 0 };
     this.timeUniform = timeUniform;
     mat.onBeforeCompile = (shader) => {

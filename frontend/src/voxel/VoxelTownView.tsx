@@ -16,6 +16,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
+import { signacify } from "./signacMaterial";
 import { TOWN_BUILDINGS } from "../data/buildings";
 import { heroAssetUrl, heroTexKey, libUrl } from "../assets";
 import { myTeamHeroes } from "../townUtils";
@@ -116,7 +117,7 @@ export function VoxelTownView({
     engine.scene.add(bldGroup);
     // SELF-LIT : l'ombrage des faces est déjà CUIT par le mesher — sous le
     // Lambert les façades cumulaient deux ombrages et viraient au gris
-    const BLD_MAT = new THREE.MeshBasicMaterial({ vertexColors: true });
+    const BLD_MAT = signacify(new THREE.MeshBasicMaterial({ vertexColors: true }));
 
     // --- animation d'ouverture du portail --------------------------------------
     // `gateAnim.current` (0 fermé → 1 ouvert) est lissé image par image et

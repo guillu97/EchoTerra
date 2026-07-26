@@ -14,7 +14,7 @@ import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
-import { SignacShader, signacUniformsFor } from "./signacPass";
+import { setSignacEnabled } from "./signacMaterial";
 import { DPR } from "../game/dpr";
 import { azimuthFor, cameraDir, ELEVATION, nextOrientation, type Orientation } from "./rotation";
 
@@ -96,8 +96,6 @@ export class VoxelEngine {
   private bloomComposer: EffectComposer | null = null;
   private finalComposer: EffectComposer | null = null;
   private bloomPass: UnrealBloomPass | null = null;
-  /** Passe divisionniste « Signac » (voir signacPass.ts) — insérée avant OutputPass. */
-  private signacPass: ShaderPass | null = null;
   private signacOn = false;
   private signacStrength = 0.6;
   // Bloom sélectif OCCLUS : pendant la passe bloom, tout ce qui n'est pas sur le
@@ -149,12 +147,6 @@ export class VoxelEngine {
     this.bloomComposer?.setSize(w, h);
     this.finalComposer?.setSize(w, h);
     this.bloomPass?.setSize(w, h);
-    if (this.signacPass) {
-      // en pixels PHYSIQUES : la trame doit garder la même finesse apparente
-      // quel que soit le DPR, sinon les touches doublent de taille sur mobile
-      const dpr = this.renderer.getPixelRatio();
-      this.signacPass.uniforms.uResolution.value.set(w * dpr, h * dpr);
-    }
     this.camera.left = -w / 2;
     this.camera.right = w / 2;
     this.camera.top = h / 2;
@@ -259,19 +251,6 @@ export class VoxelEngine {
     const finalComposer = new EffectComposer(this.renderer);
     finalComposer.addPass(new RenderPass(this.scene, this.camera));
     finalComposer.addPass(mixPass);
-    // La passe Signac s'insère APRÈS le mélange du bloom et AVANT OutputPass :
-    // elle doit repeindre l'image complète (lueurs comprises), mais laisser le
-    // tone mapping final faire son travail.
-    const signac = new ShaderPass(new THREE.ShaderMaterial({
-      uniforms: THREE.UniformsUtils.clone(SignacShader.uniforms),
-      vertexShader: SignacShader.vertexShader,
-      fragmentShader: SignacShader.fragmentShader,
-    }));
-    signac.enabled = this.signacOn;
-    finalComposer.addPass(signac);
-    this.signacPass = signac;
-    this.applySignacUniforms();
-
     finalComposer.addPass(new OutputPass());
 
     this.bloomComposer = bloomComposer;
@@ -280,30 +259,17 @@ export class VoxelEngine {
     this.resize(); // dimensionne les cibles de rendu
   }
 
-  private applySignacUniforms() {
-    if (!this.signacPass) return;
-    const u = signacUniformsFor(this.signacStrength);
-    this.signacPass.uniforms.uStrength.value = u.uStrength;
-    this.signacPass.uniforms.uSat.value = u.uSat;
-    this.signacPass.uniforms.uScatter.value = u.uScatter;
-    const dpr = this.renderer.getPixelRatio();
-    this.signacPass.uniforms.uResolution.value.set(this.cssW * dpr, this.cssH * dpr);
-    this.signacPass.uniforms.uDot.value = 6.5 * Math.max(1, dpr * 0.75);
-  }
-
   /**
-   * Rendu divisionniste « Signac ». Il s'appuie sur la chaîne de post-traitement
-   * de la passe beauté : sans elle il n'y a pas de composer, donc on l'active.
+   * Rendu divisionniste « Signac ». Il vit désormais dans les MATÉRIAUX
+   * (voxel/signacMaterial.ts) et non dans une passe plein écran : la touche est
+   * ancrée au monde, donc elle suit les surfaces au lieu de flotter devant.
+   * Aucune dépendance à la passe beauté, aucun recompile — un simple uniforme
+   * partagé, donc la bascule est instantanée.
    */
   setSignac(on: boolean, strength = this.signacStrength) {
     this.signacStrength = strength;
-    if (on && !this.beauty) this.setBeauty(true); // construit les composers
     this.signacOn = on;
-    if (!this.signacPass && on) this.buildComposers();
-    if (this.signacPass) {
-      this.signacPass.enabled = on;
-      this.applySignacUniforms();
-    }
+    setSignacEnabled(on, strength);
     this.invalidate();
   }
 

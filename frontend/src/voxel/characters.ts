@@ -5,6 +5,7 @@
 // pour qu'il tourne RÉELLEMENT avec la caméra.
 
 import * as THREE from "three";
+import { signacify } from "./signacMaterial";
 import { fetchVox } from "./vox";
 import { meshVoxModel } from "./mesher";
 import { splitRig, buildRig, disposeRiggedGeom, type Rig, type RiggedGeom } from "./rig";
@@ -80,4 +81,4 @@ export function setRigOpacity(rig: Rig, alpha: number) {
   });
 }
 
-const CHAR_MAT = new THREE.MeshLambertMaterial({ vertexColors: true });
+const CHAR_MAT = signacify(new THREE.MeshLambertMaterial({ vertexColors: true }));

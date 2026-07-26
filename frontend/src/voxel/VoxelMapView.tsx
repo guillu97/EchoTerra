@@ -13,6 +13,7 @@
 
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
+import { signacify } from "./signacMaterial";
 import { bus, EV } from "../eventBus";
 import type { GameState, Hero } from "../api/types";
 import { heroTexKey, libUrl, monsterTexKey } from "../assets";
@@ -691,7 +692,7 @@ export function VoxelMapView({ active = true }: { active?: boolean }) {
 }
 
 const UP = new THREE.Vector3(0, 1, 0);
-const PROP_MAT = new THREE.MeshLambertMaterial({ vertexColors: true });
+const PROP_MAT = signacify(new THREE.MeshLambertMaterial({ vertexColors: true }));
 // matériau des objets LUMINEUX (lucioles, cristaux, givre) : self-lit (Basic) →
 // couleurs pleines, luit dans la pénombre, et alimente le bloom sélectif.
 const GLOW_MAT = new THREE.MeshBasicMaterial({ vertexColors: true });
@@ -701,5 +702,5 @@ const GLOW_PROPS = ["firefly", "crystal", "ice-spike"]; // props posés sur le c
 // Village de la case ville : surtout des faces verticales, dont l'ombrage est
 // déjà CUIT par le mesher — sans l'émissif le Lambert les assombrit une seconde
 // fois et le bourg vire au gris.
-const TOWN_MAT = new THREE.MeshLambertMaterial({ vertexColors: true, emissive: new THREE.Color(0x4a453e) });
+const TOWN_MAT = signacify(new THREE.MeshLambertMaterial({ vertexColors: true, emissive: new THREE.Color(0x4a453e) }));
 

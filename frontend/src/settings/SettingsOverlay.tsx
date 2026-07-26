@@ -149,7 +149,7 @@ export function SettingsOverlay() {
           </span>
         </div>
       )}
-      {settings.voxelMap && settings.voxelBeauty && (
+      {settings.voxelMap && (
         <div className="row">
           <span className="lbl">Rendu Signac (divisionniste)</span>
           <div className="seg">
@@ -164,14 +164,14 @@ export function SettingsOverlay() {
             ))}
           </div>
           <span className="hint">
-            Rend le monde en touches de couleur pure sur une toile claire, à la manière de Paul
-            Signac : ombres violettes plutôt que grises, saturation haute, mélange optique. Les
-            touches sont ancrées à l'écran — le décor glisse derrière elles quand la caméra pivote.
-            Demande le rendu cinématique.
+            Chaque facette de voxel devient sa propre touche de couleur pure, à la manière de Paul
+            Signac : ombres violettes plutôt que grises, saturation haute, mélange optique. La touche
+            est ancrée au MONDE — elle tourne et se resserre avec la géométrie, et les arêtes restent
+            nettes.
           </span>
         </div>
       )}
-      {settings.voxelMap && settings.voxelBeauty && settings.voxelSignac && (
+      {settings.voxelMap && settings.voxelSignac && (
         <div className="row">
           <span className="lbl">Intensité de la touche ({Math.round(settings.signacStrength * 100)}%)</span>
           <input
