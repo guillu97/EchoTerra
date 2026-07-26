@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useStore } from "../store";
 import { TownWorker } from "../components/TownWorker";
+import { buildingName } from "../data/buildings";
 import { heroesInTown, effectiveTownHeroId } from "../townUtils";
 
 const CATS = [
@@ -77,7 +78,7 @@ export function CraftTab() {
                   {outQty} <span className="tag-type">{r.outputType}</span>
                   {r.building && (
                     <span className={`tag-type ${missingBld ? "miss" : ""}`}>
-                      {bld?.name ?? r.building}
+                      {buildingName(r.building, bld?.name)}
                       {needLvl > 1 ? ` niv.${needLvl}` : ""}
                     </span>
                   )}
@@ -100,7 +101,7 @@ export function CraftTab() {
                   blocked
                     ? "Nécessite un bâtiment de la ville (atelier/forge)"
                     : missingBld
-                    ? `Nécessite ${bld?.name ?? r.building} niveau ${needLvl}`
+                    ? `Nécessite ${buildingName(r.building, bld?.name)} niveau ${needLvl}`
                     : !enough
                     ? "Ingrédients manquants"
                     : !canPay

@@ -1,6 +1,7 @@
 import { useStore } from "../store";
 import { NAV_TABS } from "../data/buildings";
 import { heroesInTown, TOWN_TABS } from "../townUtils";
+import { assetUrl, type AssetKey } from "../assets";
 import type { Tab } from "../store";
 
 // Bottom navigation — onglets parchemin gravés, avec la CARTE en bouton central
@@ -11,6 +12,11 @@ import type { Tab } from "../store";
 // focusables et cliquables — `aria-disabled` plutôt que `disabled` — pour que le
 // tap puisse expliquer POURQUOI c'est verrouillé : le `title=` d'avant était
 // invisible au doigt, donc le verrou paraissait arbitraire.
+function NavIcon({ id, fallback }: { id: string; fallback: string }) {
+  const url = assetUrl(`nav-${id}` as AssetKey);
+  return url ? <img src={url} alt="" /> : <>{fallback}</>;
+}
+
 export function BottomNav() {
   const tab = useStore((s) => s.tab);
   const setTab = useStore((s) => s.setTab);
@@ -54,7 +60,15 @@ export function BottomNav() {
             }}
           >
             <span className="ni" aria-hidden="true">
-              {locked ? "🔒" : t.icon}
+              {locked ? (
+                "🔒"
+              ) : (
+                // Les PNG peints `ui/nav-*` existaient déjà dans le dépôt mais
+                // n'étaient utilisés nulle part : la barre affichait des emoji,
+                // qui changent de dessin selon la plateforme. Emoji en repli si
+                // le sondage d'assets n'a pas trouvé le fichier.
+                <NavIcon id={t.id} fallback={t.icon} />
+              )}
             </span>
             <span className="nl">{t.label}</span>
             {badge > 0 && (

@@ -1,6 +1,6 @@
 import { useStore } from "../store";
 import { useWaveRemaining, formatHMS } from "../useWave";
-import { buildingIcon } from "../data/buildings";
+import { buildingIcon, buildingName } from "../data/buildings";
 import { durColor } from "../tabs/HomeTab";
 
 const DEFENSIVE = ["wall", "gate", "tower"];
@@ -48,7 +48,7 @@ export function TownStatus() {
               : `+${b.defense}`;
             return (
               <div className="ts-defrow" key={b.id}>
-                <span className="ts-dn">{buildingIcon(b.id)} {b.name}</span>
+                <span className="ts-dn">{buildingIcon(b.id)} {buildingName(b.id, b.name)}</span>
                 <span className={`ts-dval ${b.built && val.startsWith("+") ? "" : "muted"}`}>{val}</span>
                 <span className="ts-dur" style={{ color: durColor(ratio) }}>
                   {b.built ? `🛡 ${Math.round(ratio * 100)}%` : "—"}
@@ -64,7 +64,7 @@ export function TownStatus() {
           {t.buildings.map((b) => (
             <div className="ts-b" key={b.id}>
               <span className="ts-name">
-                {b.built ? buildingIcon(b.id) : "🏗️"} {b.name}{" "}
+                {b.built ? buildingIcon(b.id) : "🏗️"} {buildingName(b.id, b.name)}{" "}
                 {b.built ? <span className="lvl">Lv {b.level}</span> : <span className="muted">chantier</span>}
                 {b.defense > 0 && <span className="ts-defbadge">🛡+{b.defense}</span>}
               </span>

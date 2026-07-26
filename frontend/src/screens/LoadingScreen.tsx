@@ -3,7 +3,7 @@ import { useStore } from "../store";
 import { Logo } from "../components/Logo";
 import { assetUrl } from "../assets";
 
-// "Ecran de chargement" — the bird settles on the branch, then we move to the title.
+// « Écran de chargement » — l'oiseau se pose sur la branche, puis on passe au titre.
 export function LoadingScreen() {
   const setScreen = useStore((s) => s.setScreen);
 
@@ -13,14 +13,18 @@ export function LoadingScreen() {
   }, [setScreen]);
 
   return (
-    <div className="screen parchment" onClick={() => setScreen("title")}>
-      <Logo />
-      <div className="loading-bar">
-        <i />
-      </div>
-      <div className="branch" />
-      <div className="bird" aria-label="oiseau">
-        {assetUrl("bird") ? <img src={assetUrl("bird")} alt="🐦" /> : "🐦"}
+    <div className="screen parchment">
+      {/* Bouton plein écran plutôt qu'un <div onClick> : focusable et
+          activable au clavier comme n'importe quel bouton. */}
+      <button className="screen-tap" onClick={() => setScreen("title")} aria-label="Passer le chargement">
+        <Logo />
+        <span className="loading-bar" role="progressbar" aria-label="Chargement">
+          <i />
+        </span>
+      </button>
+      <div className="branch" aria-hidden="true" />
+      <div className="bird" aria-hidden="true">
+        {assetUrl("bird") ? <img src={assetUrl("bird")} alt="" /> : "🐦"}
       </div>
     </div>
   );

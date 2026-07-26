@@ -1,16 +1,24 @@
 import { useStore } from "../store";
 
-// "Cinématique" — Long time ago... Tap or Skip to enter the game.
+// « Cinématique » — Il y a bien longtemps… Taper n'importe où, ou Passer.
+//
+// L'écran entier était un <div onClick> : non focusable, invisible au clavier et
+// muet pour un lecteur d'écran. C'est maintenant un vrai bouton plein écran, et
+// « Passer » se place au-dessus.
 export function CinematicScreen() {
   const enterGame = useStore((s) => s.enterGame);
 
   return (
-    <div className="screen cinematic" onClick={() => enterGame()}>
-      <button className="skip" onClick={(e) => { e.stopPropagation(); enterGame(); }}>
-        ▶▶ Skip
+    <div className="screen cinematic">
+      <button className="screen-tap" onClick={() => enterGame()} aria-label="Commencer la partie">
+        <span className="art" aria-hidden="true">
+          🐈
+        </span>
+        <span className="caption">Il y a bien longtemps…</span>
       </button>
-      <div className="art">🐈</div>
-      <div className="caption">Il y a bien longtemps…</div>
+      <button className="skip" onClick={() => enterGame()}>
+        ▶▶ Passer
+      </button>
     </div>
   );
 }
