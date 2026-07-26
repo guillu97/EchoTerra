@@ -90,6 +90,61 @@ class Block {
 }
 
 // Choisit une nuance dans une rampe [clair→foncé] à partir d'un t ∈ [0,1].
+// --- divisionnisme DANS LA DONNÉE VOXEL -------------------------------------
+// Le shader (voxel/signacMaterial.ts) fait varier la teinte au rendu ; ici on la
+// fait varier dans les VOXELS eux-mêmes, pour que la matière soit réellement
+// colorée et pas seulement repeinte à l'affichage.
+//
+// La contrainte, c'est le greedy meshing : donner une teinte propre à CHAQUE
+// voxel supprimerait la fusion des quads et ferait exploser les triangles. Mais
+// les recettes quantifient déjà leurs tons en PALIERS, précisément pour que de
+// grandes plages fusionnent (voir groundRecipe). On se greffe dessus : chaque
+// PALIER reçoit sa propre teinte au lieu d'une simple variation de clarté. Les
+// plages restent uniformes, la fusion est intacte — et la surface devient une
+// mosaïque de couleurs franches au lieu d'un dégradé d'une seule teinte.
+//
+// DIV = 0 rend le comportement d'origine.
+export const DIV = 0.9; // amplitude du parti pris divisionniste (0..1)
+
+function rgb2hsvArr([r, g, b]) {
+  const R = r / 255, G = g / 255, B = b / 255;
+  const mx = Math.max(R, G, B), mn = Math.min(R, G, B), d = mx - mn;
+  let h = 0;
+  if (d) {
+    if (mx === R) h = ((G - B) / d) % 6;
+    else if (mx === G) h = (B - R) / d + 2;
+    else h = (R - G) / d + 4;
+    h /= 6;
+    if (h < 0) h += 1;
+  }
+  return [h, mx ? d / mx : 0, mx];
+}
+function hsv2rgbArr([h, s, v]) {
+  const i = Math.floor(h * 6), f = h * 6 - i;
+  const p = v * (1 - s), q = v * (1 - f * s), t = v * (1 - (1 - f) * s);
+  const [R, G, B] = [[v,t,p],[q,v,p],[p,v,t],[p,q,v],[t,p,v],[v,p,q]][i % 6];
+  return [Math.round(R * 255), Math.round(G * 255), Math.round(B * 255)];
+}
+
+/**
+ * Décale la teinte d'une couleur selon l'indice de PALIER `k` (entier), et
+ * remonte la saturation. Deux paliers voisins deviennent deux couleurs pures
+ * distinctes qui se recomposent à l'œil — le mélange optique divisionniste.
+ */
+export function divisionize(rgb, k, amount = DIV) {
+  if (!amount) return rgb;
+  const hsv = rgb2hsvArr(rgb);
+  // suite déterministe, bien répartie sur le cercle chromatique mais courte :
+  // on veut des voisins CONTRASTÉS, pas un arc-en-ciel qui détruit la lecture
+  const wheel = [0, 0.10, -0.085, 0.165, -0.15, 0.055, -0.04];
+  const kk = ((k % wheel.length) + wheel.length) % wheel.length;
+  hsv[0] = (hsv[0] + wheel[kk] * amount + 1) % 1;
+  hsv[1] = Math.min(1, hsv[1] * (1 + 0.55 * amount) + 0.16 * amount);
+  // la valeur vibre légèrement : c'est ce qui donne la matière peinte
+  hsv[2] = Math.max(0, Math.min(1, hsv[2] * (1 + (kk % 2 ? 0.085 : -0.075) * amount)));
+  return hsv2rgbArr(hsv);
+}
+
 function ramp(colors, t) {
   if (!colors.length) return [255, 0, 255];
   const i = Math.min(colors.length - 1, Math.max(0, Math.floor(t * colors.length)));
@@ -117,7 +172,7 @@ function groundRecipe(b, pal, rnd, seed, p) {
         const band = size >= 24
           ? Math.round(noise2(x + z * 3, y + z * 7, size, seed + 40, 1) * 3) / 3
           : Math.round((z / size) * 2) / 2;
-        let c = ramp(pal.side, 0.25 + 0.6 * band);
+        let c = divisionize(ramp(pal.side, 0.25 + 0.6 * band), Math.round(band * 3) + z % 2);
         if (size >= 24 && rnd() < 0.03) c = shade(c, 0.82); // caillou sombre incrusté
         b.set(x, y, z, c);
       }
@@ -125,12 +180,12 @@ function groundRecipe(b, pal, rnd, seed, p) {
       const tone = Math.round(noise2(x, y, size, seed, 2) * 4) / 4;
       for (let z = size - surfDepth; z < size; z++) {
         const deep = (size - 1 - z) / surfDepth; // 0 en surface
-        b.set(x, y, z, ramp(pal.top, clamp01(0.15 + 0.5 * tone + 0.25 * deep)));
+        b.set(x, y, z, divisionize(ramp(pal.top, clamp01(0.15 + 0.5 * tone + 0.25 * deep)), Math.round(tone * 4)));
       }
       // relief additif au-dessus (le cube reste plein → tuilage sans trous)
       const bump = Math.round(bumpAmp * clamp01(noise2(x + 100, y + 100, size, seed + 7, 2) * 1.4 - 0.55));
       for (let z = size; z < size + bump; z++) {
-        b.set(x, y, z, ramp(pal.top, clamp01(0.1 + 0.4 * tone)));
+        b.set(x, y, z, divisionize(ramp(pal.top, clamp01(0.1 + 0.4 * tone)), Math.round(tone * 4) + 1));
       }
     }
   }

@@ -8,8 +8,22 @@ import { writeFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import sharp from "sharp";
-import { Grid, shade } from "../../frontend/src/voxel/shared/char-recipe.mjs";
-import { makeRng } from "../../frontend/src/voxel/shared/recipes.mjs";
+import { Grid, shade as shadeBase } from "../../frontend/src/voxel/shared/char-recipe.mjs";
+import { makeRng, divisionize } from "../../frontend/src/voxel/shared/recipes.mjs";
+
+// DIVISIONNISME DES PROPS (arbres, bâtiments, rochers…).
+//
+// Les recettes distinguent déjà leurs plans par `shade(couleur, facteur)` : un
+// facteur par bande de feuillage, par pan de mur, par strate de rocher. Ces
+// bandes sont uniformes — c'est ce qui les fait fusionner au greedy meshing.
+// On se greffe exactement dessus : le FACTEUR devient l'indice de touche, si
+// bien que chaque bande reçoit sa propre TEINTE en plus de sa clarté. La
+// silhouette et la fusion des quads ne bougent pas ; la matière, elle, devient
+// colorée — un pin cesse d'être un dégradé de vert pour devenir un assemblage
+// de verts, de bleus et de violets, comme les pins de Signac.
+function shade(rgb, f) {
+  return divisionize(shadeBase(rgb, f), Math.round(f * 7));
+}
 import { encodeVox } from "../../frontend/src/voxel/shared/vox-format.mjs";
 import { renderModel } from "./render-iso.mjs";
 
