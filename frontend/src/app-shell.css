@@ -794,31 +794,41 @@ body {
   gap: 3px;
   z-index: 5;
 }
-.town-spot .ts-pill {
-  background: var(--glass);
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  color: #fff;
-  border-radius: 999px;
-  padding: 3px 9px;
-  font-size: 12px;
-  font-weight: 700;
-  white-space: nowrap;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+/* Marqueur ICÔNE : à dix bâtiments, dix pastilles texte se chevauchaient et
+   masquaient la ville. Le nom ne se déplie que sur le bâtiment sélectionné. */
+.town-spot .ts-ic {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  font-size: 16px;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #fffaf0, #f0e2c4);
+  border: 2px solid var(--gold);
+  box-shadow: var(--sh-raised);
 }
-.town-spot.sel .ts-pill {
-  background: rgba(240, 196, 32, 0.85);
-  color: #2a2118;
-  text-shadow: none;
+.town-spot.sel .ts-ic {
+  background: linear-gradient(180deg, var(--red-hi), var(--red));
+  border-color: var(--cream);
 }
-.town-spot.site .ts-pill {
+.town-spot.site .ts-ic {
   border-style: dashed;
-  opacity: 0.9;
+  background: rgba(255, 253, 246, 0.82);
+}
+.town-spot .ts-name {
+  background: var(--glass-2);
+  color: #fff;
+  border-radius: var(--r-pill);
+  padding: 2px var(--s-3);
+  font-size: var(--t-xs);
+  font-weight: 800;
+  white-space: nowrap;
 }
 .town-spot .ts-dur {
-  width: 46px;
+  width: 34px;
   height: 4px;
   border-radius: 3px;
-  background: rgba(0, 0, 0, 0.4);
+  background: rgba(0, 0, 0, 0.35);
   overflow: hidden;
 }
 .town-spot .ts-dur i {

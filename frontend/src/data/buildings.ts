@@ -40,11 +40,12 @@ export const BRIDGES: [string, string][] = [
 // Building size as a fraction of its island's size (so satellites get smaller sprites).
 export const BUILDING_SCALE = 0.34;
 
-// NOTE: the Home town visual is now an editor-authored map (src/data/town-map.json,
-// rendered by components/TownMap.tsx with the editor's renderer) — the old
-// hand-positioned iso platform (ISO_TOWN / ISO_TOWN_TILES / ISO_BUILDING_CELL) was
-// removed with it. TOWN_BUILDINGS below remains the game-side catalog: names, icons,
-// blurbs and modal metadata, matched to backend building ids.
+// NOTE: le rendu VOXEL de la ville (le défaut) génère son plan dans
+// `voxel/townLayout.ts` à partir de l'état de jeu — il ne lit plus
+// `src/data/town-map.json`. Ce fichier ne sert plus qu'au rendu « Classique »
+// de secours (`components/TownMap.tsx`). TOWN_BUILDINGS reste le catalogue
+// côté jeu : noms, icônes, descriptions et métadonnées de modale, appariés aux
+// ids de bâtiment du backend.
 
 // x/y are % positions WITHIN the building's island box (centered anchor). Buildings are
 // spread across three islands: core (civic), ne (defense), sw (production).

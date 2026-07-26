@@ -6,6 +6,144 @@
 
 ---
 
+## 2026-07-26 (76) — Rendu divisionniste « Signac » (opt-in)
+
+### Contexte
+Demande : « est-ce que tu penses que tu peux rendre les voxels dans le style peinture de Signac ». Le
+médium aide : un voxel EST une touche discrète de couleur pure, et le Signac tardif (touches carrées
+en mosaïque) est plus proche de la grille voxel que son pointillisme de jeunesse. Direction retenue
+par l'utilisateur : **grading + touches, en post-traitement, derrière un réglage** — pas de
+régénération de l'art.
+
+Écarté sciemment : régénérer les palettes des blocs en mélange optique (le plus authentique, et
+stable puisque la touche vivrait dans le monde). Le mesher est GREEDY : casser l'uniformité de
+couleur voxel par voxel supprime la fusion des quads et fait exploser le nombre de triangles, contre
+un budget déjà documenté. À ne tenter qu'après mesure sur un biome témoin.
+
+### Fait
+`voxel/signacPass.ts` + `engine.setSignac()`, inséré dans la chaîne existante de la passe beauté
+(après le mélange du bloom, avant `OutputPass`) — donc **rien à construire** : le composer existait.
+- Parti pris de couleur : ombres vers le violet/bleu (jamais du gris), lumières vers le chaud,
+  saturation haute.
+- Touche : image reconstruite depuis le centre de chaque cellule, peinte en touche ronde sur une
+  toile claire, teinte décalée par touche (mélange optique). Rangées décalées d'une demi-cellule —
+  une grille carrée stricte se lit comme une moustiquaire.
+- Réglages : bascule Normal/Peinture + curseur d'intensité, affichés seulement si voxel + cinématique
+  sont actifs. **Off par défaut.**
+
+### Trois pièges rencontrés (à retenir)
+1. **Couverture trop faible** → les zones CLAIRES, c'est-à-dire le sujet, se délavaient jusqu'au blanc
+   tandis que seules les ombres restaient lisibles. Les touches se chevauchent maintenant, avec un
+   rayon qui croît quand la valeur baisse.
+2. **Aplats sans couleur** → la pierre des bâtiments est un quasi-blanc uniforme (matériau self-lit,
+   zéro ombrage) : aucune couleur locale à diviser, le village restait une tache blanche. Corrigé en
+   tirant la teinte au sort d'autant plus fort que la source est désaturée, et en cassant la valeur.
+   C'est exactement ce que Signac fait des voiles et des murs blancs.
+3. **`flat` est un mot RÉSERVÉ en GLSL** (qualificateur d'interpolation) : le shader ne compilait pas
+   et le canvas rendait NOIR. Et un backtick dans un commentaire GLSL termine le template literal JS.
+
+### Fonctionnel (vérifié)
+tsc, build, `test:perf` 13/13, `go test ./...` ; captures avant/après des onglets Ville et Carte.
+
+### Correction le même jour — la passe écran était la mauvaise réponse
+Retour utilisateur : « on dirait juste un filtre appliqué, et pas un rendu logique 3D », et c'est
+MOINS lisible. Fondé, et c'était un défaut de conception, pas un réglage : la trame était collée à
+l'ÉCRAN, donc elle ne suivait pas les surfaces, ne tournait pas avec la géométrie, ne se resserrait
+pas avec la distance, et stipplait indistinctement ciel, brouillard et bâtiments — d'où les
+silhouettes mangées.
+
+`voxel/signacPass.ts` est SUPPRIMÉ, remplacé par **`voxel/signacMaterial.ts`** : le divisionnisme vit
+maintenant dans les MATÉRIAUX (`onBeforeCompile` sur les Lambert/Basic existants, donc l'éclairage et
+les ombres continuent de fonctionner). La touche est indexée sur la POSITION MONDE :
+- elle est solidaire de la surface — elle tourne, s'incline et rétrécit avec elle ;
+- les arêtes restent NETTES, la couleur ne varie jamais au travers d'une silhouette : le rendu
+  GAGNE en lisibilité au lieu d'en perdre ;
+- le contraste chaud/froid est appliqué APRÈS éclairage, donc les ombres virent au violet parce que
+  la lumière le décide, pas parce qu'un filtre l'a plaqué.
+- **coût géométrique nul** : pas un triangle ajouté — c'est ce qui évite l'écueil du greedy meshing.
+
+Réglage `uCell` : à 1/16 (la maille du LOD voxel) la touche tombe sous le pixel dès qu'on dézoome et
+se lit comme du BRUIT. À ~1/5 de tuile elle devient une vraie mosaïque, comme le Signac tardif ; le
+curseur d'intensité élargit encore la touche. Le réglage ne dépend plus du rendu cinématique.
+Appliqué à : terrain (blocs + lissé), props, bâtiments, personnages, arène de combat.
+
+### À faire
+- Le brouillard (tuiles non découvertes) est très pâle : sous la passe il devient une toile presque
+  nue. Joli mais très vide — à retravailler si le rendu devient un défaut.
+- Coût GPU non mesuré (le moteur est on-demand, la passe ne tourne qu'aux redraws) : à vérifier sur
+  un vrai téléphone avant d'envisager de l'activer par défaut.
+
+
+## 2026-07-26 (75) — Refonte complète de la ville (onglet Ville + case ville de la carte)
+
+### Contexte
+Demande : « il faut changer complétement TOUT le design de la ville. Sur la ville c'est un gros
+temple, et ce qui s'affiche sur l'onglet ville n'est pas très cohérent. »
+
+Les deux reproches portaient sur deux endroits différents, tous deux fondés :
+- **le « gros temple »** : la case ville de la CARTE rendait un `temple` — un temple grec complet
+  (parvis dallé, 14 colonnes cannelées, frise à triglyphes), modèle qui n'existe nulle part ailleurs
+  dans le jeu et ne ressemble en rien au village médiéval de l'onglet Ville. Deux architectures pour
+  un même lieu. (Dans l'onglet Ville, le `gate` posé à l'échelle 3.0 en pierre quasi blanche faisait
+  la même impression de masse de temple.)
+- **l'incohérence de l'onglet Ville** : mesurée, pas supposée (voir ci-dessous).
+
+### Ce que l'audit a mesuré
+- `town-map.json` (54×59, 575 cellules, 1167 blocs) n'avait d'emplacement que pour **8 des 10
+  bâtiments** : `wall` et `kitchen` n'apparaissaient NULLE PART. La muraille est pourtant construite,
+  s'abîme (20/100 au départ) et compte dans la défense.
+- Le rendu sautait en plus les sites non lancés (« herbe nue ») : mairie, tour, cuisine, recyclerie.
+  **Six bâtiments sur dix étaient donc introuvables depuis la Ville** en début de partie — seules 5
+  pastilles s'affichaient.
+- Terrain : 346 sandstone, 106 sand, 80 redsand, **zéro bloc d'herbe**. Un plateau désertique.
+- Bâtiments posés par décalages en PIXELS d'éditeur (un `dx` de 726px ≈ 24 tuiles de dérive), et
+  `rot`/`flipX` d'auteur **ignorés** au rendu (tout à `rotation.y = π`).
+- **5 chevauchements** entre les 5 pastilles affichées.
+
+### Fait
+- **`voxel/townLayout.ts`** (nouveau) : le plan est une FONCTION de l'état de jeu. Village fortifié
+  15×15 — muraille sur le pourtour (segments de 2 cellules), portail dans la face avant, tour
+  d'angle, place dallée autour du puits, allée depuis le portail, **une parcelle par bâtiment du
+  serveur**. Décor déterministe (arbres/buissons/fleurs) sur les cellules libres, emplacements de
+  héros triés par proximité de la place (l'équipe se tient ensemble au lieu de se disperser).
+- **Sites non lancés** : parcelle en terre battue + pastille conservée. On voit où ira le bâtiment et
+  on peut ouvrir le chantier — c'était LE défaut de cohérence principal.
+- **Échelle** : `fitScale()` dimensionne chaque modèle d'après sa boîte englobante réelle pour
+  occuper une emprise voulue en CELLULES. L'ancien `×2.3` (hérité de l'échelle d'auteur) donnait des
+  tailles incohérentes d'un bâtiment à l'autre.
+- **Pastilles** : marqueur ICÔNE par défaut, nom déplié uniquement sur la sélection. À dix bâtiments,
+  dix pastilles texte se chevauchaient 19 fois et masquaient la ville qu'elles annotent.
+- **Case ville de la carte** : le temple grec est remplacé par le MÊME village en réduction (mairie
+  + portail + pans de muraille), avec les mêmes modèles `bld-*`. `TEMPLE_MAT` → `TOWN_MAT`.
+
+### Fonctionnel (vérifié)
+- `npx tsc -b`, `npm run build`, `go test ./...` verts ; **`npm run test:perf` 13/13**, payload PNG
+  inchangé (23,23 Mo) — les modèles `bld-*` étaient déjà chargés côté ville, la carte en précharge
+  trois de plus et n'a plus besoin de `temple`.
+- Captures Playwright des deux onglets : les **10 bâtiments** ont une pastille (Muraille, Portail,
+  Tour, Mairie, Banque, Atelier, Cuisine, Recyclerie, Puits, Panneau), **0 chevauchement** mesuré
+  (contre 5 avant, 19 au pire pendant la mise au point).
+
+### Suite (même jour) — le mode « Classique » aussi
+`components/TownMap.tsx` (rendu 2D de secours, `settings.voxelMap=false`) lisait encore
+`town-map.json` : il affichait donc TOUJOURS l'ancien plateau de grès à 8 bâtiments, une ville
+entièrement différente de la vue voxel. Il consomme maintenant `townDoc()` — le MÊME plan, converti
+au format `MapDoc` de l'éditeur. Une seule source de vérité pour la ville, deux rendus.
+`BUILDING_SPRITE` / `SPRITE_TO_BUILDING` (dans `townLayout.ts`) apparient les ids de bâtiment aux
+sprites de l'éditeur ; les sprites `townhall/bank/workshop/kitchen/well/panel/gate/tower/wall`
+existaient déjà à l'identique, la recyclerie emprunte `bld-warehouse` faute d'art dédié. Les
+segments de muraille ne sont pas replacés en 2D (le sprite iso `wall` ne se raccorde pas
+proprement et une cinquantaine de copies écraserait le dessin) : la muraille y est portée par
+l'anneau de pierre du sol. Marqueurs icône + nom sur sélection, comme la vue voxel.
+Vérifié : 9 pastilles (tout sauf `wall`), captures Playwright, test:perf 13/13.
+
+### À faire
+- Les modèles `bld-*` sont en pierre très claire (`STONE_W = [222,212,196]`) : à distance le village
+  tire vers le blanc. Une passe de palette sur `gen-props.mjs` (toits plus contrastés) aiderait.
+- La muraille à 20 % de durabilité rend la variante « ruine » sur tout le pourtour : correct et
+  informatif, mais visuellement proche d'une palissade cassée.
+
+
 ## 2026-07-26 (74) — Revue UI/UX complète : tokens, barre du bas, overlays, français
 
 ### Contexte

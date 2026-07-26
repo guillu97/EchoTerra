@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import townJson from "../data/town-map.json";
-import type { Cell, MapDoc, Placement } from "../editor/types";
-import { normalizeCell } from "../editor/types";
+import type { MapDoc, Placement } from "../editor/types";
+import { townDoc, SPRITE_TO_BUILDING } from "../voxel/townLayout";
 import { loadAll } from "../editor/imageCache";
 import { assetUrlFor } from "../editor/assetIndex";
 import { ISO, drawMap, project } from "../editor/isoRender";
@@ -19,22 +18,16 @@ import { durColor } from "../tabs/HomeTab";
 // The whole thing is wrapped in a zoom/pan viewport (wheel + drag + pinch, same
 // absolute-mapping pinch math as the Phaser map — zero drift by construction).
 
-// Editor asset file -> game building id (only mapped buildings are clickable).
-const ASSET_TO_BUILDING: Record<string, string> = {
-  "bld-well": "well",
-  gate: "gate",
-  "bld-chapel": "townhall",
-  panel: "panel",
-  workshop: "workshop",
-  bank: "bank",
-  "bld-archerytower": "tower",
-};
+// Sprite de l'éditeur -> id de bâtiment. Partagé avec le plan généré : le mode
+// « Classique » et la vue voxel décrivent désormais LA MÊME ville.
+const ASSET_TO_BUILDING = SPRITE_TO_BUILDING;
 
 const CANVAS_RES = 2; // backing-store supersample (CSS size stays world-sized)
 const TAP_SLOP = 8; // px of pointer travel before a press counts as a drag
 
 // Block asset files that read as "grass" — in-town heroes stand on these cells.
 const GRASS_FILES = new Set(["grass", "jungle", "darkgrass", "fallgrass", "mossy"]);
+// (le plan généré ne pose que `grass` ; les autres restent tolérés)
 
 interface Spot {
   buildingId: string;
@@ -52,10 +45,12 @@ interface Baked {
 
 // --- doc preparation (module-level: parsed and rendered once per session) ----
 
+// Le plan vient de `voxel/townLayout.ts` — plus de `town-map.json`. L'ancienne
+// carte d'auteur n'avait d'emplacement que pour 8 des 10 bâtiments et posait un
+// plateau de grès sans un brin d'herbe ; ce mode de secours affichait donc une
+// ville entièrement différente de la vue voxel.
 function getDoc(): MapDoc {
-  const d = townJson as unknown as MapDoc;
-  d.cells = d.cells.map((c) => normalizeCell({ ...(c as Cell) }));
-  return d;
+  return townDoc() as unknown as MapDoc;
 }
 
 function usedUrls(doc: MapDoc): string[] {
@@ -404,11 +399,14 @@ export function TownMap({
               data-bid={s.buildingId}
               className={`town-spot ${selected === s.buildingId ? "sel" : ""} ${site ? "site" : ""}`}
               style={{ left: s.x, top: s.y }}
-              title={site ? `${layout.name} — en construction` : layout.name}
+              aria-label={site ? `${layout.name} — chantier à lancer` : layout.name}
             >
-              <span className="ts-pill">
-                {site ? "🏗️" : layout.icon} {layout.name}
+              {/* Même traitement que la vue voxel : marqueur icône, nom déplié
+                  seulement sur la sélection (dix libellés se chevauchaient). */}
+              <span className="ts-ic" aria-hidden="true">
+                {site ? "🏗️" : layout.icon}
               </span>
+              {selected === s.buildingId && <span className="ts-name">{layout.name}</span>}
               {bs.built && (
                 <span className="ts-dur">
                   <i

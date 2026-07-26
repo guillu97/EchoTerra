@@ -12,6 +12,9 @@
 // sur les marches). Réglage : Réglages → « Terrain voxel : Blocs / Pentes ».
 
 import * as THREE from "three";
+// @ts-expect-error — module JS partagé avec les scripts de génération
+import { divisionize } from "./shared/recipes.mjs";
+import { signacify } from "./signacMaterial";
 
 /** source structurelle : GameState convient, le banc fabrique la sienne */
 export type TerrainSource = {
@@ -201,6 +204,15 @@ export class SmoothTerrain {
       const dot = t?.discovered && (t.biome === 2 || t.biome === 3) && hash01(cx, cy, 13) < 0.035 ? 0.9 : 1;
       const grain = (0.985 + hash01(cx, cy, 3) * 0.03) * dot;
       let out: [number, number, number] = [(r / cnt) * grain, (g / cnt) * grain, (b / cnt) * grain];
+      // DIVISIONNISME de la surface continue. Elle ne passe PAS par les .vox de
+      // blocs (elle est maillée à la volée depuis les palettes), donc la couleur
+      // divisée doit être appliquée ici. La touche est une TUILE DE 3×3 colonnes :
+      // à la colonne près elle redeviendrait du bruit, et surtout chaque colonne
+      // distincte coûte au mesher — en touches de 3, les plages restent unies.
+      out = divisionize(
+        [Math.round(out[0]), Math.round(out[1]), Math.round(out[2])],
+        (Math.floor(cx / 3) * 5 + Math.floor(cy / 3) * 3) % 7,
+      ) as [number, number, number];
       // algues affleurantes (WORLD-DETAILS) : nappes vert sombre SOUS la surface,
       // en veines de bruit — c'est la teinte du bloc d'eau, pas un prop
       if (t?.discovered && t.biome === 0) {
@@ -325,7 +337,7 @@ export class SmoothTerrain {
     // (vaguelettes de luminosité qui glissent) selon l'uniform uTime, avancé
     // sur les frames RENDUES (rendu on-demand : l'eau vit pendant les
     // interactions/ticks, immobile au repos — pas de boucle continue).
-    const mat = new THREE.MeshLambertMaterial({ vertexColors: true });
+    const mat = signacify(new THREE.MeshLambertMaterial({ vertexColors: true }));
     const timeUniform = { value: 0 };
     this.timeUniform = timeUniform;
     mat.onBeforeCompile = (shader) => {

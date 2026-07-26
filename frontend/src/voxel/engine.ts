@@ -14,6 +14,7 @@ import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
+import { setSignacEnabled } from "./signacMaterial";
 import { DPR } from "../game/dpr";
 import { azimuthFor, cameraDir, ELEVATION, nextOrientation, type Orientation } from "./rotation";
 
@@ -95,6 +96,8 @@ export class VoxelEngine {
   private bloomComposer: EffectComposer | null = null;
   private finalComposer: EffectComposer | null = null;
   private bloomPass: UnrealBloomPass | null = null;
+  private signacOn = false;
+  private signacStrength = 0.6;
   // Bloom sélectif OCCLUS : pendant la passe bloom, tout ce qui n'est pas sur le
   // calque lumineux est peint en NOIR (les meshes écrivent la profondeur → la
   // lueur ne traverse plus les blocs ; les sprites sont masqués), puis restauré.
@@ -254,6 +257,20 @@ export class VoxelEngine {
     this.finalComposer = finalComposer;
     this.bloomPass = bloomPass;
     this.resize(); // dimensionne les cibles de rendu
+  }
+
+  /**
+   * Rendu divisionniste « Signac ». Il vit désormais dans les MATÉRIAUX
+   * (voxel/signacMaterial.ts) et non dans une passe plein écran : la touche est
+   * ancrée au monde, donc elle suit les surfaces au lieu de flotter devant.
+   * Aucune dépendance à la passe beauté, aucun recompile — un simple uniforme
+   * partagé, donc la bascule est instantanée.
+   */
+  setSignac(on: boolean, strength = this.signacStrength) {
+    this.signacStrength = strength;
+    this.signacOn = on;
+    setSignacEnabled(on, strength);
+    this.invalidate();
   }
 
   /**

@@ -5,6 +5,7 @@
 // instanceColor, diffée par le code appelant.
 
 import * as THREE from "three";
+import { signacify } from "./signacMaterial";
 import { fetchVox } from "./vox";
 import { meshVoxModel } from "./mesher";
 
@@ -95,7 +96,7 @@ export function buildTerrain(lib: BlockLibrary, cells: TerrainCell[]): {
   }
   const group = new THREE.Group();
   const lookup = new Map<THREE.Object3D, TerrainCell[]>();
-  const mat = new THREE.MeshLambertMaterial({ vertexColors: true });
+  const mat = signacify(new THREE.MeshLambertMaterial({ vertexColors: true }));
   // la BRUME s'auto-éclaire (Basic) : c'est un voile magique qui porte ses
   // couleurs — éclairée/ombrée en Lambert elle devenait un papier gris sale
   const mistMat = new THREE.MeshBasicMaterial({ vertexColors: true });
@@ -153,7 +154,7 @@ export function buildStacks(lib: BlockLibrary, items: StackItem[]): {
   }
   const group = new THREE.Group();
   const lookup = new Map<THREE.Object3D, StackItem[]>();
-  const mat = new THREE.MeshLambertMaterial({ vertexColors: true });
+  const mat = signacify(new THREE.MeshLambertMaterial({ vertexColors: true }));
   const m = new THREE.Matrix4();
   let instances = 0;
   for (const { geom, items: list } of buckets.values()) {

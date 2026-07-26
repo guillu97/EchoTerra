@@ -8,6 +8,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
+import { signacify } from "./signacMaterial";
 import { bus, EV } from "../eventBus";
 import type { Combat, CombatCurrent, CombatHit, CombatThreat, CombatUnit } from "../api/types";
 import { heroTexKey, libUrl, monsterTexKey } from "../assets";
@@ -17,7 +18,7 @@ import { VoxelControls } from "./controls";
 import { BlockLibrary } from "./terrain";
 import { SmoothTerrain } from "./smoothTerrain";
 
-const ARENA_PROP_MAT = new THREE.MeshLambertMaterial({ vertexColors: true });
+const ARENA_PROP_MAT = signacify(new THREE.MeshLambertMaterial({ vertexColors: true }));
 // Flamme des braseros d'angle : self-lit + posée sur le calque bloom → rayonne
 // (comme les cristaux de la carte). Sphère basse résolution = look voxel/braise.
 const FIRE_MAT = new THREE.MeshBasicMaterial({ color: 0xff8a2a });
@@ -98,9 +99,15 @@ class CombatWorld {
     // SON fond crépusculaire (keepBackground) ; suit le réglage à chaud.
     const beautyOn = () => useStore.getState().settings.voxelBeauty;
     engine.setBeauty(beautyOn(), { keepBackground: true });
+    engine.setSignac(useStore.getState().settings.voxelSignac, useStore.getState().settings.signacStrength);
     this.unsubBeauty = useStore.subscribe((s, prev) => {
       if (s.settings.voxelBeauty !== prev.settings.voxelBeauty)
         engine.setBeauty(s.settings.voxelBeauty, { keepBackground: true });
+      if (
+        s.settings.voxelSignac !== prev.settings.voxelSignac ||
+        s.settings.signacStrength !== prev.settings.signacStrength
+      )
+        engine.setSignac(s.settings.voxelSignac, s.settings.signacStrength);
     });
     void this.propsLib
       .load(["rock", "tree-green", "ice-spike", "brambles", "flowers", "daisy",
