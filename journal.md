@@ -6,6 +6,54 @@
 
 ---
 
+## 2026-07-26 (76) — Rendu divisionniste « Signac » (opt-in)
+
+### Contexte
+Demande : « est-ce que tu penses que tu peux rendre les voxels dans le style peinture de Signac ». Le
+médium aide : un voxel EST une touche discrète de couleur pure, et le Signac tardif (touches carrées
+en mosaïque) est plus proche de la grille voxel que son pointillisme de jeunesse. Direction retenue
+par l'utilisateur : **grading + touches, en post-traitement, derrière un réglage** — pas de
+régénération de l'art.
+
+Écarté sciemment : régénérer les palettes des blocs en mélange optique (le plus authentique, et
+stable puisque la touche vivrait dans le monde). Le mesher est GREEDY : casser l'uniformité de
+couleur voxel par voxel supprime la fusion des quads et fait exploser le nombre de triangles, contre
+un budget déjà documenté. À ne tenter qu'après mesure sur un biome témoin.
+
+### Fait
+`voxel/signacPass.ts` + `engine.setSignac()`, inséré dans la chaîne existante de la passe beauté
+(après le mélange du bloom, avant `OutputPass`) — donc **rien à construire** : le composer existait.
+- Parti pris de couleur : ombres vers le violet/bleu (jamais du gris), lumières vers le chaud,
+  saturation haute.
+- Touche : image reconstruite depuis le centre de chaque cellule, peinte en touche ronde sur une
+  toile claire, teinte décalée par touche (mélange optique). Rangées décalées d'une demi-cellule —
+  une grille carrée stricte se lit comme une moustiquaire.
+- Réglages : bascule Normal/Peinture + curseur d'intensité, affichés seulement si voxel + cinématique
+  sont actifs. **Off par défaut.**
+
+### Trois pièges rencontrés (à retenir)
+1. **Couverture trop faible** → les zones CLAIRES, c'est-à-dire le sujet, se délavaient jusqu'au blanc
+   tandis que seules les ombres restaient lisibles. Les touches se chevauchent maintenant, avec un
+   rayon qui croît quand la valeur baisse.
+2. **Aplats sans couleur** → la pierre des bâtiments est un quasi-blanc uniforme (matériau self-lit,
+   zéro ombrage) : aucune couleur locale à diviser, le village restait une tache blanche. Corrigé en
+   tirant la teinte au sort d'autant plus fort que la source est désaturée, et en cassant la valeur.
+   C'est exactement ce que Signac fait des voiles et des murs blancs.
+3. **`flat` est un mot RÉSERVÉ en GLSL** (qualificateur d'interpolation) : le shader ne compilait pas
+   et le canvas rendait NOIR. Et un backtick dans un commentaire GLSL termine le template literal JS.
+
+### Fonctionnel (vérifié)
+tsc, build, `test:perf` 13/13, `go test ./...` ; captures avant/après des onglets Ville et Carte.
+
+### À faire
+- Les touches sont ancrées à l'ÉCRAN : le décor glisse derrière la trame quand la caméra pivote.
+  Assumé et documenté, mais si ça gêne, la seule vraie parade est la piste « palettes voxel » ci-dessus.
+- Le brouillard (tuiles non découvertes) est très pâle : sous la passe il devient une toile presque
+  nue. Joli mais très vide — à retravailler si le rendu devient un défaut.
+- Coût GPU non mesuré (le moteur est on-demand, la passe ne tourne qu'aux redraws) : à vérifier sur
+  un vrai téléphone avant d'envisager de l'activer par défaut.
+
+
 ## 2026-07-26 (75) — Refonte complète de la ville (onglet Ville + case ville de la carte)
 
 ### Contexte
