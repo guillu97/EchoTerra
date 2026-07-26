@@ -149,6 +149,41 @@ export function SettingsOverlay() {
           </span>
         </div>
       )}
+      {settings.voxelMap && settings.voxelBeauty && (
+        <div className="row">
+          <span className="lbl">Rendu Signac (divisionniste)</span>
+          <div className="seg">
+            {[false, true].map((v) => (
+              <button
+                key={String(v)}
+                className={settings.voxelSignac === v ? "on" : ""}
+                onClick={() => updateSettings({ voxelSignac: v })}
+              >
+                {v ? "Peinture" : "Normal"}
+              </button>
+            ))}
+          </div>
+          <span className="hint">
+            Rend le monde en touches de couleur pure sur une toile claire, à la manière de Paul
+            Signac : ombres violettes plutôt que grises, saturation haute, mélange optique. Les
+            touches sont ancrées à l'écran — le décor glisse derrière elles quand la caméra pivote.
+            Demande le rendu cinématique.
+          </span>
+        </div>
+      )}
+      {settings.voxelMap && settings.voxelBeauty && settings.voxelSignac && (
+        <div className="row">
+          <span className="lbl">Intensité de la touche ({Math.round(settings.signacStrength * 100)}%)</span>
+          <input
+            type="range"
+            min={0}
+            max={100}
+            value={Math.round(settings.signacStrength * 100)}
+            onChange={(e) => updateSettings({ signacStrength: Number(e.target.value) / 100 })}
+          />
+          <span className="hint">Au minimum, seul le parti pris de couleur reste ; au maximum, la trame de touches domine.</span>
+        </div>
+      )}
       <button className="pill green ov-close" onClick={() => openSettings("menu")}>
         Retour
       </button>

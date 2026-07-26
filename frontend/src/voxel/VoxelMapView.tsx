@@ -608,6 +608,7 @@ export function VoxelMapView({ active = true }: { active?: boolean }) {
     // mode terrain (blocs ⇄ lisse) + passe beauté depuis les Réglages, à chaud
     world.smoothMode = useStore.getState().settings.voxelSmooth;
     engine.setBeauty(useStore.getState().settings.voxelBeauty);
+    engine.setSignac(useStore.getState().settings.voxelSignac, useStore.getState().settings.signacStrength);
     const unsubSettings = useStore.subscribe((s, prev) => {
       if (s.settings.voxelSmooth !== prev.settings.voxelSmooth) {
         world.smoothMode = s.settings.voxelSmooth;
@@ -616,6 +617,11 @@ export function VoxelMapView({ active = true }: { active?: boolean }) {
       if (s.settings.voxelBeauty !== prev.settings.voxelBeauty) {
         engine.setBeauty(s.settings.voxelBeauty);
       }
+      if (
+        s.settings.voxelSignac !== prev.settings.voxelSignac ||
+        s.settings.signacStrength !== prev.settings.signacStrength
+      )
+        engine.setSignac(s.settings.voxelSignac, s.settings.signacStrength);
     });
 
     const off = bus.on(

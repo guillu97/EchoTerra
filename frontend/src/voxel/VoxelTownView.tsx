@@ -83,8 +83,14 @@ export function VoxelTownView({
     engine.maxZoom = 90;
     // passe beauté (Tier 1) depuis les Réglages, à chaud
     engine.setBeauty(useStore.getState().settings.voxelBeauty);
+    engine.setSignac(useStore.getState().settings.voxelSignac, useStore.getState().settings.signacStrength);
     const unsubBeauty = useStore.subscribe((s, prev) => {
       if (s.settings.voxelBeauty !== prev.settings.voxelBeauty) engine.setBeauty(s.settings.voxelBeauty);
+      if (
+        s.settings.voxelSignac !== prev.settings.voxelSignac ||
+        s.settings.signacStrength !== prev.settings.signacStrength
+      )
+        engine.setSignac(s.settings.voxelSignac, s.settings.signacStrength);
     });
     const controls = new VoxelControls(engine);
     // héros voxel ANIMÉS (respiration à l'arrêt) — remplacent les billboards

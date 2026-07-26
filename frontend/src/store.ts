@@ -89,6 +89,10 @@ export interface Settings {
   voxelMap: boolean; // carte monde en voxel 3D (expérimental — VOXEL-PLAN Phase 2)
   voxelSmooth: boolean; // carte : terrain CONTINU lissé (true) ou blocs discrets (false)
   voxelBeauty: boolean; // passe beauté Tier 1 : tone mapping ACES + bloom + ciel/brume (mode CINÉMATIQUE)
+  /** Rendu divisionniste « Signac » (voir voxel/signacPass.ts). S'appuie sur la passe beauté. */
+  voxelSignac: boolean;
+  /** Dosage de la passe Signac, 0..1. */
+  signacStrength: number;
   renderPreset?: number; // marqueur de migration des défauts de rendu (voir RENDER_PRESET)
 }
 
@@ -106,6 +110,8 @@ const DEFAULT_SETTINGS: Settings = {
   voxelMap: true, // le voxel est le rendu par défaut (Phase 6, 2026-07-17)
   voxelSmooth: true,
   voxelBeauty: true, // mode CINÉMATIQUE (bloom + ACES) activé par défaut — décision utilisateur 2026-07-22
+  voxelSignac: false, // opt-in : c'est un parti pris pictural fort, pas un défaut
+  signacStrength: 0.6,
   renderPreset: RENDER_PRESET,
 };
 
