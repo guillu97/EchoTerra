@@ -44,31 +44,35 @@ export type TownLayout = {
   center: number;
 };
 
-const SIZE = 15; // 15×15 : assez grand pour dix parcelles lisibles, assez petit
-const LAST = SIZE - 1; //        pour tenir à l'écran sans dézoomer à outrance.
+// 19×19. À 15 les parcelles se touchaient presque et le bourg paraissait
+// riquiqui dans le cadre ; à 19 il y a de la rue entre les bâtiments, de la
+// place pour le décor, et la ville remplit l'écran (le cadrage est resserré en
+// conséquence, sinon agrandir la grille ne fait que rapetisser les bâtiments).
+const SIZE = 19;
+const LAST = SIZE - 1;
 const GROUND = 2; // deux blocs d'épaisseur → le village repose sur un socle
 
 // Parcelles intérieures. Coordonnées choisies pour que rien ne se chevauche et
 // que la silhouette se lise depuis la caméra dimétrique : la Mairie au fond au
 // centre (c'est le plus haut), les ateliers en couronne, le puits sur la place.
 const INTERIOR: TownPlot[] = [
-  { bid: "townhall", x: 7, y: 3, cells: 3.6, primary: true },
-  { bid: "bank", x: 3, y: 4, cells: 3.0, primary: true },
-  { bid: "workshop", x: 11, y: 4, cells: 3.0, primary: true },
-  { bid: "kitchen", x: 3, y: 8, cells: 3.0, primary: true },
-  { bid: "recyclerie", x: 11, y: 8, cells: 3.0, primary: true },
-  { bid: "well", x: 7, y: 7, cells: 1.9, primary: true },
-  { bid: "panel", x: 10, y: 11, cells: 1.7, primary: true },
+  { bid: "townhall", x: 9, y: 4, cells: 4.4, primary: true },
+  { bid: "bank", x: 4, y: 5, cells: 3.6, primary: true },
+  { bid: "workshop", x: 14, y: 5, cells: 3.6, primary: true },
+  { bid: "kitchen", x: 4, y: 11, cells: 3.6, primary: true },
+  { bid: "recyclerie", x: 14, y: 11, cells: 3.6, primary: true },
+  { bid: "well", x: 9, y: 9, cells: 2.3, primary: true },
+  { bid: "panel", x: 13, y: 15, cells: 2.1, primary: true },
 ];
 
-const GATE_X = 7; // portail au milieu de la face avant (y = LAST)
+const GATE_X = 9; // portail au milieu de la face avant (y = LAST)
 const TOWER_CORNER = { x: LAST, y: 0 }; // tour sur le coin arrière-droit
 
 // Place du village : dallage autour du puits.
-const isSquare = (x: number, y: number) => x >= 6 && x <= 8 && y >= 6 && y <= 8;
+const isSquare = (x: number, y: number) => x >= 8 && x <= 10 && y >= 8 && y <= 10;
 // Allée du portail vers la place, puis traverse est-ouest.
 const isPath = (x: number, y: number) =>
-  (x === GATE_X && y >= 6 && y <= LAST - 1) || (y === 7 && x >= 3 && x <= 11);
+  (x === GATE_X && y >= 8 && y <= LAST - 1) || (y === 9 && x >= 4 && x <= 14);
 
 const isRing = (x: number, y: number) => x === 0 || y === 0 || x === LAST || y === LAST;
 
@@ -115,8 +119,8 @@ export function buildTownLayout(): TownLayout {
     ?? plots.find((p) => p.bid === "wall");
   if (wallLabel) wallLabel.primary = true;
 
-  claim({ bid: "gate", x: GATE_X, y: LAST, cells: 2.6, primary: true });
-  claim({ bid: "tower", x: TOWER_CORNER.x, y: TOWER_CORNER.y, cells: 2.6, primary: true });
+  claim({ bid: "gate", x: GATE_X, y: LAST, cells: 3.2, primary: true });
+  claim({ bid: "tower", x: TOWER_CORNER.x, y: TOWER_CORNER.y, cells: 3.2, primary: true });
   for (const p of INTERIOR) claim(p);
 
   // Emprise en terre battue sous chaque parcelle intérieure : invisible sous un
@@ -159,11 +163,14 @@ export function buildTownLayout(): TownLayout {
     for (let x = 1; x < LAST; x++) {
       if (occupied.has(`${x},${y}`) || isPath(x, y) || isSquare(x, y)) continue;
       const h = hash(x, y);
-      // ~1 cellule libre sur 4 reçoit un prop ; le reste accueille les héros.
-      if (h % 100 < 26) {
+      // ~1 cellule libre sur 7 reçoit un prop. À 26 % sur une grille de 15 ça
+      // passait ; sur 19 il y a bien plus de cellules libres et la ville
+      // disparaissait sous la végétation. Les arbres sont aussi rabaissés : à
+      // 1.5 cellule ils dépassaient les bâtiments et masquaient les parcelles.
+      if (h % 100 < 14) {
         const prop = DECOR[h % DECOR.length];
         const big = prop === "tree-green";
-        decor.push({ x, y, prop, scale: big ? 1.5 : 0.9 });
+        decor.push({ x, y, prop, scale: big ? 1.15 : 0.8 });
       } else {
         heroSlots.push({ x, y, lvl: GROUND });
       }
@@ -172,8 +179,8 @@ export function buildTownLayout(): TownLayout {
   // Les héros se rassemblent volontiers sur la place : on met ces cases en tête.
   heroSlots.sort((a, b) => {
     const c = (SIZE - 1) / 2;
-    const da = Math.abs(a.x - c) + Math.abs(a.y - 8);
-    const db = Math.abs(b.x - c) + Math.abs(b.y - 8);
+    const da = Math.abs(a.x - c) + Math.abs(a.y - 11);
+    const db = Math.abs(b.x - c) + Math.abs(b.y - 11);
     return da - db;
   });
 

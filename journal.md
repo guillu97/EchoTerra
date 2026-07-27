@@ -6,6 +6,86 @@
 
 ---
 
+## 2026-07-26 (78) — Bâtiments : couleur DANS les modèles
+
+Retour : « ils ont l'air toujours un peu washed up, est-ce qu'on ne pourrait pas modifier les modèles
+pour avoir plus de couleurs de base ». Diagnostic juste — et c'est bien le modèle qu'il fallait
+changer, pas l'éclairage.
+
+Constat : sur les dix recettes, la banque, le portail, la tour et la muraille — c'est-à-dire
+l'ESSENTIEL de ce qu'on voit en début de partie, puisque ce sont les bâtiments déjà construits —
+n'avaient **aucun élément coloré**. Que de la pierre. Seule la mairie avait un toit terracotta, et
+elle n'est pas bâtie au départ. Aucun réglage d'éclairage ou de teinte de pierre ne pouvait
+rattraper ça.
+
+### Fait — accents colorés par bâtiment (`gen-props.mjs`)
+Palette d'accents : `ROOF_SLATE` (ardoise bleue), `ROOF_TILE` (tuile), `TRIM_GOLD`, `PAINT_TEAL`.
+- **Banque** : toit d'ardoise BLEUE + bandeau doré de corniche (c'était un toit-terrasse en pierre).
+- **Tour** : toiture conique en tuile (ce n'était qu'un fût de pierre nu).
+- **Portail** : toits pyramidaux en tuile sur les deux tours, bannière élargie + galon doré.
+- **Muraille** : couvertine d'ardoise des deux côtés du chemin de ronde — le rempart fait tout le
+  tour de la ville, en pierre nue il traçait un large liseré beige uniforme autour du bourg.
+
+### ⚠ Le piège de l'émissif (à retenir)
+Après avoir coloré les modèles, les toits restaient PÂLES en jeu alors qu'ils étaient éclatants sur
+le rendu isolé du prop. Cause : l'émissif du matériau des bâtiments était monté à `0x8a8279` pour
+compenser le double ombrage. **L'émissif est un gris AJOUTÉ à chaque fragment** : trop fort, il
+relève la luminosité mais DILUE la saturation. Redescendu à `0x46423c` — il ne doit que compenser le
+double ombrage, pas éclairer. Les couleurs sont revenues.
+
+### Fonctionnel (vérifié)
+tsc, build, `test:perf` 13/13.
+
+### À faire
+- Les bâtiments sont un peu plus sombres qu'avant : c'est le prix à payer pour garder la saturation
+  (émissif bas). Si ça gêne, le bon levier est d'éclaircir les COULEURS des recettes, pas de remonter
+  l'émissif — ce serait refaire le délavage.
+- Cuisine, recyclerie, atelier, puits et panneau n'ont pas été retouchés (ils avaient déjà chaume,
+  toit vert, eau bleue). À harmoniser si la nouvelle gamme se confirme.
+
+
+## 2026-07-26 (77) — Ville agrandie (+ correctif d'échelle des props)
+
+Demande : « est-ce que tu peux agrandir la ville ». Grille **15×15 → 19×19**, parcelles écartées et
+agrandies (mairie 3.6→4.4 cellules, ateliers 3.0→3.6, portail et tour 2.6→3.2), place et allées
+recalées, et **cadrage resserré** (`span` de `(size+2)×1.28` à `(size+1)×1.05`) — sans ça, agrandir la
+grille ne fait que rapetisser les bâtiments à l'écran, puisque la caméra cadre sur le contenu.
+
+### Bug trouvé au passage : `fitScale` faisait exploser les props étroits
+Le facteur d'échelle était calculé sur l'**emprise au SOL** (`max(largeur x, largeur z)`). Un prop
+étroit et haut — fougère, touffe d'herbe, fleur — a une toute petite empreinte, donc le facteur
+devenait énorme et sa HAUTEUR partait au plafond : la ville était plantée de « colonnes » pâles plus
+hautes que les bâtiments. `fitScale` accepte désormais un plafond de hauteur, et le décor est borné à
+1.6× son emprise. Le bug existait depuis la refonte de la ville (entrée 75) mais ne se voyait pas :
+sur une grille de 15 il y avait peu de cellules libres, donc peu de props.
+
+Densité de décor ramenée de 26 % à 14 % des cellules libres — à 19×19 il y a bien plus de place, et
+la ville disparaissait sous la végétation ; arbres rabaissés de 1.5 à 1.15 cellule.
+
+### Suite (même jour) — « pourquoi tous les bâtiments ont l'air washed up ? »
+Trois causes cumulées, la première de loin la plus grosse :
+1. **Les bâtiments ne recevaient AUCUNE lumière.** `BLD_MAT` était un `MeshBasicMaterial` (self-lit),
+   choisi à l'époque parce que le Lambert cumulait son ombrage avec celui déjà CUIT par le mesher et
+   les faisait virer au gris. Mais sans lumière du tout : ni modelé, ni ombre portée — posés en aplat
+   sur un terrain, lui, éclairé. La bonne parade est l'ÉMISSIF (qui relève le plancher pour compenser
+   le double ombrage), pas la suppression de l'éclairage. C'est d'ailleurs déjà ce que fait la case
+   ville sur la carte. Repassés en Lambert + émissif.
+2. **`STONE_W` était un quasi-blanc** (222,212,196) et sur dix modèles presque toutes les surfaces
+   sont cette pierre-là. Passé à une calcaire chaude (212,193,163) ; toit en vraie terre cuite.
+3. Le plafond de saturation des quasi-gris dans `divisionize` était très bas (0.19 → 0.28).
+
+⚠️ Piège rencontré : en passant au Lambert j'ai d'abord trop baissé la pierre ET mis un émissif
+faible — les bâtiments sont devenus gris-brun sombres, l'excès inverse. L'émissif doit compenser le
+double ombrage, pas juste « éclairer un peu ».
+
+### Fonctionnel (vérifié)
+- tsc, build, `test:perf` 13/13.
+- Mesuré : **282 912 → 430 520 triangles** en ville (+52 %, la grille passe de 225 à 361 cellules).
+  Le budget de la suite voxel est de 2 M pour la ville — large marge.
+- 10 pastilles, 2 chevauchements (contre 0 à 15×15 : les bâtiments écartés rapprochent certaines
+  pastilles de la caméra ; à surveiller si ça gêne).
+
+
 ## 2026-07-26 (76) — Rendu divisionniste « Signac » (opt-in)
 
 ### Contexte

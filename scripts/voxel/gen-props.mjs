@@ -1029,8 +1029,22 @@ function siteTour(cleared, seed) {
 // partagée : morsures sphériques qui visent d'abord le toit, bords carbonisés,
 // gravats au pied — le même bâtiment s'effondre progressivement.
 // ============================================================================
-const STONE_W = [222, 212, 196], WOOD_W = [168, 132, 94], ROOF_W = [219, 143, 115];
+// STONE_W était un quasi-blanc (222,212,196) : sur dix modèles, presque toutes
+// les surfaces sont cette pierre-là, d'où des bâtiments délavés. Passé à une
+// pierre calcaire CHAUDE — assez claire pour rester lumineuse sous le Lambert
+// (qui, lui, ajoute son ombrage à celui déjà cuit par le mesher), mais avec
+// enfin une couleur. Le toit passe à une vraie terre cuite.
+const STONE_W = [212, 193, 163], WOOD_W = [176, 136, 92], ROOF_W = [206, 118, 88];
 const THATCH = [222, 186, 110], DARK_W = [66, 58, 62], CHAR = [116, 106, 98];
+// Accents COLORÉS. Sans eux, banque / portail / tour / muraille — c'est-à-dire
+// l'essentiel de ce qu'on voit en début de partie — n'étaient QUE de la pierre :
+// la ville paraissait délavée quoi qu'on fasse à l'éclairage ou à la teinte de
+// la pierre elle-même. Chaque bâtiment reçoit désormais une couleur propre, à
+// la manière d'un bourg où chaque métier a ses tuiles et son enseigne.
+const ROOF_SLATE = [86, 116, 138]; // ardoise bleue — banque (bâtiment de prestige)
+const ROOF_TILE = [198, 104, 78]; // tuile — portail, tour
+const TRIM_GOLD = [226, 184, 96];
+const PAINT_TEAL = [96, 156, 156];
 
 // cylindre plein module (fûts, tours rondes) — coords grossières, tracé fin
 function cylAt(g, bx, by, z0, z1, r, rgb) {
@@ -1135,8 +1149,9 @@ function bldBank(seed) {
   g.box(3, 17, 6, 14, 0, 7, shade(STONE_W, 0.97)); // corps de pierre
   for (const x of [4.5, 9.5, 14.5]) g.box(x, x + 1, 5.4, 6, 0, 7, shade(STONE_W, 1.06)); // pilastres
   g.box(8.8, 11.2, 5.4, 6, 0, 5, DARK_W); // porte
-  g.box(2.4, 17.6, 5.2, 14.6, 7, 8.4, shade(STONE_W, 1.04)); // corniche
-  g.box(3.6, 16.4, 6.4, 13.6, 8.4, 9.2, shade(STONE_W, 0.9)); // toit terrasse
+  g.box(2.4, 17.6, 5.2, 14.6, 7, 7.9, TRIM_GOLD); // bandeau doré de corniche
+  g.box(2.4, 17.6, 5.2, 14.6, 7.9, 8.4, shade(STONE_W, 1.04)); // corniche
+  prismRoof(g, 3, 17, 5.8, 14.2, 8.4, ROOF_SLATE); // toit d'ardoise BLEUE
   cylAt(g, 10, 5.2, 8.6, 10.6, 1.3, [240, 202, 112]); // enseigne : pièce d'or
   g.set(10, 5.2, 9.6, shade([240, 202, 112], 1.15));
   return g;
@@ -1166,7 +1181,9 @@ function bldGate(seed) {
     for (let x = x0; x <= x0 + 4; x += 2) g.box(x, x + 1, 7.5, 12.5, 10, 11, STONE_W); // créneaux
   }
   g.box(6, 14, 8, 12, 6, 9, shade(STONE_W, 1.02)); // arche
-  g.box(9.4, 10.6, 7.9, 8.1, 9, 10.6, [122, 186, 202]); // bannière
+  for (const x0 of [2, 14]) prismRoof(g, x0 - 0.4, x0 + 4.4, 7.1, 12.9, 11, ROOF_TILE); // toits de tuile
+  g.box(8.6, 11.4, 7.85, 8.05, 9, 11.2, PAINT_TEAL); // bannière, plus large
+  g.box(8.6, 11.4, 7.8, 8.05, 10.8, 11.2, TRIM_GOLD); // galon doré
   return g;
 }
 
@@ -1210,7 +1227,9 @@ function bldTower(seed) {
   }
   g.box(9, 10.5, 6.2, 6.6, 8, 10, DARK_W); // meurtrière
   g.box(9, 10.5, 6.2, 6.6, 3, 5, DARK_W);
-  g.set(9.5, 9.5, 16, [214, 88, 96]); // fanion
+  // toiture conique en TUILE : sans elle la tour n'était qu'un fût de pierre
+  for (let i = 0; i < 5; i++) cylAt(g, 9.5, 9.5, 15.8 + i * 0.9, 16.7 + i * 0.9, 3.4 - i * 0.62, shade(ROOF_TILE, 1 - i * 0.03));
+  g.set(9.5, 9.5, 20.6, [214, 88, 96]); // fanion
   return g;
 }
 
@@ -1265,6 +1284,10 @@ function bldWall(seed) {
   g.box(1, 18.5, 8.5, 11.5, 0, 6, shade(STONE_W, 0.95));
   for (let x = 1.5; x <= 18; x += 2.4) g.box(x, x + 1.2, 8.5, 11.5, 6, 7.2, STONE_W); // merlons
   g.box(1, 18.5, 9.2, 10.8, 6, 6.4, shade(STONE_W, 1.05)); // chemin de ronde
+  // couvertine d'ARDOISE : le rempart fait tout le tour de la ville, en pierre
+  // nue il traçait un large liseré beige uniforme autour du bourg.
+  g.box(1, 18.5, 8.4, 9.2, 5.7, 6.2, shade(ROOF_SLATE, 0.95));
+  g.box(1, 18.5, 10.8, 11.6, 5.7, 6.2, shade(ROOF_SLATE, 0.88));
   return g;
 }
 
