@@ -128,8 +128,12 @@ export function VoxelTownView({
     // paraissaient décollés et DÉLAVÉS. La bonne parade est l'émissif — il
     // relève le plancher pour compenser le double ombrage — pas la suppression
     // de l'éclairage. (Même traitement que la case ville sur la carte.)
+    //
+    // ⚠ L'émissif est un gris AJOUTÉ à chaque fragment : trop fort, il relève la
+    // luminosité mais DILUE la saturation, et les toits colorés redeviennent
+    // pâles. Il doit juste compenser le double ombrage — pas éclairer.
     const BLD_MAT = signacify(
-      new THREE.MeshLambertMaterial({ vertexColors: true, emissive: new THREE.Color(0x8a8279) }),
+      new THREE.MeshLambertMaterial({ vertexColors: true, emissive: new THREE.Color(0x46423c) }),
     );
 
     // --- animation d'ouverture du portail --------------------------------------

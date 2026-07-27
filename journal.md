@@ -6,6 +6,44 @@
 
 ---
 
+## 2026-07-26 (78) — Bâtiments : couleur DANS les modèles
+
+Retour : « ils ont l'air toujours un peu washed up, est-ce qu'on ne pourrait pas modifier les modèles
+pour avoir plus de couleurs de base ». Diagnostic juste — et c'est bien le modèle qu'il fallait
+changer, pas l'éclairage.
+
+Constat : sur les dix recettes, la banque, le portail, la tour et la muraille — c'est-à-dire
+l'ESSENTIEL de ce qu'on voit en début de partie, puisque ce sont les bâtiments déjà construits —
+n'avaient **aucun élément coloré**. Que de la pierre. Seule la mairie avait un toit terracotta, et
+elle n'est pas bâtie au départ. Aucun réglage d'éclairage ou de teinte de pierre ne pouvait
+rattraper ça.
+
+### Fait — accents colorés par bâtiment (`gen-props.mjs`)
+Palette d'accents : `ROOF_SLATE` (ardoise bleue), `ROOF_TILE` (tuile), `TRIM_GOLD`, `PAINT_TEAL`.
+- **Banque** : toit d'ardoise BLEUE + bandeau doré de corniche (c'était un toit-terrasse en pierre).
+- **Tour** : toiture conique en tuile (ce n'était qu'un fût de pierre nu).
+- **Portail** : toits pyramidaux en tuile sur les deux tours, bannière élargie + galon doré.
+- **Muraille** : couvertine d'ardoise des deux côtés du chemin de ronde — le rempart fait tout le
+  tour de la ville, en pierre nue il traçait un large liseré beige uniforme autour du bourg.
+
+### ⚠ Le piège de l'émissif (à retenir)
+Après avoir coloré les modèles, les toits restaient PÂLES en jeu alors qu'ils étaient éclatants sur
+le rendu isolé du prop. Cause : l'émissif du matériau des bâtiments était monté à `0x8a8279` pour
+compenser le double ombrage. **L'émissif est un gris AJOUTÉ à chaque fragment** : trop fort, il
+relève la luminosité mais DILUE la saturation. Redescendu à `0x46423c` — il ne doit que compenser le
+double ombrage, pas éclairer. Les couleurs sont revenues.
+
+### Fonctionnel (vérifié)
+tsc, build, `test:perf` 13/13.
+
+### À faire
+- Les bâtiments sont un peu plus sombres qu'avant : c'est le prix à payer pour garder la saturation
+  (émissif bas). Si ça gêne, le bon levier est d'éclaircir les COULEURS des recettes, pas de remonter
+  l'émissif — ce serait refaire le délavage.
+- Cuisine, recyclerie, atelier, puits et panneau n'ont pas été retouchés (ils avaient déjà chaume,
+  toit vert, eau bleue). À harmoniser si la nouvelle gamme se confirme.
+
+
 ## 2026-07-26 (77) — Ville agrandie (+ correctif d'échelle des props)
 
 Demande : « est-ce que tu peux agrandir la ville ». Grille **15×15 → 19×19**, parcelles écartées et
