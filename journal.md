@@ -6,6 +6,32 @@
 
 ---
 
+## 2026-07-26 (77) — Ville agrandie (+ correctif d'échelle des props)
+
+Demande : « est-ce que tu peux agrandir la ville ». Grille **15×15 → 19×19**, parcelles écartées et
+agrandies (mairie 3.6→4.4 cellules, ateliers 3.0→3.6, portail et tour 2.6→3.2), place et allées
+recalées, et **cadrage resserré** (`span` de `(size+2)×1.28` à `(size+1)×1.05`) — sans ça, agrandir la
+grille ne fait que rapetisser les bâtiments à l'écran, puisque la caméra cadre sur le contenu.
+
+### Bug trouvé au passage : `fitScale` faisait exploser les props étroits
+Le facteur d'échelle était calculé sur l'**emprise au SOL** (`max(largeur x, largeur z)`). Un prop
+étroit et haut — fougère, touffe d'herbe, fleur — a une toute petite empreinte, donc le facteur
+devenait énorme et sa HAUTEUR partait au plafond : la ville était plantée de « colonnes » pâles plus
+hautes que les bâtiments. `fitScale` accepte désormais un plafond de hauteur, et le décor est borné à
+1.6× son emprise. Le bug existait depuis la refonte de la ville (entrée 75) mais ne se voyait pas :
+sur une grille de 15 il y avait peu de cellules libres, donc peu de props.
+
+Densité de décor ramenée de 26 % à 14 % des cellules libres — à 19×19 il y a bien plus de place, et
+la ville disparaissait sous la végétation ; arbres rabaissés de 1.5 à 1.15 cellule.
+
+### Fonctionnel (vérifié)
+- tsc, build, `test:perf` 13/13.
+- Mesuré : **282 912 → 430 520 triangles** en ville (+52 %, la grille passe de 225 à 361 cellules).
+  Le budget de la suite voxel est de 2 M pour la ville — large marge.
+- 10 pastilles, 2 chevauchements (contre 0 à 15×15 : les bâtiments écartés rapprochent certaines
+  pastilles de la caméra ; à surveiller si ça gêne).
+
+
 ## 2026-07-26 (76) — Rendu divisionniste « Signac » (opt-in)
 
 ### Contexte

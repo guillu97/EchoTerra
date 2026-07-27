@@ -46,12 +46,18 @@ const GATE_OPEN_ANGLE = 1.4; // rad (~80°) — vantaux grands ouverts vers l'av
 // la mairie un pavé), donc on mesure la boîte englobante RÉELLE au lieu
 // d'appliquer un facteur commun — c'est ce que faisait l'ancien code (×2.3
 // hérité de l'échelle d'auteur), d'où des bâtiments de tailles incohérentes.
-function fitScale(geom: THREE.BufferGeometry, cells: number): number {
+function fitScale(geom: THREE.BufferGeometry, cells: number, maxHeight = Infinity): number {
   if (!geom.boundingBox) geom.computeBoundingBox();
   const bb = geom.boundingBox;
   if (!bb) return cells;
   const w = Math.max(bb.max.x - bb.min.x, bb.max.z - bb.min.z);
-  return w > 1e-6 ? cells / w : cells;
+  const s = w > 1e-6 ? cells / w : cells;
+  // Plafond de HAUTEUR. Le facteur est calculé sur l'emprise au SOL : un prop
+  // étroit et haut (fougère, touffe d'herbe, fleur) a une toute petite empreinte,
+  // donc le facteur devient énorme et sa hauteur part au plafond — d'où les
+  // « colonnes » pâles qui dépassaient les bâtiments. On borne.
+  const h = (bb.max.y - bb.min.y) * s;
+  return h > maxHeight && h > 1e-6 ? s * (maxHeight / h) : s;
 }
 
 type Spot = { buildingId: string; world: THREE.Vector3 };
@@ -344,7 +350,7 @@ export function VoxelTownView({
       // En projection dimétrique un carré de côté N occupe ~N·√2 en diagonale
       // écran : cadrer sur N seul débordait des deux côtés. On cadre sur la
       // DIAGONALE, avec une marge pour la muraille et les pastilles.
-      const span = (layout.size + 2) * 1.28;
+      const span = (layout.size + 1) * 1.05;
       const fit = Math.min(host.clientWidth, host.clientHeight) / span;
       engine.zoom = Math.max(engine.minZoom, Math.min(engine.maxZoom, fit));
       drawHeroes();
@@ -362,7 +368,7 @@ export function VoxelTownView({
         const m = new THREE.Mesh(geom, BLD_MAT);
         m.castShadow = m.receiveShadow = true;
         m.position.set(d.x, GROUND, d.y);
-        m.scale.setScalar(fitScale(geom, d.scale));
+        m.scale.setScalar(fitScale(geom, d.scale, d.scale * 1.6));
         m.rotation.y = ((d.x * 7 + d.y * 13) % 4) * (Math.PI / 2);
         decorGroup.add(m);
       }
