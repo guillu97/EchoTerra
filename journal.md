@@ -24,6 +24,22 @@ sur une grille de 15 il y avait peu de cellules libres, donc peu de props.
 Densité de décor ramenée de 26 % à 14 % des cellules libres — à 19×19 il y a bien plus de place, et
 la ville disparaissait sous la végétation ; arbres rabaissés de 1.5 à 1.15 cellule.
 
+### Suite (même jour) — « pourquoi tous les bâtiments ont l'air washed up ? »
+Trois causes cumulées, la première de loin la plus grosse :
+1. **Les bâtiments ne recevaient AUCUNE lumière.** `BLD_MAT` était un `MeshBasicMaterial` (self-lit),
+   choisi à l'époque parce que le Lambert cumulait son ombrage avec celui déjà CUIT par le mesher et
+   les faisait virer au gris. Mais sans lumière du tout : ni modelé, ni ombre portée — posés en aplat
+   sur un terrain, lui, éclairé. La bonne parade est l'ÉMISSIF (qui relève le plancher pour compenser
+   le double ombrage), pas la suppression de l'éclairage. C'est d'ailleurs déjà ce que fait la case
+   ville sur la carte. Repassés en Lambert + émissif.
+2. **`STONE_W` était un quasi-blanc** (222,212,196) et sur dix modèles presque toutes les surfaces
+   sont cette pierre-là. Passé à une calcaire chaude (212,193,163) ; toit en vraie terre cuite.
+3. Le plafond de saturation des quasi-gris dans `divisionize` était très bas (0.19 → 0.28).
+
+⚠️ Piège rencontré : en passant au Lambert j'ai d'abord trop baissé la pierre ET mis un émissif
+faible — les bâtiments sont devenus gris-brun sombres, l'excès inverse. L'émissif doit compenser le
+double ombrage, pas juste « éclairer un peu ».
+
 ### Fonctionnel (vérifié)
 - tsc, build, `test:perf` 13/13.
 - Mesuré : **282 912 → 430 520 triangles** en ville (+52 %, la grille passe de 225 à 361 cellules).

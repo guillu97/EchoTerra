@@ -156,7 +156,7 @@ export function divisionize(rgb, k, amount = DIV) {
   const GREY_HUES = [0.74, 0.60, 0.11, 0.95, 0.66, 0.08, 0.80]; // mauve/bleu/crème/rosé
   if (hsv[1] < 0.14) {
     hsv[0] = GREY_HUES[kk % GREY_HUES.length];
-    hsv[1] = Math.min(0.19, hsv[1] + 0.13 * amount); // pâle : on teinte, on ne colorie pas
+    hsv[1] = Math.min(0.28, hsv[1] + 0.22 * amount); // teinté franchement, sans devenir un aplat de couleur
   } else {
     hsv[0] = (hsv[0] + wheel[kk] * amount + 1) % 1;
     hsv[1] = Math.min(1, hsv[1] + (1 - hsv[1]) * 0.17 * amount);

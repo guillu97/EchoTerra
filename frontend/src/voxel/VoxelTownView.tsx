@@ -121,9 +121,16 @@ export function VoxelTownView({
     // --- groupe DYNAMIQUE des bâtiments voxel : reconstruit à chaque état ----
     const bldGroup = new THREE.Group();
     engine.scene.add(bldGroup);
-    // SELF-LIT : l'ombrage des faces est déjà CUIT par le mesher — sous le
-    // Lambert les façades cumulaient deux ombrages et viraient au gris
-    const BLD_MAT = signacify(new THREE.MeshBasicMaterial({ vertexColors: true }));
+    // Bâtiments ÉCLAIRÉS. Ils étaient en MeshBasicMaterial (self-lit) parce que
+    // le Lambert cumulait son ombrage avec celui déjà CUIT par le mesher et les
+    // faisait virer au gris. Mais sans lumière du tout, ils n'ont ni modelé ni
+    // ombre portée : posés en aplat sur un terrain, lui, éclairé, ils
+    // paraissaient décollés et DÉLAVÉS. La bonne parade est l'émissif — il
+    // relève le plancher pour compenser le double ombrage — pas la suppression
+    // de l'éclairage. (Même traitement que la case ville sur la carte.)
+    const BLD_MAT = signacify(
+      new THREE.MeshLambertMaterial({ vertexColors: true, emissive: new THREE.Color(0x8a8279) }),
+    );
 
     // --- animation d'ouverture du portail --------------------------------------
     // `gateAnim.current` (0 fermé → 1 ouvert) est lissé image par image et

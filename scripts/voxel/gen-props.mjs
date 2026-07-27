@@ -1029,7 +1029,12 @@ function siteTour(cleared, seed) {
 // partagée : morsures sphériques qui visent d'abord le toit, bords carbonisés,
 // gravats au pied — le même bâtiment s'effondre progressivement.
 // ============================================================================
-const STONE_W = [222, 212, 196], WOOD_W = [168, 132, 94], ROOF_W = [219, 143, 115];
+// STONE_W était un quasi-blanc (222,212,196) : sur dix modèles, presque toutes
+// les surfaces sont cette pierre-là, d'où des bâtiments délavés. Passé à une
+// pierre calcaire CHAUDE — assez claire pour rester lumineuse sous le Lambert
+// (qui, lui, ajoute son ombrage à celui déjà cuit par le mesher), mais avec
+// enfin une couleur. Le toit passe à une vraie terre cuite.
+const STONE_W = [212, 193, 163], WOOD_W = [176, 136, 92], ROOF_W = [206, 118, 88];
 const THATCH = [222, 186, 110], DARK_W = [66, 58, 62], CHAR = [116, 106, 98];
 
 // cylindre plein module (fûts, tours rondes) — coords grossières, tracé fin
