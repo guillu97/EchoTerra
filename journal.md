@@ -6,6 +6,91 @@
 
 ---
 
+## 2026-07-28 (79) — Ville : le style « Town to City » (densité, tissu bâti, rempart)
+
+Demande : *« explore le style Town to city mais pour ce jeu »*, puis cinq images de référence.
+Ce que les images disent, et que les descriptions écrites ne rendaient pas :
+
+1. **la densité fait la ville** — les bâtiments remarquables ne se détachent que parce qu'ils
+   dépassent d'une MASSE de toits serrés. Notre bourg était dix objets espacés sur une pelouse ;
+2. **le toit porte la couleur** et occupe la moitié de la hauteur. Nos bâtiments sont surtout de la
+   pierre, d'où l'impression de gris quoi qu'on fasse à l'éclairage ;
+3. **rien n'est aligné au cordeau** — les faîtes partent de quelques degrés de travers ;
+4. **des verticales** (cyprès) rythment la silhouette au-dessus des toits.
+
+### Fait
+
+**Maisons de bourg** (`gen-props.mjs` → `house-v{0,1,2}.vox`, 3 modèles distincts, pas 3 états) :
+chaumière au toit de chaume, maison à étage en encorbellement à colombages (toit terre cuite),
+petite maison peinte avec auvent de toile (toit d'ardoise). Trois couvertures différentes pour que le
+tissu ne fasse pas motif. Aucun rôle de jeu, pas cliquables : un tap dessus vide la sélection comme
+un tap sur l'herbe. ~20 par ville.
+
+> ⚠ **La cause de l'échec de la tentative précédente** (« maisons rendues en dalles flottantes ») est
+> identifiée : les recettes du fichier renvoient soit une `Grid`, soit `fin(g)`, selon qu'elles sont
+> enregistrées seules ou dans le bloc `bld-*` — lequel applique `damagePass` PUIS `fin`. Passer une
+> Grid déjà « finie » à `damagePass` indexe le buffer avec les mauvaises dimensions.
+
+**Plan du bourg** (`townLayout.ts`) : 19×19 → **21×21** (à 19, les dix parcelles et leurs dégagements
+mangeaient ~250 des 289 cellules intérieures — il n'y avait de place que pour 14 maisons, dont la
+moitié collée au rempart donc masquée par lui). Ajout d'une **ceinture de rue** intérieure : c'est
+elle qui donne du front de rue, sinon les seules façades constructibles sont les deux axes centraux.
+Placement des maisons en trois passes — front de rue, puis GRAPPE (accrochage à une maison déjà
+posée → rangées et îlots), puis fonds de jardin — avec dégagement **euclidien** et non Chebyshev
+(en Chebyshev une diagonale compte pour 1 alors qu'elle vaut 1,41 : on perdait un anneau entier
+autour de chaque bâtiment).
+
+**Implantation organique** : ±7,5° et ±0,22 cellule, déterministe par hachage, sur les parcelles
+intérieures seulement. Muraille, portail et tour restent d'équerre — c'est une fortification.
+
+**Cyprès de bord de rue** : le prop `pine` avec un plafond de HAUTEUR explicite (4,2 cellules) pour
+qu'il dépasse les maisons (3,1) sans atteindre la mairie (5,6), qui garde le point haut. D'où un
+champ `hmax` sur `TownDecor` : le plafond par défaut (`scale × 1.6`) est calculé sur l'emprise au
+sol et écrasait le cyprès sous les toits.
+
+**Parcelles** : terre battue resserrée d'un anneau + **liseré pavé** autour. Seule, la terre se
+lisait comme un trou dans la pelouse.
+
+### Deux bugs trouvés en chemin
+
+**Le rempart montait à 0,9 cellule.** `bld-wall` est un bandeau (17,5 de long pour 7,2 de haut) et
+`fitScale` met à l'échelle sur l'emprise au SOL, donc sur la longueur : à 2,1 cellules de long, la
+hauteur tombait mécaniquement à 0,9. Une bordure de jardin autour d'un bourg dont les maisons font
+3 cellules. Corrigé par des segments de 5 cellules (≈2,2 de haut) pavant le pourtour avec
+recouvrement — 19 segments au lieu de 36, et la tour d'angle ENJAMBE désormais le rempart au lieu
+d'y creuser un trou. (Essayé à 8,3 → 3,7 de haut : le pan avant occultait le tiers du bourg.)
+
+**Les gravats de `damagePass` étaient semés sur toute la grille 20×20**, quelle que soit la forme du
+modèle. Sur un bâtiment compact ça passait ; sur le rempart — qui n'occupe que 5 unités de
+profondeur sur 30 — ils TRIPLAIENT la profondeur de la boîte englobante, donc de l'échelle. Et comme
+la muraille démarre à **20/100 de durabilité**, c'est la variante RUINE qu'on voit en début de
+partie : le rempart était un pavé massif. Les gravats sont maintenant contenus dans l'emprise du
+modèle. Les dix `bld-*` sont régénérés.
+
+**Mode « Classique » cassé par l'implantation organique** (trouvé et corrigé dans la foulée) : le
+renderer 2D range les placements dans un seau par cellule (`isoRender.ts:223`, clé `"${cx},${cy}"`)
+et les ressort en parcourant les cellules — donc avec des ENTIERS. Une coordonnée fractionnaire ne
+retombe jamais sur une clé existante et l'objet n'est jamais dessiné : la ville 2D s'était vidée de
+tous ses bâtiments sauf la tour. `townDoc()` arrondit désormais. Le sub-pixel reste un raffinement
+de la vue voxel.
+
+### Fonctionnel (vérifié)
+- Captures headless de l'onglet Ville en voxel ET en Classique (Playwright, poll par
+  `page.evaluate` — jamais `waitForFunction`) : bourg dense, rempart lisible, maisons présentes dans
+  les deux rendus.
+- `npx tsc -b` ✅ · `npm run build` ✅ · `npm run test:perf` **13/13** ✅
+- `npm run test:perf:voxel` 10/12 — les deux échecs (« carte on-demand », « rendu stoppé hors de
+  l'onglet ») sont **antérieurs** et déjà constatés à la session précédente sur l'arbre pré-Signac.
+- Budget de la ville : **625 k triangles** pour 119 meshes (plafond de la suite : 2 M).
+
+### Reste à faire
+- Les bâtiments de JEU gardent des silhouettes basses et pierreuses à côté des maisons ; c'est
+  maintenant eux qui paraissent ternes. Prochaine passe : plus de toit, moins de mur.
+- Cycle jour/nuit dans la ville (la carte l'a déjà, branché sur `waveProgress`).
+- Boucle de rendu continue de la carte (batterie) — antérieure, toujours ouverte.
+
+---
+
 ## 2026-07-26 (78) — Bâtiments : couleur DANS les modèles
 
 Retour : « ils ont l'air toujours un peu washed up, est-ce qu'on ne pourrait pas modifier les modèles

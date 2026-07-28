@@ -1101,11 +1101,27 @@ function damagePass(g, ratio, seed, noLumps = false) {
       }
     }
   }
-  // gravats au pied (coords grossières pour l'ellipsoïde partagé)
+  // Gravats au pied (coords grossières pour l'ellipsoïde partagé), CONTENUS
+  // dans l'emprise du bâtiment.
+  //
+  // ⚠ Ils étaient semés sur toute la grille 20×20, quelle que soit la forme du
+  // modèle. Sur un bâtiment compact ça passait ; sur le REMPART — un bandeau
+  // qui n'occupe que 5 unités de profondeur sur 30 — les gravats triplaient la
+  // profondeur de la boîte englobante. Comme la vue Ville met le modèle à
+  // l'échelle sur son emprise au sol, la muraille en ruine (et elle démarre à
+  // 20/100 de durabilité, donc c'est CETTE variante qu'on voit en début de
+  // partie) devenait un pavé massif au lieu d'un mur écroulé.
   if (noLumps) return; // vantaux animés : pas de débris épars sur la grille
+  const f = g.fs;
+  let mnx = fsx, mxx = 0, mny = fsy, mxy = 0;
+  for (const [x, y] of occ) {
+    if (x < mnx) mnx = x; if (x > mxx) mxx = x;
+    if (y < mny) mny = y; if (y > mxy) mxy = y;
+  }
+  const [cx0, cx1, cy0, cy1] = [mnx / f, mxx / f, mny / f, mxy / f];
   const lumps = Math.round(2 + ratio * 4);
   for (let i = 0; i < lumps; i++) {
-    const bx = 3 + rnd() * (fsx / g.fs - 6), by = 3 + rnd() * (fsy / g.fs - 6);
+    const bx = cx0 + rnd() * (cx1 - cx0), by = cy0 + rnd() * (cy1 - cy0);
     ellipsoid(g, bx, by, 0.7, 1 + rnd() * 1.2, 0.9 + rnd(), 0.8, shade(RUBBLE, 0.92 + rnd() * 0.16), rnd, 6);
   }
 }
@@ -1291,6 +1307,78 @@ function bldWall(seed) {
   return g;
 }
 
+// ============================================================================
+// MAISONS DE BOURG (2026-07-28) — remplissage, aucune fonction de jeu.
+//
+// Le village avait dix bâtiments espacés sur une pelouse : chaque parcelle se
+// lisait isolément, jamais comme une ville. Dans la référence, ce qui fait la
+// silhouette n'est pas le bâtiment remarquable, c'est la MASSE des toits
+// serrés autour de lui — la mairie ne se détache que parce qu'elle dépasse
+// d'un tissu de maisons.
+//
+// Deux règles tenues par les trois modèles :
+//   1. le TOIT porte la couleur et occupe ~la moitié de la hauteur ; les murs
+//      sont bas, clairs et discrets. C'est l'inverse de nos bâtiments de jeu,
+//      où la pierre domine — et c'est pour ça qu'ils paraissaient ternes ;
+//   2. la silhouette déborde (auvent, encorbellement, cheminée) — un pavé
+//      coiffé d'un prisme se lit comme un bloc, pas comme une maison.
+//
+// ⚠ Convention du fichier : une recette renvoie `fin(g)` OU la `Grid` selon
+// qu'elle est enregistrée seule ou dans le bloc `bld-*` (qui applique `fin`
+// APRÈS `damagePass`). Passer une Grid déjà « finie » à `damagePass` indexe un
+// buffer avec les mauvaises dimensions et rend des dalles flottantes.
+const PLASTER = [236, 216, 182];
+const PAINT_ROSE = [214, 146, 136];
+
+function house(kind, seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz, FINE);
+  const rnd = makeRng(seed);
+  const wobble = () => 0.94 + rnd() * 0.12;
+
+  if (kind === 0) {
+    // Chaumière trapue : soubassement de pierre, torchis, grande toiture de
+    // tuile très débordante — le toit fait plus de la moitié de la hauteur.
+    g.box(6, 14, 7, 13, 0, 1, shade(STONE_W, 0.84)); // soubassement
+    g.box(6, 14, 7, 13, 1, 4.4, shade(PLASTER, wobble()));
+    g.box(9.2, 10.8, 6.6, 7, 1, 3.8, DARK_W); // porte
+    g.box(6.8, 8.1, 6.6, 7, 2.3, 3.6, [122, 186, 202]); // fenêtres
+    g.box(11.9, 13.2, 6.6, 7, 2.3, 3.6, [122, 186, 202]);
+    // Toit de CHAUME : la troisième couverture du bourg. Avec trois maisons qui
+    // portent chaume / terre cuite / ardoise, le tissu se lit comme un village
+    // bâti par plusieurs mains — trois toits de la même tuile faisaient motif.
+    prismRoof(g, 6.4, 13.6, 7.4, 12.6, 4.6, shade(THATCH, 0.96), 1.5);
+    g.box(11.6, 13, 10.6, 12, 4.4, 9.6, shade(STONE_W, 0.9)); // cheminée
+    g.box(11.9, 12.7, 10.9, 11.7, 9.6, 10, DARK_W);
+    g.box(6.6, 8.2, 6.2, 6.6, 0, 0.6, shade(WOOD_W, 0.88)); // banc devant la porte
+  } else if (kind === 1) {
+    // Maison à étage en ENCORBELLEMENT : le premier déborde du rez, colombages
+    // apparents. C'est le débord qui donne l'ombre portée et la lecture « rue ».
+    g.box(6.6, 13.4, 7.6, 12.4, 0, 3.6, shade(STONE_W, 0.98)); // rez de pierre
+    g.box(9.2, 10.8, 7.2, 7.6, 0, 3, DARK_W); // porte
+    g.box(6, 14, 7, 13, 3.6, 7, shade(PLASTER, wobble())); // étage en surplomb
+    g.box(6, 14, 6.9, 7, 3.4, 3.9, shade(WOOD_W, 0.86)); // sablière
+    for (const x of [6.1, 8.3, 11.6, 13.7]) g.box(x, x + 0.5, 6.9, 7, 3.9, 7, shade(DARK_W, 1.5)); // colombages
+    g.box(9.2, 10.8, 6.9, 7, 4.7, 6.1, [122, 186, 202]); // fenêtre d'étage
+    prismRoof(g, 6, 14, 7.2, 12.8, 7.2, ROOF_W, 1.3);
+    g.box(6.4, 7.6, 8.2, 9.4, 7, 11.6, shade(STONE_W, 0.88)); // cheminée
+    g.box(6.7, 7.3, 8.5, 9.1, 11.6, 12, DARK_W);
+  } else {
+    // Petite maison PEINTE avec auvent de toile : c'est elle qui met la couleur
+    // franche dans le tissu (rose/tuile), et l'auvent casse le prisme.
+    const wall = rnd() < 0.5 ? PAINT_TEAL : PAINT_ROSE;
+    g.box(7, 13, 7.8, 12.6, 0, 0.8, shade(STONE_W, 0.84));
+    g.box(7, 13, 7.8, 12.6, 0.8, 4.2, shade(wall, wobble()));
+    g.box(9.4, 10.6, 7.4, 7.8, 0.8, 3.6, shade(WOOD_W, 1.12)); // porte bois
+    g.box(7.3, 8.6, 7.4, 7.8, 2, 3.4, [246, 240, 218]); // fenêtres à volets clairs
+    g.box(11.4, 12.7, 7.4, 7.8, 2, 3.4, [246, 240, 218]);
+    prismRoof(g, 6.6, 13.4, 7.6, 12.8, 4.4, ROOF_SLATE, 1.2);
+    g.box(6.6, 13.4, 6.1, 7.5, 3.9, 4.3, shade(TRIM_GOLD, 0.96)); // auvent de toile
+    for (const x of [6.8, 13]) g.box(x, x + 0.5, 6.2, 6.7, 0, 3.9, shade(WOOD_W, 0.94)); // poteaux
+    g.box(7.4, 8.4, 6.2, 7, 0, 1.3, shade(ROOF_TILE, 1.05)); // cageot à l'étal
+  }
+  return fin(g);
+}
+
 function bldChantier(seed) {
   const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz, FINE);
   const rnd = makeRng(seed);
@@ -1439,6 +1527,8 @@ async function main() {
       },
     })),
     { id: "bld-chantier", make: () => fin(bldChantier(1101)) },
+    // maisons de remplissage du bourg (3 modèles distincts, pas 3 états)
+    { id: "house", make: (v) => house(v, 1501 + v * 77) },
     { id: "cloud", make: (v) => cloudProp(1201 + v * 77) },
     { id: "brambles", make: (v) => brambles(1301 + v * 77) },
     // sites de ruines-donjons : v0 = enseveli, v1-2 = déblayé (choix par ÉTAT serveur)
@@ -1452,7 +1542,13 @@ async function main() {
     { id: "ruin-slab", make: (v) => ruinSlab(721 + v * 77) },
     { id: "ruin-arch", make: (v) => ruinArch(731 + v * 77) },
   ];
+  // Filtre CLI : `node scripts/voxel/gen-props.mjs house bld-wall` ne régénère
+  // que ces ids. Sans argument, tout est régénéré (comportement historique).
+  // Les seeds sont fixes, donc régénérer tout est idempotent — mais ça écrit
+  // 216 fichiers et noie la revue du diff.
+  const only = new Set(process.argv.slice(2).filter((a) => !a.startsWith("--")));
   for (const d of defs) {
+    if (only.size && !only.has(d.id)) continue;
     for (let v = 0; v < 3; v++) {
       const model = d.make(v);
       model.palette = model.palette.map((c) => vividProp(c));

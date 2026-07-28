@@ -373,13 +373,26 @@ export function VoxelTownView({
     const decorGroup = new THREE.Group();
     engine.scene.add(decorGroup);
     void propsLib.load(TOWN_DECOR_PROPS).then(() => {
+      // MAISONS DE BOURG : le tissu bâti. Volontairement absentes de
+      // `spriteBuildingOf` — elles n'ont aucun rôle de jeu, donc un tap dessus
+      // doit vider la sélection comme un tap sur l'herbe, pas ouvrir un modal.
+      for (const h of layout.houses) {
+        const geom = propsLib.get("house", h.variant);
+        if (!geom) continue;
+        const m = new THREE.Mesh(geom, BLD_MAT);
+        m.castShadow = m.receiveShadow = true;
+        m.position.set(h.x, GROUND, h.y);
+        m.scale.setScalar(fitScale(geom, h.cells, h.cells * 1.5));
+        m.rotation.y = h.rot;
+        decorGroup.add(m);
+      }
       for (const d of layout.decor) {
         const geom = propsLib.get(d.prop, (d.x + d.y) % 3);
         if (!geom) continue;
         const m = new THREE.Mesh(geom, BLD_MAT);
         m.castShadow = m.receiveShadow = true;
         m.position.set(d.x, GROUND, d.y);
-        m.scale.setScalar(fitScale(geom, d.scale, d.scale * 1.6));
+        m.scale.setScalar(fitScale(geom, d.scale, d.hmax ?? d.scale * 1.6));
         m.rotation.y = ((d.x * 7 + d.y * 13) % 4) * (Math.PI / 2);
         decorGroup.add(m);
       }
