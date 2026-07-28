@@ -377,7 +377,7 @@ export function VoxelTownView({
       // `spriteBuildingOf` — elles n'ont aucun rôle de jeu, donc un tap dessus
       // doit vider la sélection comme un tap sur l'herbe, pas ouvrir un modal.
       for (const h of layout.houses) {
-        const geom = propsLib.get("house", h.variant);
+        const geom = propsLib.get(h.prop, h.variant);
         if (!geom) continue;
         const m = new THREE.Mesh(geom, BLD_MAT);
         m.castShadow = m.receiveShadow = true;

@@ -41,7 +41,15 @@ export type TownDecor = {
   hmax?: number;
 };
 /** Maison de remplissage : aucun rôle de jeu, elle fait le TISSU du bourg. */
-export type TownHouse = { x: number; y: number; variant: number; cells: number; rot: number };
+export type TownHouse = {
+  x: number;
+  y: number;
+  /** Id de prop voxel (`house` / `house2` / `house3`). */
+  prop: string;
+  variant: number;
+  cells: number;
+  rot: number;
+};
 
 export type TownLayout = {
   size: number;
@@ -75,13 +83,13 @@ const GROUND = 2; // deux blocs d'épaisseur → le village repose sur un socle
 // aucune emprise ne doit chevaucher la rue, sinon le dallage ressort sous un
 // bâtiment. Les dégagements deux à deux sont vérifiés (somme des demi-emprises).
 const INTERIOR: TownPlot[] = [
-  { bid: "townhall", x: 10, y: 6, cells: 4.4, primary: true },
-  { bid: "bank", x: 6, y: 8, cells: 3.6, primary: true },
-  { bid: "workshop", x: 14, y: 8, cells: 3.6, primary: true },
-  { bid: "kitchen", x: 6, y: 14, cells: 3.6, primary: true },
-  { bid: "recyclerie", x: 14, y: 14, cells: 3.6, primary: true },
-  { bid: "well", x: 10, y: 10, cells: 2.3, primary: true },
-  { bid: "panel", x: 12, y: 11, cells: 2.1, primary: true }, // au bord de la place
+  { bid: "townhall", x: 10, y: 6, cells: 4.4, primary: true }, // fond de place
+  { bid: "bank", x: 6, y: 6, cells: 3.6, primary: true }, // îlot nord-ouest
+  { bid: "workshop", x: 14, y: 6, cells: 3.6, primary: true }, // îlot nord-est
+  { bid: "kitchen", x: 6, y: 15, cells: 3.6, primary: true }, // îlot sud-ouest
+  { bid: "recyclerie", x: 14, y: 15, cells: 3.6, primary: true }, // îlot sud-est
+  { bid: "well", x: 10, y: 10, cells: 2.3, primary: true }, // au centre de la place
+  { bid: "panel", x: 7, y: 12, cells: 2.1, primary: true }, // à l'angle de la place
 ];
 
 const GATE_X = CENTRE; // portail au milieu de la face avant (y = LAST)
@@ -115,28 +123,74 @@ const tileWall = (a: number, b: number): number[] => {
   return Array.from({ length: n }, (_, k) => a + step * (k + 0.5));
 };
 
-// Place du village : dallage autour du puits.
-const isSquare = (x: number, y: number) =>
-  Math.abs(x - CENTRE) <= 1 && Math.abs(y - CENTRE) <= 1;
-// Rues : l'allée du portail vers la place, la traverse est-ouest, et une
-// CEINTURE intérieure qui longe le rempart. La ceinture n'est pas décorative :
-// c'est elle qui donne du front de rue au tissu de maisons, sinon les seules
-// façades constructibles sont les deux axes centraux et le bourg reste creux.
+// --- HIÉRARCHIE DES VOIES ----------------------------------------------------
+//
+// Une ville ne se lit pas à ses bâtiments mais à son RÉSEAU : une place, une
+// avenue qui y mène depuis la porte, des rues de desserte, des ruelles de terre
+// entre les fonds de parcelle. Toutes les voies au même gabarit et au même
+// pavage, c'était un damier — l'inverse de l'effet cherché.
+//
+// Quatre rangs, du plus large au plus étroit, chacun avec SON matériau :
+//   place  5×5 pavée     — le cœur, autour du puits
+//   avenue 3 de large    — de la porte à la place, pavée (l'axe d'arrivée)
+//   ceinture + traverse  — 1 et 2 de large, calcaire clair (desserte)
+//   ruelles              — 1 de large, terre battue (fonds de parcelle)
 const RING_ST = 3; // distance de la ceinture au rempart
-const isPath = (x: number, y: number) =>
-  (x === GATE_X && y >= CENTRE - 1 && y <= LAST - 1) ||
-  (y === CENTRE && x >= 4 && x <= LAST - 4) ||
+const SQUARE_R = 2; // demi-côté de la place (5×5)
+const ALLEY_AT = [6, LAST - 6]; // abscisses/ordonnées des ruelles transversales
+
+const isSquare = (x: number, y: number) =>
+  Math.abs(x - CENTRE) <= SQUARE_R && Math.abs(y - CENTRE) <= SQUARE_R;
+/** Avenue d'arrivée : 3 cellules de large, de la place au portail. */
+const isAvenue = (x: number, y: number) =>
+  Math.abs(x - GATE_X) <= 1 && y >= CENTRE + SQUARE_R && y <= LAST - 1;
+/** Desserte : ceinture intérieure + traverse est-ouest (2 de large). */
+const isLane = (x: number, y: number) =>
   ((x === RING_ST || x === LAST - RING_ST) && y >= RING_ST && y <= LAST - RING_ST) ||
-  ((y === RING_ST || y === LAST - RING_ST) && x >= RING_ST && x <= LAST - RING_ST);
+  ((y === RING_ST || y === LAST - RING_ST) && x >= RING_ST && x <= LAST - RING_ST) ||
+  ((y === CENTRE - 1 || y === CENTRE) && x >= RING_ST && x <= LAST - RING_ST);
+/** Ruelles de terre : elles traversent la bande entre la ceinture et le rempart
+ *  et coupent la rangée de maisons du pourtour en îlots. Sans elles, cette
+ *  bande fait un ruban continu de toits tout autour du bourg. */
+const isAlley = (x: number, y: number) =>
+  (ALLEY_AT.includes(x) && ((y >= 1 && y <= RING_ST) || (y >= LAST - RING_ST && y <= LAST - 1))) ||
+  (ALLEY_AT.includes(y) && ((x >= 1 && x <= RING_ST) || (x >= LAST - RING_ST && x <= LAST - 1)));
+
+const isPath = (x: number, y: number) => isAvenue(x, y) || isLane(x, y) || isAlley(x, y);
+
+/**
+ * Azimut pour qu'une FAÇADE regarde la voie la plus proche.
+ *
+ * Les modèles ont leur porte du côté −Z (petits y du gabarit) ; une rotation θ
+ * autour de Y envoie (0,0,−1) sur (−sin θ, −cos θ), d'où `atan2(−dx, −dy)`.
+ * Sans ça les maisons prenaient une orientation au quart de tour tirée au sort :
+ * on voyait des pignons aveugles donner sur la place et des portes s'ouvrir sur
+ * un mur. Une ville, ce sont des façades qui regardent la rue.
+ */
+const faceStreet = (x: number, y: number): number | null => {
+  let bx = 0, by = 0, bd = Infinity;
+  for (let dy = -3; dy <= 3; dy++)
+    for (let dx = -3; dx <= 3; dx++) {
+      if (!dx && !dy) continue;
+      if (!isPath(x + dx, y + dy) && !isSquare(x + dx, y + dy)) continue;
+      const d = dx * dx + dy * dy;
+      if (d < bd) { bd = d; bx = dx; by = dy; }
+    }
+  return bd === Infinity ? null : Math.atan2(-bx, -by);
+};
 
 const isRing = (x: number, y: number) => x === 0 || y === 0 || x === LAST || y === LAST;
 
 // Hachage déterministe (pas de Math.random : le bourg doit être identique d'une
 // session à l'autre, et d'un joueur à l'autre).
+// ⚠ `Math.imul`, pas `*` : `n * 1274126177` dépasse 2^53 et l'arrondi flottant
+// DÉTRUIT les bits de poids faible — précisément ceux que `>>> 0` conserve. Le
+// tirage du modèle de maison (`% 9`) tombait de ce fait toujours dans le même
+// tiers du catalogue : trois modèles sur neuf n'apparaissaient jamais.
 const hash = (x: number, y: number) => {
-  let n = ((x * 73856093) ^ (y * 19349663)) >>> 0;
+  let n = (Math.imul(x, 73856093) ^ Math.imul(y, 19349663)) >>> 0;
   n = (n ^ (n >>> 13)) >>> 0;
-  return (n * 1274126177) >>> 0;
+  return Math.imul(n, 1274126177) >>> 0;
 };
 
 // IMPLANTATION ORGANIQUE (2026-07-28).
@@ -166,51 +220,84 @@ const organic = (p: TownPlot): TownPlot => {
 // la référence, les bâtiments remarquables ne se détachent que parce qu'ils
 // dépassent d'un tissu de toits serrés. Ces maisons n'ont aucun rôle de jeu et
 // ne sont pas cliquables — elles remplissent les îlots laissés libres.
-const HOUSE_GAP = 2; // distance minimale entre deux centres de maison
-const HOUSE_CELLS = 2.5;
-const HOUSE_HALF = HOUSE_CELLS / 2;
+// NEUF modèles. Trois ne suffisaient pas : à vingt exemplaires, le même volume
+// répété fait motif quelle que soit l'orientation. `cells` est l'emprise au SOL
+// visée — elle est calibrée MODÈLE PAR MODÈLE d'après le rapport hauteur/largeur
+// mesuré du `.vox`, parce que `fitScale` met à l'échelle sur l'emprise : donner
+// la même valeur à tous écraserait la grange (large et basse) et rabougrirait la
+// maison étroite. Les hauteurs obtenues s'échelonnent de 1,5 (remise) à 3,7
+// (maison de ville à balcon) — c'est cette irrégularité qui fait un tissu.
+// ⚠ ORDRE VOLONTAIRE : la reprise ci-dessous essaie les modèles SUIVANTS quand
+// le tiré au sort ne rentre pas, donc un grand modèle déverse ses refus sur son
+// voisin de droite. Rangés par taille, le plus petit récupérait tout : la maison
+// étroite faisait 9 exemplaires sur 25. Les gabarits sont donc entrelacés.
+const HOUSE_MODELS: { prop: string; variant: number; cells: number }[] = [
+  { prop: "house", variant: 0, cells: 2.6 }, // chaumière, toit de chaume
+  { prop: "house2", variant: 0, cells: 3.8 }, // grange longue et basse
+  { prop: "house3", variant: 0, cells: 2.6 }, // remise en appentis
+  { prop: "house", variant: 1, cells: 2.6 }, // maison à étage en encorbellement
+  { prop: "house2", variant: 1, cells: 2.8 }, // échoppe à arcade
+  { prop: "house3", variant: 1, cells: 2.8 }, // maison à tourelle
+  { prop: "house", variant: 2, cells: 3.0 }, // maison peinte à auvent
+  { prop: "house2", variant: 2, cells: 2.4 }, // maison étroite à balcon
+  { prop: "house3", variant: 2, cells: 3.0 }, // maison basse à terrasse
+];
 
 function placeHouses(plots: TownPlot[]): TownHouse[] {
   const houses: TownHouse[] = [];
   // Dégagement EUCLIDIEN, pas Chebyshev : en Chebyshev une cellule en diagonale
   // compte pour 1 alors qu'elle est à 1,41, et on perdait tout un anneau de
   // parcelles constructibles autour de chaque bâtiment.
-  const clearOfPlots = (x: number, y: number) =>
-    plots.every(
-      (p) => p.bid === "wall" || Math.hypot(x - p.x, y - p.y) >= p.cells / 2 + HOUSE_HALF - 0.15,
-    );
-  const far = (x: number, y: number) => houses.every((h) => Math.hypot(h.x - x, h.y - y) >= HOUSE_GAP);
-  // Constructible : hors rue, hors place, à une cellule au moins du rempart.
-  const free = (x: number, y: number) =>
-    x >= 2 && y >= 2 && x <= LAST - 2 && y <= LAST - 2 &&
-    !isPath(x, y) && !isSquare(x, y) && clearOfPlots(x, y) && far(x, y);
+  const clearOfPlots = (x: number, y: number, r: number) =>
+    plots.every((p) => p.bid === "wall" || Math.hypot(x - p.x, y - p.y) >= p.cells / 2 + r - 0.15);
+  // Deux maisons se serrent, mais ne s'interpénètrent pas : le seuil suit leurs
+  // deux emprises (une grange de 3,8 a besoin de plus d'air qu'une remise).
+  const farFromHouses = (x: number, y: number, r: number) =>
+    houses.every((h) => Math.hypot(h.x - x, h.y - y) >= (h.cells / 2 + r) * 0.82);
   const onStreet = (x: number, y: number) =>
     [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => isPath(x + dx, y + dy) || isSquare(x + dx, y + dy));
-  const nextTo = (x: number, y: number) => houses.some((h) => Math.hypot(h.x - x, h.y - y) < HOUSE_GAP + 1.2);
+  const nextTo = (x: number, y: number) => houses.some((h) => Math.hypot(h.x - x, h.y - y) < 3.4);
 
   // Trois passes, dans cet ordre — c'est l'ordre qui fait le tissu :
   //   0. front de RUE : les façades bordent d'abord les voies ;
   //   1. GRAPPE : on s'accroche à une maison déjà posée, ce qui produit des
   //      rangées et des îlots plutôt qu'un semis régulier ;
   //   2. le reste, avec une probabilité basse — quelques fonds de jardin.
-  // À [76, 62, 26] on obtenait 29 maisons : le tissu était là, mais il noyait
-  // les dix bâtiments de JEU, qui sont les seuls cliquables. Le remplissage doit
-  // faire la ville, pas la cacher.
-  const admit = [64, 46, 14];
+  const admit = [84, 64, 28];
   for (const pass of [0, 1, 2]) {
     for (let y = 2; y <= LAST - 2; y++) {
       for (let x = 2; x <= LAST - 2; x++) {
-        if (!free(x, y)) continue;
+        if (x < 2 || y < 2 || x > LAST - 2 || y > LAST - 2) continue;
+        if (isPath(x, y) || isSquare(x, y)) continue;
         if (pass === 0 && !onStreet(x, y)) continue;
         if (pass === 1 && !nextTo(x, y)) continue;
         const h = hash(x * 11 + 7, y * 17 + 3);
         if (h % 100 >= admit[pass]) continue;
+        // Le modèle donne l'emprise, donc il se choisit AVANT le test de place.
+        // On part du modèle tiré au sort et on essaie les suivants tant que ça
+        // ne rentre pas : sinon les grands modèles (la grange fait 3,8) sont
+        // rejetés bien plus souvent que les petits, et la parcelle est perdue
+        // alors qu'une remise y tenait. Sans cette reprise, la grange et la
+        // remise n'apparaissaient quasiment jamais.
+        const start = (h >>> 4) % HOUSE_MODELS.length;
+        let m: (typeof HOUSE_MODELS)[number] | null = null;
+        let cells = 0;
+        for (let k = 0; k < HOUSE_MODELS.length; k++) {
+          const cand = HOUSE_MODELS[(start + k) % HOUSE_MODELS.length];
+          const c = cand.cells * (0.9 + (((h >>> 26) % 100) / 100) * 0.2);
+          if (clearOfPlots(x, y, c / 2) && farFromHouses(x, y, c / 2)) { m = cand; cells = c; break; }
+        }
+        if (!m) continue;
+        // Façade sur la rue la plus proche ; si la parcelle ne voit aucune voie
+        // (fond de jardin), on retombe sur un quart de tour.
+        const face = faceStreet(x, y);
         houses.push({
           x: x + (((h >>> 8) % 1000) / 1000 - 0.5) * 0.5,
           y: y + (((h >>> 18) % 1000) / 1000 - 0.5) * 0.5,
-          variant: (h >>> 4) % 3,
-          cells: HOUSE_CELLS * (0.86 + ((h >>> 26) % 100) / 100 * 0.3),
-          rot: (h % 4) * (Math.PI / 2) + ((h % 1000) / 1000 - 0.5) * 0.3,
+          prop: m.prop,
+          variant: m.variant,
+          cells,
+          rot: (face ?? (h % 4) * (Math.PI / 2)) + (((h % 1000) / 1000 - 0.5) * 0.22),
         });
       }
     }
@@ -290,15 +377,22 @@ export function buildTownLayout(): TownLayout {
   for (let y = 0; y <= LAST; y++) {
     for (let x = 0; x <= LAST; x++) {
       push(x, y, 0, "dirt"); // socle
+      // Un matériau PAR RANG de voie : c'est ce qui fait lire la hiérarchie.
+      // Tout en cobblestone, la place et une ruelle de fond de jardin avaient
+      // exactement le même aspect, donc le réseau ne se voyait pas.
       const surface = isRing(x, y)
         ? "stone"
-        : isSquare(x, y) || isPath(x, y)
-          ? "cobblestone"
-          : plotGround.has(`${x},${y}`)
-            ? "dirt"
-            : plotEdge.has(`${x},${y}`)
-              ? "cobblestone"
-              : "grass";
+        : isSquare(x, y) || isAvenue(x, y)
+          ? "cobblestone" // cœur + axe d'arrivée
+          : isLane(x, y)
+            ? "limestone" // desserte, calcaire clair
+            : isAlley(x, y)
+              ? "dirt" // ruelle de terre battue
+              : plotGround.has(`${x},${y}`)
+                ? "dirt"
+                : plotEdge.has(`${x},${y}`)
+                  ? "limestone" // liseré de parcelle
+                  : "grass";
       push(x, y, 1, surface);
     }
   }
@@ -365,7 +459,10 @@ export function buildTownLayout(): TownLayout {
 }
 
 /** Props de décor à précharger, en plus des `bld-*`. `house` = les 3 maisons. */
-export const TOWN_DECOR_PROPS = ["tree-green", "bush-dense", "flowers", "grass-tuft", "daisy", "fern", "pine", "house"];
+export const TOWN_DECOR_PROPS = [
+  "tree-green", "bush-dense", "flowers", "grass-tuft", "daisy", "fern", "pine",
+  "house", "house2", "house3",
+];
 
 // --- pont vers le rendu 2D « Classique » ------------------------------------
 // Le mode de secours (components/TownMap.tsx) dessine un `MapDoc` de l'éditeur.
@@ -436,13 +533,17 @@ export function townDoc(): {
   // Les maisons passent en premier : le renderer respecte l'ordre de la liste
   // dans une même cellule, et un toit de maison ne doit pas couvrir un bâtiment
   // cliquable. Sprites iso équivalents aux trois modèles voxel.
-  const HOUSE_SPRITE = ["bld-cottage", "bld-house", "bld-house-blue"];
+  const HOUSE_SPRITE: Record<string, string[]> = {
+    house: ["bld-cottage", "bld-house", "bld-house-blue"],
+    house2: ["bld-barn", "bld-market", "bld-house-large"],
+    house3: ["bld-logcabin", "bld-roundhouse", "bld-house-stone"],
+  };
   for (const [i, h] of l.houses.entries()) {
     placements.push({
       id: `house-${i}`,
       cx: Math.round(h.x),
       cy: Math.round(h.y),
-      asset: { cat: "buildings", file: HOUSE_SPRITE[h.variant % 3] },
+      asset: { cat: "buildings", file: (HOUSE_SPRITE[h.prop] ?? HOUSE_SPRITE.house)[h.variant % 3] },
       scale: h.cells / 2.6,
     });
   }

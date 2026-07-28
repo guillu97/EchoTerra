@@ -498,10 +498,18 @@ bâtiments s'affichent via `buildingName(id)` (`data/buildings.ts`), pas via `b.
   (`buildTownLayout()`), plus `src/data/town-map.json` (l'ancienne carte d'auteur n'avait
   d'emplacement que pour 8 des 10 bâtiments). Bourg fortifié **21×21** : rempart pavé par segments
   de 5 cellules (⚠ `bld-wall` est un bandeau et `fitScale` met à l'échelle sur l'emprise au SOL —
-  raccourcir un segment RABAISSE le mur), portail face caméra, place centrale autour du puits,
-  **ceinture de rue** intérieure, une parcelle par bâtiment serveur, **implantation organique**
-  (±7,5°/±0,22 cellule, déterministe ; fortifications exclues) et **~20 maisons de remplissage**
-  (`house-v{0,1,2}`, sans rôle de jeu ni hotspot) + cyprès de bord de rue, qui font le tissu bâti.
+  raccourcir un segment RABAISSE le mur), portail face caméra, une parcelle par bâtiment serveur et
+  **implantation organique** (±7,5°/±0,22 cellule, déterministe ; fortifications exclues).
+  **Hiérarchie de voies** (chaque rang a son gabarit ET son matériau, sinon le réseau ne se lit
+  pas) : place 5×5 pavée autour du puits · avenue 3 de large du portail à la place · ceinture +
+  traverse en calcaire · ruelles de terre battue qui découpent la bande contre le rempart.
+  **~25 maisons de remplissage** en **9 modèles** (`house`/`house2`/`house3` ×3 : chaumière, étage
+  en encorbellement, peinte à auvent, grange, échoppe, étroite à balcon, remise, tourelle,
+  terrasse — sans rôle de jeu ni hotspot), **façade orientée sur la rue la plus proche**
+  (`faceStreet`), plus des cyprès de bord de rue : c'est ce qui fait le tissu bâti.
+  ⚠ Le modèle donne l'emprise, donc il se choisit AVANT le test de place, avec reprise sur les
+  suivants ; l'ordre de `HOUSE_MODELS` est entrelacé par gabarit (rangés par taille, le plus petit
+  récupère tous les refus).
   Le rendu **voxel** est `VoxelTownView.tsx` ; le mode **« Classique »** est
   **`components/TownMap.tsx`**, qui dessine le MÊME plan via `townDoc()` avec le renderer de
   l'éditeur (`drawMap` → canvas offscreen 2×, cuit UNE fois par session, bornes serrées sur les

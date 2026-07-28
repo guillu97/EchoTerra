@@ -6,6 +6,76 @@
 
 ---
 
+## 2026-07-28 (80) — Ville : neuf styles de maisons et un vrai plan de ville
+
+Retour : *« il faut plusieurs styles de maisons et il faut organiser ça comme une ville, pas les
+maisons dans le même sens, une place, des sentiers plus ou moins grands »*. Les trois points sont
+justes et se répondent : trois modèles répétés vingt fois font un motif, et un damier de voies au
+même gabarit fait un lotissement.
+
+### Neuf modèles (`gen-props.mjs` → `house`, `house2`, `house3`, 3 variantes chacun)
+Ce qui change n'est pas la couleur mais l'EMPRISE et le registre :
+chaumière · maison à étage en encorbellement · maison peinte à auvent ·
+**grange** longue et basse (2× plus large que profonde) · **échoppe** à arcade avec étal et enseigne ·
+**maison étroite à balcon** (la verticale du tissu) · **remise** en appentis (toit à une pente) ·
+**maison à tourelle** (le seul volume courbe) · **maison basse à terrasse** (aucun prisme).
+Hauteurs obtenues : de 1,5 à 3,7 cellules — c'est cette irrégularité qui fait un tissu.
+
+> La terrasse a d'abord été rendue en pierre pâle cernée d'un parapet haut : vue de la caméra
+> dimétrique, qui plonge, elle se lisait comme une **piscine**. Sol en tomettes + pergola partielle.
+
+### Hiérarchie des voies (`townLayout.ts`)
+Quatre rangs, chacun avec SON gabarit et SON matériau — sans quoi le réseau ne se voit pas :
+- **place** 5×5 pavée autour du puits (elle faisait 3×3) ;
+- **avenue** 3 de large, pavée, du portail à la place — l'axe d'arrivée ;
+- **ceinture + traverse** 1 et 2 de large, calcaire clair — la desserte ;
+- **ruelles** de terre battue, qui traversent la bande entre ceinture et rempart et la coupent en
+  îlots (sans elles, cette bande fait un ruban continu de toits tout autour du bourg).
+
+Les sept parcelles fonctionnelles sont replacées sur les îlots de ce réseau (dégagements deux à deux
+et non-recouvrement des voies vérifiés à la main).
+
+### Façades sur la rue
+`faceStreet(x,y)` cherche la voie la plus proche dans un rayon de 3 et en déduit l'azimut (les
+modèles ont leur porte côté −Z, d'où `atan2(−dx, −dy)`). Avant, l'orientation était un quart de tour
+tiré au sort : on voyait des pignons aveugles donner sur la place et des portes s'ouvrir sur un mur.
+25 maisons, 25 orientations distinctes.
+
+### Deux bugs de fond
+
+**`hash()` perdait ses bits de poids faible.** `n * 1274126177` dépasse 2^53 : l'arrondi flottant
+détruit exactement les bits que `>>> 0` conserve. Conséquence concrète, invisible jusqu'ici : le
+tirage du modèle (`% 9`) tombait toujours dans le même tiers du catalogue — **trois modèles sur neuf
+n'apparaissaient jamais**. Corrigé avec `Math.imul`.
+
+**Les grands modèles étaient systématiquement recalés.** Le modèle donne l'emprise, donc il se
+choisit avant le test de place ; une grange de 3,8 cellules échoue là où une remise de 2,6 passe, et
+la parcelle était perdue. La sélection réessaie maintenant les modèles suivants. ⚠ leur ordre dans
+`HOUSE_MODELS` est VOLONTAIREMENT entrelacé par gabarit : rangés par taille, le plus petit récupérait
+tous les refus (9 exemplaires sur 25 pour la maison étroite).
+
+### Budget
+Les six nouveaux sprites du mode « Classique » (1024² chacun) ont fait passer le payload PNG à
+24,89 Mo, au-dessus du budget de 24. `scripts/downscale-ui.mjs` est généralisé (chemin sous
+`assets/` + taille cible) et réduit les neuf sprites de maison à 512² — ils s'affichent dans ~2 tuiles
+iso. 5,25 Mo → 1,84 Mo.
+
+### Fonctionnel (vérifié)
+- Captures headless voxel ET Classique : neuf silhouettes distinctes, façades sur rue, place et
+  avenue lisibles, ruelles de terre.
+- `npx tsc -b` ✅ · `npm run build` ✅ · `npm run test:perf` **13/13** ✅ (payload 21,48 Mo)
+- `npm run test:perf:voxel` 10/12 — les deux mêmes échecs antérieurs (boucle de rendu de la carte).
+- Ville : **524 k triangles**, 115 meshes (plafond 2 M) — en baisse malgré les maisons, le rempart
+  ayant beaucoup moins de segments.
+
+### Reste à faire
+- Les bâtiments de JEU paraissent maintenant ternes à côté des maisons : beaucoup de mur, peu de
+  toit. C'est la prochaine passe.
+- Cycle jour/nuit dans la ville.
+- Boucle de rendu continue de la carte (batterie) — antérieure.
+
+---
+
 ## 2026-07-28 (79) — Ville : le style « Town to City » (densité, tissu bâti, rempart)
 
 Demande : *« explore le style Town to city mais pour ce jeu »*, puis cinq images de référence.

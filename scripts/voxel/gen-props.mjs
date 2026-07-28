@@ -1330,6 +1330,16 @@ function bldWall(seed) {
 const PLASTER = [236, 216, 182];
 const PAINT_ROSE = [214, 146, 136];
 
+// Toit à UNE pente (appentis, remises). L'arête haute est en y0.
+function shedRoof(g, x0, x1, y0, y1, z0, rise, rgb, over = 0.8) {
+  const steps = Math.max(2, Math.round((y1 - y0) / 0.9));
+  for (let k = 0; k < steps; k++) {
+    const ya = y0 + ((y1 - y0) * k) / steps, yb = y0 + ((y1 - y0) * (k + 1)) / steps;
+    const z = z0 - (rise * k) / steps;
+    g.box(x0 - over, x1 + over, ya, yb, z - 0.5, z, shade(rgb, 0.94 + (k % 2) * 0.08));
+  }
+}
+
 function house(kind, seed) {
   const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz, FINE);
   const rnd = makeRng(seed);
@@ -1375,6 +1385,116 @@ function house(kind, seed) {
     g.box(6.6, 13.4, 6.1, 7.5, 3.9, 4.3, shade(TRIM_GOLD, 0.96)); // auvent de toile
     for (const x of [6.8, 13]) g.box(x, x + 0.5, 6.2, 6.7, 0, 3.9, shade(WOOD_W, 0.94)); // poteaux
     g.box(7.4, 8.4, 6.2, 7, 0, 1.3, shade(ROOF_TILE, 1.05)); // cageot à l'étal
+  }
+  return fin(g);
+}
+
+// --- deuxième famille : les silhouettes qui ne sont PAS un pavé + un prisme ---
+// Trois maisons ne suffisaient pas à faire une ville : à vingt exemplaires, le
+// même volume répété se lit comme un motif, quelle que soit la rotation. Ces
+// six-là changent d'EMPRISE (longue et basse, étroite et haute, en L) et de
+// registre (bardage, arcade, terrasse), pas seulement de couleur.
+function house2(kind, seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz, FINE);
+  const rnd = makeRng(seed);
+  const wobble = () => 0.94 + rnd() * 0.12;
+
+  if (kind === 0) {
+    // GRANGE : longue et basse, bardage bois à colombages, porte charretière.
+    // Son intérêt est l'emprise — 2× plus large que profonde, elle casse les
+    // alignements de maisons carrées.
+    g.box(4, 16, 7, 13, 0, 1, shade(STONE_W, 0.84)); // solin
+    g.box(4, 16, 7, 13, 1, 4.2, shade(WOOD_W, wobble()));
+    for (const x of [4.3, 7.4, 12.6, 15.7]) g.box(x, x + 0.6, 6.7, 7, 1, 4.2, shade(DARK_W, 1.45));
+    g.box(9, 11, 6.7, 7, 1, 3.8, DARK_W); // porte charretière
+    g.box(5.3, 6.3, 6.7, 7, 2.4, 3.4, [122, 186, 202]);
+    g.box(13.7, 14.7, 6.7, 7, 2.4, 3.4, [122, 186, 202]);
+    prismRoof(g, 4.4, 15.6, 7.4, 12.6, 4.4, ROOF_TILE, 1.3);
+    g.box(2.6, 3.8, 9.2, 11, 0, 2, shade(THATCH, 0.92)); // bottes de paille dehors
+  } else if (kind === 1) {
+    // ÉCHOPPE : rez-de-chaussée ouvert en arcade, étage peint en surplomb,
+    // auvent et étal sur la rue. C'est la maison « de commerce » du bourg.
+    g.box(6, 14, 7.5, 13, 0, 0.8, shade(STONE_W, 0.86));
+    g.box(6, 14, 7.5, 13, 0.8, 3.4, shade(DARK_W, 1.15)); // fond d'échoppe, dans l'ombre
+    for (const x of [6, 8.9, 11.8, 13.4]) g.box(x, x + 0.9, 7.5, 8.2, 0.8, 3.4, shade(STONE_W, 0.98)); // piles
+    g.box(6, 14, 7.5, 13, 3.4, 3.9, shade(STONE_W, 1.02)); // linteau + plancher
+    g.box(5.6, 14.4, 7, 13.2, 3.9, 7, shade(PAINT_ROSE, wobble())); // étage en surplomb
+    g.box(8.6, 11.4, 6.9, 7, 4.7, 6.2, [246, 240, 218]); // fenêtre d'étage
+    prismRoof(g, 5.6, 14.4, 7.2, 13, 7.2, ROOF_W, 1.2);
+    g.box(5.2, 14.8, 5.8, 7.4, 3.4, 3.8, shade(TRIM_GOLD, 0.96)); // auvent de toile
+    g.box(6.2, 8.4, 5.9, 7.2, 0, 1.4, shade(ROOF_TILE, 1.06)); // étal
+    g.box(12.6, 13.4, 6.5, 6.9, 1.8, 3, shade(TRIM_GOLD, 1.0)); // enseigne
+  } else {
+    // MAISON ÉTROITE à deux étages avec balcon : la verticale du tissu. C'est
+    // elle qui empêche le bourg d'être une nappe uniforme de toits bas.
+    g.box(7, 13, 8, 12, 0, 1, shade(STONE_W, 0.84));
+    g.box(7, 13, 8, 12, 1, 4.4, shade(PLASTER, wobble()));
+    g.box(9.4, 10.6, 7.6, 8, 1, 3.8, shade(WOOD_W, 1.1)); // porte
+    g.box(7, 13, 8, 12, 4.4, 8, shade(PLASTER, 0.95));
+    g.box(6.6, 13.4, 7.4, 8, 4.4, 4.8, shade(WOOD_W, 0.9)); // plancher du balcon
+    for (let x = 6.8; x < 13.4; x += 1.1) g.box(x, x + 0.35, 7.4, 7.6, 4.8, 5.6, shade(WOOD_W, 1.16)); // balustres
+    g.box(9.2, 10.8, 7.9, 8, 5.4, 7.2, [122, 186, 202]); // porte-fenêtre
+    prismRoof(g, 6.8, 13.2, 8.2, 11.8, 8.2, ROOF_SLATE, 1.1);
+    g.box(11.6, 12.6, 9.4, 10.6, 8, 12, shade(STONE_W, 0.9)); // cheminée
+    g.box(11.9, 12.3, 9.7, 10.3, 12, 12.4, DARK_W);
+  }
+  return fin(g);
+}
+
+function house3(kind, seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz, FINE);
+  const rnd = makeRng(seed);
+  const wobble = () => 0.94 + rnd() * 0.12;
+
+  if (kind === 0) {
+    // REMISE en appentis : petite, toit à UNE pente. Elle se glisse en fond de
+    // parcelle et donne des toits bas entre deux maisons — l'irrégularité de
+    // hauteur, c'est ce qui fait un tissu et pas une rangée.
+    g.box(7, 13, 8.6, 12, 0, 0.7, shade(STONE_W, 0.84));
+    g.box(7, 13, 8.6, 12, 0.7, 3.2, shade(WOOD_W, wobble()));
+    g.box(9.4, 10.6, 8.2, 8.6, 0.7, 2.9, DARK_W); // porte
+    shedRoof(g, 6.8, 13.2, 8.2, 12.4, 4.2, 1.5, shade(THATCH, 0.95));
+    g.box(13.2, 14.2, 9, 11, 0, 1.6, shade(WOOD_W, 0.86)); // tas de bûches
+  } else if (kind === 1) {
+    // MAISON À TOURELLE : corps carré + tourelle ronde coiffée d'un cône. Le
+    // seul volume COURBE du tissu — il accroche l'œil au milieu des prismes.
+    g.box(6.5, 13, 8, 12.5, 0, 1, shade(STONE_W, 0.86));
+    g.box(6.5, 13, 8, 12.5, 1, 5, shade(PLASTER, wobble()));
+    g.box(9, 10.4, 7.6, 8, 1, 3.9, DARK_W);
+    g.box(11.2, 12.4, 7.6, 8, 2.6, 4.1, [122, 186, 202]);
+    prismRoof(g, 6.5, 13, 8.4, 12.1, 5.2, ROOF_TILE, 1.1);
+    cylAt(g, 13.2, 9.8, 0, 7.6, 2.1, shade(STONE_W, 0.94)); // tourelle
+    for (let k = 0; k < 5; k++) cylAt(g, 13.2, 9.8, 7.6 + k * 0.7, 8.2 + k * 0.7, 2.3 - k * 0.42, shade(ROOF_SLATE, 0.94 + k * 0.03));
+    g.set(13.2, 9.8, 11.2, TRIM_GOLD); // épi de faîtage
+    g.box(12.6, 13.8, 7.9, 8.2, 3.4, 4.4, [122, 186, 202]); // meurtrière
+  } else {
+    // MAISON BASSE À TERRASSE : murs chaulés, toit PLAT bordé d'un parapet,
+    // escalier extérieur. Aucun prisme — c'est le contre-exemple qui prouve que
+    // le bourg n'a pas été bâti d'un seul geste.
+    const wall = rnd() < 0.5 ? [240, 232, 214] : shade(PAINT_TEAL, 1.12);
+    g.box(6.5, 13.5, 8, 12.5, 0, 0.8, shade(STONE_W, 0.84));
+    g.box(6.5, 13.5, 8, 12.5, 0.8, 4.6, shade(wall, wobble()));
+    g.box(6.2, 13.8, 7.7, 12.8, 4.6, 5.1, shade(STONE_W, 1.02)); // dalle débordante
+    // ⚠ Le sol de la terrasse doit être CHAUD et occupé. Laissé en pierre pâle
+    // et cerné d'un parapet haut, il se lisait — vu de la caméra dimétrique,
+    // qui plonge — comme un bassin d'eau claire : on croyait à une piscine.
+    g.box(6.6, 13.4, 8.1, 12.4, 5.1, 5.35, shade(ROOF_TILE, 0.92)); // tomettes
+    g.box(6.2, 13.8, 7.7, 8.1, 5.1, 5.7, shade(wall, 0.96)); // parapet, plus bas
+    g.box(6.2, 13.8, 12.4, 12.8, 5.1, 5.7, shade(wall, 0.96));
+    g.box(6.2, 6.6, 7.7, 12.8, 5.1, 5.7, shade(wall, 0.96));
+    g.box(13.4, 13.8, 7.7, 12.8, 5.1, 5.7, shade(wall, 0.96));
+    g.box(9.2, 10.6, 7.6, 8, 0.8, 3.8, shade(WOOD_W, 1.12)); // porte
+    g.box(7, 8.2, 7.6, 8, 2, 3.4, [246, 240, 218]);
+    for (let k = 0; k < 6; k++) g.box(13.8, 15, 8.4 + k * 0.5, 8.9 + k * 0.5, 0, 0.8 + k * 0.75, shade(STONE_W, 0.9)); // escalier extérieur
+    // Pergola sur UNE PARTIE de la terrasse : elle casse le plan horizontal et
+    // donne de l'ombre. Elle ne doit couvrir ni toute la surface ni monter trop
+    // haut — essayée pleine et à z 7,4, elle se lisait comme un second toit
+    // posé en lévitation au-dessus du premier.
+    for (const [px, py] of [[7.1, 8.5], [7.1, 11.3], [10.3, 8.5], [10.3, 11.3]])
+      g.box(px, px + 0.5, py, py + 0.5, 5.3, 6.5, shade(WOOD_W, 0.9));
+    g.box(6.9, 11, 8.3, 11.9, 6.5, 6.8, shade(TRIM_GOLD, 0.9)); // toile tendue
+    g.box(12.2, 13.2, 9.4, 11, 5.3, 6, shade([104, 150, 96], 1.0)); // jardinière
+    g.box(7.6, 8.6, 11.8, 12.3, 5.3, 5.9, shade(ROOF_TILE, 1.08)); // jarres
   }
   return fin(g);
 }
@@ -1527,8 +1647,11 @@ async function main() {
       },
     })),
     { id: "bld-chantier", make: () => fin(bldChantier(1101)) },
-    // maisons de remplissage du bourg (3 modèles distincts, pas 3 états)
+    // maisons de remplissage du bourg — 9 modèles distincts (3 ids × 3), pas
+    // des états de dégâts : le tissu bâti a besoin de silhouettes variées
     { id: "house", make: (v) => house(v, 1501 + v * 77) },
+    { id: "house2", make: (v) => house2(v, 1601 + v * 77) },
+    { id: "house3", make: (v) => house3(v, 1701 + v * 77) },
     { id: "cloud", make: (v) => cloudProp(1201 + v * 77) },
     { id: "brambles", make: (v) => brambles(1301 + v * 77) },
     // sites de ruines-donjons : v0 = enseveli, v1-2 = déblayé (choix par ÉTAT serveur)
