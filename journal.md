@@ -6,6 +6,66 @@
 
 ---
 
+## 2026-07-28 (81) — Ville : la rendre ORGANIQUE (relief, mobilier, vert)
+
+Retour : *« là c'est bien mais ce n'est pas joli, trouve les points d'amélioration pour rendre la
+ville organique »*. Diagnostic, puis les trois leviers traités.
+
+### Ce qui rendait la ville « pas jolie »
+1. **Le sol était rigoureusement plat.** Tous les toits au même niveau, toutes les ombres
+   identiques, aucune ligne d'horizon interne : ça se lit comme un plateau de jeu, et aucune
+   quantité de maisons ne rattrape ça. C'était le défaut n°1, loin devant les autres.
+2. **Aucune trace des gens.** Ni charrette, ni tonneau, ni étal, ni linge, ni barrière. Les volumes
+   étaient justes et le lieu restait mort — une maquette d'architecte.
+3. **Trop de pierre pâle au sol.** Entre la place, l'avenue, la ceinture, la traverse et sept
+   liserés de parcelle, la quasi-totalité du sol était minérale et claire ; le peu de vert
+   restant (14 % des cellules libres) ne compensait pas. L'image tirait au gris.
+4. **Cadrage** : la caméra visait le niveau du SOL, donc le bourg occupait le haut du cadre et un
+   tiers d'écran de socle sombre traînait en bas.
+
+### Fait
+**Relief en terrasses** (`buildTerraces`) — le bourg est bâti à flanc de coteau : le terrain monte
+du portail (au sud) vers la mairie (au nord) en trois paliers. La mairie domine réellement, l'avenue
+GRIMPE vers la place, et les redents entre paliers sont maçonnés en calcaire — des murs de
+soutènement qui découpent le tissu. Deux contraintes tiennent le reste : le rempart et son pied
+restent au niveau 0 (un segment de 5 cellules à cheval sur une marche laisserait un jour sous la
+muraille), et toute emprise bâtie est aplanie au niveau de son centre (sinon un coin flotte). Le
+bruit du profil est à DEUX échelles : en bruit blanc par cellule, l'adoucissement ramène la courbe
+de niveau à une droite et on retombe sur des bandes.
+
+**Mobilier de rue et clôtures** — 4 nouveaux props × 3 variantes : charrette / tonneaux / caisses ·
+étal bâché rouge, bleu, corde à linge · lanterne, banc et jarres, abreuvoir · barrière de bois,
+muret de pierre sèche, haie. Posés le long des voies, ORIENTÉS sur la rue. Les clôtures font
+exactement une cellule de long (deux cellules voisines donnent un linéaire continu) et leur matière
+est tirée par ÎLOT — alterner bois/pierre/haie d'une cellule à l'autre ferait un patchwork.
+
+**Rééquilibrage du vert** — le liseré pavé des parcelles est SUPPRIMÉ (il minéralisait tout) et la
+végétation passe de 14 % à 52 % des cellules libres restantes, arbres agrandis. Le taux de 14 %
+datait de l'époque où rien d'autre n'occupait ces cellules ; depuis que les maisons tiennent le
+terrain, c'est le vert qui manque.
+
+**Socle et cadrage** — socle ramené de 2 à 1 bloc, caméra visée à mi-hauteur du bâti (2,6) et non au
+sol.
+
+> ⚠ `cylAt` ne sait faire que des cylindres d'axe Z (vertical) : les roues de la charrette se
+> posaient à plat comme des galettes. Roues en boîtes — à ce gabarit une roue carrée se lit très
+> bien.
+
+### Fonctionnel (vérifié)
+- Captures headless voxel et Classique. `npx tsc -b` ✅ · `npm run build` ✅ ·
+  `npm run test:perf` **13/13** ✅ · `test:perf:voxel` 10/12 (mêmes deux échecs antérieurs).
+- Ville : **607 k triangles**, 158 meshes (plafond 2 M).
+
+### Reste à faire pour aller plus loin vers l'organique
+- **Le contour du bourg est un carré parfait.** C'est ce qui reste de plus « dessiné à la règle ».
+  Un périmètre irrégulier (le rempart qui avance et recule d'une cellule, des angles non droits)
+  serait le prochain gain le plus fort — mais il demande de repenser le pavage du rempart.
+- **Les voies sont rectilignes.** Une ceinture qui serpente d'une cellule ferait beaucoup.
+- Les bâtiments de JEU restent très minéraux à côté des maisons : beaucoup de mur, peu de toit.
+- Cycle jour/nuit dans la ville (la carte l'a déjà).
+
+---
+
 ## 2026-07-28 (80) — Ville : neuf styles de maisons et un vrai plan de ville
 
 Retour : *« il faut plusieurs styles de maisons et il faut organiser ça comme une ville, pas les

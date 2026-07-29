@@ -1499,6 +1499,145 @@ function house3(kind, seed) {
   return fin(g);
 }
 
+// ============================================================================
+// MOBILIER DE RUE ET CLÔTURES (2026-07-28)
+//
+// Ce qui manquait à la ville pour être JOLIE et non seulement dense : la trace
+// des gens. Un bourg sans charrette, sans tonneau, sans linge ni barrière est
+// une maquette d'architecte — les bâtiments y sont corrects et le lieu reste
+// mort. Ces props sont posés le long des voies et en limite de jardin, à petite
+// échelle : ils ne changent pas la silhouette, ils la peuplent.
+// ============================================================================
+
+/** Charrette, tonneaux, caisses — l'activité au pied des façades. */
+function streetCart(kind, seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz, FINE);
+  const rnd = makeRng(seed);
+  if (kind === 0) {
+    // charrette à bras, brancards posés à terre
+    g.box(6, 14, 8.4, 11.6, 1.6, 2.4, shade(WOOD_W, 1.05)); // plateau
+    for (const y of [8.4, 11.2]) g.box(6, 14, y, y + 0.4, 2.4, 3.4, shade(WOOD_W, 0.9)); // ridelles
+    // ⚠ Roues en BOÎTES, pas en `cylAt` : ce dernier ne sait faire que des
+    // cylindres d'axe Z (vertical), donc les roues se posaient à plat comme des
+    // galettes. Une roue carrée à ce gabarit se lit très bien.
+    for (const cy of [8.1, 11.5]) {
+      g.box(6.6, 9.4, cy, cy + 0.5, 0, 2.6, shade(DARK_W, 1.25));
+      g.box(7.1, 8.9, cy - 0.1, cy + 0.6, 0.4, 2.2, shade(WOOD_W, 0.88)); // moyeu clair
+    }
+    g.box(13.6, 16.4, 9.4, 9.8, 0, 1.8, shade(WOOD_W, 0.95)); // brancards
+    g.box(13.6, 16.4, 10.2, 10.6, 0, 1.8, shade(WOOD_W, 0.95));
+    g.box(7, 12, 8.8, 11.2, 2.4, 3.2, shade(THATCH, 0.92)); // chargement de paille
+  } else if (kind === 1) {
+    // tonneaux, dont un couché
+    for (const [cx, cy, h] of [[7.5, 9, 3.4], [7.6, 11.4, 3.2], [10.4, 9.8, 3.6]]) {
+      cylAt(g, cx, cy, 0, h, 1.5, shade(WOOD_W, 0.94 + rnd() * 0.1));
+      cylAt(g, cx, cy, h * 0.3, h * 0.45, 1.65, shade(DARK_W, 1.4)); // cercles de fer
+      cylAt(g, cx, cy, h * 0.7, h * 0.85, 1.65, shade(DARK_W, 1.4));
+      g.box(cx - 1.2, cx + 1.2, cy - 1.2, cy + 1.2, h, h + 0.3, shade(WOOD_W, 1.12));
+    }
+    g.box(12.4, 15.4, 9, 11.4, 0, 1.5, shade(WOOD_W, 0.88)); // tonneau couché
+    g.box(12.4, 15.4, 9.4, 11, 1.5, 2.2, shade(WOOD_W, 0.96));
+  } else {
+    // caisses empilées + sacs
+    for (const [bx, by, bz, sz] of [[6.5, 9, 0, 2.4], [9.2, 8.8, 0, 2.2], [6.8, 11.4, 0, 2], [7, 9.3, 2.4, 1.9]])
+      g.box(bx, bx + sz, by, by + sz, bz, bz + sz, shade(WOOD_W, 0.9 + rnd() * 0.2));
+    ellipsoid(g, 12.4, 10.4, 1.1, 1.6, 1.4, 1.2, shade(THATCH, 0.86), rnd, 5); // sacs
+    ellipsoid(g, 13.6, 8.8, 1, 1.4, 1.3, 1.1, shade(THATCH, 0.94), rnd, 5);
+  }
+  return fin(g);
+}
+
+/** Étals de marché et corde à linge — la couleur au niveau de l'œil. */
+function streetStall(kind, seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz, FINE);
+  const rnd = makeRng(seed);
+  if (kind === 2) {
+    // corde à linge tendue entre deux perches : le détail le plus « habité »
+    for (const bx of [5.6, 14]) g.box(bx, bx + 0.5, 9.8, 10.3, 0, 6.4, shade(WOOD_W, 0.92));
+    g.box(5.6, 14.5, 10, 10.2, 6.1, 6.3, shade(DARK_W, 1.5)); // la corde
+    const cloth = [[6.6, 2.2], [9, 2.6], [11.6, 2]];
+    const cols = [[228, 132, 120], [238, 232, 214], [122, 172, 198]];
+    for (let i = 0; i < cloth.length; i++) {
+      const [cx, len] = cloth[i];
+      g.box(cx, cx + 1.8, 9.9, 10.3, 6.1 - len, 6.1, shade(cols[i], 0.96 + rnd() * 0.1));
+    }
+    return fin(g);
+  }
+  // étal bâché : plateau + toile tendue à deux pentes
+  const awn = kind === 0 ? [214, 96, 88] : [92, 148, 178];
+  for (const [bx, by] of [[5.6, 8], [5.6, 11.6], [13.8, 8], [13.8, 11.6]])
+    g.box(bx, bx + 0.5, by, by + 0.5, 0, 5.6, shade(WOOD_W, 0.9)); // montants
+  g.box(5.4, 14.4, 7.8, 12.4, 2.4, 2.9, shade(WOOD_W, 1.06)); // plateau
+  g.box(5.4, 14.4, 7.8, 12.4, 2.9, 3.1, shade(WOOD_W, 0.9));
+  for (let k = 0; k < 3; k++) { // bâche en deux pentes
+    g.box(5.2, 14.6, 7.6 + k * 0.9, 8.5 + k * 0.9, 5.6 - k * 0.5, 6 - k * 0.5, shade(awn, 0.94 + (k % 2) * 0.1));
+    g.box(5.2, 14.6, 12.6 - k * 0.9, 13.5 - k * 0.9, 5.6 - k * 0.5, 6 - k * 0.5, shade(awn, 0.9 + (k % 2) * 0.1));
+  }
+  g.box(5.2, 14.6, 9.4 - 0.4, 11 + 0.4, 5.9, 6.3, shade(awn, 1.04)); // faîte
+  // la marchandise
+  const goods = kind === 0 ? [[214, 96, 88], [226, 168, 84], [190, 84, 76]] : [[120, 168, 96], [96, 148, 120], [214, 196, 120]];
+  for (let i = 0; i < 5; i++)
+    ellipsoid(g, 6.4 + i * 1.7, 9.4 + rnd() * 1.4, 3.6, 0.9, 0.8, 0.7, shade(goods[i % 3], 0.94 + rnd() * 0.12), rnd, 6);
+  return fin(g);
+}
+
+/** Lanterne, banc, abreuvoir — le mobilier fixe qui borde la place. */
+function streetFurniture(kind, seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz, FINE);
+  const rnd = makeRng(seed); void rnd;
+  if (kind === 0) {
+    // lanterne sur mât
+    // Le mât doit être HAUT et la tête franchement lumineuse : à l'échelle de la
+    // ville, une lanterne discrète disparaît purement et simplement.
+    cylAt(g, 9.5, 9.5, 0, 1.2, 2.2, shade(STONE_W, 0.9)); // socle
+    g.box(9, 10.4, 9, 10.4, 1.2, 10, shade(DARK_W, 1.3)); // mât
+    g.box(8.2, 11.2, 8.2, 11.2, 10, 13.4, shade(TRIM_GOLD, 0.92)); // cage dorée
+    g.box(8.6, 10.8, 8.6, 10.8, 10.3, 13.1, [255, 240, 178]); // la flamme
+    g.box(7.8, 11.6, 7.8, 11.6, 13.4, 14, shade(DARK_W, 1.15)); // chapeau
+    g.set(9.7, 9.7, 14.4, TRIM_GOLD);
+  } else if (kind === 1) {
+    // banc de pierre + jarres
+    g.box(5.6, 14.4, 9, 11.4, 0, 1.4, shade(STONE_W, 0.9)); // assise
+    g.box(5.6, 14.4, 9, 11.4, 1.4, 1.7, shade(WOOD_W, 1.02)); // planches
+    g.box(5.6, 14.4, 11, 11.4, 1.7, 3.4, shade(WOOD_W, 0.92)); // dossier
+    cylAt(g, 16, 10, 0, 2.2, 1.3, shade(ROOF_TILE, 1.02)); // jarres
+    cylAt(g, 16, 10, 2.2, 2.6, 0.9, shade(ROOF_TILE, 0.9));
+    cylAt(g, 4, 9.4, 0, 1.7, 1.1, shade(ROOF_TILE, 0.94));
+  } else {
+    // abreuvoir en pierre, plein d'eau
+    g.box(5.4, 14.6, 8.6, 11.8, 0, 2.6, shade(STONE_W, 0.9));
+    g.box(6.1, 13.9, 9.2, 11.2, 1.6, 2.6, shade(DARK_W, 1.05)); // creux
+    g.box(6.1, 13.9, 9.2, 11.2, 2.2, 2.5, [92, 182, 214]); // l'eau
+    g.box(13.4, 14.6, 9.8, 10.6, 2.6, 5.4, shade(STONE_W, 1.02)); // borne + goulot
+    g.box(12.8, 13.6, 10, 10.4, 4.4, 4.8, shade(TRIM_GOLD, 0.94));
+  }
+  return fin(g);
+}
+
+/** Clôtures de limite de parcelle. Elles se posent bout à bout sur des cellules
+ *  adjacentes, donc le module fait EXACTEMENT une cellule de long. */
+function fenceProp(kind, seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz, FINE);
+  const rnd = makeRng(seed);
+  if (kind === 0) {
+    // barrière de bois : deux lisses + piquets
+    for (const z of [2.4, 4.2]) g.box(5, 15, 9.6, 10.2, z, z + 0.7, shade(WOOD_W, 1.04));
+    for (let x = 5.2; x <= 14.4; x += 3) g.box(x, x + 0.8, 9.4, 10.4, 0, 5.2, shade(WOOD_W, 0.9));
+  } else if (kind === 1) {
+    // muret de pierre sèche, assises irrégulières
+    for (let x = 5; x < 15; x += 1.3) {
+      const h = 3.4 + (rnd() - 0.5) * 0.8;
+      g.box(x, x + 1.25, 9.4, 10.6, 0, h, shade(STONE_W, 0.88 + rnd() * 0.2));
+    }
+    g.box(5, 15, 9.2, 10.8, 3.6, 4, shade(ROOF_SLATE, 0.92)); // couvertine
+  } else {
+    // haie taillée
+    for (let x = 5; x < 15; x += 1.6)
+      ellipsoid(g, x + 0.8, 10, 2, 1.1, 1.1, 2.2, shade([98, 146, 88], 0.9 + rnd() * 0.2), rnd, 7);
+  }
+  return fin(g);
+}
+
 function bldChantier(seed) {
   const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz, FINE);
   const rnd = makeRng(seed);
@@ -1652,6 +1791,11 @@ async function main() {
     { id: "house", make: (v) => house(v, 1501 + v * 77) },
     { id: "house2", make: (v) => house2(v, 1601 + v * 77) },
     { id: "house3", make: (v) => house3(v, 1701 + v * 77) },
+    // mobilier de rue et clôtures : la trace des gens
+    { id: "street-cart", make: (v) => streetCart(v, 1801 + v * 77) },
+    { id: "street-stall", make: (v) => streetStall(v, 1901 + v * 77) },
+    { id: "street-furniture", make: (v) => streetFurniture(v, 2001 + v * 77) },
+    { id: "fence", make: (v) => fenceProp(v, 2101 + v * 77) },
     { id: "cloud", make: (v) => cloudProp(1201 + v * 77) },
     { id: "brambles", make: (v) => brambles(1301 + v * 77) },
     // sites de ruines-donjons : v0 = enseveli, v1-2 = déblayé (choix par ÉTAT serveur)

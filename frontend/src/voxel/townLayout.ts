@@ -27,6 +27,8 @@ export type TownPlot = {
   rot?: number;
   /** Porte la pastille DOM. La muraille a beaucoup de segments et UNE pastille. */
   primary?: boolean;
+  /** Hauteur de pose, en unités monde (le sol n'est plus plat — cf. terrasses). */
+  gy?: number;
 };
 
 export type TownCellItem = { x: number; y: number; level: number; block: string };
@@ -39,6 +41,12 @@ export type TownDecor = {
   /** Plafond de HAUTEUR, en cellules. Sans lui, un prop étroit et haut mis à
    *  l'échelle sur son empreinte part au plafond (cf. fitScale). */
   hmax?: number;
+  /** Hauteur de pose, en unités monde. */
+  gy: number;
+  /** Rotation imposée (mobilier de rue, clôtures). Sinon quart de tour par position. */
+  rot?: number;
+  /** Variante imposée. Sinon dérivée de la position. */
+  variant?: number;
 };
 /** Maison de remplissage : aucun rôle de jeu, elle fait le TISSU du bourg. */
 export type TownHouse = {
@@ -49,6 +57,8 @@ export type TownHouse = {
   variant: number;
   cells: number;
   rot: number;
+  /** Hauteur de pose, en unités monde. */
+  gy: number;
 };
 
 export type TownLayout = {
@@ -74,7 +84,9 @@ export type TownLayout = {
 const SIZE = 21;
 const LAST = SIZE - 1;
 const CENTRE = (SIZE - 1) / 2;
-const GROUND = 2; // deux blocs d'épaisseur → le village repose sur un socle
+const GROUND = 1; // socle d'un bloc : à deux, la tranche sombre sous la ville
+// prenait une bande d'écran pour rien — le relief des terrasses suffit désormais
+// à poser le bourg.
 
 // Parcelles intérieures. Coordonnées choisies pour que rien ne se chevauche et
 // que la silhouette se lise depuis la caméra dimétrique : la Mairie au fond au
@@ -298,11 +310,86 @@ function placeHouses(plots: TownPlot[]): TownHouse[] {
           variant: m.variant,
           cells,
           rot: (face ?? (h % 4) * (Math.PI / 2)) + (((h % 1000) / 1000 - 0.5) * 0.22),
+          gy: 0, // posé plus bas, une fois le relief calculé
         });
       }
     }
   }
   return houses;
+}
+
+// --- RELIEF : le bourg est bâti à FLANC DE COTEAU ----------------------------
+//
+// Le plateau était rigoureusement horizontal, et c'est ce qui le faisait lire
+// comme un plateau de jeu plutôt que comme un lieu : tous les toits au même
+// niveau, toutes les ombres identiques, aucune ligne d'horizon interne. Aucune
+// quantité de maisons ne rattrape ça.
+//
+// Le terrain monte donc du portail (au sud, en bas) vers la mairie (au nord, en
+// haut), en trois paliers. Conséquences voulues : la mairie domine réellement,
+// l'avenue GRIMPE vers la place, et les redents entre paliers font des murs de
+// soutènement qui découpent le tissu.
+//
+// Deux contraintes tiennent tout le reste :
+//   1. le rempart et son pied restent au niveau 0 — un segment de 5 cellules à
+//      cheval sur une marche laisserait un jour sous la muraille ;
+//   2. toute emprise bâtie est APLANIE au niveau de son centre, sinon un coin
+//      de bâtiment flotte ou s'enfonce.
+const TERRACE_MAX = 2;
+
+function buildTerraces(flatten: { x: number; y: number; r: number }[]): number[] {
+  const lvl = new Array(SIZE * SIZE).fill(0);
+  const idx = (x: number, y: number) => y * SIZE + x;
+  const inside = (x: number, y: number) => x >= 0 && y >= 0 && x <= LAST && y <= LAST;
+  const wallDist = (x: number, y: number) => Math.min(x, y, LAST - x, LAST - y);
+
+  for (let y = 0; y <= LAST; y++)
+    for (let x = 0; x <= LAST; x++) {
+      if (wallDist(x, y) <= 1) continue; // pied du rempart : plat
+      const slope = ((LAST - y) / LAST) * 2.7 - 0.35;
+      // Bruit à DEUX échelles. En bruit blanc par cellule, la courbe de niveau
+      // part en dents de scie d'une cellule et l'adoucissement la ramène à une
+      // droite : on retombe sur des bandes. La composante grossière (une valeur
+      // par bloc de 3×3) fait de vrais lobes, la fine casse juste leur bord.
+      const coarse = ((hash(Math.floor(x / 3) * 17 + 5, Math.floor(y / 3) * 23 + 9) % 1000) / 1000 - 0.5) * 1.5;
+      const fine = ((hash(x * 5 + 3, y * 7 + 11) % 1000) / 1000 - 0.5) * 0.5;
+      const noise = coarse + fine;
+      lvl[idx(x, y)] = Math.max(0, Math.min(TERRACE_MAX, Math.floor(slope + noise)));
+    }
+
+  // Aplanissement des emprises + limitation des marches à 1, en alternance :
+  // aplanir crée des marches de 2, adoucir défait l'aplanissement. Trois tours
+  // suffisent à converger, et on termine PAR l'aplanissement — c'est lui qui ne
+  // doit pas être négociable.
+  const flattenPlots = () => {
+    for (const f of flatten) {
+      const cx = Math.round(f.x), cy = Math.round(f.y);
+      if (!inside(cx, cy)) continue;
+      const v = lvl[idx(cx, cy)];
+      // `round`, pas `ceil` : à `ceil` la mairie aplanissait un plateau de 7×7
+      // pour une emprise de 4,4, et chaque maison son carré de 5×5 — le coteau
+      // devenait un empilement de terrasses rectangulaires.
+      const r = Math.max(1, Math.round(f.r) - 1);
+      for (let dy = -r; dy <= r; dy++)
+        for (let dx = -r; dx <= r; dx++)
+          if (inside(cx + dx, cy + dy) && wallDist(cx + dx, cy + dy) > 1) lvl[idx(cx + dx, cy + dy)] = v;
+    }
+  };
+  const soften = () => {
+    for (let pass = 0; pass < SIZE; pass++) {
+      let changed = false;
+      for (let y = 0; y <= LAST; y++)
+        for (let x = 0; x <= LAST; x++) {
+          let lo = TERRACE_MAX;
+          for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]])
+            if (inside(x + dx, y + dy)) lo = Math.min(lo, lvl[idx(x + dx, y + dy)]);
+          if (lvl[idx(x, y)] > lo + 1) { lvl[idx(x, y)] = lo + 1; changed = true; }
+        }
+      if (!changed) break;
+    }
+  };
+  for (let k = 0; k < 3; k++) { soften(); flattenPlots(); }
+  return lvl;
 }
 
 export function buildTownLayout(): TownLayout {
@@ -359,24 +446,46 @@ export function buildTownLayout(): TownLayout {
   // `floor(cells/2)` la mairie posait un carré de terre de 5×5 pour un bâtiment
   // de 4,4 — le pourtour brun débordait de tous les bâtiments construits et
   // faisait lire le bourg comme un chantier.
-  // Un LISERÉ PAVÉ ceinture chaque parcelle : la terre battue seule se lisait
-  // comme un trou dans la pelouse, le liseré la fait lire comme un lot borné.
+  // ⚠ PAS de liseré pavé autour (essayé, retiré) : entre la place, l'avenue, la
+  // ceinture, la traverse et sept liserés de parcelle, le sol du bourg était
+  // presque intégralement en pierre pâle. Vu de la caméra, ça tirait tout vers
+  // le gris — et c'est le vert et la terre qui donnent la vie. La terre battue
+  // de la parcelle suffit à la marquer.
   const plotGround = new Set<string>();
-  const plotEdge = new Set<string>();
   for (const p of INTERIOR) {
     const r = Math.max(0, Math.round(p.cells / 2) - 1);
-    for (let dy = -r - 1; dy <= r + 1; dy++)
-      for (let dx = -r - 1; dx <= r + 1; dx++) {
-        const k = `${p.x + dx},${p.y + dy}`;
-        if (Math.max(Math.abs(dx), Math.abs(dy)) > r) plotEdge.add(k);
-        else plotGround.add(k);
-      }
+    for (let dy = -r; dy <= r; dy++)
+      for (let dx = -r; dx <= r; dx++) plotGround.add(`${p.x + dx},${p.y + dy}`);
   }
+
+  // --- maisons de remplissage ----------------------------------------------
+  // Elles se posent AVANT le sol : elles occupent des cellules (ni arbre ni
+  // héros ne doit y atterrir) ET leur emprise doit être aplanie par le relief.
+  const houses = placeHouses(plots);
+  for (const h of houses) occupied.add(`${Math.round(h.x)},${Math.round(h.y)}`);
+
+  // --- relief ---------------------------------------------------------------
+  const terr = buildTerraces([
+    ...INTERIOR.map((p) => ({ x: p.x, y: p.y, r: p.cells / 2 })),
+    { x: GATE_X, y: LAST, r: 1.6 },
+    ...houses.map((h) => ({ x: h.x, y: h.y, r: h.cells / 2 })),
+  ]);
+  const levelAt = (x: number, y: number) => terr[y * SIZE + x] ?? 0;
+  /** Hauteur de pose d'un objet, en unités monde (socle + surface du palier). */
+  const groundAt = (x: number, y: number) => levelAt(Math.round(x), Math.round(y)) + GROUND;
 
   // --- sol ------------------------------------------------------------------
   for (let y = 0; y <= LAST; y++) {
     for (let x = 0; x <= LAST; x++) {
-      push(x, y, 0, "dirt"); // socle
+      const lv = levelAt(x, y);
+      // Le REDENT d'un palier est un mur de soutènement : on le maçonne dès
+      // qu'un voisin est plus bas. En terre nue, une marche d'une cellule se
+      // lit comme un défaut de terrain, pas comme un ouvrage.
+      const exposed = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(
+        ([dx, dy]) =>
+          x + dx >= 0 && y + dy >= 0 && x + dx <= LAST && y + dy <= LAST && levelAt(x + dx, y + dy) < lv,
+      );
+      for (let k = 0; k <= lv; k++) push(x, y, k, exposed && k === lv ? "limestone" : "dirt");
       // Un matériau PAR RANG de voie : c'est ce qui fait lire la hiérarchie.
       // Tout en cobblestone, la place et une ruelle de fond de jardin avaient
       // exactement le même aspect, donc le réseau ne se voyait pas.
@@ -390,24 +499,21 @@ export function buildTownLayout(): TownLayout {
               ? "dirt" // ruelle de terre battue
               : plotGround.has(`${x},${y}`)
                 ? "dirt"
-                : plotEdge.has(`${x},${y}`)
-                  ? "limestone" // liseré de parcelle
                   : "grass";
-      push(x, y, 1, surface);
+      push(x, y, lv + 1, surface);
     }
   }
+  for (const p of plots) p.gy = groundAt(p.x, p.y);
+  for (const h of houses) h.gy = groundAt(h.x, h.y);
 
   // --- décor + emplacements des héros --------------------------------------
   // Déterministe (pas de Math.random : le rendu doit être identique d'une session
   // à l'autre, et `Math.random` est de toute façon proscrit dans les scripts).
-  // Les maisons se posent AVANT le décor et les héros : elles occupent des
-  // cellules, donc ni un arbre ni un héros ne doit atterrir dedans.
-  const houses = placeHouses(plots);
-  for (const h of houses) occupied.add(`${Math.round(h.x)},${Math.round(h.y)}`);
 
   const decor: TownDecor[] = [];
   const heroSlots: { x: number; y: number; lvl: number }[] = [];
   const DECOR = ["tree-green", "bush-dense", "flowers", "grass-tuft", "daisy", "fern"];
+  const CLUTTER = ["street-cart", "street-stall", "street-furniture"];
   const nearStreet = (x: number, y: number) =>
     [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => isPath(x + dx, y + dy) || isSquare(x + dx, y + dy));
   for (let y = 1; y < LAST; y++) {
@@ -420,20 +526,50 @@ export function buildTownLayout(): TownLayout {
       // rôle sans nouvel asset. Il DOIT dépasser les maisons (3,1 cellules) et
       // rester sous la mairie (5,6), qui garde le point haut : d'où un plafond
       // de hauteur explicite plutôt que le plafond par défaut du décor.
-      if (nearStreet(x, y) && h % 100 < 26) {
-        decor.push({ x, y, prop: "pine", scale: 1.1, hmax: 4.2 });
+      if (nearStreet(x, y) && h % 100 < 22) {
+        decor.push({ x, y, prop: "pine", scale: 1.1, hmax: 4.2, gy: groundAt(x, y) });
         continue;
       }
-      // ~1 cellule libre sur 7 reçoit un prop. À 26 % sur une grille de 15 ça
-      // passait ; sur 19 il y a bien plus de cellules libres et la ville
-      // disparaissait sous la végétation. Les arbres sont aussi rabaissés : à
-      // 1.5 cellule ils dépassaient les bâtiments et masquaient les parcelles.
-      if (h % 100 < 14) {
-        const prop = DECOR[h % DECOR.length];
+      // MOBILIER DE RUE et CLÔTURES — la trace des gens.
+      //
+      // Une ville dense mais vide de charrettes, d'étals, de linge et de
+      // barrières reste une maquette : les volumes sont justes et rien n'y
+      // habite. Ces props ne changent pas la silhouette, ils la peuplent, et
+      // ils sont ce qui manquait le plus pour que le bourg soit JOLI et pas
+      // seulement correct.
+      if (nearStreet(x, y)) {
+        const face = faceStreet(x, y) ?? 0;
+        if (h % 100 < 44) {
+          decor.push({
+            x, y, prop: CLUTTER[(h >>> 6) % CLUTTER.length],
+            scale: 0.95, hmax: 1.7, rot: face, gy: groundAt(x, y),
+          });
+          continue;
+        }
+        // Clôture de limite de parcelle, ALIGNÉE sur la rue : le modèle fait
+        // exactement une cellule, donc deux cellules voisines donnent un
+        // linéaire continu. La matière est tirée par ÎLOT (hachage grossier) —
+        // alterner bois/pierre/haie d'une cellule à l'autre ferait un patchwork.
+        if (h % 100 < 66) {
+          decor.push({
+            x, y, prop: "fence", variant: hash(Math.floor(x / 4) + 1, Math.floor(y / 4) + 2) % 3,
+            scale: 1.02, hmax: 0.8, rot: face, gy: groundAt(x, y),
+          });
+          continue;
+        }
+      }
+      // VÉGÉTATION. Le taux était descendu à 14 % « pour que la ville ne
+      // disparaisse pas sous les arbres » — à l'époque où il n'y avait rien
+      // d'autre sur les cellules libres. Depuis, les maisons occupent le
+      // terrain et c'est le VERT qui manque : sans lui, le bourg n'est qu'une
+      // masse de pierre et de tuile. Les fonds de parcelle sont d'ailleurs
+      // l'endroit naturel des jardins.
+      if (h % 100 < 52) {
+        const prop = DECOR[(h >>> 3) % DECOR.length];
         const big = prop === "tree-green";
-        decor.push({ x, y, prop, scale: big ? 1.15 : 0.8 });
+        decor.push({ x, y, prop, scale: big ? 1.3 : 0.85, hmax: big ? 3.2 : undefined, gy: groundAt(x, y) });
       } else {
-        heroSlots.push({ x, y, lvl: GROUND });
+        heroSlots.push({ x, y, lvl: groundAt(x, y) });
       }
     }
   }
@@ -462,6 +598,7 @@ export function buildTownLayout(): TownLayout {
 export const TOWN_DECOR_PROPS = [
   "tree-green", "bush-dense", "flowers", "grass-tuft", "daisy", "fern", "pine",
   "house", "house2", "house3",
+  "street-cart", "street-stall", "street-furniture", "fence",
 ];
 
 // --- pont vers le rendu 2D « Classique » ------------------------------------

@@ -503,7 +503,11 @@ bâtiments s'affichent via `buildingName(id)` (`data/buildings.ts`), pas via `b.
   **Hiérarchie de voies** (chaque rang a son gabarit ET son matériau, sinon le réseau ne se lit
   pas) : place 5×5 pavée autour du puits · avenue 3 de large du portail à la place · ceinture +
   traverse en calcaire · ruelles de terre battue qui découpent la bande contre le rempart.
-  **~25 maisons de remplissage** en **9 modèles** (`house`/`house2`/`house3` ×3 : chaumière, étage
+  **Relief en TERRASSES** (`buildTerraces`) : le bourg est à flanc de coteau, trois paliers du
+  portail vers la mairie, redents maçonnés ; ⚠ le rempart et son pied restent au niveau 0 et toute
+  emprise bâtie est aplanie au niveau de son centre. **Mobilier de rue** (charrette, étals, linge,
+  lanterne, banc, abreuvoir) et **clôtures** (bois/pierre/haie, un module = une cellule, matière
+  tirée par îlot) orientés sur la rue. **~25 maisons de remplissage** en **9 modèles** (`house`/`house2`/`house3` ×3 : chaumière, étage
   en encorbellement, peinte à auvent, grange, échoppe, étroite à balcon, remise, tourelle,
   terrasse — sans rôle de jeu ni hotspot), **façade orientée sur la rue la plus proche**
   (`faceStreet`), plus des cyprès de bord de rue : c'est ce qui fait le tissu bâti.
