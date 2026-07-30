@@ -95,13 +95,17 @@ const GROUND = 1; // socle d'un bloc : à deux, la tranche sombre sous la ville
 // aucune emprise ne doit chevaucher la rue, sinon le dallage ressort sous un
 // bâtiment. Les dégagements deux à deux sont vérifiés (somme des demi-emprises).
 const INTERIOR: TownPlot[] = [
-  { bid: "townhall", x: 10, y: 6, cells: 4.4, primary: true }, // fond de place
+  // ⚠ Les ordonnées tiennent compte des COURBES DE NIVEAU (edgeAt plus bas) :
+  // une emprise à cheval sur une limite de palier se fait creuser d'un cran et
+  // laisse une plate-forme rectangulaire dans le coteau. Les cinq gros
+  // bâtiments sont donc entièrement d'un côté ou de l'autre.
+  { bid: "townhall", x: 10, y: 6, cells: 4.4, primary: true }, // haut du coteau
   { bid: "bank", x: 6, y: 6, cells: 3.6, primary: true }, // îlot nord-ouest
   { bid: "workshop", x: 14, y: 6, cells: 3.6, primary: true }, // îlot nord-est
-  { bid: "kitchen", x: 6, y: 15, cells: 3.6, primary: true }, // îlot sud-ouest
-  { bid: "recyclerie", x: 14, y: 15, cells: 3.6, primary: true }, // îlot sud-est
+  { bid: "kitchen", x: 6, y: 14, cells: 3.6, primary: true }, // îlot sud-ouest
+  { bid: "recyclerie", x: 14, y: 14, cells: 3.6, primary: true }, // îlot sud-est
   { bid: "well", x: 10, y: 10, cells: 2.3, primary: true }, // au centre de la place
-  { bid: "panel", x: 7, y: 12, cells: 2.1, primary: true }, // à l'angle de la place
+  { bid: "panel", x: 12, y: 12, cells: 2.1, primary: true }, // à l'angle de la place
 ];
 
 const GATE_X = CENTRE; // portail au milieu de la face avant (y = LAST)
@@ -337,58 +341,92 @@ function placeHouses(plots: TownPlot[]): TownHouse[] {
 //      de bâtiment flotte ou s'enfonce.
 const TERRACE_MAX = 2;
 
-function buildTerraces(flatten: { x: number; y: number; r: number }[]): number[] {
+/**
+ * Courbe de niveau : l'ordonnée où le terrain change de palier, en fonction de
+ * x. Somme de deux sinusoïdes de périodes incommensurables — donc une courbe
+ * qui ondule sans jamais se répéter, et surtout DÉRIVABLE : sa pente maximale
+ * vaut ici ~0,4 cellule par cellule, très en dessous de 1, ce qui garantit
+ * qu'aucune marche latérale ne dépasse un niveau.
+ */
+const edgeAt = (x: number, base: number, amp: number, k1: number, p1: number, k2: number, p2: number) =>
+  base + amp * (0.62 * Math.sin(x * k1 + p1) + 0.38 * Math.sin(x * k2 + p2));
+
+/**
+ * Champ de hauteur du bourg.
+ *
+ * ── Pourquoi cette forme et pas une autre ────────────────────────────────────
+ * La version précédente tirait la hauteur d'un BRUIT ajouté à une pente. C'était
+ * faux sur les deux plans que le rendu montre immédiatement :
+ *   - **pas lisse** : le bruit décide seul de part et d'autre d'un seuil, donc
+ *     les courbes de niveau se déchiquettent et laissent des plaques isolées —
+ *     un carré de palier haut au milieu du palier bas, sans rien qui l'explique ;
+ *   - **pas logique** : chaque bâtiment s'aplanissait ensuite SA plate-forme
+ *     rectangulaire, et la passe d'adoucissement ne savait que creuser. On
+ *     obtenait un damier de mesas et de cuvettes, pas un coteau.
+ *
+ * Ici le terrain est une FONCTION, pas un tirage : deux courbes de niveau
+ * traversent la ville d'un bord à l'autre, et le palier est simplement « de quel
+ * côté de la courbe on se trouve ». Trois propriétés en découlent, et ce sont
+ * exactement celles qui manquaient :
+ *   1. **monotone en y** — le terrain descend toujours vers le portail. Aucune
+ *      plaque isolée, aucune cuvette : c'est possible par construction ;
+ *   2. **courbes continues** — une limite de palier est une ligne qui va d'un
+ *      rempart à l'autre, donc le mur de soutènement se lit comme un ouvrage ;
+ *   3. **marches d'un seul niveau** partout (pente des courbes < 1).
+ *
+ * Les bâtiments ne s'aplanissent plus rien : leur emprise est CREUSÉE au niveau
+ * le plus bas qu'elle touche. Un bâtiment mord donc dans le talus côté amont,
+ * ce qui est précisément ce que fait une maison sur un coteau — et ça ne peut
+ * jamais le faire flotter, puisqu'on descend au minimum.
+ */
+function buildTerraces(cuts: { x: number; y: number; r: number }[]): number[] {
   const lvl = new Array(SIZE * SIZE).fill(0);
   const idx = (x: number, y: number) => y * SIZE + x;
   const inside = (x: number, y: number) => x >= 0 && y >= 0 && x <= LAST && y <= LAST;
-  const wallDist = (x: number, y: number) => Math.min(x, y, LAST - x, LAST - y);
 
   for (let y = 0; y <= LAST; y++)
     for (let x = 0; x <= LAST; x++) {
-      if (wallDist(x, y) <= 1) continue; // pied du rempart : plat
-      const slope = ((LAST - y) / LAST) * 2.7 - 0.35;
-      // Bruit à DEUX échelles. En bruit blanc par cellule, la courbe de niveau
-      // part en dents de scie d'une cellule et l'adoucissement la ramène à une
-      // droite : on retombe sur des bandes. La composante grossière (une valeur
-      // par bloc de 3×3) fait de vrais lobes, la fine casse juste leur bord.
-      const coarse = ((hash(Math.floor(x / 3) * 17 + 5, Math.floor(y / 3) * 23 + 9) % 1000) / 1000 - 0.5) * 1.5;
-      const fine = ((hash(x * 5 + 3, y * 7 + 11) % 1000) / 1000 - 0.5) * 0.5;
-      const noise = coarse + fine;
-      lvl[idx(x, y)] = Math.max(0, Math.min(TERRACE_MAX, Math.floor(slope + noise)));
+      // Les deux limites sont calées dans les CORRIDORS libres entre bâtiments :
+      // la première juste au-dessus de la place (elle borde son côté nord d'un
+      // mur de soutènement), la seconde entre le tissu sud et l'esplanade du
+      // portail. Ailleurs, une emprise se ferait couper en deux.
+      const b1 = edgeAt(x, 9.2, 0.7, 0.42, 0.7, 0.19, 2.3); // limite 2 → 1
+      const b2 = edgeAt(x, 17.2, 0.9, 0.36, 2.1, 0.17, 0.4); // limite 1 → 0
+      const raw = y < b1 ? 2 : y < b2 ? 1 : 0;
+      // Le pied du rempart reste au niveau 0 (un segment de 5 cellules à cheval
+      // sur une marche laisserait un jour sous la muraille) et le terrain ne
+      // remonte qu'une marche par cellule en s'en éloignant : le plafond par
+      // distance au mur suffit à l'imposer sans casser la monotonie.
+      const cap = Math.min(x - 1, y - 1, LAST - 1 - x, LAST - 1 - y);
+      lvl[idx(x, y)] = Math.max(0, Math.min(TERRACE_MAX, raw, cap));
     }
 
-  // Aplanissement des emprises + limitation des marches à 1, en alternance :
-  // aplanir crée des marches de 2, adoucir défait l'aplanissement. Trois tours
-  // suffisent à converger, et on termine PAR l'aplanissement — c'est lui qui ne
-  // doit pas être négociable.
-  const flattenPlots = () => {
-    for (const f of flatten) {
-      const cx = Math.round(f.x), cy = Math.round(f.y);
-      if (!inside(cx, cy)) continue;
-      const v = lvl[idx(cx, cy)];
-      // `round`, pas `ceil` : à `ceil` la mairie aplanissait un plateau de 7×7
-      // pour une emprise de 4,4, et chaque maison son carré de 5×5 — le coteau
-      // devenait un empilement de terrasses rectangulaires.
-      const r = Math.max(1, Math.round(f.r) - 1);
-      for (let dy = -r; dy <= r; dy++)
-        for (let dx = -r; dx <= r; dx++)
-          if (inside(cx + dx, cy + dy) && wallDist(cx + dx, cy + dy) > 1) lvl[idx(cx + dx, cy + dy)] = v;
-    }
-  };
-  const soften = () => {
-    for (let pass = 0; pass < SIZE; pass++) {
-      let changed = false;
-      for (let y = 0; y <= LAST; y++)
-        for (let x = 0; x <= LAST; x++) {
-          let lo = TERRACE_MAX;
-          for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]])
-            if (inside(x + dx, y + dy)) lo = Math.min(lo, lvl[idx(x + dx, y + dy)]);
-          if (lvl[idx(x, y)] > lo + 1) { lvl[idx(x, y)] = lo + 1; changed = true; }
-        }
-      if (!changed) break;
-    }
-  };
-  for (let k = 0; k < 3; k++) { soften(); flattenPlots(); }
+  // Creusement des emprises au niveau le plus bas touché.
+  for (const c of cuts) {
+    const cx = Math.round(c.x), cy = Math.round(c.y);
+    const r = Math.max(1, Math.round(c.r));
+    let lo = TERRACE_MAX;
+    for (let dy = -r; dy <= r; dy++)
+      for (let dx = -r; dx <= r; dx++)
+        if (inside(cx + dx, cy + dy)) lo = Math.min(lo, lvl[idx(cx + dx, cy + dy)]);
+    for (let dy = -r; dy <= r; dy++)
+      for (let dx = -r; dx <= r; dx++)
+        if (inside(cx + dx, cy + dy)) lvl[idx(cx + dx, cy + dy)] = lo;
+  }
+
+  // Filet de sécurité : deux emprises creusées côte à côte peuvent laisser une
+  // marche de 2. On ne fait que DESCENDRE — remonter recréerait des bosses.
+  for (let pass = 0; pass < SIZE; pass++) {
+    let changed = false;
+    for (let y = 0; y <= LAST; y++)
+      for (let x = 0; x <= LAST; x++) {
+        let lo = TERRACE_MAX;
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]])
+          if (inside(x + dx, y + dy)) lo = Math.min(lo, lvl[idx(x + dx, y + dy)]);
+        if (lvl[idx(x, y)] > lo + 1) { lvl[idx(x, y)] = lo + 1; changed = true; }
+      }
+    if (!changed) break;
+  }
   return lvl;
 }
 

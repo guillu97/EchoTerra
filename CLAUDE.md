@@ -503,9 +503,12 @@ bâtiments s'affichent via `buildingName(id)` (`data/buildings.ts`), pas via `b.
   **Hiérarchie de voies** (chaque rang a son gabarit ET son matériau, sinon le réseau ne se lit
   pas) : place 5×5 pavée autour du puits · avenue 3 de large du portail à la place · ceinture +
   traverse en calcaire · ruelles de terre battue qui découpent la bande contre le rempart.
-  **Relief en TERRASSES** (`buildTerraces`) : le bourg est à flanc de coteau, trois paliers du
-  portail vers la mairie, redents maçonnés ; ⚠ le rempart et son pied restent au niveau 0 et toute
-  emprise bâtie est aplanie au niveau de son centre. **Mobilier de rue** (charrette, étals, linge,
+  **Relief en TERRASSES** (`buildTerraces`) : le champ de hauteur est une FONCTION — deux courbes
+  de niveau (sommes de sinusoïdes) traversent la ville, le palier est le côté de la courbe. D'où
+  monotonie vers le portail (pas de plaque isolée ni de cuvette), courbes continues, marches d'un
+  seul niveau. ⚠ le rempart et son pied restent au niveau 0, les emprises sont CREUSÉES au minimum
+  qu'elles touchent (jamais aplanies — ça faisait des mesas rectangulaires) et les courbes sont
+  calées dans les corridors libres entre bâtiments. **Mobilier de rue** (charrette, étals, linge,
   lanterne, banc, abreuvoir) et **clôtures** (bois/pierre/haie, un module = une cellule, matière
   tirée par îlot) orientés sur la rue. **~25 maisons de remplissage** en **9 modèles** (`house`/`house2`/`house3` ×3 : chaumière, étage
   en encorbellement, peinte à auvent, grange, échoppe, étroite à balcon, remise, tourelle,

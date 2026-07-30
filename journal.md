@@ -6,6 +6,48 @@
 
 ---
 
+## 2026-07-28 (82) — Relief : refait sur une FONCTION, plus sur du bruit
+
+Retour, répété : *« les reliefs ne sont pas smooth ni logiques »*. Fondé, et la cause était dans la
+méthode, pas dans un réglage.
+
+### Ce qui n'allait pas
+La hauteur était **un bruit ajouté à une pente**, puis rattrapée par deux passes qui se battaient
+entre elles. Deux défauts en découlaient mécaniquement :
+- **pas lisse** : le bruit décidait seul de part et d'autre du seuil, donc les courbes de niveau se
+  déchiquetaient et laissaient des PLAQUES ISOLÉES — un carré de palier haut au milieu du palier
+  bas, que rien n'explique ;
+- **pas logique** : chaque bâtiment s'aplanissait ensuite SA plate-forme rectangulaire, et la passe
+  d'adoucissement ne savait que creuser. Résultat : un damier de mesas et de cuvettes.
+
+### La correction
+Le terrain est maintenant une **fonction**, pas un tirage. Deux **courbes de niveau** (somme de deux
+sinusoïdes de périodes incommensurables, donc ondulantes et dérivables) traversent la ville d'un
+rempart à l'autre ; le palier d'une cellule est simplement « de quel côté de la courbe elle se
+trouve ». Trois propriétés en découlent — exactement celles qui manquaient :
+1. **monotone en y** : le terrain descend toujours vers le portail. Aucune plaque isolée, aucune
+   cuvette n'est possible *par construction* ;
+2. **courbes continues** : une limite de palier va d'un bord à l'autre, donc le mur de soutènement
+   se lit comme un ouvrage et non comme un accident ;
+3. **marches d'un seul niveau** partout — la pente des courbes vaut ~0,4 cellule par cellule, très
+   en dessous de 1. Vérifié : 0 marche > 1 sur toute la grille.
+
+**Les bâtiments ne s'aplanissent plus rien.** Leur emprise est CREUSÉE au niveau le plus bas
+qu'elle touche : une maison mord dans le talus côté amont — ce que fait une maison sur un coteau —
+et ne peut jamais flotter, puisqu'on descend au minimum.
+
+Les deux courbes sont calées dans les corridors LIBRES entre bâtiments (au-dessus de la place, et
+entre le tissu sud et l'esplanade du portail) ; les emprises de la cuisine, de la recyclerie et du
+panneau ont été déplacées en conséquence. Une emprise à cheval sur une limite se ferait creuser
+d'un cran et rouvrirait le problème des plates-formes rectangulaires.
+
+### Fonctionnel (vérifié)
+- Champ de hauteur contrôlé programmatiquement : **0 marche > 1**, aucune plaque isolée.
+- Captures headless voxel et Classique · `npx tsc -b` ✅ · `npm run build` ✅ ·
+  `npm run test:perf` **13/13** ✅.
+
+---
+
 ## 2026-07-28 (81) — Ville : la rendre ORGANIQUE (relief, mobilier, vert)
 
 Retour : *« là c'est bien mais ce n'est pas joli, trouve les points d'amélioration pour rendre la
