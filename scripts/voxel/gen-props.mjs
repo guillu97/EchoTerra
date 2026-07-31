@@ -1034,17 +1034,25 @@ function siteTour(cleared, seed) {
 // pierre calcaire CHAUDE — assez claire pour rester lumineuse sous le Lambert
 // (qui, lui, ajoute son ombrage à celui déjà cuit par le mesher), mais avec
 // enfin une couleur. Le toit passe à une vraie terre cuite.
-const STONE_W = [212, 193, 163], WOOD_W = [176, 136, 92], ROOF_W = [206, 118, 88];
+// PALETTE ROHIRRIQUE (2026-07-29). Le bourg s'inspire désormais d'Edoras : les
+// toits sont en CHAUME, pas en tuile, et le bois est sombre. Terracotta et
+// ardoise bleue — la palette méditerranéenne de la passe précédente — juraient
+// avec un tertre de plaine. Trois tons de chaume gardent de la variété sans
+// casser l'unité : neuf, vieilli, moussu.
+const STONE_W = [212, 193, 163], WOOD_W = [148, 112, 74], ROOF_W = [186, 162, 106];
 const THATCH = [222, 186, 110], DARK_W = [66, 58, 62], CHAR = [116, 106, 98];
 // Accents COLORÉS. Sans eux, banque / portail / tour / muraille — c'est-à-dire
 // l'essentiel de ce qu'on voit en début de partie — n'étaient QUE de la pierre :
 // la ville paraissait délavée quoi qu'on fasse à l'éclairage ou à la teinte de
 // la pierre elle-même. Chaque bâtiment reçoit désormais une couleur propre, à
 // la manière d'un bourg où chaque métier a ses tuiles et son enseigne.
-const ROOF_SLATE = [86, 116, 138]; // ardoise bleue — banque (bâtiment de prestige)
-const ROOF_TILE = [198, 104, 78]; // tuile — portail, tour
+// EDORAS (2026-07-29) : bois sombre et chaume doré, la palette du Rohan.
+const TIMBER = [92, 72, 54]; // poutre et pieu, bois foncé
+const GOLD_THATCH = [208, 170, 92]; // le chaume doré de Meduseld
+const ROOF_SLATE = [118, 126, 94]; // chaume MOUSSU, vert-gris (ex-ardoise bleue)
+const ROOF_TILE = [204, 174, 110]; // chaume CLAIR (ex-tuile)
 const TRIM_GOLD = [226, 184, 96];
-const PAINT_TEAL = [96, 156, 156];
+const PAINT_TEAL = [118, 134, 116]; // vert-de-gris passé, pas turquoise
 
 // cylindre plein module (fûts, tours rondes) — coords grossières, tracé fin
 function cylAt(g, bx, by, z0, z1, r, rgb) {
@@ -1068,6 +1076,17 @@ function prismRoof(g, x0, x1, y0, y1, z0, rgb, over = 1) {
         g.box(x, x, y, y, z, z, z === top ? shade(rgb, 0.94 + ((x | 0) % 2) * 0.08) : shade([236, 228, 210], 0.98));
       }
     }
+  }
+}
+
+// Toit TRÈS pentu (Meduseld, halles rohirriques). `prismRoof` monte à 0,8 de
+// pente, ce qui convient à une chaumière mais donne un toit écrasé sur une
+// grande salle — or c'est justement la pente qui fait la silhouette du Rohan.
+function steepRoof(g, x0, x1, y0, y1, z0, rgb, slope = 1.15, over = 1) {
+  for (let y = y0 - over; y <= y1 + over; y += 0.5) {
+    const d = Math.min(y - (y0 - over), y1 + over - y);
+    const top = z0 + d * slope;
+    g.box(x0 - over, x1 + over, y, y + 0.5, Math.max(z0, top - 0.75), top, shade(rgb, 0.93 + (Math.round(y * 2) % 2) * 0.1));
   }
 }
 
@@ -1250,17 +1269,47 @@ function bldTower(seed) {
 }
 
 function bldTownhall(seed) {
+  // MEDUSELD — la grande salle du tertre. Trois traits la font reconnaître, et
+  // ce sont eux qu'on cherche : un SOUBASSEMENT de pierre avec un emmarchement
+  // monumental, un corps en BOIS SOMBRE à poteaux, et surtout une toiture de
+  // chaume DORÉ très pentue — c'est elle qu'on voit depuis la plaine.
   const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz, FINE);
   const rnd = makeRng(seed); void rnd;
-  g.box(3, 16, 7, 14.5, 0, 8, shade(STONE_W, 1.0)); // corps
-  g.box(8.6, 11.4, 6.5, 7, 0, 5.6, DARK_W); // grande porte
-  g.box(4.5, 6, 6.6, 7, 3, 5, [122, 186, 202]); // vitraux
-  g.box(13, 14.5, 6.6, 7, 3, 5, [122, 186, 202]);
-  prismRoof(g, 3.5, 15.5, 7.5, 14, 9, ROOF_W);
-  g.box(8, 12, 8.5, 12.5, 9, 15, shade(STONE_W, 1.03)); // beffroi
-  prismRoof(g, 8.4, 11.6, 9.2, 11.8, 16, ROOF_W, 0);
-  g.set(10, 10.5, 14, [240, 202, 112]); // cloche dorée
-  g.box(9.6, 10.4, 10.2, 10.8, 12.6, 13.4, DARK_W); // baie de la cloche
+  // soubassement + esplanade
+  g.box(2.6, 17.4, 5.6, 16.2, 0, 2.2, shade(STONE_W, 0.9));
+  g.box(2.6, 17.4, 5.6, 16.2, 2.2, 2.5, shade(STONE_W, 1.05));
+  // emmarchement monumental, face à la porte de la ville
+  for (let k = 0; k < 5; k++)
+    g.box(7.6, 12.4, 3.4 + k * 0.45, 4.1 + k * 0.45, 0, 0.45 * (k + 1), shade(STONE_W, 0.93 + k * 0.025));
+  // corps en bois sombre
+  g.box(4.6, 15.4, 6.6, 15.2, 2.5, 8.4, shade(TIMBER, 1.0));
+  for (const x of [4.6, 7.3, 12.4, 15.1]) g.box(x, x + 0.7, 6.2, 6.7, 2.5, 9.4, shade(WOOD_W, 1.02)); // poteaux
+  g.box(4.6, 15.4, 6.2, 6.7, 7.8, 8.5, shade(WOOD_W, 0.92)); // sablière
+  g.box(8.4, 11.6, 6.1, 6.7, 2.5, 7.1, DARK_W); // grande porte
+  g.box(8, 12, 6.1, 6.6, 6.9, 7.6, shade(TRIM_GOLD, 0.96)); // linteau doré
+  for (const x of [5.5, 13.3]) g.box(x, x + 1.3, 6.2, 6.7, 5.2, 7, [122, 186, 202]); // baies
+  // TOITURE dorée, très pentue
+  steepRoof(g, 4.7, 15.3, 6.9, 14.9, 8.4, GOLD_THATCH, 1.15, 1.15);
+  // faîte + épis
+  g.box(9.4, 10.6, 5.6, 16.2, 13, 13.6, shade(TRIM_GOLD, 0.92));
+  // pignons CROISÉS des deux côtés : les « cornes » qui signent une halle
+  // rohirrique. Deux poutres qui montent des avant-toits et se croisent
+  // au-dessus du faîte.
+  // ⚠ Les poutres ne partent PAS des avant-toits : tracées sur toute la hauteur
+  // du pignon, elles se plaquent sur la pente du toit et se lisent comme un
+  // treillis. Seule la partie qui DÉPASSE le faîte fait la silhouette.
+  for (const y of [6.0, 15.5]) {
+    for (let k = 0; k < 7; k++) {
+      const z = 11.2 + k * 0.55;
+      const off = 2 - k * 0.31;
+      g.box(9.7 - off, 10.3 - off, y, y + 0.6, z, z + 0.6, shade(WOOD_W, 1.08));
+      g.box(9.7 + off, 10.3 + off, y, y + 0.6, z, z + 0.6, shade(WOOD_W, 1.08));
+    }
+    g.box(8.9, 9.5, y, y + 0.6, 15.1, 15.6, shade(TRIM_GOLD, 0.95));
+    g.box(10.5, 11.1, y, y + 0.6, 15.1, 15.6, shade(TRIM_GOLD, 0.95));
+  }
+  // bannières vertes de part et d'autre de l'entrée
+  for (const x of [6.6, 12.8]) g.box(x, x + 0.9, 5.9, 6.1, 3.4, 6.6, shade([92, 132, 92], 1.0));
   return g;
 }
 
@@ -1295,17 +1344,25 @@ function bldRecyclerie(seed) {
 }
 
 function bldWall(seed) {
+  // PALISSADE de pieux, pas rempart de pierre. C'est l'enceinte du Rohan : des
+  // troncs jointifs taillés en pointe, une lisse intérieure et un chemin de
+  // ronde sur consoles. Un rempart crénelé en pierre appartient à une autre
+  // culture — et à l'échelle de la butte, il l'écrasait.
   const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz, FINE);
-  const rnd = makeRng(seed); void rnd;
-  g.box(1, 18.5, 8.5, 11.5, 0, 6, shade(STONE_W, 0.95));
-  for (let x = 1.5; x <= 18; x += 2.4) g.box(x, x + 1.2, 8.5, 11.5, 6, 7.2, STONE_W); // merlons
-  g.box(1, 18.5, 9.2, 10.8, 6, 6.4, shade(STONE_W, 1.05)); // chemin de ronde
-  // couvertine d'ARDOISE : le rempart fait tout le tour de la ville, en pierre
-  // nue il traçait un large liseré beige uniforme autour du bourg.
-  g.box(1, 18.5, 8.4, 9.2, 5.7, 6.2, shade(ROOF_SLATE, 0.95));
-  g.box(1, 18.5, 10.8, 11.6, 5.7, 6.2, shade(ROOF_SLATE, 0.88));
+  const rnd = makeRng(seed);
+  for (let x = 0.8; x <= 18.6; x += 1.1) {
+    // hauteurs légèrement inégales : des pieux tous égaux font une palissade de
+    // clôture d'usine, pas un ouvrage taillé à la hache.
+    const h = 5.6 + Math.round(rnd() * 3) * 0.45;
+    g.box(x, x + 1.0, 9.2, 10.6, 0, h, shade(TIMBER, 0.86 + rnd() * 0.3));
+    g.box(x + 0.15, x + 0.85, 9.45, 10.35, h, h + 0.75, shade(TIMBER, 1.16)); // pointe
+  }
+  for (const z of [2.2, 4.4]) g.box(0.8, 18.6, 10.6, 11.2, z, z + 0.55, shade(WOOD_W, 0.94)); // lisses
+  g.box(0.8, 18.6, 10.8, 12.5, 4.6, 5.1, shade(WOOD_W, 1.06)); // chemin de ronde
+  for (let x = 1.6; x <= 18; x += 3.1) g.box(x, x + 0.65, 11.9, 12.5, 0, 4.6, shade(TIMBER, 0.98)); // consoles
   return g;
 }
+
 
 // ============================================================================
 // MAISONS DE BOURG (2026-07-28) — remplissage, aucune fonction de jeu.

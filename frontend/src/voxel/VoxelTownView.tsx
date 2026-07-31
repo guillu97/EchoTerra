@@ -360,7 +360,7 @@ export function VoxelTownView({
       // ⚠ Viser à MI-HAUTEUR du bâti, pas au niveau du sol. Depuis que le bourg
       // est en terrasses, sa masse monte à ~7 unités : visé au sol, il occupait
       // le haut du cadre et laissait un tiers d'écran de socle vide en bas.
-      engine.target.set(layout.center, 2.6, layout.center);
+      engine.target.set(layout.center, 3.4, layout.center);
       // En projection dimétrique un carré de côté N occupe ~N·√2 en diagonale
       // écran : cadrer sur N seul débordait des deux côtés. On cadre sur la
       // DIAGONALE, avec une marge pour la muraille et les pastilles.

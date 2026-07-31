@@ -6,6 +6,74 @@
 
 ---
 
+## 2026-07-29 (83) — La ville devient EDORAS
+
+Demande : *« est-ce que pour la ville tu peux t'inspirer d'Edoras du Seigneur des Anneaux ? »*, avec
+le plan large du film et trois dioramas. C'est une réorientation, pas un ajustement : Edoras n'a
+rien d'un bourg méditerranéen dense sur un plateau.
+
+### Ce que les références imposent (et qui n'existait pas)
+1. une **butte isolée** au milieu de la plaine, aux flancs rocheux — pas un plateau carré ;
+2. une **enceinte OVALE** épousant le pied de la butte, en **palissade de bois**, sans un angle droit ;
+3. **une seule route**, qui monte en LACET du portail au sommet. Pas de grille de rues ;
+4. la grande salle **SEULE au sommet**, tout le tissu bâti agrippé aux pentes. C'est la silhouette
+   entière du lieu.
+
+### Fait — une géométrie POLAIRE (`townLayout.ts`, réécrit)
+Plus une seule coordonnée n'est choisie sur une grille, et c'est ce qui supprime d'un coup l'aspect
+« plan d'urbanisme » :
+- **le tertre** : la hauteur ne dépend que du rayon elliptique, donc strictement décroissante du
+  sommet au pied — aucune cuvette, aucune plaque isolée n'est *possible*. Profil en puissance < 1
+  (flancs raides au pied, pentes douces en haut où sont les maisons), replat sommital aux dimensions
+  exactes de la grande salle. **Lobage et gauchissement** de forte amplitude, éteints près du centre :
+  sans eux les courbes de niveau étaient des ellipses homothétiques et la butte se lisait comme un
+  gâteau à étages. Vérifié : **0 marche > 1** sur toute la grille ;
+- **l'enceinte** : 16 segments tangents à l'ellipse, ouverture au sud ;
+- **la route** : spirale de 1,15 tour, large à l'entrée charretière, réduite à une sente en haut.
+  ⚠ elle s'arrête à t = 0,9 : poussée jusqu'au sommet, son rayon tend vers 0 et des centaines
+  d'échantillons tombent sur les mêmes cellules — toute l'esplanade partait en terre battue ;
+- **les parcelles** en (rayon, angle) le long de la pente, façades tournées vers l'AVAL ; le sommet
+  est interdit au décor comme aux maisons.
+
+⚠ **Seuls les gros bâtiments creusent leur terrasse.** Faire creuser aussi les ~28 maisons érodait la
+butte de deux paliers, de proche en proche. Les maisons se posent au MINIMUM de leur emprise : elles
+mordent dans le talus côté amont — ce que fait une maison sur une butte — sans jamais flotter.
+
+### Fait — les deux modèles signature
+- **Meduseld** (`bld-townhall`, réécrit) : soubassement de pierre + emmarchement monumental, corps en
+  bois sombre à poteaux, toiture de **chaume doré très pentue**, et les poutres croisées du pignon.
+  ⚠ tracées depuis les avant-toits, ces poutres se plaquaient sur la pente du toit et se lisaient
+  comme un treillis : seule la partie qui DÉPASSE le faîte fait la silhouette.
+- **Palissade** (`bld-wall`, réécrit) : pieux jointifs taillés en pointe, hauteurs inégales, lisses
+  et chemin de ronde sur consoles. Un rempart crénelé de pierre appartient à une autre culture — et
+  à l'échelle de la butte, il l'écrasait.
+
+### Fait — palette rohirrique
+Terracotta et ardoise bleue juraient avec un tertre de plaine. `ROOF_W`, `ROOF_TILE` et `ROOF_SLATE`
+deviennent trois tons de **chaume** (neuf, clair, moussu), `WOOD_W` fonce, les peintures passent en
+vert-de-gris et torchis ocré. Les 9 maisons, les 10 bâtiments et le mobilier sont régénérés.
+
+> ⚠ Piège rencontré : remplacer `bldWall` par un `s[index(bldWall):index(bldChantier)]` a emporté
+> TOUT ce qui se trouvait entre les deux — les 9 maisons, le mobilier de rue, les clôtures. Restauré
+> depuis `git show HEAD:`. Découper par bornes de fonctions n'est sûr que si l'on sait ce qu'il y a
+> entre elles.
+
+### Fonctionnel (vérifié)
+- Champ de hauteur contrôlé programmatiquement : 0 marche > 1.
+- Captures headless voxel (dont une avec tous les bâtiments forcés construits, sans quoi la mairie
+  et la palissade ne se voient pas au démarrage) et Classique.
+- `npx tsc -b` ✅ · `npm run build` ✅ · `npm run test:perf` **13/13** ✅ (payload 20,43 Mo).
+- Ville : **774 k triangles**, 194 meshes (plafond 2 M).
+
+### Reste à faire
+- Les 9 maisons gardent des silhouettes « bourg européen » (encorbellements, tourelle, terrasse à
+  parapet). Des halles rohirriques basses à grand toit de chaume seraient plus justes.
+- La palissade démarre à 20/100 de durabilité, donc c'est sa variante RUINE qu'on voit en début de
+  partie ; le beau modèle n'apparaît qu'après réparation.
+- Le sommet est un grand replat nu tant que la mairie n'est pas bâtie.
+
+---
+
 ## 2026-07-28 (82) — Relief : refait sur une FONCTION, plus sur du bruit
 
 Retour, répété : *« les reliefs ne sont pas smooth ni logiques »*. Fondé, et la cause était dans la

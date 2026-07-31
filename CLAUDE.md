@@ -495,34 +495,24 @@ bâtiments s'affichent via `buildingName(id)` (`data/buildings.ts`), pas via `b.
   = liste plate. Coût affiché = TOTAL du chantier (PA + matériaux vs Banque) ; actions exigent un
   héros en ville (consultation sinon).
 - **Home**: la ville est un **plan GÉNÉRÉ à partir de l'état de jeu** — `voxel/townLayout.ts`
-  (`buildTownLayout()`), plus `src/data/town-map.json` (l'ancienne carte d'auteur n'avait
-  d'emplacement que pour 8 des 10 bâtiments). Bourg fortifié **21×21** : rempart pavé par segments
-  de 5 cellules (⚠ `bld-wall` est un bandeau et `fitScale` met à l'échelle sur l'emprise au SOL —
-  raccourcir un segment RABAISSE le mur), portail face caméra, une parcelle par bâtiment serveur et
-  **implantation organique** (±7,5°/±0,22 cellule, déterministe ; fortifications exclues).
-  **Hiérarchie de voies** (chaque rang a son gabarit ET son matériau, sinon le réseau ne se lit
-  pas) : place 5×5 pavée autour du puits · avenue 3 de large du portail à la place · ceinture +
-  traverse en calcaire · ruelles de terre battue qui découpent la bande contre le rempart.
-  **Relief en TERRASSES** (`buildTerraces`) : le champ de hauteur est une FONCTION — deux courbes
-  de niveau (sommes de sinusoïdes) traversent la ville, le palier est le côté de la courbe. D'où
-  monotonie vers le portail (pas de plaque isolée ni de cuvette), courbes continues, marches d'un
-  seul niveau. ⚠ le rempart et son pied restent au niveau 0, les emprises sont CREUSÉES au minimum
-  qu'elles touchent (jamais aplanies — ça faisait des mesas rectangulaires) et les courbes sont
-  calées dans les corridors libres entre bâtiments. **Mobilier de rue** (charrette, étals, linge,
-  lanterne, banc, abreuvoir) et **clôtures** (bois/pierre/haie, un module = une cellule, matière
-  tirée par îlot) orientés sur la rue. **~25 maisons de remplissage** en **9 modèles** (`house`/`house2`/`house3` ×3 : chaumière, étage
-  en encorbellement, peinte à auvent, grange, échoppe, étroite à balcon, remise, tourelle,
-  terrasse — sans rôle de jeu ni hotspot), **façade orientée sur la rue la plus proche**
-  (`faceStreet`), plus des cyprès de bord de rue : c'est ce qui fait le tissu bâti.
-  ⚠ Le modèle donne l'emprise, donc il se choisit AVANT le test de place, avec reprise sur les
-  suivants ; l'ordre de `HOUSE_MODELS` est entrelacé par gabarit (rangés par taille, le plus petit
-  récupère tous les refus).
-  Le rendu **voxel** est `VoxelTownView.tsx` ; le mode **« Classique »** est
-  **`components/TownMap.tsx`**, qui dessine le MÊME plan via `townDoc()` avec le renderer de
-  l'éditeur (`drawMap` → canvas offscreen 2×, cuit UNE fois par session, bornes serrées sur les
-  cellules occupées). ⚠ `townDoc()` doit émettre des coordonnées de cellule **ENTIÈRES** :
-  `isoRender` range les placements par clé `"${cx},${cy}"` et les ressort en parcourant les cellules,
-  donc une coordonnée fractionnaire n'est JAMAIS dessinée. Les bâtiments posés deviennent des
+  (`buildTownLayout()`). Depuis 2026-07-29 elle s'inspire d'**EDORAS** : géométrie POLAIRE, plus
+  aucune coordonnée sur une grille. Un **tertre** ovale isolé au milieu de la plaine (la hauteur ne
+  dépend que du rayon elliptique, donc strictement décroissante — aucune cuvette possible ; lobage
+  et gauchissement de forte amplitude, éteints près du centre, sinon les courbes de niveau sont des
+  ellipses homothétiques et la butte fait « gâteau à étages » ; ⚠ vérifier `0 marche > 1`), une
+  **palissade de bois** en 16 segments tangents à l'ellipse, **une seule route en lacet** du portail
+  au sommet (⚠ elle doit s'arrêter avant t=1 : son rayon tend vers 0 et l'esplanade part en terre
+  battue), les parcelles en (rayon, angle) façades vers l'AVAL, et **Meduseld seule au sommet**.
+  ⚠ **seuls les gros bâtiments creusent leur terrasse** — faire creuser les ~28 maisons érodait la
+  butte de deux paliers ; elles se posent au MINIMUM de leur emprise et mordent dans le talus.
+  Palette **rohirrique** : chaume (trois tons) + bois sombre, pas de tuile ni d'ardoise.
+  **~28 maisons de remplissage** en **9 modèles** (`house`/`house2`/`house3` ×3, sans rôle de jeu ni
+  hotspot), **mobilier de rue** et **clôtures** le long de la route. Le rendu **voxel** est
+  `VoxelTownView.tsx` ; le mode **« Classique »** est **`components/TownMap.tsx`**, qui dessine le
+  MÊME plan via `townDoc()` avec le renderer de l'éditeur (canvas offscreen 2×, cuit UNE fois par
+  session). ⚠ `townDoc()` doit émettre des coordonnées de cellule **ENTIÈRES** : `isoRender` range
+  les placements par clé `"${cx},${cy}"`, donc une coordonnée fractionnaire n'est JAMAIS dessinée.
+  Les bâtiments posés deviennent des
   **hotspots cliquables** (mapping fichier asset → id de bâtiment dans `ASSET_TO_BUILDING` ; pastille
   nom + barre de durabilité, contre-échelonnée `--inv = 1/zoom` pour rester lisible à tout zoom).
   **Zoom/pan dans la ville** : molette ancrée au curseur, drag, pinch en mapping absolu (même math que
