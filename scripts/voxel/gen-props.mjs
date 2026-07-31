@@ -1039,8 +1039,8 @@ function siteTour(cleared, seed) {
 // ardoise bleue — la palette méditerranéenne de la passe précédente — juraient
 // avec un tertre de plaine. Trois tons de chaume gardent de la variété sans
 // casser l'unité : neuf, vieilli, moussu.
-const STONE_W = [212, 193, 163], WOOD_W = [148, 112, 74], ROOF_W = [186, 162, 106];
-const THATCH = [222, 186, 110], DARK_W = [66, 58, 62], CHAR = [116, 106, 98];
+const STONE_W = [206, 186, 156], WOOD_W = [134, 100, 66], ROOF_W = [164, 142, 96];
+const THATCH = [198, 166, 102], DARK_W = [62, 54, 58], CHAR = [116, 106, 98];
 // Accents COLORÉS. Sans eux, banque / portail / tour / muraille — c'est-à-dire
 // l'essentiel de ce qu'on voit en début de partie — n'étaient QUE de la pierre :
 // la ville paraissait délavée quoi qu'on fasse à l'éclairage ou à la teinte de
@@ -1049,8 +1049,8 @@ const THATCH = [222, 186, 110], DARK_W = [66, 58, 62], CHAR = [116, 106, 98];
 // EDORAS (2026-07-29) : bois sombre et chaume doré, la palette du Rohan.
 const TIMBER = [92, 72, 54]; // poutre et pieu, bois foncé
 const GOLD_THATCH = [208, 170, 92]; // le chaume doré de Meduseld
-const ROOF_SLATE = [118, 126, 94]; // chaume MOUSSU, vert-gris (ex-ardoise bleue)
-const ROOF_TILE = [204, 174, 110]; // chaume CLAIR (ex-tuile)
+const ROOF_SLATE = [104, 114, 84]; // chaume MOUSSU, vert-gris (ex-ardoise bleue)
+const ROOF_TILE = [182, 156, 100]; // chaume CLAIR (ex-tuile)
 const TRIM_GOLD = [226, 184, 96];
 const PAINT_TEAL = [118, 134, 116]; // vert-de-gris passé, pas turquoise
 
@@ -1384,7 +1384,11 @@ function bldWall(seed) {
 // qu'elle est enregistrée seule ou dans le bloc `bld-*` (qui applique `fin`
 // APRÈS `damagePass`). Passer une Grid déjà « finie » à `damagePass` indexe un
 // buffer avec les mauvaises dimensions et rend des dalles flottantes.
-const PLASTER = [236, 216, 182];
+// ⚠ Torchis MOYEN, pas blanc cassé. À 236,216,182 les murs étaient plus clairs
+// que l'herbe : avec des toits de chaume par-dessus, la ville entière virait au
+// sable et le tertre vert disparaissait. Sur les références, le bâti est SOMBRE
+// et c'est ce contraste qui fait ressortir la butte.
+const PLASTER = [196, 176, 142];
 const PAINT_ROSE = [214, 146, 136];
 
 // Toit à UNE pente (appentis, remises). L'arête haute est en y0.

@@ -132,8 +132,11 @@ export function VoxelTownView({
     // ⚠ L'émissif est un gris AJOUTÉ à chaque fragment : trop fort, il relève la
     // luminosité mais DILUE la saturation, et les toits colorés redeviennent
     // pâles. Il doit juste compenser le double ombrage — pas éclairer.
+    // Baissé de 0x46423c à 0x2a2823 avec la palette rohirrique : sur du chaume
+    // et du torchis — déjà clairs et peu saturés — le gris ajouté faisait virer
+    // tout le bâti au sable et écrasait le contraste avec le tertre vert.
     const BLD_MAT = signacify(
-      new THREE.MeshLambertMaterial({ vertexColors: true, emissive: new THREE.Color(0x46423c) }),
+      new THREE.MeshLambertMaterial({ vertexColors: true, emissive: new THREE.Color(0x2a2823) }),
     );
 
     // --- animation d'ouverture du portail --------------------------------------
@@ -360,7 +363,7 @@ export function VoxelTownView({
       // ⚠ Viser à MI-HAUTEUR du bâti, pas au niveau du sol. Depuis que le bourg
       // est en terrasses, sa masse monte à ~7 unités : visé au sol, il occupait
       // le haut du cadre et laissait un tiers d'écran de socle vide en bas.
-      engine.target.set(layout.center, 3.4, layout.center);
+      engine.target.set(layout.center, 4.6, layout.center);
       // En projection dimétrique un carré de côté N occupe ~N·√2 en diagonale
       // écran : cadrer sur N seul débordait des deux côtés. On cadre sur la
       // DIAGONALE, avec une marge pour la muraille et les pastilles.

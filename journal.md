@@ -6,6 +6,46 @@
 
 ---
 
+## 2026-07-29 (84) — Edoras, passe de correction sur les références
+
+Retour : *« c'est vraiment sympa, mais regarde les images et vois ce que tu peux améliorer »*. Sept
+écarts relevés en comparant la capture aux références, tous corrigés.
+
+1. **La butte était un MESA** — 4 paliers très larges, sommet plat immense. Passée à **6 paliers**
+   pour le même rayon : chaque marche ne fait plus que ~1,6 cellule, la pente se lit comme continue
+   et le tertre monte à deux fois la hauteur d'une maison, comme sur le plan large. ⚠ au-delà de 6,
+   la pente dépasse une marche par cellule au pied et l'adoucissement recreuse le talus.
+2. **Le replat sommital** couvrait un dixième de la butte → réduit à l'assise de la salle (0,24 → 0,17).
+3. **Les maisons ceinturaient tout le tertre.** Sur le film elles couvrent UN versant et le reste est
+   une pente d'herbe nue. Biais de flanc angulaire : ~30 maisons réparties en couronne → ~18
+   groupées. Une densité constante tout autour donne un anneau, l'inverse de la lecture cherchée.
+4. **La roche affleurait sur toute la pente** (22 % + 34 % proportionnel), soulignant chaque redent
+   d'un liseré clair : la butte se lisait comme des **terrasses de rizière**. La roche ne sort plus
+   qu'au PIED (rien au-dessus de rad 0,7).
+5. **La route faisait 1,15 tour** — elle enroulait le tertre et surlignait chaque courbe de niveau au
+   lieu de le gravir. Ramenée à **0,85 tour**. Essayée en grès pâle pour la rendre visible : elle
+   ajoutait du sable à une image déjà sable ; sur un tertre vert, la terre battue tranche seule.
+6. **Le sol était un vert JAUNE.** Le bloc `grass` tire vers le sable ; `darkgrass` est vert sur ses
+   six faces — donc les redents des paliers restent verts eux aussi. Changement le plus rentable de
+   la passe (vérifié en isolant le terrain : masquer tous les meshes non instanciés ne laisse que
+   lui, et il était déjà vert — la preuve que le sable venait du bâti).
+7. **Le bâti délavait tout.** Torchis à 236,216,182 : plus clair que l'herbe. Descendu à 196,176,142,
+   chaumes assombris, et surtout l'**émissif du matériau** ramené de `0x46423c` à `0x2a2823` — ce
+   gris ajouté par fragment, inoffensif sur des tuiles saturées, faisait virer au sable une palette
+   de chaume et de torchis déjà claire et peu saturée.
+
+### Fonctionnel (vérifié)
+- Champ de hauteur : 0 marche > 1 · `npx tsc -b` ✅ · `npm run build` ✅ ·
+  `npm run test:perf` **13/13** ✅ · ville **824 k triangles** (plafond 2 M).
+
+### Ce qui reste en écart avec les références
+- La butte reste visiblement en gradins : une marche vaut un bloc entier, il n'y a pas de terrain
+  sub-cellulaire dans le moteur. Seule une passe de biseautage des arêtes y changerait quelque chose.
+- L'anneau de plaine sèche (`fallgrass`) est large et accroche l'œil.
+- Les 9 maisons gardent des silhouettes de bourg européen (encorbellement, tourelle, terrasse).
+
+---
+
 ## 2026-07-29 (83) — La ville devient EDORAS
 
 Demande : *« est-ce que pour la ville tu peux t'inspirer d'Edoras du Seigneur des Anneaux ? »*, avec

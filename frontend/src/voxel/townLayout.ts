@@ -99,8 +99,14 @@ const CENTRE = LAST / 2;
 /** Demi-axes de la butte, en cellules. Ovale : plus large que profond. */
 const RX = 11.4;
 const RY = 9.8;
-/** Paliers du pied au sommet. */
-const HILL = 4;
+/** Paliers du pied au sommet.
+ *  À 4, la butte était un MESA : quatre terrasses très larges, un sommet plat
+ *  immense, une silhouette de gâteau. Les références montrent un dôme qui
+ *  DOMINE le bâti. À 6 paliers pour le même rayon, chaque marche ne fait plus
+ *  que ~1,6 cellule de large, la pente se lit comme continue, et la butte monte
+ *  à deux fois la hauteur d'une maison. ⚠ au-delà, la pente dépasse une marche
+ *  par cellule au pied et l'adoucissement recreuse le talus. */
+const HILL = 6;
 const GROUND = 1; // socle mince : c'est le tertre qui pose la ville, pas un socle
 
 /**
@@ -131,7 +137,7 @@ const radial = (x: number, y: number): number => {
 };
 
 /** Cellules qui portent du terrain : la butte + une frange de plaine. */
-const PLAIN_EDGE = 1.12;
+const PLAIN_EDGE = 1.14;
 const onGround = (x: number, y: number) => radial(x, y) <= PLAIN_EDGE;
 /** Ligne de l'enceinte. */
 const RAMPART = 1.0;
@@ -141,7 +147,7 @@ const RAMPART = 1.0;
  * sommet vers le pied : aucune cuvette, aucune plaque isolée n'est possible.
  * Un palier tous les ~2,4 cellules → toutes les marches valent 1.
  */
-const SUMMIT_FLAT = 0.24; // rayon du replat sommital
+const SUMMIT_FLAT = 0.17; // replat sommital : juste l'assise de la salle
 const hillLevel = (x: number, y: number): number => {
   // ⚠ Le sommet est un REPLAT, pas une pointe. Sans lui, l'emprise de la
   // grande salle (5 cellules) touchait des cellules plus basses et se faisait
@@ -159,7 +165,10 @@ const hillLevel = (x: number, y: number): number => {
 // Un seul chemin, du portail au sommet, sur ~1,3 tour. Les bâtiments s'y
 // accrochent, les maisons le bordent : c'est la seule structure du plan.
 const GATE_ANGLE = Math.PI / 2; // le portail plein sud (vers la caméra)
-const ROAD_TURNS = 1.15 * Math.PI * 2;
+// 0,85 tour, pas 1,15 : au-delà la route fait le tour complet du tertre et
+// souligne chaque courbe de niveau au lieu de le gravir. Sur les dioramas elle
+// monte d'un seul côté, en deux ou trois lacets.
+const ROAD_TURNS = 0.85 * Math.PI * 2;
 const ROAD_R0 = 0.95;
 
 /** Point de la route au paramètre `t` (0 = portail, 1 = sommet). */
@@ -302,7 +311,13 @@ function placeHouses(plots: TownPlot[], road: Map<string, number>): TownHouse[] 
         if (pass === 0 && !nearRoad(x, y)) continue;
         if (pass === 1 && !nextTo(x, y)) continue;
         const h = hash(x * 11 + 7, y * 17 + 3);
-        if (h % 100 >= admit[pass]) continue;
+        // BIAIS DE FLANC. Sur le plan large du film, les maisons couvrent un
+        // seul versant et le reste de la butte est une pente d'herbe nue. Une
+        // densité constante tout autour donne une couronne — l'inverse de la
+        // lecture cherchée.
+        const a = Math.atan2((y - CENTRE) / RY, (x - CENTRE) / RX);
+        const face = 0.32 + 0.68 * Math.max(0, Math.cos(a - 2.0));
+        if (h % 100 >= admit[pass] * face) continue;
         // Le modèle donne l'emprise, donc il se choisit AVANT le test de place,
         // avec reprise sur les suivants : sinon les grands gabarits sont
         // recalés bien plus souvent et la parcelle est perdue.
@@ -478,18 +493,29 @@ export function buildTownLayout(): TownLayout {
       // tout en pierre, les paliers traçaient des anneaux gris concentriques et
       // la butte se lisait comme un gâteau. Les affleurements se concentrent au
       // pied, là où les flancs sont escarpés — comme sous Edoras.
-      const rocky = exposed && (hash(x * 3 + 5, y * 3 + 7) % 100) < 22 + 34 * Math.min(1, rad / 0.9);
+      // ⚠ La roche ne sort QU'AU PIED. Répartie sur toute la pente (22 % + 34 %
+      // proportionnel), elle soulignait chaque redent d'un liseré clair et la
+      // butte se lisait comme des terrasses de rizière. Sur les références, les
+      // flancs sont une pente d'HERBE et la roche n'affleure qu'en bas.
+      const rocky = exposed && (hash(x * 3 + 5, y * 3 + 7) % 100) < Math.max(0, (rad - 0.7) * 230);
       for (let k = 0; k <= lv; k++)
-        push(x, y, k, k === lv ? (rocky ? "stone" : exposed ? "grass" : "dirt") : "dirt");
+        push(x, y, k, k === lv ? (rocky ? "stone" : exposed ? "darkgrass" : "dirt") : "dirt");
       const surface = isRoad(x, y)
-        ? "dirt" // la route en lacet, terre battue
+        ? "dirt" // La route, terre battue. Essayée en grès pâle pour la faire
+          // ressortir : elle ajoutait du sable à une image déjà sable. Sur un
+          // tertre VERT, le brun tranche tout seul.
         : rad > RAMPART
           ? "fallgrass" // la plaine sèche au-delà de l'enceinte
           : rad < SUMMIT_FREE
             ? "stone" // le replat dallé de la grande salle
             : plotGround.has(`${x},${y}`)
               ? "dirt"
-              : "grass";
+              // ⚠ `darkgrass` et pas `grass` : le bloc `grass` est un vert
+              // JAUNE, et sur une butte entière il tire toute l'image vers le
+              // sable — d'autant que la palette rohirrique a mis du chaume
+              // partout. `darkgrass` est vert sur ses six faces, donc les
+              // redents des paliers restent verts eux aussi.
+              : "darkgrass";
       push(x, y, lv + 1, surface);
     }
   }
