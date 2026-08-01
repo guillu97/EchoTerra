@@ -6,6 +6,52 @@
 
 ---
 
+## 2026-07-29 (86) — Portail qui vole, palissade décousue, bâtiments enterrés
+
+Trois défauts signalés, trois causes distinctes.
+
+### 1. Le portail volait dans les airs
+`radial()` applique un lobage de ±23 % au rayon, mais le portail et les pans de palissade étaient
+posés sur l'ellipse **géométrique** (k = 1). Un point de cette ellipse a donc un rayon LOBÉ compris
+entre 0,77 et 1,24 : là où le lobe pousse vers l'extérieur, la porte tombait au-delà de
+`PLAIN_EDGE`, c'est-à-dire **hors du terrain**. `contourPoint(a, target)` les recale par bissection
+sur le contour réel `radial === RAMPART`.
+
+### 2. La palissade ne joignait pas le portail
+Les 16 segments étaient répartis par **angle paramétrique**, ce qui est faux sur une ellipse : l'arc
+parcouru par pas vaut `√(RX²sin²a + RY²cos²a)·Δa`, soit 3,85 cellules près des extrémités du grand
+axe mais **4,48 aux pôles** — au-delà de la longueur du segment (4,4). Il s'ouvrait donc des jours,
+précisément là où se trouve le portail. La répartition se fait maintenant par **longueur d'arc**
+tabulée sur le contour réel, avec l'ouverture du portail réservée : espacement 3,78–3,97 pour des
+pans de 4,4 (recouvrement partout), et les deux pans butent à 3,65 du centre du portail.
+La tangente est prise par différence finie sur le contour lobé — la tangente analytique de
+l'ellipse est fausse dès que le lobe la fait tourner.
+
+### 3. Les bâtiments étaient dans le terrain
+Depuis le passage au terrain lissé, la pente varie continûment : le minimum d'une emprise de 3,6
+cellules tombe jusqu'à ~1,8 unité sous son centre, donc les bâtiments s'enterraient jusqu'à
+mi-hauteur. Chaque emprise reçoit désormais une **terrasse plate au niveau de sa cellule centrale**
+(bâtiments de jeu ET maisons), et la pose lit la hauteur au **cœur** de l'objet, pas sur tout son
+pourtour — le pourtour déborde de la terrasse et retombe sur celle du voisin, ce qui enfonçait
+l'objet d'un palier. Vérifié : enterrement **0 pour les dix bâtiments de jeu**.
+
+> Deux variantes essayées et rejetées, notées dans le code : aplanir au MINIMUM de l'emprise (c'est
+> le défaut d'origine), et ADOPTER le niveau d'une terrasse voisine pour que les maisons serrées
+> partagent une assise — celle-là **chaîne** : une terrasse du pied, à 0, se propage de voisin en
+> voisin jusqu'au sommet et rabote toute la butte.
+
+La **fortification** (palissade, portail, tour) est seule à ne pas avoir de terrasse : ses 17 pads
+rabotaient le pied de la butte et un bâtiment proche lisait ensuite ce niveau écrasé (la banque
+tombait de deux paliers). Elle suit le relief — et ne peut plus flotter, puisque `contourPoint` la
+garde sur le terrain.
+
+### Fonctionnel (vérifié)
+- Captures headless : vue d'ensemble + zoom sur le portail (posé au sol, pans jointifs).
+- Contrôles numériques : espacement de la palissade, distance portail↔pans, enterrement par bâtiment.
+- `npx tsc -b` ✅ · `npm run build` ✅ · `npm run test:perf` 10/12 (les deux échecs antérieurs).
+
+---
+
 ## 2026-07-29 (85) — Terrain lissé, et suppression du rendu 2D isométrique
 
 Retour : *« les blocs sont trop gros, il ne faut pas des blocs… il me faut des voxels mais smooth »*

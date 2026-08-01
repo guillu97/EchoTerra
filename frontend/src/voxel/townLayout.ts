@@ -147,6 +147,27 @@ const onGround = (x: number, y: number) => radial(x, y) <= PLAIN_EDGE;
 const RAMPART = 1.0;
 
 /**
+ * Point du CONTOUR `radial(...) === target` le long du rayon paramétrique `a`.
+ *
+ * ⚠ Indispensable : `radial()` applique un lobage de ±23 %, donc un point posé
+ * sur l'ellipse GÉOMÉTRIQUE (k = 1) a un rayon LOBÉ compris entre 0,77 et 1,24.
+ * Le portail et les pans de palissade y étaient posés tels quels : là où le lobe
+ * pousse vers l'extérieur, ils tombaient au-delà de `PLAIN_EDGE`, c'est-à-dire
+ * hors du terrain — la porte VOLAIT littéralement dans les airs. Une bissection
+ * sur k les recale sur le contour réel.
+ */
+function contourPoint(a: number, target: number): { x: number; y: number } {
+  let lo = 0.2, hi = 2.4;
+  for (let i = 0; i < 26; i++) {
+    const mid = (lo + hi) / 2;
+    if (radial(CENTRE + mid * RX * Math.cos(a), CENTRE + mid * RY * Math.sin(a)) < target) lo = mid;
+    else hi = mid;
+  }
+  const k = (lo + hi) / 2;
+  return { x: CENTRE + k * RX * Math.cos(a), y: CENTRE + k * RY * Math.sin(a) };
+}
+
+/**
  * Hauteur du tertre. Fonction du seul rayon, donc strictement décroissante du
  * sommet vers le pied : aucune cuvette, aucune plaque isolée n'est possible.
  * Un palier tous les ~2,4 cellules → toutes les marches valent 1.
@@ -250,9 +271,55 @@ const downhillAzimuth = (x: number, y: number): number => {
 // bandeau long : mis à l'échelle sur 4,4 cellules il monte à ~2 — assez pour
 // ceindre la butte sans masquer les pentes.
 const WALL_SEG = 4.4;
-const WALL_COUNT = 16;
-/** Demi-ouverture du portail, en radians d'angle paramétrique. */
-const GATE_GAP = 0.26;
+/** Largeur de l'ouverture réservée au portail, en cellules d'ARC. */
+const GATE_OPENING = 2.9; // < largeur du portail : les pans mordent dedans
+
+/**
+ * Positions des segments de palissade, réparties par LONGUEUR D'ARC.
+ *
+ * ⚠ Elles l'étaient par angle paramétrique (16 pas de 2π/16), ce qui est faux
+ * sur une ellipse : l'arc parcouru par pas vaut `√(RX²sin²a + RY²cos²a)·Δa`,
+ * soit 3,85 cellules près des extrémités du grand axe mais 4,48 aux pôles —
+ * au-delà de la longueur du segment (4,4). Il s'ouvrait donc des JOURS dans la
+ * palissade, précisément là où se trouve le portail.
+ *
+ * On tabule l'arc cumulé, on réserve l'ouverture du portail, et on pave le
+ * reste à pas constant : les deux pans viennent buter exactement de part et
+ * d'autre de l'ouverture, et le recouvrement est uniforme partout.
+ */
+function palisadeAngles(): { ang: number }[] {
+  const N = 1440;
+  const arc = new Float64Array(N + 1);
+  const at = (i: number) => {
+    const pt = contourPoint((i / N) * Math.PI * 2, RAMPART);
+    return [pt.x, pt.y];
+  };
+  for (let i = 1; i <= N; i++) {
+    const [x0, y0] = at(i - 1), [x1, y1] = at(i);
+    arc[i] = arc[i - 1] + Math.hypot(x1 - x0, y1 - y0);
+  }
+  const total = arc[N];
+  const angleAt = (sTarget: number) => {
+    let s = sTarget % total;
+    if (s < 0) s += total;
+    let lo = 0, hi = N;
+    while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (arc[mid] <= s) lo = mid; else hi = mid; }
+    const t = (s - arc[lo]) / Math.max(1e-9, arc[hi] - arc[lo]);
+    return ((lo + t) / N) * Math.PI * 2;
+  };
+  // arc du portail (angle → arc, par recherche linéaire grossière puis affinage)
+  let gateS = 0, best = Infinity;
+  for (let i = 0; i <= N; i++) {
+    const d = Math.abs(((i / N) * Math.PI * 2) - GATE_ANGLE);
+    if (d < best) { best = d; gateS = arc[i]; }
+  }
+  const span = total - GATE_OPENING; // longueur à paver
+  const n = Math.max(6, Math.ceil(span / (WALL_SEG * 0.93)));
+  const step = span / n;
+  const out: { ang: number }[] = [];
+  for (let k = 0; k < n; k++) out.push({ ang: angleAt(gateS + GATE_OPENING / 2 + step * (k + 0.5)) });
+  return out;
+}
 
 // Hachage déterministe (pas de Math.random : le bourg doit être identique d'une
 // session à l'autre, et d'un joueur à l'autre).
@@ -362,35 +429,48 @@ function buildHill(cuts: { x: number; y: number; r: number }[]): number[] {
   for (let y = 0; y <= LAST; y++)
     for (let x = 0; x <= LAST; x++) if (onGround(x, y)) lvl[idx(x, y)] = hillLevel(x, y);
 
+  // TERRASSE PLATE sous chaque emprise, au niveau de SA cellule centrale.
+  //
+  // ⚠ C'était un creusement au MINIMUM de l'emprise. Sur un terrain rendu en
+  // gros cubes d'une tuile, ça passait ; depuis que le tertre est rastérisé en
+  // colonnes fines, la pente varie continûment et le minimum d'une emprise de
+  // 3,6 cellules tombe jusqu'à ~1,8 unité sous son centre : les bâtiments se
+  // retrouvaient ENTERRÉS jusqu'à la moitié côté amont.
+  //
+  // Aplanir au niveau du centre règle les deux symptômes d'un coup : plus rien
+  // n'est enterré, et plus rien ne flotte non plus (le portail, posé au pied du
+  // rempart entre butte et plaine, prenait le niveau de la plaine et se
+  // retrouvait en l'air côté butte). Le redent du pad se rend tout seul comme
+  // un mur de soutènement — ce qu'est une plate-forme de maison sur un coteau.
+  //
+  // Aucun risque d'érosion en cascade, contrairement au creusement au minimum :
+  // certaines cellules montent, d'autres descendent, rien ne se propage.
+  // ⚠ Chaque emprise s'aplanit au niveau de SA cellule centrale, et rien de
+  // plus. Deux variantes essayées et rejetées :
+  //   - aplanir au MINIMUM de l'emprise : le minimum d'une emprise de 3,6
+  //     cellules tombe ~1,8 unité sous son centre sur la pente, donc les
+  //     bâtiments s'enterraient jusqu'à mi-hauteur ;
+  //   - ADOPTER le niveau d'une terrasse voisine déjà posée (pour que les
+  //     maisons serrées partagent une assise) : ça CHAÎNE. Une terrasse du pied,
+  //     à 0, se propageait de voisin en voisin jusqu'au sommet et rabotait toute
+  //     la butte.
+  // Les emprises voisines se recouvrent donc et s'écrasent partiellement ; c'est
+  // la POSE qui s'en accommode, en lisant la hauteur au cœur de l'objet et non
+  // sur tout son pourtour (cf. `groundUnder` dans VoxelTownView).
   for (const c of cuts) {
     const cx = Math.round(c.x), cy = Math.round(c.y);
-    // Rayon de creusement volontairement SERRÉ (un cran de moins que l'emprise) :
-    // creuser large descend jusqu'à une cellule lointaine et rabote la pente.
-    const r = Math.max(1, Math.round(c.r) - 1);
-    let lo = HILL;
+    if (!inside(cx, cy) || lvl[idx(cx, cy)] < 0) continue;
+    const v = lvl[idx(cx, cy)];
+    const r = Math.max(1, Math.round(c.r));
     for (let dy = -r; dy <= r; dy++)
       for (let dx = -r; dx <= r; dx++)
-        if (inside(cx + dx, cy + dy) && lvl[idx(cx + dx, cy + dy)] >= 0)
-          lo = Math.min(lo, lvl[idx(cx + dx, cy + dy)]);
-    for (let dy = -r; dy <= r; dy++)
-      for (let dx = -r; dx <= r; dx++)
-        if (inside(cx + dx, cy + dy) && lvl[idx(cx + dx, cy + dy)] >= 0) lvl[idx(cx + dx, cy + dy)] = lo;
+        if (inside(cx + dx, cy + dy) && lvl[idx(cx + dx, cy + dy)] >= 0) lvl[idx(cx + dx, cy + dy)] = v;
   }
 
-  // Filet de sécurité : deux emprises creusées côte à côte peuvent laisser une
-  // marche de 2. On ne fait que DESCENDRE — remonter recréerait des bosses.
-  for (let pass = 0; pass < SIZE; pass++) {
-    let changed = false;
-    for (let y = 0; y <= LAST; y++)
-      for (let x = 0; x <= LAST; x++) {
-        if (lvl[idx(x, y)] < 0) continue;
-        let lo = HILL;
-        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]])
-          if (inside(x + dx, y + dy) && lvl[idx(x + dx, y + dy)] >= 0) lo = Math.min(lo, lvl[idx(x + dx, y + dy)]);
-        if (lvl[idx(x, y)] > lo + 1) { lvl[idx(x, y)] = lo + 1; changed = true; }
-      }
-    if (!changed) break;
-  }
+  // ⚠ PAS de passe d'adoucissement ici. Elle ne savait que DESCENDRE, donc elle
+  // rabotait les terrasses qu'on vient de poser. Une marche de deux paliers au
+  // bord d'un pad n'est pas un défaut : le terrain lissé la rend comme un mur,
+  // et c'est exactement le mur de soutènement attendu.
   return lvl;
 }
 
@@ -399,27 +479,25 @@ export function buildTownLayout(): TownLayout {
   const road = traceRoad();
   const isRoad = (x: number, y: number) => road.has(`${x},${y}`);
 
-  // --- enceinte : palissade OVALE, par segments tangents --------------------
-  for (let i = 0; i < WALL_COUNT; i++) {
-    const a = (i / WALL_COUNT) * Math.PI * 2;
-    const d = Math.atan2(Math.sin(a - GATE_ANGLE), Math.cos(a - GATE_ANGLE));
-    if (Math.abs(d) < GATE_GAP) continue; // l'ouverture du portail
-    const x = CENTRE + RAMPART * RX * Math.cos(a);
-    const y = CENTRE + RAMPART * RY * Math.sin(a);
-    // tangente à l'ellipse : (−RX sin a, RY cos a). L'axe long du modèle est X,
-    // qui part sur (cos θ, −sin θ) — d'où θ = atan2(−ty, tx). Le renderer
+  // --- enceinte : palissade OVALE, segments tangents répartis par ARC -------
+  for (const { ang: a } of palisadeAngles()) {
+    const { x, y } = contourPoint(a, RAMPART);
+    // Tangente au CONTOUR (différence finie sur le contour lobé, pas la tangente
+    // analytique de l'ellipse : le lobe la fait tourner). L'axe long du modèle
+    // est X, qui part sur (cos θ, −sin θ) — d'où θ = atan2(−ty, tx). Le renderer
     // ajoute π aux parcelles, on le retranche ici.
-    const tx = -RX * Math.sin(a), ty = RY * Math.cos(a);
+    const p0 = contourPoint(a - 0.02, RAMPART), p1 = contourPoint(a + 0.02, RAMPART);
+    const tx = p1.x - p0.x, ty = p1.y - p0.y;
     plots.push({ bid: "wall", x, y, cells: WALL_SEG, rot: Math.atan2(-ty, tx) - Math.PI });
   }
   const wallLabel = plots.find((p) => p.bid === "wall");
   if (wallLabel) wallLabel.primary = true;
 
   // portail plein sud, face caméra ; tour de guet sur l'enceinte
-  const gateXY = { x: CENTRE + RAMPART * RX * Math.cos(GATE_ANGLE), y: CENTRE + RAMPART * RY * Math.sin(GATE_ANGLE) };
+  const gateXY = contourPoint(GATE_ANGLE, RAMPART);
   plots.push({ bid: "gate", x: gateXY.x, y: gateXY.y, cells: 3.4, rot: 0, primary: true });
   const towerA = (335 * Math.PI) / 180;
-  const towerXY = { x: CENTRE + RAMPART * RX * Math.cos(towerA), y: CENTRE + RAMPART * RY * Math.sin(towerA) };
+  const towerXY = contourPoint(towerA, RAMPART);
   plots.push({
     bid: "tower", x: towerXY.x, y: towerXY.y, cells: 3.2,
     rot: downhillAzimuth(towerXY.x, towerXY.y) - Math.PI, primary: true,
@@ -442,9 +520,8 @@ export function buildTownLayout(): TownLayout {
   // se contentent donc de SE POSER au minimum de leur emprise — elles mordent
   // dans le talus côté amont, ce qui est précisément ce que fait une maison sur
   // une butte, et le terrain reste une fonction propre.
-  const lvl = buildHill(
-    plots.filter((p) => p.bid !== "wall" && p.cells >= 3).map((p) => ({ x: p.x, y: p.y, r: p.cells / 2 })),
-  );
+  // // Palissade COMPRISE : un pan posé sur la pente du rempart sans terrasse s'enterre.
+  const lvl = buildHill(plots.filter((p) => p.cells >= 3).map((p) => ({ x: p.x, y: p.y, r: p.cells / 2 })));
   const levelAt = (x: number, y: number) => {
     const v = lvl[y * SIZE + x];
     return v === undefined || v < 0 ? 0 : v;

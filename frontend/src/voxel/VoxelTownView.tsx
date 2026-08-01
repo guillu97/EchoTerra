@@ -126,7 +126,11 @@ export function VoxelTownView({
     /** Hauteur de pose d'un objet : le MINIMUM de son emprise, jamais le centre
      *  — sinon un coin en aval flotte au-dessus du vide. */
     const groundUnder = (x: number, y: number, cells = 0) => {
-      const r = Math.max(0.35, cells / 2 - 0.35);
+      // On échantillonne le CŒUR de l'objet, pas son pourtour. Le pourtour
+      // déborde de la terrasse et retombe sur celle du voisin — prendre le
+      // minimum sur toute l'emprise enfonçait alors l'objet d'un palier. Le
+      // cœur, lui, est toujours sur sa propre assise.
+      const r = Math.min(0.45, cells * 0.2);
       let lo = Infinity;
       for (const dy of [-r, 0, r])
         for (const dx of [-r, 0, r]) lo = Math.min(lo, smooth.heightAt(x + dx, y + dy));
@@ -239,7 +243,7 @@ export function VoxelTownView({
         if (!geom) continue;
         const mesh = new THREE.Mesh(geom, BLD_MAT);
         mesh.castShadow = mesh.receiveShadow = true;
-        mesh.position.set(pl.x, groundUnder(pl.x, pl.y, pl.cells), pl.y);
+        mesh.position.set(pl.x, groundUnder(pl.x, pl.y, pl.bid === "wall" ? 0 : pl.cells), pl.y);
         mesh.scale.setScalar(fitScale(geom, pl.cells));
         mesh.rotation.y = Math.PI + (pl.rot ?? 0);
         bldGroup.add(mesh);

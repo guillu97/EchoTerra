@@ -513,8 +513,14 @@ bâtiments s'affichent via `buildingName(id)` (`data/buildings.ts`), pas via `b.
   colonnes fines que la carte du monde, R=10 par tuile), et `townLayout` expose donc un CHAMP
   (`field`, sol + hauteur par cellule) et non une pile de blocs. Les sols de ville sont des codes de
   « biome » réservés dans la palette (`SOIL.GRASS/DIRT/PLAIN/PAVED` = 6..9). ⚠ les objets se posent
-  au **minimum de `smooth.heightAt` sur leur emprise**, jamais au centre — sinon un coin en aval
-  flotte. Rendu par `VoxelTownView.tsx` ; **le mode 2D isométrique de secours a été SUPPRIMÉ**
+  sur une **terrasse plate** creusée au niveau de leur cellule centrale, et la pose lit la hauteur au
+  **cœur** de l'objet (le pourtour déborde sur la terrasse du voisin et enfoncerait l'objet d'un
+  palier). ⚠ ne PAS aplanir au minimum de l'emprise (enterre les bâtiments) ni adopter le niveau
+  d'une terrasse voisine (ça chaîne et rabote toute la butte). La FORTIFICATION n'a pas de terrasse —
+  ses pads rabotaient le pied du tertre — mais `contourPoint` la recale sur le contour lobé réel,
+  sans quoi le portail tombe hors du terrain et **vole**. La palissade est répartie par **longueur
+  d'arc** (par angle paramétrique, l'arc par pas varie de 3,85 à 4,48 sur l'ellipse et il s'ouvre
+  des jours près du portail). Rendu par `VoxelTownView.tsx` ; **le mode 2D isométrique de secours a été SUPPRIMÉ**
   (2026-07-29). Les bâtiments posés deviennent des
   **hotspots cliquables** (pastille
   nom + barre de durabilité, contre-échelonnée `--inv = 1/zoom` pour rester lisible à tout zoom).
