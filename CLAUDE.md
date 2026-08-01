@@ -494,10 +494,25 @@ bâtiments s'affichent via `buildingName(id)` (`data/buildings.ts`), pas via `b.
   plan » 1 PA), **🏠 Construits** (bouton « 📐 Améliorer » = pose le plan d'amélioration). Tris A-Z/Lv
   = liste plate. Coût affiché = TOTAL du chantier (PA + matériaux vs Banque) ; actions exigent un
   héros en ville (consultation sinon).
-- **Home**: la ville est une **carte créée dans l'éditeur** (`src/data/town-map.json`, export JSON de
-  l'éditeur §7b) rendue par **`components/TownMap.tsx`** avec le renderer de l'éditeur (`drawMap` →
-  canvas offscreen 2×, cuit UNE fois par session, bornes serrées sur les cellules occupées — PAS
-  `contentBounds` qui couvre toute la grille 54×59). Les bâtiments posés sur la carte deviennent des
+- **Home**: la ville est un **plan GÉNÉRÉ à partir de l'état de jeu** — `voxel/townLayout.ts`
+  (`buildTownLayout()`). Depuis 2026-07-29 elle s'inspire d'**EDORAS** : géométrie POLAIRE, plus
+  aucune coordonnée sur une grille. Un **tertre** ovale isolé au milieu de la plaine (la hauteur ne
+  dépend que du rayon elliptique, donc strictement décroissante — aucune cuvette possible ; lobage
+  et gauchissement de forte amplitude, éteints près du centre, sinon les courbes de niveau sont des
+  ellipses homothétiques et la butte fait « gâteau à étages » ; ⚠ vérifier `0 marche > 1`), une
+  **palissade de bois** en 16 segments tangents à l'ellipse, **une seule route en lacet** du portail
+  au sommet (⚠ elle doit s'arrêter avant t=1 : son rayon tend vers 0 et l'esplanade part en terre
+  battue), les parcelles en (rayon, angle) façades vers l'AVAL, et **Meduseld seule au sommet**.
+  ⚠ **seuls les gros bâtiments creusent leur terrasse** — faire creuser les ~28 maisons érodait la
+  butte de deux paliers ; elles se posent au MINIMUM de leur emprise et mordent dans le talus.
+  Palette **rohirrique** : chaume (trois tons) + bois sombre, pas de tuile ni d'ardoise.
+  **~28 maisons de remplissage** en **9 modèles** (`house`/`house2`/`house3` ×3, sans rôle de jeu ni
+  hotspot), **mobilier de rue** et **clôtures** le long de la route. Le rendu **voxel** est
+  `VoxelTownView.tsx` ; le mode **« Classique »** est **`components/TownMap.tsx`**, qui dessine le
+  MÊME plan via `townDoc()` avec le renderer de l'éditeur (canvas offscreen 2×, cuit UNE fois par
+  session). ⚠ `townDoc()` doit émettre des coordonnées de cellule **ENTIÈRES** : `isoRender` range
+  les placements par clé `"${cx},${cy}"`, donc une coordonnée fractionnaire n'est JAMAIS dessinée.
+  Les bâtiments posés deviennent des
   **hotspots cliquables** (mapping fichier asset → id de bâtiment dans `ASSET_TO_BUILDING` ; pastille
   nom + barre de durabilité, contre-échelonnée `--inv = 1/zoom` pour rester lisible à tout zoom).
   **Zoom/pan dans la ville** : molette ancrée au curseur, drag, pinch en mapping absolu (même math que
@@ -509,8 +524,8 @@ bâtiments s'affichent via `buildingName(id)` (`data/buildings.ts`), pas via `b.
   fait `setPointerCapture` → les `click` des boutons ne partent JAMAIS : les taps sont résolus au
   `pointerup` par `elementFromPoint().closest(".town-spot")`. ⚠ les crops d'assets de l'éditeur vivent
   dans le localStorage du navigateur : le rendu peut différer légèrement sur un autre appareil. Pour
-  CHANGER la carte : éditer dans l'éditeur → exporter JSON → remplacer `town-map.json` (mettre à jour
-  `ASSET_TO_BUILDING` si de nouveaux bâtiments interactifs sont posés). Tapping the **Workshop** or any
+  CHANGER la ville : éditer `voxel/townLayout.ts` (les deux rendus en découlent ; mettre à jour
+  `BUILDING_SPRITE` si un nouveau bâtiment interactif apparaît). Tapping the **Workshop** or any
   **construction site** jumps to Structure; other built buildings open a
   **centered modal** (`.bmenu-modal`, never cut off) with durability, defense contribution, building-specific
   actions (Well "Puiser de l'eau" free, Gate "Open/Close", etc.), "Améliorer (Structure)", and Restore.
@@ -612,12 +627,14 @@ export/import .vox, orbite libre) ; **Phase 2** `VoxelMapView.tsx` — la Map vo
 (le reste de l'app est agnostique), fog serveur → blocs de brume, billboards persos (étape 1),
 déplacement snap sans animation ; **Phase 3** `VoxelCombatView.tsx` (arène 7×7 blocs 32³, reachable serveur en quads verts
 contrastés, anneaux cibles, barres de PV + étiquettes canvas `labels.ts` [depthTest OFF —
-lisibles derrière un pilier], rotation FFTA2) ; **Phase 4** `VoxelTownView.tsx` (town-map.json
-interprété pile par pile via `buildStacks`, TOUS les matériaux de sol ont leur bloc voxel
-homonyme, hotspots raycast + pastilles DOM projetées, héros sur l'herbe, LOD 16³ = 426 k
-tris ; **2026-07-19 : bâtiments VOXEL à états** — recettes `bld-*` + `bld-chantier`, 3
+lisibles derrière un pilier], rotation FFTA2) ; **Phase 4** `VoxelTownView.tsx` (plan de
+`townLayout.ts` interprété pile par pile via `buildStacks`, TOUS les matériaux de sol ont leur bloc
+voxel homonyme, hotspots raycast + pastilles DOM projetées, héros sur l'herbe, LOD 16³ ;
+~625 k tris pour le bourg 21×21 avec son tissu de maisons
+ ; **2026-07-19 : bâtiments VOXEL à états** — recettes `bld-*` + `bld-chantier`, 3
 variantes par DURABILITÉ (v0 intact / v1 abîmé / v2 ruine, passe `damagePass` : morsures
-visant le toit + carbonisation + gravats), groupe dynamique reconstruit à chaque état,
+visant le toit + carbonisation + gravats **contenus dans l'emprise du modèle** — semés sur toute la
+grille, ils triplaient la profondeur du rempart en ruine, donc son échelle), groupe dynamique reconstruit à chaque état,
 site sans plan = herbe nue, matériau SELF-LIT — l'ombrage cuit + Lambert grisait tout ; **2026-07-22 :
 PORTAIL à vantaux ANIMÉS** — `bld-gate` = maçonnerie seule, deux battants séparés `bld-gate-door-l/-r`
 [`bldGateDoor`, même grille pleine → repère partagé] pivotant chacun autour de son gond [`GATE_HINGE`

@@ -19,7 +19,7 @@ import { createRequire } from "node:module";
 import path from "node:path";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const UI_DIR = path.join(ROOT, "frontend/public/assets/ui");
+const ASSETS = path.join(ROOT, "frontend/public/assets");
 
 // `playwright-core` est une devDependency du FRONT, et la résolution ESM ignore
 // NODE_PATH comme le cwd : on la résout explicitement depuis frontend/.
@@ -27,13 +27,21 @@ const requireFromFrontend = createRequire(path.join(ROOT, "frontend/package.json
 const pw = await import(pathToFileURL(requireFromFrontend.resolve("playwright-core")).href);
 const chromium = pw.chromium ?? pw.default?.chromium;
 
-// Fichiers d'interface + taille cible (px du côté long).
+// Chemin sous `assets/` + taille cible (px du côté long).
 const TARGETS = [
-  ["nav-home.png", 160],
-  ["nav-map.png", 160],
-  ["nav-stock.png", 160],
-  ["nav-structure.png", 160],
-  ["nav-craft.png", 160],
+  ["ui/nav-home.png", 160],
+  ["ui/nav-map.png", 160],
+  ["ui/nav-stock.png", 160],
+  ["ui/nav-structure.png", 160],
+  ["ui/nav-craft.png", 160],
+  // Sprites des maisons de remplissage du mode « Classique » de la Ville. Ils
+  // s'affichent dans ~2 tuiles iso (≈150px) et sortaient du générateur en
+  // 1024² : à neuf, ils faisaient à eux seuls dépasser le budget de payload.
+  ...[
+    "bld-cottage", "bld-house", "bld-house-blue",
+    "bld-barn", "bld-market", "bld-house-large",
+    "bld-logcabin", "bld-roundhouse", "bld-house-stone",
+  ].map((f) => [`buildings/${f}.png`, 512]),
 ];
 
 const argv = process.argv.slice(2);
@@ -53,7 +61,7 @@ let after = 0;
 
 for (const [file, defaultSize] of TARGETS) {
   const size = Number.isFinite(sizeArg) && sizeArg > 0 ? sizeArg : defaultSize;
-  const abs = path.join(UI_DIR, file);
+  const abs = path.join(ASSETS, file);
   const src = await readFile(abs);
   before += src.length;
 
@@ -92,4 +100,4 @@ await browser.close();
 
 const mb = (n) => `${(n / 1024 / 1024).toFixed(2)}Mo`;
 console.log(`\n${dry ? "[dry] " : ""}total ${mb(before)} -> ${mb(after)} (${mb(before - after)} économisés)`);
-await stat(UI_DIR);
+await stat(ASSETS); // garde-fou : le dossier doit exister

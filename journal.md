@@ -6,6 +6,371 @@
 
 ---
 
+## 2026-07-29 (84) — Edoras, passe de correction sur les références
+
+Retour : *« c'est vraiment sympa, mais regarde les images et vois ce que tu peux améliorer »*. Sept
+écarts relevés en comparant la capture aux références, tous corrigés.
+
+1. **La butte était un MESA** — 4 paliers très larges, sommet plat immense. Passée à **6 paliers**
+   pour le même rayon : chaque marche ne fait plus que ~1,6 cellule, la pente se lit comme continue
+   et le tertre monte à deux fois la hauteur d'une maison, comme sur le plan large. ⚠ au-delà de 6,
+   la pente dépasse une marche par cellule au pied et l'adoucissement recreuse le talus.
+2. **Le replat sommital** couvrait un dixième de la butte → réduit à l'assise de la salle (0,24 → 0,17).
+3. **Les maisons ceinturaient tout le tertre.** Sur le film elles couvrent UN versant et le reste est
+   une pente d'herbe nue. Biais de flanc angulaire : ~30 maisons réparties en couronne → ~18
+   groupées. Une densité constante tout autour donne un anneau, l'inverse de la lecture cherchée.
+4. **La roche affleurait sur toute la pente** (22 % + 34 % proportionnel), soulignant chaque redent
+   d'un liseré clair : la butte se lisait comme des **terrasses de rizière**. La roche ne sort plus
+   qu'au PIED (rien au-dessus de rad 0,7).
+5. **La route faisait 1,15 tour** — elle enroulait le tertre et surlignait chaque courbe de niveau au
+   lieu de le gravir. Ramenée à **0,85 tour**. Essayée en grès pâle pour la rendre visible : elle
+   ajoutait du sable à une image déjà sable ; sur un tertre vert, la terre battue tranche seule.
+6. **Le sol était un vert JAUNE.** Le bloc `grass` tire vers le sable ; `darkgrass` est vert sur ses
+   six faces — donc les redents des paliers restent verts eux aussi. Changement le plus rentable de
+   la passe (vérifié en isolant le terrain : masquer tous les meshes non instanciés ne laisse que
+   lui, et il était déjà vert — la preuve que le sable venait du bâti).
+7. **Le bâti délavait tout.** Torchis à 236,216,182 : plus clair que l'herbe. Descendu à 196,176,142,
+   chaumes assombris, et surtout l'**émissif du matériau** ramené de `0x46423c` à `0x2a2823` — ce
+   gris ajouté par fragment, inoffensif sur des tuiles saturées, faisait virer au sable une palette
+   de chaume et de torchis déjà claire et peu saturée.
+
+### Fonctionnel (vérifié)
+- Champ de hauteur : 0 marche > 1 · `npx tsc -b` ✅ · `npm run build` ✅ ·
+  `npm run test:perf` **13/13** ✅ · ville **824 k triangles** (plafond 2 M).
+
+### Ce qui reste en écart avec les références
+- La butte reste visiblement en gradins : une marche vaut un bloc entier, il n'y a pas de terrain
+  sub-cellulaire dans le moteur. Seule une passe de biseautage des arêtes y changerait quelque chose.
+- L'anneau de plaine sèche (`fallgrass`) est large et accroche l'œil.
+- Les 9 maisons gardent des silhouettes de bourg européen (encorbellement, tourelle, terrasse).
+
+---
+
+## 2026-07-29 (83) — La ville devient EDORAS
+
+Demande : *« est-ce que pour la ville tu peux t'inspirer d'Edoras du Seigneur des Anneaux ? »*, avec
+le plan large du film et trois dioramas. C'est une réorientation, pas un ajustement : Edoras n'a
+rien d'un bourg méditerranéen dense sur un plateau.
+
+### Ce que les références imposent (et qui n'existait pas)
+1. une **butte isolée** au milieu de la plaine, aux flancs rocheux — pas un plateau carré ;
+2. une **enceinte OVALE** épousant le pied de la butte, en **palissade de bois**, sans un angle droit ;
+3. **une seule route**, qui monte en LACET du portail au sommet. Pas de grille de rues ;
+4. la grande salle **SEULE au sommet**, tout le tissu bâti agrippé aux pentes. C'est la silhouette
+   entière du lieu.
+
+### Fait — une géométrie POLAIRE (`townLayout.ts`, réécrit)
+Plus une seule coordonnée n'est choisie sur une grille, et c'est ce qui supprime d'un coup l'aspect
+« plan d'urbanisme » :
+- **le tertre** : la hauteur ne dépend que du rayon elliptique, donc strictement décroissante du
+  sommet au pied — aucune cuvette, aucune plaque isolée n'est *possible*. Profil en puissance < 1
+  (flancs raides au pied, pentes douces en haut où sont les maisons), replat sommital aux dimensions
+  exactes de la grande salle. **Lobage et gauchissement** de forte amplitude, éteints près du centre :
+  sans eux les courbes de niveau étaient des ellipses homothétiques et la butte se lisait comme un
+  gâteau à étages. Vérifié : **0 marche > 1** sur toute la grille ;
+- **l'enceinte** : 16 segments tangents à l'ellipse, ouverture au sud ;
+- **la route** : spirale de 1,15 tour, large à l'entrée charretière, réduite à une sente en haut.
+  ⚠ elle s'arrête à t = 0,9 : poussée jusqu'au sommet, son rayon tend vers 0 et des centaines
+  d'échantillons tombent sur les mêmes cellules — toute l'esplanade partait en terre battue ;
+- **les parcelles** en (rayon, angle) le long de la pente, façades tournées vers l'AVAL ; le sommet
+  est interdit au décor comme aux maisons.
+
+⚠ **Seuls les gros bâtiments creusent leur terrasse.** Faire creuser aussi les ~28 maisons érodait la
+butte de deux paliers, de proche en proche. Les maisons se posent au MINIMUM de leur emprise : elles
+mordent dans le talus côté amont — ce que fait une maison sur une butte — sans jamais flotter.
+
+### Fait — les deux modèles signature
+- **Meduseld** (`bld-townhall`, réécrit) : soubassement de pierre + emmarchement monumental, corps en
+  bois sombre à poteaux, toiture de **chaume doré très pentue**, et les poutres croisées du pignon.
+  ⚠ tracées depuis les avant-toits, ces poutres se plaquaient sur la pente du toit et se lisaient
+  comme un treillis : seule la partie qui DÉPASSE le faîte fait la silhouette.
+- **Palissade** (`bld-wall`, réécrit) : pieux jointifs taillés en pointe, hauteurs inégales, lisses
+  et chemin de ronde sur consoles. Un rempart crénelé de pierre appartient à une autre culture — et
+  à l'échelle de la butte, il l'écrasait.
+
+### Fait — palette rohirrique
+Terracotta et ardoise bleue juraient avec un tertre de plaine. `ROOF_W`, `ROOF_TILE` et `ROOF_SLATE`
+deviennent trois tons de **chaume** (neuf, clair, moussu), `WOOD_W` fonce, les peintures passent en
+vert-de-gris et torchis ocré. Les 9 maisons, les 10 bâtiments et le mobilier sont régénérés.
+
+> ⚠ Piège rencontré : remplacer `bldWall` par un `s[index(bldWall):index(bldChantier)]` a emporté
+> TOUT ce qui se trouvait entre les deux — les 9 maisons, le mobilier de rue, les clôtures. Restauré
+> depuis `git show HEAD:`. Découper par bornes de fonctions n'est sûr que si l'on sait ce qu'il y a
+> entre elles.
+
+### Fonctionnel (vérifié)
+- Champ de hauteur contrôlé programmatiquement : 0 marche > 1.
+- Captures headless voxel (dont une avec tous les bâtiments forcés construits, sans quoi la mairie
+  et la palissade ne se voient pas au démarrage) et Classique.
+- `npx tsc -b` ✅ · `npm run build` ✅ · `npm run test:perf` **13/13** ✅ (payload 20,43 Mo).
+- Ville : **774 k triangles**, 194 meshes (plafond 2 M).
+
+### Reste à faire
+- Les 9 maisons gardent des silhouettes « bourg européen » (encorbellements, tourelle, terrasse à
+  parapet). Des halles rohirriques basses à grand toit de chaume seraient plus justes.
+- La palissade démarre à 20/100 de durabilité, donc c'est sa variante RUINE qu'on voit en début de
+  partie ; le beau modèle n'apparaît qu'après réparation.
+- Le sommet est un grand replat nu tant que la mairie n'est pas bâtie.
+
+---
+
+## 2026-07-28 (82) — Relief : refait sur une FONCTION, plus sur du bruit
+
+Retour, répété : *« les reliefs ne sont pas smooth ni logiques »*. Fondé, et la cause était dans la
+méthode, pas dans un réglage.
+
+### Ce qui n'allait pas
+La hauteur était **un bruit ajouté à une pente**, puis rattrapée par deux passes qui se battaient
+entre elles. Deux défauts en découlaient mécaniquement :
+- **pas lisse** : le bruit décidait seul de part et d'autre du seuil, donc les courbes de niveau se
+  déchiquetaient et laissaient des PLAQUES ISOLÉES — un carré de palier haut au milieu du palier
+  bas, que rien n'explique ;
+- **pas logique** : chaque bâtiment s'aplanissait ensuite SA plate-forme rectangulaire, et la passe
+  d'adoucissement ne savait que creuser. Résultat : un damier de mesas et de cuvettes.
+
+### La correction
+Le terrain est maintenant une **fonction**, pas un tirage. Deux **courbes de niveau** (somme de deux
+sinusoïdes de périodes incommensurables, donc ondulantes et dérivables) traversent la ville d'un
+rempart à l'autre ; le palier d'une cellule est simplement « de quel côté de la courbe elle se
+trouve ». Trois propriétés en découlent — exactement celles qui manquaient :
+1. **monotone en y** : le terrain descend toujours vers le portail. Aucune plaque isolée, aucune
+   cuvette n'est possible *par construction* ;
+2. **courbes continues** : une limite de palier va d'un bord à l'autre, donc le mur de soutènement
+   se lit comme un ouvrage et non comme un accident ;
+3. **marches d'un seul niveau** partout — la pente des courbes vaut ~0,4 cellule par cellule, très
+   en dessous de 1. Vérifié : 0 marche > 1 sur toute la grille.
+
+**Les bâtiments ne s'aplanissent plus rien.** Leur emprise est CREUSÉE au niveau le plus bas
+qu'elle touche : une maison mord dans le talus côté amont — ce que fait une maison sur un coteau —
+et ne peut jamais flotter, puisqu'on descend au minimum.
+
+Les deux courbes sont calées dans les corridors LIBRES entre bâtiments (au-dessus de la place, et
+entre le tissu sud et l'esplanade du portail) ; les emprises de la cuisine, de la recyclerie et du
+panneau ont été déplacées en conséquence. Une emprise à cheval sur une limite se ferait creuser
+d'un cran et rouvrirait le problème des plates-formes rectangulaires.
+
+### Fonctionnel (vérifié)
+- Champ de hauteur contrôlé programmatiquement : **0 marche > 1**, aucune plaque isolée.
+- Captures headless voxel et Classique · `npx tsc -b` ✅ · `npm run build` ✅ ·
+  `npm run test:perf` **13/13** ✅.
+
+---
+
+## 2026-07-28 (81) — Ville : la rendre ORGANIQUE (relief, mobilier, vert)
+
+Retour : *« là c'est bien mais ce n'est pas joli, trouve les points d'amélioration pour rendre la
+ville organique »*. Diagnostic, puis les trois leviers traités.
+
+### Ce qui rendait la ville « pas jolie »
+1. **Le sol était rigoureusement plat.** Tous les toits au même niveau, toutes les ombres
+   identiques, aucune ligne d'horizon interne : ça se lit comme un plateau de jeu, et aucune
+   quantité de maisons ne rattrape ça. C'était le défaut n°1, loin devant les autres.
+2. **Aucune trace des gens.** Ni charrette, ni tonneau, ni étal, ni linge, ni barrière. Les volumes
+   étaient justes et le lieu restait mort — une maquette d'architecte.
+3. **Trop de pierre pâle au sol.** Entre la place, l'avenue, la ceinture, la traverse et sept
+   liserés de parcelle, la quasi-totalité du sol était minérale et claire ; le peu de vert
+   restant (14 % des cellules libres) ne compensait pas. L'image tirait au gris.
+4. **Cadrage** : la caméra visait le niveau du SOL, donc le bourg occupait le haut du cadre et un
+   tiers d'écran de socle sombre traînait en bas.
+
+### Fait
+**Relief en terrasses** (`buildTerraces`) — le bourg est bâti à flanc de coteau : le terrain monte
+du portail (au sud) vers la mairie (au nord) en trois paliers. La mairie domine réellement, l'avenue
+GRIMPE vers la place, et les redents entre paliers sont maçonnés en calcaire — des murs de
+soutènement qui découpent le tissu. Deux contraintes tiennent le reste : le rempart et son pied
+restent au niveau 0 (un segment de 5 cellules à cheval sur une marche laisserait un jour sous la
+muraille), et toute emprise bâtie est aplanie au niveau de son centre (sinon un coin flotte). Le
+bruit du profil est à DEUX échelles : en bruit blanc par cellule, l'adoucissement ramène la courbe
+de niveau à une droite et on retombe sur des bandes.
+
+**Mobilier de rue et clôtures** — 4 nouveaux props × 3 variantes : charrette / tonneaux / caisses ·
+étal bâché rouge, bleu, corde à linge · lanterne, banc et jarres, abreuvoir · barrière de bois,
+muret de pierre sèche, haie. Posés le long des voies, ORIENTÉS sur la rue. Les clôtures font
+exactement une cellule de long (deux cellules voisines donnent un linéaire continu) et leur matière
+est tirée par ÎLOT — alterner bois/pierre/haie d'une cellule à l'autre ferait un patchwork.
+
+**Rééquilibrage du vert** — le liseré pavé des parcelles est SUPPRIMÉ (il minéralisait tout) et la
+végétation passe de 14 % à 52 % des cellules libres restantes, arbres agrandis. Le taux de 14 %
+datait de l'époque où rien d'autre n'occupait ces cellules ; depuis que les maisons tiennent le
+terrain, c'est le vert qui manque.
+
+**Socle et cadrage** — socle ramené de 2 à 1 bloc, caméra visée à mi-hauteur du bâti (2,6) et non au
+sol.
+
+> ⚠ `cylAt` ne sait faire que des cylindres d'axe Z (vertical) : les roues de la charrette se
+> posaient à plat comme des galettes. Roues en boîtes — à ce gabarit une roue carrée se lit très
+> bien.
+
+### Fonctionnel (vérifié)
+- Captures headless voxel et Classique. `npx tsc -b` ✅ · `npm run build` ✅ ·
+  `npm run test:perf` **13/13** ✅ · `test:perf:voxel` 10/12 (mêmes deux échecs antérieurs).
+- Ville : **607 k triangles**, 158 meshes (plafond 2 M).
+
+### Reste à faire pour aller plus loin vers l'organique
+- **Le contour du bourg est un carré parfait.** C'est ce qui reste de plus « dessiné à la règle ».
+  Un périmètre irrégulier (le rempart qui avance et recule d'une cellule, des angles non droits)
+  serait le prochain gain le plus fort — mais il demande de repenser le pavage du rempart.
+- **Les voies sont rectilignes.** Une ceinture qui serpente d'une cellule ferait beaucoup.
+- Les bâtiments de JEU restent très minéraux à côté des maisons : beaucoup de mur, peu de toit.
+- Cycle jour/nuit dans la ville (la carte l'a déjà).
+
+---
+
+## 2026-07-28 (80) — Ville : neuf styles de maisons et un vrai plan de ville
+
+Retour : *« il faut plusieurs styles de maisons et il faut organiser ça comme une ville, pas les
+maisons dans le même sens, une place, des sentiers plus ou moins grands »*. Les trois points sont
+justes et se répondent : trois modèles répétés vingt fois font un motif, et un damier de voies au
+même gabarit fait un lotissement.
+
+### Neuf modèles (`gen-props.mjs` → `house`, `house2`, `house3`, 3 variantes chacun)
+Ce qui change n'est pas la couleur mais l'EMPRISE et le registre :
+chaumière · maison à étage en encorbellement · maison peinte à auvent ·
+**grange** longue et basse (2× plus large que profonde) · **échoppe** à arcade avec étal et enseigne ·
+**maison étroite à balcon** (la verticale du tissu) · **remise** en appentis (toit à une pente) ·
+**maison à tourelle** (le seul volume courbe) · **maison basse à terrasse** (aucun prisme).
+Hauteurs obtenues : de 1,5 à 3,7 cellules — c'est cette irrégularité qui fait un tissu.
+
+> La terrasse a d'abord été rendue en pierre pâle cernée d'un parapet haut : vue de la caméra
+> dimétrique, qui plonge, elle se lisait comme une **piscine**. Sol en tomettes + pergola partielle.
+
+### Hiérarchie des voies (`townLayout.ts`)
+Quatre rangs, chacun avec SON gabarit et SON matériau — sans quoi le réseau ne se voit pas :
+- **place** 5×5 pavée autour du puits (elle faisait 3×3) ;
+- **avenue** 3 de large, pavée, du portail à la place — l'axe d'arrivée ;
+- **ceinture + traverse** 1 et 2 de large, calcaire clair — la desserte ;
+- **ruelles** de terre battue, qui traversent la bande entre ceinture et rempart et la coupent en
+  îlots (sans elles, cette bande fait un ruban continu de toits tout autour du bourg).
+
+Les sept parcelles fonctionnelles sont replacées sur les îlots de ce réseau (dégagements deux à deux
+et non-recouvrement des voies vérifiés à la main).
+
+### Façades sur la rue
+`faceStreet(x,y)` cherche la voie la plus proche dans un rayon de 3 et en déduit l'azimut (les
+modèles ont leur porte côté −Z, d'où `atan2(−dx, −dy)`). Avant, l'orientation était un quart de tour
+tiré au sort : on voyait des pignons aveugles donner sur la place et des portes s'ouvrir sur un mur.
+25 maisons, 25 orientations distinctes.
+
+### Deux bugs de fond
+
+**`hash()` perdait ses bits de poids faible.** `n * 1274126177` dépasse 2^53 : l'arrondi flottant
+détruit exactement les bits que `>>> 0` conserve. Conséquence concrète, invisible jusqu'ici : le
+tirage du modèle (`% 9`) tombait toujours dans le même tiers du catalogue — **trois modèles sur neuf
+n'apparaissaient jamais**. Corrigé avec `Math.imul`.
+
+**Les grands modèles étaient systématiquement recalés.** Le modèle donne l'emprise, donc il se
+choisit avant le test de place ; une grange de 3,8 cellules échoue là où une remise de 2,6 passe, et
+la parcelle était perdue. La sélection réessaie maintenant les modèles suivants. ⚠ leur ordre dans
+`HOUSE_MODELS` est VOLONTAIREMENT entrelacé par gabarit : rangés par taille, le plus petit récupérait
+tous les refus (9 exemplaires sur 25 pour la maison étroite).
+
+### Budget
+Les six nouveaux sprites du mode « Classique » (1024² chacun) ont fait passer le payload PNG à
+24,89 Mo, au-dessus du budget de 24. `scripts/downscale-ui.mjs` est généralisé (chemin sous
+`assets/` + taille cible) et réduit les neuf sprites de maison à 512² — ils s'affichent dans ~2 tuiles
+iso. 5,25 Mo → 1,84 Mo.
+
+### Fonctionnel (vérifié)
+- Captures headless voxel ET Classique : neuf silhouettes distinctes, façades sur rue, place et
+  avenue lisibles, ruelles de terre.
+- `npx tsc -b` ✅ · `npm run build` ✅ · `npm run test:perf` **13/13** ✅ (payload 21,48 Mo)
+- `npm run test:perf:voxel` 10/12 — les deux mêmes échecs antérieurs (boucle de rendu de la carte).
+- Ville : **524 k triangles**, 115 meshes (plafond 2 M) — en baisse malgré les maisons, le rempart
+  ayant beaucoup moins de segments.
+
+### Reste à faire
+- Les bâtiments de JEU paraissent maintenant ternes à côté des maisons : beaucoup de mur, peu de
+  toit. C'est la prochaine passe.
+- Cycle jour/nuit dans la ville.
+- Boucle de rendu continue de la carte (batterie) — antérieure.
+
+---
+
+## 2026-07-28 (79) — Ville : le style « Town to City » (densité, tissu bâti, rempart)
+
+Demande : *« explore le style Town to city mais pour ce jeu »*, puis cinq images de référence.
+Ce que les images disent, et que les descriptions écrites ne rendaient pas :
+
+1. **la densité fait la ville** — les bâtiments remarquables ne se détachent que parce qu'ils
+   dépassent d'une MASSE de toits serrés. Notre bourg était dix objets espacés sur une pelouse ;
+2. **le toit porte la couleur** et occupe la moitié de la hauteur. Nos bâtiments sont surtout de la
+   pierre, d'où l'impression de gris quoi qu'on fasse à l'éclairage ;
+3. **rien n'est aligné au cordeau** — les faîtes partent de quelques degrés de travers ;
+4. **des verticales** (cyprès) rythment la silhouette au-dessus des toits.
+
+### Fait
+
+**Maisons de bourg** (`gen-props.mjs` → `house-v{0,1,2}.vox`, 3 modèles distincts, pas 3 états) :
+chaumière au toit de chaume, maison à étage en encorbellement à colombages (toit terre cuite),
+petite maison peinte avec auvent de toile (toit d'ardoise). Trois couvertures différentes pour que le
+tissu ne fasse pas motif. Aucun rôle de jeu, pas cliquables : un tap dessus vide la sélection comme
+un tap sur l'herbe. ~20 par ville.
+
+> ⚠ **La cause de l'échec de la tentative précédente** (« maisons rendues en dalles flottantes ») est
+> identifiée : les recettes du fichier renvoient soit une `Grid`, soit `fin(g)`, selon qu'elles sont
+> enregistrées seules ou dans le bloc `bld-*` — lequel applique `damagePass` PUIS `fin`. Passer une
+> Grid déjà « finie » à `damagePass` indexe le buffer avec les mauvaises dimensions.
+
+**Plan du bourg** (`townLayout.ts`) : 19×19 → **21×21** (à 19, les dix parcelles et leurs dégagements
+mangeaient ~250 des 289 cellules intérieures — il n'y avait de place que pour 14 maisons, dont la
+moitié collée au rempart donc masquée par lui). Ajout d'une **ceinture de rue** intérieure : c'est
+elle qui donne du front de rue, sinon les seules façades constructibles sont les deux axes centraux.
+Placement des maisons en trois passes — front de rue, puis GRAPPE (accrochage à une maison déjà
+posée → rangées et îlots), puis fonds de jardin — avec dégagement **euclidien** et non Chebyshev
+(en Chebyshev une diagonale compte pour 1 alors qu'elle vaut 1,41 : on perdait un anneau entier
+autour de chaque bâtiment).
+
+**Implantation organique** : ±7,5° et ±0,22 cellule, déterministe par hachage, sur les parcelles
+intérieures seulement. Muraille, portail et tour restent d'équerre — c'est une fortification.
+
+**Cyprès de bord de rue** : le prop `pine` avec un plafond de HAUTEUR explicite (4,2 cellules) pour
+qu'il dépasse les maisons (3,1) sans atteindre la mairie (5,6), qui garde le point haut. D'où un
+champ `hmax` sur `TownDecor` : le plafond par défaut (`scale × 1.6`) est calculé sur l'emprise au
+sol et écrasait le cyprès sous les toits.
+
+**Parcelles** : terre battue resserrée d'un anneau + **liseré pavé** autour. Seule, la terre se
+lisait comme un trou dans la pelouse.
+
+### Deux bugs trouvés en chemin
+
+**Le rempart montait à 0,9 cellule.** `bld-wall` est un bandeau (17,5 de long pour 7,2 de haut) et
+`fitScale` met à l'échelle sur l'emprise au SOL, donc sur la longueur : à 2,1 cellules de long, la
+hauteur tombait mécaniquement à 0,9. Une bordure de jardin autour d'un bourg dont les maisons font
+3 cellules. Corrigé par des segments de 5 cellules (≈2,2 de haut) pavant le pourtour avec
+recouvrement — 19 segments au lieu de 36, et la tour d'angle ENJAMBE désormais le rempart au lieu
+d'y creuser un trou. (Essayé à 8,3 → 3,7 de haut : le pan avant occultait le tiers du bourg.)
+
+**Les gravats de `damagePass` étaient semés sur toute la grille 20×20**, quelle que soit la forme du
+modèle. Sur un bâtiment compact ça passait ; sur le rempart — qui n'occupe que 5 unités de
+profondeur sur 30 — ils TRIPLAIENT la profondeur de la boîte englobante, donc de l'échelle. Et comme
+la muraille démarre à **20/100 de durabilité**, c'est la variante RUINE qu'on voit en début de
+partie : le rempart était un pavé massif. Les gravats sont maintenant contenus dans l'emprise du
+modèle. Les dix `bld-*` sont régénérés.
+
+**Mode « Classique » cassé par l'implantation organique** (trouvé et corrigé dans la foulée) : le
+renderer 2D range les placements dans un seau par cellule (`isoRender.ts:223`, clé `"${cx},${cy}"`)
+et les ressort en parcourant les cellules — donc avec des ENTIERS. Une coordonnée fractionnaire ne
+retombe jamais sur une clé existante et l'objet n'est jamais dessiné : la ville 2D s'était vidée de
+tous ses bâtiments sauf la tour. `townDoc()` arrondit désormais. Le sub-pixel reste un raffinement
+de la vue voxel.
+
+### Fonctionnel (vérifié)
+- Captures headless de l'onglet Ville en voxel ET en Classique (Playwright, poll par
+  `page.evaluate` — jamais `waitForFunction`) : bourg dense, rempart lisible, maisons présentes dans
+  les deux rendus.
+- `npx tsc -b` ✅ · `npm run build` ✅ · `npm run test:perf` **13/13** ✅
+- `npm run test:perf:voxel` 10/12 — les deux échecs (« carte on-demand », « rendu stoppé hors de
+  l'onglet ») sont **antérieurs** et déjà constatés à la session précédente sur l'arbre pré-Signac.
+- Budget de la ville : **625 k triangles** pour 119 meshes (plafond de la suite : 2 M).
+
+### Reste à faire
+- Les bâtiments de JEU gardent des silhouettes basses et pierreuses à côté des maisons ; c'est
+  maintenant eux qui paraissent ternes. Prochaine passe : plus de toit, moins de mur.
+- Cycle jour/nuit dans la ville (la carte l'a déjà, branché sur `waveProgress`).
+- Boucle de rendu continue de la carte (batterie) — antérieure, toujours ouverte.
+
+---
+
 ## 2026-07-26 (78) — Bâtiments : couleur DANS les modèles
 
 Retour : « ils ont l'air toujours un peu washed up, est-ce qu'on ne pourrait pas modifier les modèles

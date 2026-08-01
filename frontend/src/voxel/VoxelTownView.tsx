@@ -132,8 +132,11 @@ export function VoxelTownView({
     // ⚠ L'émissif est un gris AJOUTÉ à chaque fragment : trop fort, il relève la
     // luminosité mais DILUE la saturation, et les toits colorés redeviennent
     // pâles. Il doit juste compenser le double ombrage — pas éclairer.
+    // Baissé de 0x46423c à 0x2a2823 avec la palette rohirrique : sur du chaume
+    // et du torchis — déjà clairs et peu saturés — le gris ajouté faisait virer
+    // tout le bâti au sable et écrasait le contraste avec le tertre vert.
     const BLD_MAT = signacify(
-      new THREE.MeshLambertMaterial({ vertexColors: true, emissive: new THREE.Color(0x46423c) }),
+      new THREE.MeshLambertMaterial({ vertexColors: true, emissive: new THREE.Color(0x2a2823) }),
     );
 
     // --- animation d'ouverture du portail --------------------------------------
@@ -152,7 +155,7 @@ export function VoxelTownView({
     };
 
     // Ancre de pastille pour une parcelle vide (pas de mesh à surmonter).
-    const spotAtGround = (pl: TownPlot) => new THREE.Vector3(pl.x, GROUND + 0.6, pl.y);
+    const spotAtGround = (pl: TownPlot) => new THREE.Vector3(pl.x, (pl.gy ?? GROUND) + 0.6, pl.y);
 
     const drawBuildings = () => {
       bldGroup.clear();
@@ -175,14 +178,14 @@ export function VoxelTownView({
         const variant = b.built
           ? (() => { const r = b.maxDurability > 0 ? b.durability / b.maxDurability : 1; return r >= 0.66 ? 0 : r >= 0.33 ? 1 : 2; })()
           : 0;
-        const spotAt = (h: number) => new THREE.Vector3(pl.x, GROUND + h, pl.y);
+        const spotAt = (h: number) => new THREE.Vector3(pl.x, (pl.gy ?? GROUND) + h, pl.y);
 
         // PORTAIL construit : maçonnerie + deux vantaux animés autour des gonds
         if (pl.bid === "gate" && b.built) {
           const frame0 = propsLib.get("bld-gate", variant);
           const S = frame0 ? fitScale(frame0, pl.cells) : pl.cells;
           const grp = new THREE.Group();
-          grp.position.set(pl.x, GROUND, pl.y);
+          grp.position.set(pl.x, pl.gy ?? GROUND, pl.y);
           grp.scale.setScalar(S);
           grp.rotation.y = Math.PI + (pl.rot ?? 0); // façades vers la caméra
           const frame = propsLib.get("bld-gate", variant);
@@ -219,7 +222,7 @@ export function VoxelTownView({
         if (!geom) continue;
         const mesh = new THREE.Mesh(geom, BLD_MAT);
         mesh.castShadow = mesh.receiveShadow = true;
-        mesh.position.set(pl.x, GROUND, pl.y);
+        mesh.position.set(pl.x, pl.gy ?? GROUND, pl.y);
         mesh.scale.setScalar(fitScale(geom, pl.cells));
         mesh.rotation.y = Math.PI + (pl.rot ?? 0);
         bldGroup.add(mesh);
@@ -357,7 +360,10 @@ export function VoxelTownView({
       engine.refreshShadows();
       // Le village est carré et connu d'avance : on vise son centre et on cadre
       // sur son côté. `+3` laisse respirer la muraille et les pastilles.
-      engine.target.set(layout.center, 0, layout.center);
+      // ⚠ Viser à MI-HAUTEUR du bâti, pas au niveau du sol. Depuis que le bourg
+      // est en terrasses, sa masse monte à ~7 unités : visé au sol, il occupait
+      // le haut du cadre et laissait un tiers d'écran de socle vide en bas.
+      engine.target.set(layout.center, 4.6, layout.center);
       // En projection dimétrique un carré de côté N occupe ~N·√2 en diagonale
       // écran : cadrer sur N seul débordait des deux côtés. On cadre sur la
       // DIAGONALE, avec une marge pour la muraille et les pastilles.
@@ -373,14 +379,29 @@ export function VoxelTownView({
     const decorGroup = new THREE.Group();
     engine.scene.add(decorGroup);
     void propsLib.load(TOWN_DECOR_PROPS).then(() => {
-      for (const d of layout.decor) {
-        const geom = propsLib.get(d.prop, (d.x + d.y) % 3);
+      // MAISONS DE BOURG : le tissu bâti. Volontairement absentes de
+      // `spriteBuildingOf` — elles n'ont aucun rôle de jeu, donc un tap dessus
+      // doit vider la sélection comme un tap sur l'herbe, pas ouvrir un modal.
+      for (const h of layout.houses) {
+        const geom = propsLib.get(h.prop, h.variant);
         if (!geom) continue;
         const m = new THREE.Mesh(geom, BLD_MAT);
         m.castShadow = m.receiveShadow = true;
-        m.position.set(d.x, GROUND, d.y);
-        m.scale.setScalar(fitScale(geom, d.scale, d.scale * 1.6));
-        m.rotation.y = ((d.x * 7 + d.y * 13) % 4) * (Math.PI / 2);
+        m.position.set(h.x, h.gy, h.y);
+        m.scale.setScalar(fitScale(geom, h.cells, h.cells * 1.5));
+        m.rotation.y = h.rot;
+        decorGroup.add(m);
+      }
+      for (const d of layout.decor) {
+        const geom = propsLib.get(d.prop, d.variant ?? (d.x + d.y) % 3);
+        if (!geom) continue;
+        const m = new THREE.Mesh(geom, BLD_MAT);
+        m.castShadow = m.receiveShadow = true;
+        m.position.set(d.x, d.gy, d.y);
+        m.scale.setScalar(fitScale(geom, d.scale, d.hmax ?? d.scale * 1.6));
+        // Le mobilier et les clôtures portent une rotation IMPOSÉE (alignée sur
+        // la rue) ; la végétation garde son quart de tour par position.
+        m.rotation.y = d.rot ?? ((d.x * 7 + d.y * 13) % 4) * (Math.PI / 2);
         decorGroup.add(m);
       }
       engine.refreshShadows();
