@@ -49,6 +49,14 @@ const DIORAMA: Record<number, [number, number, number][]> = {
   3: [[128, 163, 66], [116, 152, 58]], // sol forêt (isotile: 131,153,71)
   4: [[178, 162, 138], [163, 147, 122]], // roche chaude plus profonde
   5: [[236, 240, 249], [224, 230, 242]], // neige
+  // --- codes réservés à la VILLE (le tertre d'Edoras) -----------------------
+  // La ville n'a pas de biomes de monde : elle a des SOLS. On étend la palette
+  // plutôt que d'ajouter un second chemin de rendu — c'est le même terrain en
+  // colonnes fines, seule la table de couleurs change.
+  6: [[104, 148, 74], [92, 136, 64]], // herbe rase du tertre, vert franc
+  7: [[150, 118, 84], [138, 106, 74]], // terre battue : route et parcelles
+  8: [[176, 164, 104], [164, 152, 94]], // plaine sèche, autour de l'enceinte
+  9: [[196, 188, 170], [182, 174, 156]], // dallage de pierre (esplanade)
 };
 const CLIFF: [number, number, number] = [212, 192, 152]; // pierre des marches, plus chaude
 const UNDISCOVERED: [number, number, number] = [225, 227, 244]; // sous la brume
@@ -201,7 +209,7 @@ export class SmoothTerrain {
       // pointillés d'herbe plus discrets + grain ADOUCI (l'ancien bruit par
       // colonne lisait comme de la neige de pixels)
       const t = tileAt(tx0, ty0);
-      const dot = t?.discovered && (t.biome === 2 || t.biome === 3) && hash01(cx, cy, 13) < 0.035 ? 0.9 : 1;
+      const dot = t?.discovered && (t.biome === 2 || t.biome === 3 || t.biome === 6) && hash01(cx, cy, 13) < 0.035 ? 0.9 : 1;
       const grain = (0.985 + hash01(cx, cy, 3) * 0.03) * dot;
       let out: [number, number, number] = [(r / cnt) * grain, (g / cnt) * grain, (b / cnt) * grain];
       // DIVISIONNISME de la surface continue. Elle ne passe PAS par les .vox de

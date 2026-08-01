@@ -86,7 +86,6 @@ export interface Settings {
   quality: "Normal" | "Medium" | "High" | "Very high";
   language: string;
   notif: { loot: boolean; wave: boolean; actionPoint: boolean; communication: boolean };
-  voxelMap: boolean; // carte monde en voxel 3D (expérimental — VOXEL-PLAN Phase 2)
   voxelSmooth: boolean; // carte : terrain CONTINU lissé (true) ou blocs discrets (false)
   voxelBeauty: boolean; // passe beauté Tier 1 : tone mapping ACES + bloom + ciel/brume (mode CINÉMATIQUE)
   /** Rendu divisionniste « Signac » (voir voxel/signacPass.ts). S'appuie sur la passe beauté. */
@@ -107,7 +106,6 @@ const DEFAULT_SETTINGS: Settings = {
   quality: "Very high", // rendu maximum par défaut
   language: "Français",
   notif: { loot: true, wave: true, actionPoint: true, communication: false },
-  voxelMap: true, // le voxel est le rendu par défaut (Phase 6, 2026-07-17)
   voxelSmooth: true,
   voxelBeauty: true, // mode CINÉMATIQUE (bloom + ACES) activé par défaut — décision utilisateur 2026-07-22
   voxelSignac: false, // opt-in : c'est un parti pris pictural fort, pas un défaut
@@ -124,7 +122,7 @@ function loadSettings(): Settings {
       // migration UNIQUE : bascule voxel + rendu cinématique max sur les réglages
       // déjà sauvegardés (persistée pour ne pas réécraser un opt-out ultérieur).
       if (saved.renderPreset !== RENDER_PRESET) {
-        s = { ...s, voxelMap: true, voxelSmooth: true, voxelBeauty: true, quality: "Very high", renderPreset: RENDER_PRESET };
+        s = { ...s, voxelSmooth: true, voxelBeauty: true, quality: "Very high", renderPreset: RENDER_PRESET };
         try { localStorage.setItem(LS_SETTINGS, JSON.stringify(s)); } catch { /* ignore */ }
       }
       return s;

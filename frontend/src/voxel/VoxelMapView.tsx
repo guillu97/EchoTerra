@@ -1,5 +1,6 @@
 // Onglet Map en VOXEL (Phase 2 du VOXEL-PLAN) — remplaçant expérimental de la
-// MapScene Phaser derrière le réglage `settings.voxelMap`. Il parle EXACTEMENT
+// Carte du monde en voxel — SEUL rendu depuis 2026-07-29 (le rendu 2D
+// isométrique Phaser a été retiré). Il parle EXACTEMENT
 // le même contrat bus que MapScene (MapRender entrant ; MapTileClick /
 // MapHeroClick / MapHeroMenu sortants ; MapSceneReady au montage) : le reste de
 // l'app — menu radial, TopBar, store — ne sait pas quel renderer tourne.

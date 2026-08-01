@@ -94,24 +94,7 @@ export function SettingsOverlay() {
         </div>
         <span className="hint">Baisser la qualité réduit l'usage de batterie et la surchauffe.</span>
       </div>
-      <div className="row">
-        <span className="lbl">Carte voxel (expérimental)</span>
-        <div className="seg">
-          {[false, true].map((v) => (
-            <button
-              key={String(v)}
-              className={settings.voxelMap === v ? "on" : ""}
-              onClick={() => updateSettings({ voxelMap: v })}
-            >
-              {v ? "Voxel 3D" : "Classique"}
-            </button>
-          ))}
-        </div>
-        <span className="hint">
-          Rendu 3D voxel (Map, Combat, Home) avec rotation de caméra (↻) — le défaut. « Classique » rebascule sur l'ancien rendu iso.
-        </span>
-      </div>
-      {settings.voxelMap && (
+      {(
         <div className="row">
           <span className="lbl">Terrain voxel</span>
           <div className="seg">
@@ -130,7 +113,7 @@ export function SettingsOverlay() {
           </span>
         </div>
       )}
-      {settings.voxelMap && (
+      {(
         <div className="row">
           <span className="lbl">Rendu beauté (expérimental)</span>
           <div className="seg">
@@ -149,7 +132,7 @@ export function SettingsOverlay() {
           </span>
         </div>
       )}
-      {settings.voxelMap && (
+      {(
         <div className="row">
           <span className="lbl">Rendu Signac (divisionniste)</span>
           <div className="seg">
@@ -171,7 +154,7 @@ export function SettingsOverlay() {
           </span>
         </div>
       )}
-      {settings.voxelMap && settings.voxelSignac && (
+      {settings.voxelSignac && (
         <div className="row">
           <span className="lbl">Intensité de la touche ({Math.round(settings.signacStrength * 100)}%)</span>
           <input

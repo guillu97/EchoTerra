@@ -6,6 +6,104 @@
 
 ---
 
+## 2026-07-29 (86) — Portail qui vole, palissade décousue, bâtiments enterrés
+
+Trois défauts signalés, trois causes distinctes.
+
+### 1. Le portail volait dans les airs
+`radial()` applique un lobage de ±23 % au rayon, mais le portail et les pans de palissade étaient
+posés sur l'ellipse **géométrique** (k = 1). Un point de cette ellipse a donc un rayon LOBÉ compris
+entre 0,77 et 1,24 : là où le lobe pousse vers l'extérieur, la porte tombait au-delà de
+`PLAIN_EDGE`, c'est-à-dire **hors du terrain**. `contourPoint(a, target)` les recale par bissection
+sur le contour réel `radial === RAMPART`.
+
+### 2. La palissade ne joignait pas le portail
+Les 16 segments étaient répartis par **angle paramétrique**, ce qui est faux sur une ellipse : l'arc
+parcouru par pas vaut `√(RX²sin²a + RY²cos²a)·Δa`, soit 3,85 cellules près des extrémités du grand
+axe mais **4,48 aux pôles** — au-delà de la longueur du segment (4,4). Il s'ouvrait donc des jours,
+précisément là où se trouve le portail. La répartition se fait maintenant par **longueur d'arc**
+tabulée sur le contour réel, avec l'ouverture du portail réservée : espacement 3,78–3,97 pour des
+pans de 4,4 (recouvrement partout), et les deux pans butent à 3,65 du centre du portail.
+La tangente est prise par différence finie sur le contour lobé — la tangente analytique de
+l'ellipse est fausse dès que le lobe la fait tourner.
+
+### 3. Les bâtiments étaient dans le terrain
+Depuis le passage au terrain lissé, la pente varie continûment : le minimum d'une emprise de 3,6
+cellules tombe jusqu'à ~1,8 unité sous son centre, donc les bâtiments s'enterraient jusqu'à
+mi-hauteur. Chaque emprise reçoit désormais une **terrasse plate au niveau de sa cellule centrale**
+(bâtiments de jeu ET maisons), et la pose lit la hauteur au **cœur** de l'objet, pas sur tout son
+pourtour — le pourtour déborde de la terrasse et retombe sur celle du voisin, ce qui enfonçait
+l'objet d'un palier. Vérifié : enterrement **0 pour les dix bâtiments de jeu**.
+
+> Deux variantes essayées et rejetées, notées dans le code : aplanir au MINIMUM de l'emprise (c'est
+> le défaut d'origine), et ADOPTER le niveau d'une terrasse voisine pour que les maisons serrées
+> partagent une assise — celle-là **chaîne** : une terrasse du pied, à 0, se propage de voisin en
+> voisin jusqu'au sommet et rabote toute la butte.
+
+La **fortification** (palissade, portail, tour) est seule à ne pas avoir de terrasse : ses 17 pads
+rabotaient le pied de la butte et un bâtiment proche lisait ensuite ce niveau écrasé (la banque
+tombait de deux paliers). Elle suit le relief — et ne peut plus flotter, puisque `contourPoint` la
+garde sur le terrain.
+
+### Fonctionnel (vérifié)
+- Captures headless : vue d'ensemble + zoom sur le portail (posé au sol, pans jointifs).
+- Contrôles numériques : espacement de la palissade, distance portail↔pans, enterrement par bâtiment.
+- `npx tsc -b` ✅ · `npm run build` ✅ · `npm run test:perf` 10/12 (les deux échecs antérieurs).
+
+---
+
+## 2026-07-29 (85) — Terrain lissé, et suppression du rendu 2D isométrique
+
+Retour : *« les blocs sont trop gros, il ne faut pas des blocs… il me faut des voxels mais smooth »*
+et *« remove complètement la 2D isométrique pour l'instant »*. Les deux demandes sont liées : c'est
+la compatibilité avec le rendu 2D qui obligeait la ville à rester une pile de cubes d'une tuile.
+
+### Terrain LISSÉ
+Le tertre était rastérisé en blocs de la taille d'une case : ses pentes faisaient un escalier
+grossier et toute la ville se lisait comme un empilement de caisses. Il passe maintenant par
+**`smoothTerrain.ts`** — le rastériseur en colonnes fines déjà utilisé par la carte du monde
+(R = 10 colonnes par tuile, pas vertical 1/10). C'est toujours du voxel, mais le grain devient assez
+fin pour que la butte se lise comme un relief.
+
+- `townLayout` expose désormais un **champ** (`field` : sol + hauteur par cellule) au lieu d'une
+  liste de blocs empilés. Les sols de ville sont quatre codes de « biome » réservés dans la palette
+  de `smoothTerrain` (`SOIL.GRASS/DIRT/PLAIN/PAVED` = 6..9) : un seul chemin de rendu, une table de
+  couleurs de plus.
+- Options `{heightScale: 1, rollAmp: 0, micro: 0.035}` : le tertre est déjà sculpté par le plan, il
+  ne faut ni amplifier les hauteurs ni faire rouler les plaines comme sur la carte du monde.
+- ⚠ Les objets ne lisent plus une hauteur pré-calculée mais le **minimum de `smooth.heightAt` sur
+  leur emprise** — au centre, un coin en aval flotterait au-dessus du vide.
+- **Moins cher, pas plus** : 824 k → **271 k triangles**. Le terrain lissé fusionne les grandes
+  surfaces planes en quelques quads, là où les blocs payaient un cube par cellule.
+
+### Suppression du rendu 2D isométrique
+Supprimés : `game/PhaserGame.tsx`, `game/MapScene.ts`, `game/CombatScene.ts`,
+`game/textureUtils.ts`, `components/TownMap.tsx`, la suite `tests/perf/map-loading.mjs`, le réglage
+« Carte voxel : Classique / Voxel 3D », et la dépendance **phaser**. `townDoc()` /
+`SPRITE_TO_BUILDING` disparaissent de `townLayout`.
+
+- **Bundle : 2 652 kB → 1 138 kB** (gzip 673 → 320 kB).
+- `game/` ne garde que `dpr.ts` (DPR plafonné, utilisé par le moteur voxel) et `render.ts` (palette
+  de biomes, utilisée par le Studio de données) — ni l'un ni l'autre n'importait Phaser.
+- `npm run test:perf` pointe maintenant sur la suite VOXEL (l'ancienne testait le chargement de la
+  carte Phaser, qui n'existe plus). `test:perf:voxel` reste comme alias.
+- L'**éditeur de cartes** (`src/editor/`) est conservé : c'est un outil de dev en canvas2d, hors
+  périmètre par consigne permanente, et il ne dépend pas de Phaser.
+
+### Fonctionnel (vérifié)
+- Captures headless : la ville (terrain fin, butte lisible) ET la carte du monde (pas de régression
+  après le retrait de la bascule).
+- `npx tsc -b` ✅ · `npm run build` ✅ · `npm run test:perf` 10/12 — les deux échecs (boucle de rendu
+  continue de la carte) sont **antérieurs** et documentés depuis l'entrée 79.
+- Ville : **271 k triangles**, 183 meshes.
+
+### Reste à faire
+- La boucle de rendu continue de la carte (batterie) devient le seul échec de la suite : il n'y a
+  plus de rendu de secours derrière, donc il mérite d'être traité.
+- Les 9 maisons gardent des silhouettes de bourg européen là où Edoras veut des halles basses.
+
+---
+
 ## 2026-07-29 (84) — Edoras, passe de correction sur les références
 
 Retour : *« c'est vraiment sympa, mais regarde les images et vois ce que tu peux améliorer »*. Sept

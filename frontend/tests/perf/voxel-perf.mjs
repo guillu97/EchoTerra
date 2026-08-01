@@ -38,7 +38,6 @@ await page.goto(BASE);
 await waitState(page, () => !!window.__eg?.store, 30000, "app store");
 await page.evaluate(async () => {
   const s = window.__eg.store;
-  s.getState().updateSettings({ voxelMap: true });
   await s.getState().newGame();
 });
 await waitState(page, () => !!window.__eg.store.getState().game, 20000, "game");

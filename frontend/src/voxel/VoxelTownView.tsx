@@ -1,5 +1,7 @@
-// Home (ville) en VOXEL (Phase 4 du VOXEL-PLAN) — mêmes props que TownMap :
-// HomeTab bascule TownMap ⇄ VoxelTownView selon `settings.voxelMap`.
+// Home (la ville) en VOXEL — SEUL rendu depuis 2026-07-29 : le mode 2D
+// isométrique de secours (`components/TownMap.tsx`) a été supprimé. Maintenir
+// deux moteurs obligeait le plan de ville à rester exprimable sur une grille de
+// cases entières, ce qui interdisait la géométrie polaire ET le terrain lissé.
 //
 // La ville est un PLAN GÉNÉRÉ à partir de l'état de jeu (`voxel/townLayout.ts`),
 // plus la carte d'éditeur `town-map.json` : celle-ci n'avait d'emplacement que
@@ -24,7 +26,8 @@ import { useStore } from "../store";
 import { durColor } from "../tabs/HomeTab";
 import { clearOwned, VoxelEngine } from "./engine";
 import { VoxelControls } from "./controls";
-import { BlockLibrary, buildStacks, type StackItem } from "./terrain";
+import { BlockLibrary } from "./terrain";
+import { SmoothTerrain } from "./smoothTerrain";
 import { makeClouds, type Clouds } from "./clouds";
 import { makeLabel } from "./labels";
 import { ALL_CHAR_KEYS, CharLibrary } from "./characters";
@@ -112,9 +115,27 @@ export function VoxelTownView({
 
     // 1) plan du village, dérivé de l'état de jeu (voir townLayout.ts)
     const layout = buildTownLayout();
-    const items: StackItem[] = layout.terrain;
-    const used = new Set(layout.blocks);
     const GROUND = layout.groundLevel;
+    // TERRAIN LISSÉ, plus des cubes d'une tuile. Le tertre était rastérisé en
+    // blocs de la taille d'une case : ses pentes faisaient un escalier grossier
+    // et toute la ville se lisait comme un empilement de caisses. `SmoothTerrain`
+    // — déjà utilisé par la carte du monde — le rend en colonnes de 1/10 de
+    // tuile : c'est toujours du voxel, mais le grain devient assez fin pour que
+    // la butte se lise comme un relief.
+    const smooth = new SmoothTerrain();
+    /** Hauteur de pose d'un objet : le MINIMUM de son emprise, jamais le centre
+     *  — sinon un coin en aval flotte au-dessus du vide. */
+    const groundUnder = (x: number, y: number, cells = 0) => {
+      // On échantillonne le CŒUR de l'objet, pas son pourtour. Le pourtour
+      // déborde de la terrasse et retombe sur celle du voisin — prendre le
+      // minimum sur toute l'emprise enfonçait alors l'objet d'un palier. Le
+      // cœur, lui, est toujours sur sa propre assise.
+      const r = Math.min(0.45, cells * 0.2);
+      let lo = Infinity;
+      for (const dy of [-r, 0, r])
+        for (const dx of [-r, 0, r]) lo = Math.min(lo, smooth.heightAt(x + dx, y + dy));
+      return lo;
+    };
     const texLoader = new THREE.TextureLoader();
     const textures: THREE.Texture[] = [];
 
@@ -155,7 +176,7 @@ export function VoxelTownView({
     };
 
     // Ancre de pastille pour une parcelle vide (pas de mesh à surmonter).
-    const spotAtGround = (pl: TownPlot) => new THREE.Vector3(pl.x, (pl.gy ?? GROUND) + 0.6, pl.y);
+    const spotAtGround = (pl: TownPlot) => new THREE.Vector3(pl.x, groundUnder(pl.x, pl.y, pl.cells) + 0.6, pl.y);
 
     const drawBuildings = () => {
       bldGroup.clear();
@@ -178,14 +199,14 @@ export function VoxelTownView({
         const variant = b.built
           ? (() => { const r = b.maxDurability > 0 ? b.durability / b.maxDurability : 1; return r >= 0.66 ? 0 : r >= 0.33 ? 1 : 2; })()
           : 0;
-        const spotAt = (h: number) => new THREE.Vector3(pl.x, (pl.gy ?? GROUND) + h, pl.y);
+        const spotAt = (h: number) => new THREE.Vector3(pl.x, groundUnder(pl.x, pl.y, pl.cells) + h, pl.y);
 
         // PORTAIL construit : maçonnerie + deux vantaux animés autour des gonds
         if (pl.bid === "gate" && b.built) {
           const frame0 = propsLib.get("bld-gate", variant);
           const S = frame0 ? fitScale(frame0, pl.cells) : pl.cells;
           const grp = new THREE.Group();
-          grp.position.set(pl.x, pl.gy ?? GROUND, pl.y);
+          grp.position.set(pl.x, groundUnder(pl.x, pl.y, pl.cells), pl.y);
           grp.scale.setScalar(S);
           grp.rotation.y = Math.PI + (pl.rot ?? 0); // façades vers la caméra
           const frame = propsLib.get("bld-gate", variant);
@@ -222,7 +243,7 @@ export function VoxelTownView({
         if (!geom) continue;
         const mesh = new THREE.Mesh(geom, BLD_MAT);
         mesh.castShadow = mesh.receiveShadow = true;
-        mesh.position.set(pl.x, pl.gy ?? GROUND, pl.y);
+        mesh.position.set(pl.x, groundUnder(pl.x, pl.y, pl.bid === "wall" ? 0 : pl.cells), pl.y);
         mesh.scale.setScalar(fitScale(geom, pl.cells));
         mesh.rotation.y = Math.PI + (pl.rot ?? 0);
         bldGroup.add(mesh);
@@ -302,9 +323,9 @@ export function VoxelTownView({
         const rig = chars.makeRig(heroTexKey(h.class));
         if (rig) {
           rig.root.scale.multiplyScalar(1.8); // ~taille de l'ancien billboard
-          rig.root.position.set(gpos.x, gpos.lvl, gpos.y);
+          rig.root.position.set(gpos.x, groundUnder(gpos.x, gpos.y), gpos.y);
           heroGroup.add(rig.root);
-          animator.sync(h.id, rig, gpos.x, gpos.lvl, gpos.y, { faceCamera: true });
+          animator.sync(h.id, rig, gpos.x, groundUnder(gpos.x, gpos.y), gpos.y, { faceCamera: true });
         } else {
           const url = heroAssetUrl(h.class);
           let tex = heroTexCache.get(url);
@@ -313,12 +334,12 @@ export function VoxelTownView({
           spr.userData.ownMat = true;
           spr.scale.set(1.1, 1.1, 1);
           spr.center.set(0.5, 0.02);
-          spr.position.set(gpos.x, gpos.lvl, gpos.y);
+          spr.position.set(gpos.x, groundUnder(gpos.x, gpos.y), gpos.y);
           heroGroup.add(spr);
         }
         const lbl = makeLabel(h.name, "#fff6d8", 0.3);
         lbl.center.set(0.5, 0);
-        lbl.position.set(gpos.x, gpos.lvl + 1.18, gpos.y);
+        lbl.position.set(gpos.x, groundUnder(gpos.x, gpos.y) + 1.18, gpos.y);
         heroGroup.add(lbl);
       }
       animator.endFrame();
@@ -351,28 +372,33 @@ export function VoxelTownView({
       onClearRef.current();
     };
 
-    // chargement des blocs puis construction + cadrage sur le village
-    let terrain: THREE.Group | null = null;
-    void lib.load([...used]).then(() => {
-      const built = buildStacks(lib, items);
-      terrain = built.group;
-      engine.scene.add(built.group);
+    // construction du terrain lissé + cadrage sur le village
+    let terrain: THREE.Mesh | null = null;
+    {
+      terrain = smooth.build(
+        { width: layout.size, height: layout.size, tiles: layout.field },
+        null,
+        (t) => t.height,
+        // La ville veut des marches FIDÈLES : le tertre est déjà sculpté par le
+        // plan, il ne faut ni amplifier les hauteurs ni faire rouler les plaines
+        // comme sur la carte du monde. Un micro-relief léger suffit à casser
+        // l'aspect « pelouse de billard ».
+        { heightScale: 1, rollAmp: 0, micro: 0.035 },
+      );
+      terrain.castShadow = terrain.receiveShadow = true;
+      engine.scene.add(terrain);
       engine.refreshShadows();
-      // Le village est carré et connu d'avance : on vise son centre et on cadre
-      // sur son côté. `+3` laisse respirer la muraille et les pastilles.
-      // ⚠ Viser à MI-HAUTEUR du bâti, pas au niveau du sol. Depuis que le bourg
-      // est en terrasses, sa masse monte à ~7 unités : visé au sol, il occupait
-      // le haut du cadre et laissait un tiers d'écran de socle vide en bas.
+      // ⚠ Viser à MI-HAUTEUR du bâti, pas au niveau du sol : la masse du tertre
+      // monte à ~7 unités, visé au sol il occupait le haut du cadre.
       engine.target.set(layout.center, 4.6, layout.center);
       // En projection dimétrique un carré de côté N occupe ~N·√2 en diagonale
-      // écran : cadrer sur N seul débordait des deux côtés. On cadre sur la
-      // DIAGONALE, avec une marge pour la muraille et les pastilles.
+      // écran : cadrer sur N seul débordait des deux côtés.
       const span = (layout.size + 1) * 1.05;
       const fit = Math.min(host.clientWidth, host.clientHeight) / span;
       engine.zoom = Math.max(engine.minZoom, Math.min(engine.maxZoom, fit));
       drawHeroes();
       engine.invalidate();
-    });
+    }
 
     // décor : arbres, buissons et fleurs sur les cellules d'herbe libres — sans
     // eux le village est une pelouse rase et les bâtiments flottent.
@@ -387,7 +413,7 @@ export function VoxelTownView({
         if (!geom) continue;
         const m = new THREE.Mesh(geom, BLD_MAT);
         m.castShadow = m.receiveShadow = true;
-        m.position.set(h.x, h.gy, h.y);
+        m.position.set(h.x, groundUnder(h.x, h.y, h.cells), h.y);
         m.scale.setScalar(fitScale(geom, h.cells, h.cells * 1.5));
         m.rotation.y = h.rot;
         decorGroup.add(m);
@@ -397,7 +423,7 @@ export function VoxelTownView({
         if (!geom) continue;
         const m = new THREE.Mesh(geom, BLD_MAT);
         m.castShadow = m.receiveShadow = true;
-        m.position.set(d.x, d.gy, d.y);
+        m.position.set(d.x, groundUnder(d.x, d.y, d.scale), d.y);
         m.scale.setScalar(fitScale(geom, d.scale, d.hmax ?? d.scale * 1.6));
         // Le mobilier et les clôtures portent une rotation IMPOSÉE (alignée sur
         // la rue) ; la végétation garde son quart de tour par position.
@@ -424,7 +450,7 @@ export function VoxelTownView({
       lib.dispose();
       propsLib.dispose();
       for (const t of textures) t.dispose();
-      if (terrain) engine.scene.remove(terrain);
+      if (terrain) { engine.scene.remove(terrain); terrain.geometry.dispose(); }
       engine.dispose();
       engineRef.current = null;
     };

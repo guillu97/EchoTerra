@@ -31,7 +31,10 @@ export type TownPlot = {
   gy?: number;
 };
 
-export type TownCellItem = { x: number; y: number; level: number; block: string };
+/** Sols de la ville, en codes de « biome » compris par SmoothTerrain. */
+export const SOIL = { GRASS: 6, DIRT: 7, PLAIN: 8, PAVED: 9 } as const;
+/** Une cellule du terrain : sol + hauteur de palier. */
+export type TownField = { biome: number; height: number; discovered: true };
 export type TownDecor = {
   x: number;
   y: number;
@@ -65,8 +68,9 @@ export type TownLayout = {
   size: number;
   /** Niveau sur lequel se posent bâtiments, héros et décor. */
   groundLevel: number;
-  terrain: TownCellItem[];
-  blocks: string[];
+  /** Champ de terrain (SIZE×SIZE, ligne par ligne) — rendu en colonnes fines
+   *  par `SmoothTerrain`, plus en cubes d'une tuile. */
+  field: TownField[];
   plots: TownPlot[];
   houses: TownHouse[];
   decor: TownDecor[];
@@ -141,6 +145,27 @@ const PLAIN_EDGE = 1.14;
 const onGround = (x: number, y: number) => radial(x, y) <= PLAIN_EDGE;
 /** Ligne de l'enceinte. */
 const RAMPART = 1.0;
+
+/**
+ * Point du CONTOUR `radial(...) === target` le long du rayon paramétrique `a`.
+ *
+ * ⚠ Indispensable : `radial()` applique un lobage de ±23 %, donc un point posé
+ * sur l'ellipse GÉOMÉTRIQUE (k = 1) a un rayon LOBÉ compris entre 0,77 et 1,24.
+ * Le portail et les pans de palissade y étaient posés tels quels : là où le lobe
+ * pousse vers l'extérieur, ils tombaient au-delà de `PLAIN_EDGE`, c'est-à-dire
+ * hors du terrain — la porte VOLAIT littéralement dans les airs. Une bissection
+ * sur k les recale sur le contour réel.
+ */
+function contourPoint(a: number, target: number): { x: number; y: number } {
+  let lo = 0.2, hi = 2.4;
+  for (let i = 0; i < 26; i++) {
+    const mid = (lo + hi) / 2;
+    if (radial(CENTRE + mid * RX * Math.cos(a), CENTRE + mid * RY * Math.sin(a)) < target) lo = mid;
+    else hi = mid;
+  }
+  const k = (lo + hi) / 2;
+  return { x: CENTRE + k * RX * Math.cos(a), y: CENTRE + k * RY * Math.sin(a) };
+}
 
 /**
  * Hauteur du tertre. Fonction du seul rayon, donc strictement décroissante du
@@ -246,9 +271,55 @@ const downhillAzimuth = (x: number, y: number): number => {
 // bandeau long : mis à l'échelle sur 4,4 cellules il monte à ~2 — assez pour
 // ceindre la butte sans masquer les pentes.
 const WALL_SEG = 4.4;
-const WALL_COUNT = 16;
-/** Demi-ouverture du portail, en radians d'angle paramétrique. */
-const GATE_GAP = 0.26;
+/** Largeur de l'ouverture réservée au portail, en cellules d'ARC. */
+const GATE_OPENING = 2.9; // < largeur du portail : les pans mordent dedans
+
+/**
+ * Positions des segments de palissade, réparties par LONGUEUR D'ARC.
+ *
+ * ⚠ Elles l'étaient par angle paramétrique (16 pas de 2π/16), ce qui est faux
+ * sur une ellipse : l'arc parcouru par pas vaut `√(RX²sin²a + RY²cos²a)·Δa`,
+ * soit 3,85 cellules près des extrémités du grand axe mais 4,48 aux pôles —
+ * au-delà de la longueur du segment (4,4). Il s'ouvrait donc des JOURS dans la
+ * palissade, précisément là où se trouve le portail.
+ *
+ * On tabule l'arc cumulé, on réserve l'ouverture du portail, et on pave le
+ * reste à pas constant : les deux pans viennent buter exactement de part et
+ * d'autre de l'ouverture, et le recouvrement est uniforme partout.
+ */
+function palisadeAngles(): { ang: number }[] {
+  const N = 1440;
+  const arc = new Float64Array(N + 1);
+  const at = (i: number) => {
+    const pt = contourPoint((i / N) * Math.PI * 2, RAMPART);
+    return [pt.x, pt.y];
+  };
+  for (let i = 1; i <= N; i++) {
+    const [x0, y0] = at(i - 1), [x1, y1] = at(i);
+    arc[i] = arc[i - 1] + Math.hypot(x1 - x0, y1 - y0);
+  }
+  const total = arc[N];
+  const angleAt = (sTarget: number) => {
+    let s = sTarget % total;
+    if (s < 0) s += total;
+    let lo = 0, hi = N;
+    while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (arc[mid] <= s) lo = mid; else hi = mid; }
+    const t = (s - arc[lo]) / Math.max(1e-9, arc[hi] - arc[lo]);
+    return ((lo + t) / N) * Math.PI * 2;
+  };
+  // arc du portail (angle → arc, par recherche linéaire grossière puis affinage)
+  let gateS = 0, best = Infinity;
+  for (let i = 0; i <= N; i++) {
+    const d = Math.abs(((i / N) * Math.PI * 2) - GATE_ANGLE);
+    if (d < best) { best = d; gateS = arc[i]; }
+  }
+  const span = total - GATE_OPENING; // longueur à paver
+  const n = Math.max(6, Math.ceil(span / (WALL_SEG * 0.93)));
+  const step = span / n;
+  const out: { ang: number }[] = [];
+  for (let k = 0; k < n; k++) out.push({ ang: angleAt(gateS + GATE_OPENING / 2 + step * (k + 0.5)) });
+  return out;
+}
 
 // Hachage déterministe (pas de Math.random : le bourg doit être identique d'une
 // session à l'autre, et d'un joueur à l'autre).
@@ -358,71 +429,75 @@ function buildHill(cuts: { x: number; y: number; r: number }[]): number[] {
   for (let y = 0; y <= LAST; y++)
     for (let x = 0; x <= LAST; x++) if (onGround(x, y)) lvl[idx(x, y)] = hillLevel(x, y);
 
+  // TERRASSE PLATE sous chaque emprise, au niveau de SA cellule centrale.
+  //
+  // ⚠ C'était un creusement au MINIMUM de l'emprise. Sur un terrain rendu en
+  // gros cubes d'une tuile, ça passait ; depuis que le tertre est rastérisé en
+  // colonnes fines, la pente varie continûment et le minimum d'une emprise de
+  // 3,6 cellules tombe jusqu'à ~1,8 unité sous son centre : les bâtiments se
+  // retrouvaient ENTERRÉS jusqu'à la moitié côté amont.
+  //
+  // Aplanir au niveau du centre règle les deux symptômes d'un coup : plus rien
+  // n'est enterré, et plus rien ne flotte non plus (le portail, posé au pied du
+  // rempart entre butte et plaine, prenait le niveau de la plaine et se
+  // retrouvait en l'air côté butte). Le redent du pad se rend tout seul comme
+  // un mur de soutènement — ce qu'est une plate-forme de maison sur un coteau.
+  //
+  // Aucun risque d'érosion en cascade, contrairement au creusement au minimum :
+  // certaines cellules montent, d'autres descendent, rien ne se propage.
+  // ⚠ Chaque emprise s'aplanit au niveau de SA cellule centrale, et rien de
+  // plus. Deux variantes essayées et rejetées :
+  //   - aplanir au MINIMUM de l'emprise : le minimum d'une emprise de 3,6
+  //     cellules tombe ~1,8 unité sous son centre sur la pente, donc les
+  //     bâtiments s'enterraient jusqu'à mi-hauteur ;
+  //   - ADOPTER le niveau d'une terrasse voisine déjà posée (pour que les
+  //     maisons serrées partagent une assise) : ça CHAÎNE. Une terrasse du pied,
+  //     à 0, se propageait de voisin en voisin jusqu'au sommet et rabotait toute
+  //     la butte.
+  // Les emprises voisines se recouvrent donc et s'écrasent partiellement ; c'est
+  // la POSE qui s'en accommode, en lisant la hauteur au cœur de l'objet et non
+  // sur tout son pourtour (cf. `groundUnder` dans VoxelTownView).
   for (const c of cuts) {
     const cx = Math.round(c.x), cy = Math.round(c.y);
-    // Rayon de creusement volontairement SERRÉ (un cran de moins que l'emprise) :
-    // creuser large descend jusqu'à une cellule lointaine et rabote la pente.
-    const r = Math.max(1, Math.round(c.r) - 1);
-    let lo = HILL;
+    if (!inside(cx, cy) || lvl[idx(cx, cy)] < 0) continue;
+    const v = lvl[idx(cx, cy)];
+    const r = Math.max(1, Math.round(c.r));
     for (let dy = -r; dy <= r; dy++)
       for (let dx = -r; dx <= r; dx++)
-        if (inside(cx + dx, cy + dy) && lvl[idx(cx + dx, cy + dy)] >= 0)
-          lo = Math.min(lo, lvl[idx(cx + dx, cy + dy)]);
-    for (let dy = -r; dy <= r; dy++)
-      for (let dx = -r; dx <= r; dx++)
-        if (inside(cx + dx, cy + dy) && lvl[idx(cx + dx, cy + dy)] >= 0) lvl[idx(cx + dx, cy + dy)] = lo;
+        if (inside(cx + dx, cy + dy) && lvl[idx(cx + dx, cy + dy)] >= 0) lvl[idx(cx + dx, cy + dy)] = v;
   }
 
-  // Filet de sécurité : deux emprises creusées côte à côte peuvent laisser une
-  // marche de 2. On ne fait que DESCENDRE — remonter recréerait des bosses.
-  for (let pass = 0; pass < SIZE; pass++) {
-    let changed = false;
-    for (let y = 0; y <= LAST; y++)
-      for (let x = 0; x <= LAST; x++) {
-        if (lvl[idx(x, y)] < 0) continue;
-        let lo = HILL;
-        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]])
-          if (inside(x + dx, y + dy) && lvl[idx(x + dx, y + dy)] >= 0) lo = Math.min(lo, lvl[idx(x + dx, y + dy)]);
-        if (lvl[idx(x, y)] > lo + 1) { lvl[idx(x, y)] = lo + 1; changed = true; }
-      }
-    if (!changed) break;
-  }
+  // ⚠ PAS de passe d'adoucissement ici. Elle ne savait que DESCENDRE, donc elle
+  // rabotait les terrasses qu'on vient de poser. Une marche de deux paliers au
+  // bord d'un pad n'est pas un défaut : le terrain lissé la rend comme un mur,
+  // et c'est exactement le mur de soutènement attendu.
   return lvl;
 }
 
 export function buildTownLayout(): TownLayout {
-  const terrain: TownCellItem[] = [];
-  const blocks = new Set<string>();
-  const push = (x: number, y: number, level: number, block: string) => {
-    terrain.push({ x, y, level, block });
-    blocks.add(block);
-  };
-
   const plots: TownPlot[] = [];
   const road = traceRoad();
   const isRoad = (x: number, y: number) => road.has(`${x},${y}`);
 
-  // --- enceinte : palissade OVALE, par segments tangents --------------------
-  for (let i = 0; i < WALL_COUNT; i++) {
-    const a = (i / WALL_COUNT) * Math.PI * 2;
-    const d = Math.atan2(Math.sin(a - GATE_ANGLE), Math.cos(a - GATE_ANGLE));
-    if (Math.abs(d) < GATE_GAP) continue; // l'ouverture du portail
-    const x = CENTRE + RAMPART * RX * Math.cos(a);
-    const y = CENTRE + RAMPART * RY * Math.sin(a);
-    // tangente à l'ellipse : (−RX sin a, RY cos a). L'axe long du modèle est X,
-    // qui part sur (cos θ, −sin θ) — d'où θ = atan2(−ty, tx). Le renderer
+  // --- enceinte : palissade OVALE, segments tangents répartis par ARC -------
+  for (const { ang: a } of palisadeAngles()) {
+    const { x, y } = contourPoint(a, RAMPART);
+    // Tangente au CONTOUR (différence finie sur le contour lobé, pas la tangente
+    // analytique de l'ellipse : le lobe la fait tourner). L'axe long du modèle
+    // est X, qui part sur (cos θ, −sin θ) — d'où θ = atan2(−ty, tx). Le renderer
     // ajoute π aux parcelles, on le retranche ici.
-    const tx = -RX * Math.sin(a), ty = RY * Math.cos(a);
+    const p0 = contourPoint(a - 0.02, RAMPART), p1 = contourPoint(a + 0.02, RAMPART);
+    const tx = p1.x - p0.x, ty = p1.y - p0.y;
     plots.push({ bid: "wall", x, y, cells: WALL_SEG, rot: Math.atan2(-ty, tx) - Math.PI });
   }
   const wallLabel = plots.find((p) => p.bid === "wall");
   if (wallLabel) wallLabel.primary = true;
 
   // portail plein sud, face caméra ; tour de guet sur l'enceinte
-  const gateXY = { x: CENTRE + RAMPART * RX * Math.cos(GATE_ANGLE), y: CENTRE + RAMPART * RY * Math.sin(GATE_ANGLE) };
+  const gateXY = contourPoint(GATE_ANGLE, RAMPART);
   plots.push({ bid: "gate", x: gateXY.x, y: gateXY.y, cells: 3.4, rot: 0, primary: true });
   const towerA = (335 * Math.PI) / 180;
-  const towerXY = { x: CENTRE + RAMPART * RX * Math.cos(towerA), y: CENTRE + RAMPART * RY * Math.sin(towerA) };
+  const towerXY = contourPoint(towerA, RAMPART);
   plots.push({
     bid: "tower", x: towerXY.x, y: towerXY.y, cells: 3.2,
     rot: downhillAzimuth(towerXY.x, towerXY.y) - Math.PI, primary: true,
@@ -445,9 +520,8 @@ export function buildTownLayout(): TownLayout {
   // se contentent donc de SE POSER au minimum de leur emprise — elles mordent
   // dans le talus côté amont, ce qui est précisément ce que fait une maison sur
   // une butte, et le terrain reste une fonction propre.
-  const lvl = buildHill(
-    plots.filter((p) => p.bid !== "wall" && p.cells >= 3).map((p) => ({ x: p.x, y: p.y, r: p.cells / 2 })),
-  );
+  // // Palissade COMPRISE : un pan posé sur la pente du rempart sans terrasse s'enterre.
+  const lvl = buildHill(plots.filter((p) => p.cells >= 3).map((p) => ({ x: p.x, y: p.y, r: p.cells / 2 })));
   const levelAt = (x: number, y: number) => {
     const v = lvl[y * SIZE + x];
     return v === undefined || v < 0 ? 0 : v;
@@ -475,50 +549,28 @@ export function buildTownLayout(): TownLayout {
   }
 
   // --- sol ------------------------------------------------------------------
+  // Un CHAMP (sol + hauteur), pas une pile de cubes : le rendu passe par
+  // `SmoothTerrain`, qui rastérise en colonnes de 1/10 de tuile. Les gros blocs
+  // d'une tuile faisaient un escalier grossier — c'est tout le point du
+  // changement.
+  const field: TownField[] = [];
   for (let y = 0; y <= LAST; y++) {
     for (let x = 0; x <= LAST; x++) {
-      const lv = lvl[y * SIZE + x];
-      if (lv < 0) continue; // hors du tertre : rien, la ville est une ÎLE
+      const lv = Math.max(0, lvl[y * SIZE + x]);
       const rad = radial(x, y);
-      // Le redent d'un palier est un affleurement ROCHEUX : c'est ce qui donne
-      // à la butte ses flancs escarpés, et c'est exactement ce qu'on voit sous
-      // Edoras. En terre nue, une marche se lit comme un défaut de terrain.
-      const exposed = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => {
-        const nx = x + dx, ny = y + dy;
-        if (nx < 0 || ny < 0 || nx > LAST || ny > LAST) return true;
-        const nv = lvl[ny * SIZE + nx];
-        return nv < 0 || nv < lv;
-      });
-      // Le redent d'un palier est HERBEUX par défaut, rocheux par endroits :
-      // tout en pierre, les paliers traçaient des anneaux gris concentriques et
-      // la butte se lisait comme un gâteau. Les affleurements se concentrent au
-      // pied, là où les flancs sont escarpés — comme sous Edoras.
-      // ⚠ La roche ne sort QU'AU PIED. Répartie sur toute la pente (22 % + 34 %
-      // proportionnel), elle soulignait chaque redent d'un liseré clair et la
-      // butte se lisait comme des terrasses de rizière. Sur les références, les
-      // flancs sont une pente d'HERBE et la roche n'affleure qu'en bas.
-      const rocky = exposed && (hash(x * 3 + 5, y * 3 + 7) % 100) < Math.max(0, (rad - 0.7) * 230);
-      for (let k = 0; k <= lv; k++)
-        push(x, y, k, k === lv ? (rocky ? "stone" : exposed ? "darkgrass" : "dirt") : "dirt");
-      const surface = isRoad(x, y)
-        ? "dirt" // La route, terre battue. Essayée en grès pâle pour la faire
-          // ressortir : elle ajoutait du sable à une image déjà sable. Sur un
-          // tertre VERT, le brun tranche tout seul.
+      const biome = isRoad(x, y)
+        ? SOIL.DIRT // la route en lacet
         : rad > RAMPART
-          ? "fallgrass" // la plaine sèche au-delà de l'enceinte
+          ? SOIL.PLAIN // la plaine sèche, jusqu'au bord du monde
           : rad < SUMMIT_FREE
-            ? "stone" // le replat dallé de la grande salle
+            ? SOIL.PAVED // l'esplanade de la grande salle
             : plotGround.has(`${x},${y}`)
-              ? "dirt"
-              // ⚠ `darkgrass` et pas `grass` : le bloc `grass` est un vert
-              // JAUNE, et sur une butte entière il tire toute l'image vers le
-              // sable — d'autant que la palette rohirrique a mis du chaume
-              // partout. `darkgrass` est vert sur ses six faces, donc les
-              // redents des paliers restent verts eux aussi.
-              : "darkgrass";
-      push(x, y, lv + 1, surface);
+              ? SOIL.DIRT
+              : SOIL.GRASS;
+      field.push({ biome, height: lv, discovered: true });
     }
   }
+
   for (const p of plots) p.gy = groundAt(p.x, p.y, p.cells);
   for (const h of houses) h.gy = groundAt(h.x, h.y, h.cells);
 
@@ -589,8 +641,7 @@ export function buildTownLayout(): TownLayout {
   return {
     size: SIZE,
     groundLevel: GROUND,
-    terrain,
-    blocks: [...blocks],
+    field,
     plots,
     houses,
     decor,
@@ -606,111 +657,3 @@ export const TOWN_DECOR_PROPS = [
   "house", "house2", "house3",
   "street-cart", "street-stall", "street-furniture", "fence",
 ];
-
-// --- pont vers le rendu 2D « Classique » ------------------------------------
-// Le mode de secours (components/TownMap.tsx) dessine un `MapDoc` de l'éditeur.
-// Plutôt que de lui laisser l'ancienne carte d'auteur — qui n'avait que 8
-// bâtiments sur un plateau de grès —, on lui fabrique le MÊME plan que la vue
-// voxel. Une seule source de vérité pour la ville, deux rendus.
-
-/** Sprite de l'éditeur pour un bâtiment. `recyclerie` n'a pas d'art dédié. */
-export const BUILDING_SPRITE: Record<string, string> = {
-  townhall: "townhall",
-  bank: "bank",
-  workshop: "workshop",
-  kitchen: "kitchen",
-  recyclerie: "bld-warehouse",
-  well: "well",
-  panel: "panel",
-  gate: "gate",
-  tower: "tower",
-  wall: "wall",
-};
-
-/** Sprite → id de bâtiment (l'inverse, pour les hotspots du rendu 2D). */
-export const SPRITE_TO_BUILDING: Record<string, string> = Object.fromEntries(
-  Object.entries(BUILDING_SPRITE).map(([bid, file]) => [file, bid]),
-);
-
-type DocCell = { blocks: ({ cat: string; file: string } | null)[]; height: number };
-type DocPlacement = {
-  id: string;
-  cx: number;
-  cy: number;
-  asset: { cat: string; file: string };
-  scale?: number;
-};
-
-/**
- * Le plan du village au format `MapDoc` de l'éditeur, pour le renderer 2D.
- * Les segments de muraille sont laissés de côté : le sprite iso `wall` ne se
- * raccorde pas proprement en 2D et une cinquantaine de copies écraserait le
- * dessin. La muraille reste représentée par le sol de pierre du pourtour.
- */
-export function townDoc(): {
-  version: number;
-  gridW: number;
-  gridH: number;
-  cells: DocCell[];
-  layers: { id: string; name: string; kind: "ground" | "object"; visible: boolean; placements: DocPlacement[] }[];
-} {
-  const l = buildTownLayout();
-  const cells: DocCell[] = Array.from({ length: l.size * l.size }, () => ({ blocks: [], height: 0 }));
-  for (const t of l.terrain) {
-    const c = cells[t.y * l.size + t.x];
-    while (c.blocks.length <= t.level) c.blocks.push(null);
-    c.blocks[t.level] = { cat: "isotiles", file: t.block };
-    c.height = Math.max(c.height, t.level);
-  }
-
-  const placements: DocPlacement[] = [];
-  // ⚠ COORDONNÉES ENTIÈRES OBLIGATOIRES. Le renderer 2D range les placements
-  // dans un seau par cellule (`isoRender.ts` : clé `"${cx},${cy}"`) et les
-  // ressort en parcourant les cellules, donc avec des entiers. Une coordonnée
-  // fractionnaire — et le plan en produit désormais partout (implantation
-  // organique des parcelles, décalage des maisons) — ne retombe JAMAIS sur une
-  // clé existante : l'objet n'est simplement jamais dessiné. C'est ce qui avait
-  // vidé la ville de tous ses bâtiments en mode « Classique ». Le sub-pixel est
-  // un raffinement de la vue voxel ; ici on arrondit.
-  //
-  // Les maisons passent en premier : le renderer respecte l'ordre de la liste
-  // dans une même cellule, et un toit de maison ne doit pas couvrir un bâtiment
-  // cliquable. Sprites iso équivalents aux trois modèles voxel.
-  const HOUSE_SPRITE: Record<string, string[]> = {
-    house: ["bld-cottage", "bld-house", "bld-house-blue"],
-    house2: ["bld-barn", "bld-market", "bld-house-large"],
-    house3: ["bld-logcabin", "bld-roundhouse", "bld-house-stone"],
-  };
-  for (const [i, h] of l.houses.entries()) {
-    placements.push({
-      id: `house-${i}`,
-      cx: Math.round(h.x),
-      cy: Math.round(h.y),
-      asset: { cat: "buildings", file: (HOUSE_SPRITE[h.prop] ?? HOUSE_SPRITE.house)[h.variant % 3] },
-      scale: h.cells / 2.6,
-    });
-  }
-  for (const p of l.plots) {
-    if (p.bid === "wall") continue;
-    const file = BUILDING_SPRITE[p.bid];
-    if (!file) continue;
-    placements.push({
-      id: `plot-${p.bid}`,
-      cx: Math.round(p.x),
-      cy: Math.round(p.y),
-      asset: { cat: "buildings", file },
-      scale: p.cells / 2.2, // les sprites iso sont cadrés ~2 tuiles de large
-    });
-  }
-
-  return {
-    version: 1,
-    gridW: l.size,
-    gridH: l.size,
-    cells,
-    layers: [
-      { id: "sol", name: "Sol", kind: "ground", visible: true, placements: [] },
-      { id: "bat", name: "Bâtiments", kind: "object", visible: true, placements },
-    ],
-  };
-}
