@@ -56,7 +56,7 @@ fixed seed (`--seed N`, e.g. 42) is used for cohesion across the library.
 | Layer | Tech |
 |---|---|
 | Backend | **Go** (`chi` router), REST, state serialized as JSON in **SQLite** (`modernc.org/sqlite`, pure-Go, no CGo) |
-| Frontend | **React + Vite + TypeScript**, **Phaser 3** (isometric MapScene + isometric CombatScene), **Zustand** store |
+| Frontend | **React + Vite + TypeScript**, **Three.js** (moteur voxel : carte, combat, ville), **Zustand** store |
 | Map gen | Perlin (`aquilax/go-perlin`) → heightmap **lissée (maxStep 1)** → biomes par niveau ; **60×60 par défaut** (`worldgen.DefaultSize`) |
 
 ```bash
@@ -118,22 +118,23 @@ backend/
   serverless/serverless.go      handler FaaS de secours + harnais des tests e2e du mode stateless
 vercel.json                     preset Services: services frontend (Vite) + backend (Go) + rewrites
 frontend/src/
-  main.tsx                      ReactDOM (NO StrictMode — would double-mount Phaser)
+  main.tsx                      ReactDOM (PAS de StrictMode — double-monterait le moteur voxel)
   App.tsx                       phone-frame device + screen router
   app-shell.css                 all styling (mobile-first; desktop breakpoint >=1024px)
   store.ts                      Zustand: app shell + game/map/combat state + all actions; window.__eg in DEV
-  eventBus.ts                   tiny emitter bridging React <-> Phaser (EV.* names)
+  eventBus.ts                   petit émetteur React <-> moteur voxel (noms EV.*)
   townUtils.ts                  heroesInTown, townPA, effectiveTownHeroId, TOWN_TABS
   useWave.ts                    useWaveRemaining (server nextWaveAt), formatHMS
   api/{client.ts,types.ts}      REST client + TS DTOs mirroring Go JSON
   screens/                      LoadingScreen, TitleScreen, CinematicScreen, GameScreen, LobbyScreen
   components/                   TopBar, BottomNav, HeroChips, Logo, TownWorker(+useWorkerPA),
-                                TownStatus, GameOver, HeroOverlay, ItemGrid
+                                TownStatus, GameOver, HeroOverlay, ItemGrid, MapHeroBar
   ui/                           Overlay.tsx (LA primitive de modale/feuille : Échap, piège à focus,
                                 retour du focus, role=dialog/aria-modal), Toasts.tsx (file aria-live),
                                 ErrorBoundary.tsx (écran de secours au lieu d'un écran blanc)
   tabs/                         HomeTab, MapTab, StockTab, StructureTab, CraftTab
-  game/                         PhaserGame.tsx, MapScene.ts, CombatScene.ts, render.ts
+  game/                         dpr.ts (DPR plafonné) + render.ts (palette de biomes)
+                                ⚠ plus de Phaser : MapScene/CombatScene/PhaserGame supprimés 2026-07-29
   data/                         buildings.ts (TOWN_BUILDINGS layout, NAV_TABS)
 ```
 
@@ -369,7 +370,7 @@ PA partagés comme les chantiers, refus Tétanisé/combat) puis **donjon** (`Exp
 4 charges) : tirage pondéré par type — matériaux rares (Acier, Cœur de chêne ancien), items
 rares, « plans anciens » ; Récupérateur +1. Front : menu radial ⛏️ Déblayer / 🏛️ Explorer ;
 voxel `site-*` v0 enseveli / v1 déblayé (variante par ÉTAT serveur), socle doré. Tests
-`ruins_test.go`. (Phaser classique ne rend pas les sites ; bots ignorent les ruines.)
+`ruins_test.go`. (Les bots ignorent les ruines.)
 
 **Journal de la ville** (`town.log`, bâtiment Panel) — `TownLogEntry {at, day, text}`, **serveur-side,
 partagé, plus récent en premier, plafonné à 100** (`logTown`). Recense UNIQUEMENT les actions faites en
@@ -507,13 +508,15 @@ bâtiments s'affichent via `buildingName(id)` (`data/buildings.ts`), pas via `b.
   butte de deux paliers ; elles se posent au MINIMUM de leur emprise et mordent dans le talus.
   Palette **rohirrique** : chaume (trois tons) + bois sombre, pas de tuile ni d'ardoise.
   **~28 maisons de remplissage** en **9 modèles** (`house`/`house2`/`house3` ×3, sans rôle de jeu ni
-  hotspot), **mobilier de rue** et **clôtures** le long de la route. Le rendu **voxel** est
-  `VoxelTownView.tsx` ; le mode **« Classique »** est **`components/TownMap.tsx`**, qui dessine le
-  MÊME plan via `townDoc()` avec le renderer de l'éditeur (canvas offscreen 2×, cuit UNE fois par
-  session). ⚠ `townDoc()` doit émettre des coordonnées de cellule **ENTIÈRES** : `isoRender` range
-  les placements par clé `"${cx},${cy}"`, donc une coordonnée fractionnaire n'est JAMAIS dessinée.
-  Les bâtiments posés deviennent des
-  **hotspots cliquables** (mapping fichier asset → id de bâtiment dans `ASSET_TO_BUILDING` ; pastille
+  hotspot), **mobilier de rue** et **clôtures** le long de la route.
+  Le terrain n'est PLUS des cubes d'une tuile : il passe par **`smoothTerrain.ts`** (les mêmes
+  colonnes fines que la carte du monde, R=10 par tuile), et `townLayout` expose donc un CHAMP
+  (`field`, sol + hauteur par cellule) et non une pile de blocs. Les sols de ville sont des codes de
+  « biome » réservés dans la palette (`SOIL.GRASS/DIRT/PLAIN/PAVED` = 6..9). ⚠ les objets se posent
+  au **minimum de `smooth.heightAt` sur leur emprise**, jamais au centre — sinon un coin en aval
+  flotte. Rendu par `VoxelTownView.tsx` ; **le mode 2D isométrique de secours a été SUPPRIMÉ**
+  (2026-07-29). Les bâtiments posés deviennent des
+  **hotspots cliquables** (pastille
   nom + barre de durabilité, contre-échelonnée `--inv = 1/zoom` pour rester lisible à tout zoom).
   **Zoom/pan dans la ville** : molette ancrée au curseur, drag, pinch en mapping absolu (même math que
   MapScene), fit initial auto (refit au resize tant que l'utilisateur n'a pas bougé). **MES héros en
@@ -531,84 +534,21 @@ bâtiments s'affichent via `buildingName(id)` (`data/buildings.ts`), pas via `b.
   actions (Well "Puiser de l'eau" free, Gate "Open/Close", etc.), "Améliorer (Structure)", and Restore.
 - **TownStatus** panel: town HP, **defense total + per-building breakdown** (who defends, how much, durability,
   open/unbuilt), every building's durability, and the last-wave report.
-- **Map** (`MapTab`): Phaser **isometric** map (`MapScene.ts`) — every tile is a 2:1 iso cube PILLAR. The **plains
-  are the level-0 ground** (water/sand/grass stay flat); only forest/mountain/snow rise, by their Perlin height
-  above the `GROUND_LEVEL` baseline (FFTA2-style relief). Cube textures are normalized at runtime from the 1024²
-  `isotiles/` PNGs (opaque-bbox crop → uniform box, like the editor's `cubeAt`; mesure sur copie ≤256px); clicks
-  use a height-aware inverse projection (topmost visible tile). **Perf** : les piliers (biome × hauteur) sont
-  pré-cuits dans UN atlas canvas partagé (`ensurePillarAtlas`) → **1 Image par tuile** (au lieu de h+1 cubes
-  empilés) et un seul batch texture ; la couche de tuiles est construite **une fois par partie, jamais
-  reconstruite** — brouillard/ombrage appliqués par diff de `setTint` par tuile ; les pips de ressources
-  (points verts/rouges de disponibilité) ont été **SUPPRIMÉS** (choix UX 2026-07-13 ; si on les remet un jour :
-  bobs de **`Blitter`**, JAMAIS un Graphics qui re-tesselle ~400 cercles à chaque frame) ; les PNG
-  bruts 1024² sont libérés après normalisation ; mipmaps trilinéaires (`PhaserGame.tsx`). **L'onglet Map reste
-  MONTÉ toute la partie** (`GameScreen` le rend en permanence avec une prop `active`, caché via
-  `visibility:hidden` — PAS `display:none` : en mode `Scale.RESIZE` un parent 0×0 casse le framebuffer WebGL) —
-  démonter/recréer Phaser à chaque changement d'onglet re-téléchargeait ~17 PNG 1024² (~8,5 Mo) et refaisait
-  normalisation + atlas + couche de tuiles à CHAQUE visite (c'était le « Map met longtemps à charger »). Caché,
-  les scènes sont endormies et `PhaserGame` gate `ShowScene` par `activeRef` (le poll 20 s ne les réveille pas) ;
-  au `create()` la scène émet `EV.MapSceneReady` → MapTab re-pousse l'état → tout se pré-cuit en arrière-plan
-  pendant qu'on est sur Home → ouverture de l'onglet quasi instantanée. **Résolution (DPR)** : le canvas est
-  dimensionné en PIXELS PHYSIQUES (`game/dpr.ts`, `devicePixelRatio` plafonné à 3 ; `Scale.NONE` + `zoom: 1/DPR`
-  + ResizeObserver dans `PhaserGame` — le mode RESIZE dimensionnait en px CSS d'où la carte pixelisée sur
-  téléphone) ; les caméras compensent (MapScene : MIN/MAX/DEFAULT_ZOOM × DPR ; CombatScene : `setZoom(DPR)` +
-  scroll dans `layout()`), les textes passent `resolution: DPR`, et le supersample des cubes suit
-  (`SS = 2×DPR`, plafonné 6). **Textures d'unités** : les PNG 1024² (héros/monstres, ~4 Mio de VRAM chacun)
-  sont réduits à leur taille d'affichage max après chargement (`game/textureUtils.ts`, `shrinkTexture` — même
-  clé, source canvas) et **recadrés au carré du contenu opaque** (`cropSquare`, ancré aux pieds : les marges
-  transparentes des PNG faisaient perdre ~40 % de la boîte d'affichage — recadré, le sprite est plus grand et
-  plus net à taille égale) ; **CombatScene ne précharge plus rien** (MapScene est l'unique chargeur des sprites
-  partagés — les deux loaders téléchargeaient chaque PNG en double). **Les héros des AUTRES joueurs** sont des
-  sprites translucides (alpha 0.45), visibles par défaut (`showOthers: true`, bouton 👥 pour masquer) ; les
-  héros partageant une case se répartissent en **ellipse iso 10×5** (anti-chevauchement). **Test de chargement** :
-  `npm run test:perf` (`tests/perf/map-loading.mjs`, Playwright) vérifie les budgets — payload PNG, zéro
-  téléchargement en double, sources brutes libérées, unités ≤512px, VRAM estimée, pré-cuisson, ouverture/
-  réouverture de l'onglet, instance conservée, scènes endormies, canvas à la résolution native (DPR 3).
-  ⚠ il poll par `page.evaluate` (PAS `waitForFunction` : en GL logiciel headless le canvas DPR affame le
-  poller injecté de Playwright). Starts **zoomed in &
-  centered on the town** (no more fit-all); **wheel + pinch
-  zoom** clamp 0.35–2.5 ; le pinch mobile est un **mapping ABSOLU depuis la baseline** (posée au
-  pointerdown du 2e doigt : distance, zoom, point-monde sous le milieu des doigts) — à chaque événement
-  `zoom = zoomDépart × dist/distDépart` et le scroll est **posé** (pas incrémenté) pour recoller ce
-  point-monde sous le milieu courant → zoom + pan deux doigts en une formule, zéro dérive par
-  construction. ⚠ ne JAMAIS utiliser `cam.getWorldPoint` juste après `setZoom` : la matrice caméra
-  n'est rafraîchie qu'au preRender, le mélange ancien/nouveau zoom faisait dériver le pinch de
-  ~150 px CSS par geste (`zoomBy` fait la math écran↔monde à la main). Le seuil tap-vs-drag est
-  **`TAP_SLOP = 10×DPR`** (coordonnées pointeur en px physiques — un seuil fixe de 8 px mangeait les
-  taps sur téléphone). **Fog of war — appliqué dans le payload HTTP** : `Tile.Discovered` est
-  **server-authoritative & partagé par tous les joueurs** (`fog.go`: `RevealVision` dans `Recompute`, anneau
-  Chebyshev autour de la ville + de chaque héros vivant ; la ville toujours visible). `GameState.ClientView()`
-  (`fog.go`) est appliqué à TOUTE réponse par l'interception centrale `clientView` dans `api.writeJSON` :
-  les tuiles non découvertes partent **vierges** (ni biome, ni hauteur, ni ressources, ni monsterId), les
-  monstres sur tuiles cachées sont **omis**, et la **seed est masquée** (seed + générateur = toute la carte).
-  Le client rend les tuiles inconnues comme de la **BRUME MYSTIQUE procédurale** (nappe lavande/indigo
-  vivante, plus de noir) : `drawCloudInto` peint 6 variantes dans l'atlas partagé (paires `cloud{v}:1` —
-  silhouette de cube `MIST_MID→MIST_BOT`, traînées étirées en dégradé radial écrasé [JAMAIS de cercles durs :
-  ça fait des rayures ; et des volutes opaques par tuile font un motif matelassé → semi-transparentes],
-  particules lumineuses `MIST_GLOW` discrètes, volutes translucides sur les arêtes hautes montant dans le
-  niveau de marge h=1), variante par hachage mélangé de la position + flip miroir une tuile sur deux (les
-  combos linéaires type 7x+11y s'alignent en diagonales) ; tint blanc (la brume porte ses couleurs),
-  `FOG_FALLBACK` lavande pour le fallback sans atlas ; **respiration animée** dans `MapScene.update` (alpha
-  `MIST_ALPHA_BASE±AMP`, vague sinusoïdale roulant en diagonale, ~400 setAlpha/frame = négligeable, scène
-  endormie onglet caché) ; le vrai
-  terrain n'arrivant qu'à la découverte, la couche de tuiles est **diffée par draw** (frame + tint par tuile,
-  seuls les changements sont touchés) et l'atlas grandit au fil de l'exploration (rebake → rebind de toutes les
-  images, `ensurePillarAtlas` retourne `{ready, rebuilt}`). Le cheat « 👁️ Révéler la carte » a été SUPPRIMÉ
-  (le client n'a plus rien à révéler — anti-triche par construction). Tests : `fog_test.go`
-  (`TestClientViewRedactsUndiscovered`). **Indicateurs sous les unités** : losanges de déplacement, anneau de
-  sélection et socle de la ville sont des **Images par tuile insérées dans la pile iso** (textures `hl-diamond`
-  / `hl-ring`, depth `(x+y)*100+h+1`, anneau juste sous le sprite du héros) — les dessiner sur l'overlay du
-  haut (depth 10000) les affichait PAR-DESSUS les personnages. Heroes/monsters reuse the same chibi/creature sprites,
-  depth-sorted into the cube stack — **rendus petits par rapport aux tuiles** (`UNIT_SCALE = 1/3` dans
-  `MapScene` : héros/monstres/bâtiment de ville ~1/3 de leur ancienne taille ; anneau de sélection suit).
-  **Dangerosité des packs** : plus de label ×N — la case du pack porte un **losange plein teinté
-  jaune→rouge** (`hl-fill` + `dangerTint`, count 1 = jaune, 6+ = rouge, alpha croissant ; depth tuile+1,
-  sous les losanges de déplacement à +2). **Fond ciel** : le canvas Phaser est **transparent** (`transparent: true`,
-  pas de couleur caméra en MapScene, `.map-host` sans background) → le `.sky` du GameScreen (le même
-  `app-bg.png` que l'onglet Home) est visible derrière la carte ; CombatScene garde son fond opaque.
-  Tap a hero (or the **⚡ Actions** button) opens a **radial action menu**
-  (Fight if monster on tile / **🔥 Fire ball -2 PA when a pack is on/adjacent** / Search / Hide / **Escape only when
-  Tétanisé** ; **Search/Hide cachés sur la case ville** — note "En ville" à la place). Combat reached from the map.
+- **Map** (`MapTab`): carte du monde en **voxel** (`voxel/VoxelMapView.tsx`) — SEUL rendu depuis
+  2026-07-29, le moteur Phaser et tout le rendu 2D isométrique ayant été retirés (bundle 2 652 kB →
+  1 138 kB). Terrain en **colonnes voxel fines** (`smoothTerrain.ts`, R=10 colonnes par tuile, pas
+  vertical 1/10) plutôt qu'en cubes d'une tuile ; props, personnages et monstres en modèles voxel
+  animés (§7a-bis). **Fog of war — appliqué dans le payload HTTP** : `Tile.Discovered` est
+  server-authoritative & partagé (`fog.go`: `RevealVision` dans `Recompute`, anneau Chebyshev autour
+  de la ville et de chaque héros vivant). `GameState.ClientView()` est appliqué à TOUTE réponse par
+  l'interception centrale `clientView` dans `api.writeJSON` : les tuiles non découvertes partent
+  **vierges**, les monstres sur tuiles cachées sont **omis**, et la **seed est masquée** (seed +
+  générateur = toute la carte). Tests : `fog_test.go` (`TestClientViewRedactsUndiscovered`).
+  L'onglet Map reste **MONTÉ toute la partie** (`GameScreen` le rend en permanence avec une prop
+  `active`, caché via `visibility:hidden` — PAS `display:none`). Tap a hero (or the **⚡ Actions**
+  button) opens a **radial action menu** (Fight if monster on tile / compétence de classe / Search /
+  Hide / **Escape only when Tétanisé** ; **Search/Hide cachés sur la case ville**). Combat reached
+  from the map.
 - Server timer: `nextWaveAt` drives "Next wave in"; GameScreen polls every 20s so scheduler waves show up.
 
 ## 7a-bis. Chantier VOXEL (2026-07-17 — voir `VOXEL-PLAN.md`, branche `claude/voxel-map-mobile-2blara`)
@@ -671,8 +611,10 @@ EXACTEMENT par ce canal (monstres = bandes géométriques). **Attaque SPÉCIFIQU
 (arc tendu à l'avant) ; bâton = poussée sèche du bras armé ; compétence = les deux bras se lèvent. Seuls les
 monstres n'ont pas de canal de partie (bandes). 7 `.vox` héros régénérés ; monstres inchangés.
 **Phase 6 (2026-07-17)** : le voxel est le rendu **PAR DÉFAUT** (`voxelMap: true` dans
-`DEFAULT_SETTINGS` ; « Classique » dans les Réglages rebascule sur Phaser, qui n'est pas
-encore retiré du bundle). **2026-07-22** : `voxelBeauty: true` (mode CINÉMATIQUE — ACES + bloom
+`DEFAULT_SETTINGS`). **2026-07-29 : le voxel est le SEUL rendu** — Phaser, les scènes
+MapScene/CombatScene, `components/TownMap.tsx` et le réglage « Classique » ont été supprimés.
+Maintenir deux moteurs obligeait le plan de ville à rester exprimable sur une grille de cases
+entières, ce qui interdisait à la fois la géométrie polaire du tertre et le terrain lissé.) **2026-07-22** : `voxelBeauty: true` (mode CINÉMATIQUE — ACES + bloom
 + ciel/brume) et `quality: "Very high"` sont aussi des DÉFAUTS ; migration unique `RENDER_PRESET`
 dans `loadSettings` qui bascule les installs déjà sauvegardées une fois (opt-out ultérieur respecté). **Détails du monde** (`WORLD-DETAILS-PLAN.md`, lots D1+D2 faits
 2026-07-18) : 37 props ×3 variantes (`scripts/voxel/gen-props.mjs` → `voxels/props/`) et
@@ -706,7 +648,7 @@ par `model.sx` → tailles écran inchangées. Banc pire-cas 16,1 M tris, vraie 
 
 A self-contained, full-screen **isometric map editor** ("juste pour moi", inspired by Tiled). Reached via a
 🗺️ **Éditeur** button on the TitleScreen (dev section) OR the `#editor` URL hash; `appScreen === "editor"` is
-rendered by `App.tsx` **outside** the phone frame. Independent of the game's Phaser scenes — it uses **plain
+rendered by `App.tsx` **outside** the phone frame. Indépendant du moteur voxel — il utilise **plain
 canvas2d** so the SAME `drawMap()` feeds both the live canvas and the PNG export.
 
 - `assetIndex.ts` — enumerates every `public/assets/**/*.png` via `import.meta.glob` (keys only, **no bundling**;
@@ -847,12 +789,10 @@ setSpeed, setTurntable, state, engine}` — pilotable en headless (vérif Playwr
   { position:absolute; inset:0 }` (the Home town container) and blows the element up to fill its parent with a
   blue overlay. The tab modifier was renamed `ttown`. (This caused the "Structure is all blue" bug,
   and the TopBar's town-name span — renamed `town-name` — used to cover the avatar and eat its clicks.)
-- **Phaser scenes** must remove their bus/resize listeners on `shutdown`/`destroy` (done) — otherwise a destroyed
-  scene keeps reacting to events and crashes (`this.add` is null). Camera centering uses an explicit zoom-aware
-  `setScroll` (Phaser `centerOn` ignores zoom).
-- **No React StrictMode** (double-invoke would mount Phaser twice).
-- **Preview/screenshot tooling** is flaky in the headless tab (RAF pauses → screenshots/Phaser snapshots time out;
-  synthetic Phaser pointer events need a preceding `pointermove` and aren't reliable). Verify via
+- **Les vues voxel** doivent retirer leurs écouteurs (bus / resize) au démontage — sinon une vue détruite
+  continue de réagir aux événements et plante.
+- **Pas de React StrictMode** (le double-invoke monterait le moteur deux fois).
+- **Preview/screenshot tooling** is flaky in the headless tab (RAF pauses → screenshots time out). Verify via
   `preview_eval` + the dev hook **`window.__eg = { store, bus, EV }`** (DEV only) and `preview_snapshot`/`preview_inspect`.
 - **Per-game locking**: every access to a game's state must hold its per-game mutex (`Server.lockGame`).
   HTTP requests get it automatically via `gameLockMiddleware` on the `/{gameID}` route; the wave scheduler,

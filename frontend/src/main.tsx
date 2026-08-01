@@ -21,5 +21,5 @@ window.addEventListener("hashchange", applyHash);
 queueMicrotask(applyHash);
 
 // Note: StrictMode is intentionally omitted — its dev double-invoke would mount the
-// Phaser game twice. Re-enable once PhaserGame is hardened against remount churn.
+// le moteur voxel game twice. Re-enable once le moteur voxelGame is hardened against remount churn.
 ReactDOM.createRoot(document.getElementById("root")!).render(<App />);

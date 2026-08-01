@@ -6,6 +6,58 @@
 
 ---
 
+## 2026-07-29 (85) — Terrain lissé, et suppression du rendu 2D isométrique
+
+Retour : *« les blocs sont trop gros, il ne faut pas des blocs… il me faut des voxels mais smooth »*
+et *« remove complètement la 2D isométrique pour l'instant »*. Les deux demandes sont liées : c'est
+la compatibilité avec le rendu 2D qui obligeait la ville à rester une pile de cubes d'une tuile.
+
+### Terrain LISSÉ
+Le tertre était rastérisé en blocs de la taille d'une case : ses pentes faisaient un escalier
+grossier et toute la ville se lisait comme un empilement de caisses. Il passe maintenant par
+**`smoothTerrain.ts`** — le rastériseur en colonnes fines déjà utilisé par la carte du monde
+(R = 10 colonnes par tuile, pas vertical 1/10). C'est toujours du voxel, mais le grain devient assez
+fin pour que la butte se lise comme un relief.
+
+- `townLayout` expose désormais un **champ** (`field` : sol + hauteur par cellule) au lieu d'une
+  liste de blocs empilés. Les sols de ville sont quatre codes de « biome » réservés dans la palette
+  de `smoothTerrain` (`SOIL.GRASS/DIRT/PLAIN/PAVED` = 6..9) : un seul chemin de rendu, une table de
+  couleurs de plus.
+- Options `{heightScale: 1, rollAmp: 0, micro: 0.035}` : le tertre est déjà sculpté par le plan, il
+  ne faut ni amplifier les hauteurs ni faire rouler les plaines comme sur la carte du monde.
+- ⚠ Les objets ne lisent plus une hauteur pré-calculée mais le **minimum de `smooth.heightAt` sur
+  leur emprise** — au centre, un coin en aval flotterait au-dessus du vide.
+- **Moins cher, pas plus** : 824 k → **271 k triangles**. Le terrain lissé fusionne les grandes
+  surfaces planes en quelques quads, là où les blocs payaient un cube par cellule.
+
+### Suppression du rendu 2D isométrique
+Supprimés : `game/PhaserGame.tsx`, `game/MapScene.ts`, `game/CombatScene.ts`,
+`game/textureUtils.ts`, `components/TownMap.tsx`, la suite `tests/perf/map-loading.mjs`, le réglage
+« Carte voxel : Classique / Voxel 3D », et la dépendance **phaser**. `townDoc()` /
+`SPRITE_TO_BUILDING` disparaissent de `townLayout`.
+
+- **Bundle : 2 652 kB → 1 138 kB** (gzip 673 → 320 kB).
+- `game/` ne garde que `dpr.ts` (DPR plafonné, utilisé par le moteur voxel) et `render.ts` (palette
+  de biomes, utilisée par le Studio de données) — ni l'un ni l'autre n'importait Phaser.
+- `npm run test:perf` pointe maintenant sur la suite VOXEL (l'ancienne testait le chargement de la
+  carte Phaser, qui n'existe plus). `test:perf:voxel` reste comme alias.
+- L'**éditeur de cartes** (`src/editor/`) est conservé : c'est un outil de dev en canvas2d, hors
+  périmètre par consigne permanente, et il ne dépend pas de Phaser.
+
+### Fonctionnel (vérifié)
+- Captures headless : la ville (terrain fin, butte lisible) ET la carte du monde (pas de régression
+  après le retrait de la bascule).
+- `npx tsc -b` ✅ · `npm run build` ✅ · `npm run test:perf` 10/12 — les deux échecs (boucle de rendu
+  continue de la carte) sont **antérieurs** et documentés depuis l'entrée 79.
+- Ville : **271 k triangles**, 183 meshes.
+
+### Reste à faire
+- La boucle de rendu continue de la carte (batterie) devient le seul échec de la suite : il n'y a
+  plus de rendu de secours derrière, donc il mérite d'être traité.
+- Les 9 maisons gardent des silhouettes de bourg européen là où Edoras veut des halles basses.
+
+---
+
 ## 2026-07-29 (84) — Edoras, passe de correction sur les références
 
 Retour : *« c'est vraiment sympa, mais regarde les images et vois ce que tu peux améliorer »*. Sept

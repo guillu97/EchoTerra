@@ -31,7 +31,10 @@ export type TownPlot = {
   gy?: number;
 };
 
-export type TownCellItem = { x: number; y: number; level: number; block: string };
+/** Sols de la ville, en codes de « biome » compris par SmoothTerrain. */
+export const SOIL = { GRASS: 6, DIRT: 7, PLAIN: 8, PAVED: 9 } as const;
+/** Une cellule du terrain : sol + hauteur de palier. */
+export type TownField = { biome: number; height: number; discovered: true };
 export type TownDecor = {
   x: number;
   y: number;
@@ -65,8 +68,9 @@ export type TownLayout = {
   size: number;
   /** Niveau sur lequel se posent bâtiments, héros et décor. */
   groundLevel: number;
-  terrain: TownCellItem[];
-  blocks: string[];
+  /** Champ de terrain (SIZE×SIZE, ligne par ligne) — rendu en colonnes fines
+   *  par `SmoothTerrain`, plus en cubes d'une tuile. */
+  field: TownField[];
   plots: TownPlot[];
   houses: TownHouse[];
   decor: TownDecor[];
@@ -391,13 +395,6 @@ function buildHill(cuts: { x: number; y: number; r: number }[]): number[] {
 }
 
 export function buildTownLayout(): TownLayout {
-  const terrain: TownCellItem[] = [];
-  const blocks = new Set<string>();
-  const push = (x: number, y: number, level: number, block: string) => {
-    terrain.push({ x, y, level, block });
-    blocks.add(block);
-  };
-
   const plots: TownPlot[] = [];
   const road = traceRoad();
   const isRoad = (x: number, y: number) => road.has(`${x},${y}`);
@@ -475,50 +472,28 @@ export function buildTownLayout(): TownLayout {
   }
 
   // --- sol ------------------------------------------------------------------
+  // Un CHAMP (sol + hauteur), pas une pile de cubes : le rendu passe par
+  // `SmoothTerrain`, qui rastérise en colonnes de 1/10 de tuile. Les gros blocs
+  // d'une tuile faisaient un escalier grossier — c'est tout le point du
+  // changement.
+  const field: TownField[] = [];
   for (let y = 0; y <= LAST; y++) {
     for (let x = 0; x <= LAST; x++) {
-      const lv = lvl[y * SIZE + x];
-      if (lv < 0) continue; // hors du tertre : rien, la ville est une ÎLE
+      const lv = Math.max(0, lvl[y * SIZE + x]);
       const rad = radial(x, y);
-      // Le redent d'un palier est un affleurement ROCHEUX : c'est ce qui donne
-      // à la butte ses flancs escarpés, et c'est exactement ce qu'on voit sous
-      // Edoras. En terre nue, une marche se lit comme un défaut de terrain.
-      const exposed = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => {
-        const nx = x + dx, ny = y + dy;
-        if (nx < 0 || ny < 0 || nx > LAST || ny > LAST) return true;
-        const nv = lvl[ny * SIZE + nx];
-        return nv < 0 || nv < lv;
-      });
-      // Le redent d'un palier est HERBEUX par défaut, rocheux par endroits :
-      // tout en pierre, les paliers traçaient des anneaux gris concentriques et
-      // la butte se lisait comme un gâteau. Les affleurements se concentrent au
-      // pied, là où les flancs sont escarpés — comme sous Edoras.
-      // ⚠ La roche ne sort QU'AU PIED. Répartie sur toute la pente (22 % + 34 %
-      // proportionnel), elle soulignait chaque redent d'un liseré clair et la
-      // butte se lisait comme des terrasses de rizière. Sur les références, les
-      // flancs sont une pente d'HERBE et la roche n'affleure qu'en bas.
-      const rocky = exposed && (hash(x * 3 + 5, y * 3 + 7) % 100) < Math.max(0, (rad - 0.7) * 230);
-      for (let k = 0; k <= lv; k++)
-        push(x, y, k, k === lv ? (rocky ? "stone" : exposed ? "darkgrass" : "dirt") : "dirt");
-      const surface = isRoad(x, y)
-        ? "dirt" // La route, terre battue. Essayée en grès pâle pour la faire
-          // ressortir : elle ajoutait du sable à une image déjà sable. Sur un
-          // tertre VERT, le brun tranche tout seul.
+      const biome = isRoad(x, y)
+        ? SOIL.DIRT // la route en lacet
         : rad > RAMPART
-          ? "fallgrass" // la plaine sèche au-delà de l'enceinte
+          ? SOIL.PLAIN // la plaine sèche, jusqu'au bord du monde
           : rad < SUMMIT_FREE
-            ? "stone" // le replat dallé de la grande salle
+            ? SOIL.PAVED // l'esplanade de la grande salle
             : plotGround.has(`${x},${y}`)
-              ? "dirt"
-              // ⚠ `darkgrass` et pas `grass` : le bloc `grass` est un vert
-              // JAUNE, et sur une butte entière il tire toute l'image vers le
-              // sable — d'autant que la palette rohirrique a mis du chaume
-              // partout. `darkgrass` est vert sur ses six faces, donc les
-              // redents des paliers restent verts eux aussi.
-              : "darkgrass";
-      push(x, y, lv + 1, surface);
+              ? SOIL.DIRT
+              : SOIL.GRASS;
+      field.push({ biome, height: lv, discovered: true });
     }
   }
+
   for (const p of plots) p.gy = groundAt(p.x, p.y, p.cells);
   for (const h of houses) h.gy = groundAt(h.x, h.y, h.cells);
 
@@ -589,8 +564,7 @@ export function buildTownLayout(): TownLayout {
   return {
     size: SIZE,
     groundLevel: GROUND,
-    terrain,
-    blocks: [...blocks],
+    field,
     plots,
     houses,
     decor,
@@ -606,111 +580,3 @@ export const TOWN_DECOR_PROPS = [
   "house", "house2", "house3",
   "street-cart", "street-stall", "street-furniture", "fence",
 ];
-
-// --- pont vers le rendu 2D « Classique » ------------------------------------
-// Le mode de secours (components/TownMap.tsx) dessine un `MapDoc` de l'éditeur.
-// Plutôt que de lui laisser l'ancienne carte d'auteur — qui n'avait que 8
-// bâtiments sur un plateau de grès —, on lui fabrique le MÊME plan que la vue
-// voxel. Une seule source de vérité pour la ville, deux rendus.
-
-/** Sprite de l'éditeur pour un bâtiment. `recyclerie` n'a pas d'art dédié. */
-export const BUILDING_SPRITE: Record<string, string> = {
-  townhall: "townhall",
-  bank: "bank",
-  workshop: "workshop",
-  kitchen: "kitchen",
-  recyclerie: "bld-warehouse",
-  well: "well",
-  panel: "panel",
-  gate: "gate",
-  tower: "tower",
-  wall: "wall",
-};
-
-/** Sprite → id de bâtiment (l'inverse, pour les hotspots du rendu 2D). */
-export const SPRITE_TO_BUILDING: Record<string, string> = Object.fromEntries(
-  Object.entries(BUILDING_SPRITE).map(([bid, file]) => [file, bid]),
-);
-
-type DocCell = { blocks: ({ cat: string; file: string } | null)[]; height: number };
-type DocPlacement = {
-  id: string;
-  cx: number;
-  cy: number;
-  asset: { cat: string; file: string };
-  scale?: number;
-};
-
-/**
- * Le plan du village au format `MapDoc` de l'éditeur, pour le renderer 2D.
- * Les segments de muraille sont laissés de côté : le sprite iso `wall` ne se
- * raccorde pas proprement en 2D et une cinquantaine de copies écraserait le
- * dessin. La muraille reste représentée par le sol de pierre du pourtour.
- */
-export function townDoc(): {
-  version: number;
-  gridW: number;
-  gridH: number;
-  cells: DocCell[];
-  layers: { id: string; name: string; kind: "ground" | "object"; visible: boolean; placements: DocPlacement[] }[];
-} {
-  const l = buildTownLayout();
-  const cells: DocCell[] = Array.from({ length: l.size * l.size }, () => ({ blocks: [], height: 0 }));
-  for (const t of l.terrain) {
-    const c = cells[t.y * l.size + t.x];
-    while (c.blocks.length <= t.level) c.blocks.push(null);
-    c.blocks[t.level] = { cat: "isotiles", file: t.block };
-    c.height = Math.max(c.height, t.level);
-  }
-
-  const placements: DocPlacement[] = [];
-  // ⚠ COORDONNÉES ENTIÈRES OBLIGATOIRES. Le renderer 2D range les placements
-  // dans un seau par cellule (`isoRender.ts` : clé `"${cx},${cy}"`) et les
-  // ressort en parcourant les cellules, donc avec des entiers. Une coordonnée
-  // fractionnaire — et le plan en produit désormais partout (implantation
-  // organique des parcelles, décalage des maisons) — ne retombe JAMAIS sur une
-  // clé existante : l'objet n'est simplement jamais dessiné. C'est ce qui avait
-  // vidé la ville de tous ses bâtiments en mode « Classique ». Le sub-pixel est
-  // un raffinement de la vue voxel ; ici on arrondit.
-  //
-  // Les maisons passent en premier : le renderer respecte l'ordre de la liste
-  // dans une même cellule, et un toit de maison ne doit pas couvrir un bâtiment
-  // cliquable. Sprites iso équivalents aux trois modèles voxel.
-  const HOUSE_SPRITE: Record<string, string[]> = {
-    house: ["bld-cottage", "bld-house", "bld-house-blue"],
-    house2: ["bld-barn", "bld-market", "bld-house-large"],
-    house3: ["bld-logcabin", "bld-roundhouse", "bld-house-stone"],
-  };
-  for (const [i, h] of l.houses.entries()) {
-    placements.push({
-      id: `house-${i}`,
-      cx: Math.round(h.x),
-      cy: Math.round(h.y),
-      asset: { cat: "buildings", file: (HOUSE_SPRITE[h.prop] ?? HOUSE_SPRITE.house)[h.variant % 3] },
-      scale: h.cells / 2.6,
-    });
-  }
-  for (const p of l.plots) {
-    if (p.bid === "wall") continue;
-    const file = BUILDING_SPRITE[p.bid];
-    if (!file) continue;
-    placements.push({
-      id: `plot-${p.bid}`,
-      cx: Math.round(p.x),
-      cy: Math.round(p.y),
-      asset: { cat: "buildings", file },
-      scale: p.cells / 2.2, // les sprites iso sont cadrés ~2 tuiles de large
-    });
-  }
-
-  return {
-    version: 1,
-    gridW: l.size,
-    gridH: l.size,
-    cells,
-    layers: [
-      { id: "sol", name: "Sol", kind: "ground", visible: true, placements: [] },
-      { id: "bat", name: "Bâtiments", kind: "object", visible: true, placements },
-    ],
-  };
-}

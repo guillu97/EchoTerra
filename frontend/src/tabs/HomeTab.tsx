@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useStore } from "../store";
 import { Overlay } from "../ui/Overlay";
 import { TOWN_BUILDINGS, type BuildingLayout } from "../data/buildings";
-import { TownMap } from "../components/TownMap";
 import { VoxelTownView } from "../voxel/VoxelTownView";
 import type { TownBuilding } from "../api/types";
 import { HeroChips } from "../components/HeroChips";
@@ -150,7 +149,6 @@ function BuildingMenu({ layout, b, onClose }: { layout: BuildingLayout; b: TownB
 export function HomeTab() {
   const game = useStore((s) => s.game);
   const setTab = useStore((s) => s.setTab);
-  const voxelMap = useStore((s) => s.settings.voxelMap);
   const [selected, setSelected] = useState<string | null>(null);
   const buildingState = (id: string) => game?.town.buildings?.find((x) => x.id === id);
   const sel = selected ? TOWN_BUILDINGS.find((b) => b.id === selected) : null;
@@ -173,14 +171,11 @@ export function HomeTab() {
       </div>
 
       <div className={`town ${selected ? "dim" : ""}`}>
-        {/* The town map: authored in the editor (JSON export). Rendered by the
-            editor's canvas renderer, or by the voxel engine when the experimental
-            voxel flag is on (VOXEL-PLAN Phase 4) — same props either way. */}
-        {voxelMap ? (
-          <VoxelTownView selected={selected} onBuildingClick={onBuildingClick} onClear={() => setSelected(null)} />
-        ) : (
-          <TownMap selected={selected} onBuildingClick={onBuildingClick} onClear={() => setSelected(null)} />
-        )}
+        {/* Le tertre en voxel. Le rendu 2D isométrique de secours a été retiré
+            (2026-07-29) : maintenir deux moteurs obligeait le plan à rester
+            compatible d'une grille de cases, ce qui interdisait précisément la
+            géométrie polaire et le terrain lissé. */}
+        <VoxelTownView selected={selected} onBuildingClick={onBuildingClick} onClear={() => setSelected(null)} />
 
         <div className="shinki">
           <div className="face">🦊</div>
