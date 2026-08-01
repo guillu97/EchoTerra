@@ -212,6 +212,7 @@ func (g *GameState) launch(now time.Time) {
 	g.Status = StatusActive
 	g.StartedAt = now
 	g.NextWaveAt = now.Add(WaveInterval)
+	g.LastBotAt = now // origine de l'horloge des joueurs-IA (voir sim.go)
 	g.KickVotes = nil // lobby-only state
 	g.SeedStartingMonsters(len(g.Players))
 	g.InitWellRations() // 2 jours d'eau × héros au départ

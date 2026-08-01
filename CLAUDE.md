@@ -78,11 +78,31 @@ servers s'ils tournent, sinon les démarre; Chromium requis: `PERF_BROWSER` ou C
 `frontend` (root `frontend/`, Vite, statique CDN) + service `backend` (root `backend/`, le preset Go
 détecte `cmd/server/main.go` — le VRAI serveur, qui écoute `PORT` sur Vercel) ; rewrites `/api/*` +
 `/healthz` → backend, reste → frontend. Quand `VERCEL` est présent, `main.go` choisit
-`api.NewServerless` (mode *stateless* : pas de goroutines ni de cache inter-requêtes ; vagues déjà
-lazy, bots rattrapés par `BotCatchUp` (~1 round/min, plafonné, `GameState.LastBotAt`), purge lobbies +
-salon public par `lazyHousekeeping` sur la liste des parties). Le store (`store.Open`) accepte un DSN
+`api.NewServerless` (mode *stateless* : pas de goroutines ni de cache inter-requêtes — la base est la
+seule vérité ; purge lobbies + salon public par `housekeeping()`, qui **dédoublonne** aussi les salons
+publics créés en double par deux instances froides). Le store (`store.Open`) accepte un DSN
 `postgres://` (Neon via le Marketplace Vercel, var `DATABASE_URL`) en plus d'un chemin SQLite.
 `backend/serverless` = handler FaaS de secours + harnais e2e du mode stateless.
+
+**Horloge de simulation & BATTEMENT (2026-08-01)** — le monde avance **par le temps écoulé**, pas par
+un processus vivant : `GameState.AdvanceTo(now, SimBudget)` (`game/sim.go`) rejoue la période manquée
+dans l'**ordre chronologique** en entrelaçant les vagues (`NextWaveAt`, toutes les `WaveInterval`) et
+les rounds de joueurs-IA (`LastBotAt`, toutes les `BotCatchUpInterval` = 1 min). Convergent (le
+rappeler ne rejoue rien), **reprenable** (budget épuisé ⇒ `Done:false`, les horloges ne sont PAS
+avancées au-delà du joué, l'appel suivant continue) et **plafonné** (`CatchUpMaxBacklog`, 12 h,
+`ECHOTERRA_CATCHUP_HOURS` : au-delà les vagues manquées sont sautées et tracées au journal de la
+ville — sinon 3 jours d'oubli = des centaines de vagues et des dizaines de milliers de monstres).
+Trois appelants, même horloge : `POST /api/tick` (**le battement**, budget `TickBudget`), toute
+requête touchant une partie (`tick()`, budget `RequestBudget`, plus petit — un joueur attend), et le
+`waveScheduler` résident en dev. Le battement est appelé par **GitHub Actions toutes les 5 min**
+(`.github/workflows/heartbeat.yml`, gratuit sur repo public) + un **cron Vercel quotidien** en filet
+(`vercel.json` ; le plan Hobby ne permet pas mieux qu'1×/jour) ; jeton `ECHOTERRA_TICK_TOKEN` (ou
+`CRON_SECRET`), sans jeton l'endpoint répond **503** en déploiement. Il écrit avec
+`store.SaveIfUnchanged` (colonne `rev`) : **il abandonne son rattrapage plutôt que d'écraser l'action
+d'un joueur** écrite entre-temps par une autre instance. Colonnes `status`/`next_wave_at` miroir du
+blob JSON → `store.ActiveGames` cible les parties à avancer (les plus en retard d'abord) sans décoder
+toute la base. Détail complet dans `DEPLOY.md`. (Ex-`BotCatchUp` et l'ancien `CatchUpWaves` borné à
+3 vagues : supprimés.)
 
 **Windows specifics:** dev shell is PowerShell. Go isn't on git-bash PATH → run Go via PowerShell with
 `$env:Path = [Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [Environment]::GetEnvironmentVariable("Path","User")`.
@@ -396,6 +416,9 @@ enter (`store.ts`) and the **HeroOverlay** uses it for the Evolve picker and Uni
 
 ```
 GET  /healthz
+POST /api/tick                                   BATTEMENT: avance TOUTES les parties actives + entretien
+                                                 des salons (jeton ECHOTERRA_TICK_TOKEN/CRON_SECRET en
+                                                 Bearer ou ?token=; GET accepté aussi) -> {ok,games[],…}
 GET  /api/recipes
 GET  /api/auth/config                            {googleClientId} (""=Google désactivé; le front s'y adapte)
 POST /api/auth/register                          {email,name?,password} -> {user,token} (bcrypt, session 30j)

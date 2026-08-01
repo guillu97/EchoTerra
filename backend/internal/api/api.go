@@ -32,6 +32,11 @@ type Server struct {
 	// instances would serve each other stale state, so the store is the only source
 	// of truth. The per-game mutex still serializes requests within one instance.
 	stateless bool
+	// tickToken is the shared secret guarding POST /api/tick (the heartbeat a cron
+	// calls so games advance with nobody connected — see tick.go); lastTickAt damps
+	// repeated calls to one instance.
+	tickToken  string
+	lastTickAt time.Time
 }
 
 // New creates a Server backed by the given store and starts the wave scheduler and
@@ -47,9 +52,11 @@ func New(st *store.Store) *Server {
 // NewServerless creates a Server for platforms without a resident process (Vercel
 // functions…): everything the goroutines of New do happens lazily instead.
 func NewServerless(st *store.Store) *Server {
-	s := &Server{store: st, cache: map[string]*game.GameState{}, locks: map[string]*sync.Mutex{}, stateless: true}
-	s.ensurePublicLobby()
-	return s
+	// Pas d'ensurePublicLobby ici : un DÉMARRAGE À FROID n'est pas un bon moment pour
+	// balayer la base (chaque instance qui s'éveille le referait), et deux instances
+	// froides simultanées créeraient deux salons publics. C'est housekeeping() — sur le
+	// battement et sur le poll de la liste — qui garantit le salon et dédoublonne.
+	return &Server{store: st, cache: map[string]*game.GameState{}, locks: map[string]*sync.Mutex{}, stateless: true}
 }
 
 // lockGame acquires the per-game mutex and returns its unlock func. Every access to
@@ -117,38 +124,29 @@ func (s *Server) drop(id string) {
 	_ = s.store.Delete(id)
 }
 
-// tick resolves any due wave for a freshly loaded game and refreshes derived fields.
-// In stateless mode it also replays the bot rounds the missing scheduler would have
-// run since the last request.
+// tick rattrape le temps écoulé pour une partie fraîchement chargée : vagues dues,
+// rounds de joueurs-IA et tours de combat AFK (voir game.AdvanceTo). Budget de
+// REQUÊTE : un joueur attend sa réponse, le reste du retard est absorbé par le
+// battement (POST /api/tick) ou les requêtes suivantes.
 func (s *Server) tick(gs *game.GameState) {
 	if gs == nil {
 		return
 	}
-	now := time.Now()
-	changed := gs.CatchUpWaves(now)
-	if s.stateless && gs.BotCatchUp(now) {
-		changed = true
-	}
-	if gs.EnforceCombatTimers(now) { // résout les tours AFK des combats en cours
-		changed = true
-	}
+	res := gs.AdvanceTo(time.Now(), game.RequestBudget)
 	gs.Recompute()
-	if changed {
+	if res.Changed {
 		_ = s.store.Save(gs)
 	}
 }
 
-// waveScheduler periodically advances waves for all live (cached) games so the town
-// is attacked on schedule even while a client is idle, and paces the bot players
-// (one action per bot hero every botEvery ticks, so a bot's day unfolds over minutes
-// instead of being burned instantly).
+// waveScheduler advances every live (cached) game on a timer, so the town is attacked
+// on schedule and the bots play while a client is idle. C'est le pendant RÉSIDENT du
+// battement HTTP (voir tick.go) : les deux passent par la même horloge de simulation
+// (game.AdvanceTo), donc une partie avance de la même façon quel que soit l'hôte.
 func (s *Server) waveScheduler() {
-	const botEvery = 4 // bots act every 4th tick (~1/minute)
 	ticker := time.NewTicker(15 * time.Second)
 	defer ticker.Stop()
-	tickNo := 0
 	for range ticker.C {
-		tickNo++
 		now := time.Now()
 		s.mu.Lock()
 		games := make([]*game.GameState, 0, len(s.cache))
@@ -158,14 +156,7 @@ func (s *Server) waveScheduler() {
 		s.mu.Unlock()
 		for _, g := range games {
 			unlock := s.lockGame(g.ID)
-			changed := g.CatchUpWaves(now)
-			if g.EnforceCombatTimers(now) { // multijoueur : résout les tours AFK
-				changed = true
-			}
-			if tickNo%botEvery == 0 && g.BotAct() {
-				changed = true
-			}
-			if changed {
+			if res := g.AdvanceTo(now, game.TickBudget); res.Changed {
 				g.Recompute()
 				_ = s.store.Save(g)
 			}
@@ -200,6 +191,12 @@ func (s *Server) Router() http.Handler {
 	r.Get("/api/mapskills", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, game.MapSkills)
 	})
+
+	// Battement : fait avancer TOUTES les parties actives (vagues, bots, tours AFK)
+	// sans qu'un joueur soit connecté. GET est accepté aussi : beaucoup de pingers
+	// gratuits ne savent poser qu'une URL.
+	r.Post("/api/tick", s.tickHandler)
+	r.Get("/api/tick", s.tickHandler)
 
 	r.Route("/api/auth", s.authRoutes)
 
@@ -358,16 +355,16 @@ func summarize(gs *game.GameState) gameSummary {
 	}
 }
 
-// lazyHousekeeping replaces the janitor + ensurePublicLobby goroutine work on
-// serverless: purge stale lobbies and keep one public lobby open. It runs on the
-// lobby-list poll (the title screen), i.e. whenever someone is around to care.
-func (s *Server) lazyHousekeeping() {
+// housekeeping replaces the janitor + ensurePublicLobby goroutine work when there is
+// no resident process: purge stale lobbies and keep EXACTLY one public lobby open. Il
+// tourne sur le battement (POST /api/tick) et sur le poll de la liste des salons.
+func (s *Server) housekeeping() {
 	games, err := s.store.List(200)
 	if err != nil {
 		return
 	}
 	cutoff := time.Now().Add(-lobbyTTL)
-	hasPublic := false
+	var public []*game.GameState
 	for _, gs := range games {
 		if gs.Status != game.StatusLobby {
 			continue
@@ -379,20 +376,46 @@ func (s *Server) lazyHousekeeping() {
 			continue
 		}
 		if gs.IsPublic() {
-			hasPublic = true
+			public = append(public, gs)
 		}
 	}
-	if !hasPublic {
-		gs := worldgen.NewLobby(22, 22, time.Now().UnixNano(), publicLobbyName, 2, 4)
-		gs.Visibility = game.VisibilityPublic
-		s.persist(gs)
+	// Deux instances froides peuvent créer chacune leur salon public (rien ne les
+	// sérialise entre elles) : on garde le plus PEUPLÉ (à défaut le premier, la liste
+	// est déjà triée du plus récent au plus ancien) et on purge les doublons vides.
+	if len(public) > 1 {
+		keep := 0
+		for i, gs := range public {
+			if len(gs.Players) > len(public[keep].Players) {
+				keep = i
+			}
+		}
+		for i, gs := range public {
+			if i == keep || len(gs.Players) > 0 {
+				continue
+			}
+			unlock := s.lockGame(gs.ID)
+			s.drop(gs.ID)
+			unlock()
+		}
+		return
 	}
+	if len(public) == 0 {
+		s.newPublicLobby()
+	}
+}
+
+// newPublicLobby crée et persiste un salon public ouvert (celui qu'on rejoint sans code).
+func (s *Server) newPublicLobby() *game.GameState {
+	gs := worldgen.NewLobby(22, 22, time.Now().UnixNano(), publicLobbyName, 2, 4)
+	gs.Visibility = game.VisibilityPublic
+	s.persist(gs)
+	return gs
 }
 
 // listGames returns recent games as summaries. ?status=lobby filters to open lobbies.
 func (s *Server) listGames(w http.ResponseWriter, r *http.Request) {
 	if s.stateless {
-		s.lazyHousekeeping()
+		s.housekeeping()
 	}
 	games, err := s.store.List(50)
 	if err != nil {
@@ -528,9 +551,7 @@ func (s *Server) ensurePublicLobby() {
 			return
 		}
 	}
-	gs := worldgen.NewLobby(22, 22, time.Now().UnixNano(), publicLobbyName, 2, 4)
-	gs.Visibility = game.VisibilityPublic
-	s.persist(gs)
+	s.newPublicLobby()
 }
 
 // joinByCode resolves a join code against open lobbies (newest first) and joins it.

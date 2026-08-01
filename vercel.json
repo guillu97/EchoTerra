@@ -14,5 +14,6 @@
     { "source": "/healthz", "destination": { "service": "backend" } },
     { "source": "/api/:path*", "destination": { "service": "backend" } },
     { "source": "/(.*)", "destination": { "service": "frontend" } }
-  ]
+  ],
+  "crons": [{ "path": "/api/tick", "schedule": "0 4 * * *" }]
 }

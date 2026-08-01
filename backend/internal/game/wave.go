@@ -250,24 +250,12 @@ func (g *GameState) ForceWaveSafe(now time.Time) {
 	g.NextWaveAt = now.Add(WaveInterval)
 }
 
-// CatchUpWaves processes any wave whose time has passed. To stay forgiving when a
-// player has been away a long time, it resolves at most a few missed waves then snaps
-// the timer to the future. Returns true if the state changed.
+// CatchUpWaves processes every wave whose time has passed, WITHOUT running the bot
+// players. C'est le rattrapage des vagues seul ; le rattrapage complet (vagues ET
+// joueurs-IA, entrelacés dans l'ordre) est AdvanceTo (sim.go) — c'est lui qu'utilisent
+// le battement et les requêtes. Renvoie true si l'état a changé.
 func (g *GameState) CatchUpWaves(now time.Time) bool {
-	if g.Status != "active" || g.NextWaveAt.IsZero() {
-		return false
-	}
-	changed := false
-	for guard := 0; guard < 3 && g.Status == "active" && now.After(g.NextWaveAt); guard++ {
-		g.ProcessWave(now)
-		g.NextWaveAt = g.NextWaveAt.Add(WaveInterval)
-		changed = true
-	}
-	if g.Status == "active" && now.After(g.NextWaveAt) {
-		g.NextWaveAt = now.Add(WaveInterval)
-		changed = true
-	}
-	return changed
+	return g.AdvanceTo(now, SimBudget{Waves: RequestBudget.Waves}).Changed
 }
 
 func (g *GameState) wearDefensiveBuildings(absorbed int, r *WaveReport) {

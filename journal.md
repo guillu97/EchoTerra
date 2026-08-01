@@ -6,6 +6,82 @@
 
 ---
 
+## 2026-08-01 (87) — Le monde tourne sans personne : horloge de simulation + battement
+
+Retour : *« je suis déployé sur Vercel, il faut m'assurer que les games continuent
+(surtout le timer) même s'il n'y a pas de requêtes HTTP, et les bots doivent jouer aussi »*.
+
+### Le diagnostic
+
+Vercel s'endort (scale-to-zero) : aucune goroutine ne survit, donc rien n'avançait sans
+requête — mais surtout, **le rattrapage paresseux existant PERDAIT du temps de jeu** :
+
+- `CatchUpWaves` était borné à **3 vagues** puis faisait `NextWaveAt = now + interval` —
+  une partie absente 2 h ne jouait que 3 vagues et l'horloge **dérivait** à chaque fois ;
+- `BotCatchUp` était plafonné à **6 rounds** ;
+- les deux étaient **séquentiels** (toutes les vagues, puis tous les rounds de bots), pas
+  entrelacés : les bots ne réagissaient jamais aux vagues qu'ils traversaient.
+
+### Ce qui a été fait
+
+**1. Une horloge de simulation** (`game/sim.go`, `AdvanceTo(now, SimBudget)`). L'avancement
+devient une **fonction du temps écoulé**, rejouable par n'importe quelle instance : les
+vagues (`NextWaveAt`) et les rounds de joueurs-IA (`LastBotAt`, 1/min) sont déroulés dans
+l'**ordre chronologique**, chacun à son heure prévue. Trois propriétés qui remplacent les
+caps arbitraires :
+- **convergente** — rappelée aussitôt, elle ne rejoue rien ;
+- **reprenable** — budget épuisé ⇒ `Done:false` et les horloges ne sont pas avancées
+  au-delà du joué ; l'appel suivant continue (une requête de joueur garde un petit budget,
+  le battement un gros) ;
+- **plafonnée** — au-delà de `CatchUpMaxBacklog` (12 h, `ECHOTERRA_CATCHUP_HOURS`) les
+  vagues manquées sont **sautées** et l'oubli est tracé au journal de la ville. Sans ce
+  plafond, 3 jours d'absence = des centaines de vagues et des dizaines de milliers de
+  monstres. Dans la fenêtre rejouée en revanche tout arrive vraiment : **une ville sans
+  défenseur peut tomber pendant l'absence** — c'est la règle du jeu, pas un défaut.
+L'horloge ne dérive plus : elle reste alignée sur le calendrier d'origine.
+
+**2. Le battement** (`api/tick.go`, `POST|GET /api/tick`) : un appel fait avancer toutes
+les parties actives + l'entretien des salons. Authentifié (`ECHOTERRA_TICK_TOKEN`, ou le
+`CRON_SECRET` que les crons Vercel envoient) — **503 sans jeton en déploiement**, plutôt
+qu'un endpoint de travail ouvert à tous. Balayage borné (25 parties, 20 s) et amorti
+contre le martèlement.
+
+**3. Qui l'appelle** : **GitHub Actions toutes les 5 min** (`.github/workflows/heartbeat.yml`,
+gratuit et illimité sur un repo public) + un **cron Vercel quotidien** en filet — le plan
+Hobby plafonne son cron natif à **1×/jour**, ce qui interdisait de s'en contenter.
+
+**4. Concurrence** : le battement introduit un écrivain de fond, donc `store.SaveIfUnchanged`
+(colonne `rev`) — **il abandonne son rattrapage plutôt que d'écraser l'action d'un joueur**
+écrite entre-temps par une autre instance. Colonnes `status`/`next_wave_at` miroir du blob
+→ `ActiveGames` cible les parties à avancer (les plus en retard d'abord) sans décoder toute
+la base. Et `housekeeping()` **dédoublonne** les salons publics que deux instances froides
+créaient en parallèle (`ensurePublicLobby` retiré du démarrage à froid : mauvais moment pour
+balayer la base, et c'était précisément la course).
+
+### Fonctionnel (vérifié)
+- **Test de bout en bout en conditions réelles** : serveur lancé en mode Vercel (`VERCEL=1`,
+  stateless, vagues à 60 s), partie solo créée, puis **≈4 minutes sans la moindre requête
+  sur la partie** → état **figé** en base (vague 0, PV 100). Un seul `POST /api/tick`, sans
+  aucun joueur connecté → `{"waves":3,"botRounds":3}` et, en base : **vague 0→3, jour 1→2,
+  PV de la ville 100→34, monstres 26→42**, les bots ont agi (six « 🔧 … a réparé Wall » au
+  journal de la ville), prochaine vague replanifiée à **+3 intervalles exactement** (14:45:25
+  → 14:48:25 : aucune dérive). Second battement immédiat : `advanced:0` (no-op). Sans jeton :
+  **401**.
+- 12 tests neufs : `game/sim_test.go` (rejeu complet, cadence des bots, reprise après
+  budget, plafond de retard, salon intouché), `api/tick_test.go` (jeton exigé, avancement
+  sans requête de joueur, **non-écrasement d'une écriture concurrente**, amortissement,
+  salon public unique), `store/store_test.go` (CAS, tri des parties actives).
+- `go build ./...` ✅ · `go vet ./...` ✅ · `go test ./...` ✅ (toutes les suites).
+
+### À faire
+- **Poser les deux secrets** pour que le battement démarre : `ECHOTERRA_TICK_TOKEN` sur le
+  service backend Vercel, **et le même** en secret GitHub Actions (voir `DEPLOY.md`).
+- GitHub désactive les workflows planifiés après 60 j sans activité sur le repo.
+- Course joueur↔joueur (deux instances, même partie, même instant) toujours théoriquement
+  possible : à durcir (verrou en base) avant une vraie ouverture publique.
+
+---
+
 ## 2026-07-29 (86) — Portail qui vole, palissade décousue, bâtiments enterrés
 
 Trois défauts signalés, trois causes distinctes.

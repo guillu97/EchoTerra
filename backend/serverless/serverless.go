@@ -48,7 +48,13 @@ func setup() {
 		initErr = err
 		return
 	}
-	router = api.NewServerless(st).Router()
+	srv := api.NewServerless(st)
+	tickToken := os.Getenv("ECHOTERRA_TICK_TOKEN") // jeton du battement (POST /api/tick)
+	if tickToken == "" {
+		tickToken = os.Getenv("CRON_SECRET") // posé par les crons Vercel
+	}
+	srv.SetTickToken(tickToken)
+	router = srv.Router()
 }
 
 // Handler lazily initializes the stateless API server (once per function instance)

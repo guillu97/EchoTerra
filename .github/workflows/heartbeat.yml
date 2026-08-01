@@ -1,0 +1,56 @@
+# Battement du monde d'Echo Terra.
+#
+# Le jeu est asynchrone : la horde frappe et les joueurs-IA agissent que quelqu'un soit
+# connecté ou non. Or l'hébergement Vercel s'endort (scale-to-zero) — sans requête,
+# rien ne tourne. Ce workflow appelle donc `POST /api/tick` à intervalle régulier : le
+# serveur y rejoue le temps écoulé (vagues, bots, tours de combat AFK).
+#
+# Pourquoi pas le cron natif de Vercel ? Le plan Hobby le limite à UNE exécution par
+# jour. Il reste configuré dans vercel.json comme filet de sécurité (voir DEPLOY.md).
+#
+# Réglage (une seule fois) : Settings → Secrets and variables → Actions
+#   - secret `ECHOTERRA_TICK_TOKEN` : la même valeur que la variable d'environnement
+#     ECHOTERRA_TICK_TOKEN du service backend sur Vercel ;
+#   - secret `ECHOTERRA_URL` (facultatif) : l'URL du déploiement, si elle diffère du
+#     défaut ci-dessous.
+name: Battement (tick)
+
+on:
+  schedule:
+    # Toutes les 5 minutes — c'est le plus court que GitHub accepte. La cadence est
+    # « au mieux » (des retards de plusieurs minutes sont normaux) : sans importance
+    # ici, le serveur rattrape le temps écoulé, il ne compte pas les appels.
+    - cron: "*/5 * * * *"
+  workflow_dispatch: # déclenchement manuel, pour vérifier le réglage
+
+# Un battement à la fois : si un run traîne, le suivant ne s'empile pas.
+concurrency:
+  group: heartbeat
+  cancel-in-progress: false
+
+jobs:
+  tick:
+    # Les forks n'ont ni le jeton ni la même URL — inutile de les faire tourner.
+    if: github.repository == 'guillu97/EchoTerra'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Faire avancer les parties
+        env:
+          URL: ${{ secrets.ECHOTERRA_URL || 'https://echo-terra-kappa.vercel.app' }}
+          TOKEN: ${{ secrets.ECHOTERRA_TICK_TOKEN }}
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo "::warning::secret ECHOTERRA_TICK_TOKEN absent — battement ignoré (voir DEPLOY.md)."
+            exit 0
+          fi
+          # --max-time : un démarrage à froid coûte ~1 s, un gros rattrapage ~20 s.
+          code=$(curl -sS -o /tmp/tick.json -w '%{http_code}' --max-time 60 \
+            -X POST "$URL/api/tick" -H "Authorization: Bearer $TOKEN")
+          echo "HTTP $code"
+          cat /tmp/tick.json
+          echo
+          if [ "$code" != "200" ]; then
+            echo "::error::le battement a échoué (HTTP $code)"
+            exit 1
+          fi
