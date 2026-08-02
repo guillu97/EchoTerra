@@ -4,12 +4,14 @@ import type {
   GameState,
   GameSummary,
   Item,
+  LeaderboardMode,
   MapSkillDef,
   MapSkillReport,
   MyGameSummary,
   Player,
   Recipe,
   Ruin,
+  ScoreEntry,
   User,
 } from "./types";
 
@@ -201,6 +203,11 @@ export const api = {
   classes: () => req<ClassDef[]>("GET", "/api/classes"),
 
   mapSkills: () => req<MapSkillDef[]>("GET", "/api/mapskills"),
+
+  // Classement des villes. Sans mode, tout est classé ensemble ; avec, on ne
+  // compare que les parties de même nature (solo / publiques / privées).
+  leaderboard: (mode?: LeaderboardMode) =>
+    req<ScoreEntry[]>("GET", `/api/leaderboard${mode ? `?mode=${mode}` : ""}`),
 
   evolve: (gameId: string, heroId: string, classId: string, playerId?: string) =>
     req<GameState>("POST", `/api/games/${gameId}/heroes/${heroId}/evolve`, { classId, playerId }),

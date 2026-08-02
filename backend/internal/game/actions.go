@@ -405,6 +405,13 @@ func (g *GameState) FinishCombat(c *Combat) {
 		if t := g.TileAt(c.TileX, c.TileY); t != nil {
 			if m := g.Monsters[t.MonsterID]; m != nil {
 				sp = SpeciesByName(m.Species)
+				// Le pack entier tombe avec le combat : le compteur du classement
+				// grandit de son effectif.
+				slain := m.Count
+				if slain < 1 {
+					slain = 1
+				}
+				g.MonstersKilled += slain
 			}
 			delete(g.Monsters, t.MonsterID)
 			t.MonsterID = ""

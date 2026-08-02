@@ -50,7 +50,9 @@ export function TopBar() {
       {heroMenu && <HeroActionsMenu onClose={() => setHeroMenu(false)} />}
       {/* NOT className="town": the Home container's `.town { position:absolute;
           inset:0 }` rule stretches it over the avatar and eats its clicks. */}
-      <span className="town-name">{game?.name || "Echo Terra"}</span>
+      {/* Le nom de la VILLE (généré, cf. townnames.go) : c'est lui qui figure au
+          classement, donc c'est lui qu'on affiche pour la reconnaître. */}
+      <span className="town-name">{game?.town?.name || game?.name || "Echo Terra"}</span>
 
       {/* PV de la ville et PA d'équipe fusionnés en UN chip. À huit éléments sur
           un écran de 390px la barre débordait et le compteur de PA passait à la

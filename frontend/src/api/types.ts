@@ -209,6 +209,25 @@ export interface GameSummary {
   createdAt: string;
 }
 
+// Nature d'une partie au classement : les trois ne se comparent pas (un run solo
+// avec 4 bots ne joue pas comme une expédition publique à quatre humains).
+export type LeaderboardMode = "solo" | "public" | "private";
+
+// One town's record on the leaderboard (GET /api/leaderboard[?mode=]): survival and
+// monsters slain, kept server-side even after the game itself is purged.
+export interface ScoreEntry {
+  gameId: string;
+  townName: string;
+  gameName: string;
+  mode: LeaderboardMode;
+  players: string[];
+  days: number;
+  waves: number;
+  monstersKilled: number;
+  gameOver: boolean;
+  updatedAt: string;
+}
+
 export interface GameState {
   id: string;
   name?: string;
@@ -225,6 +244,7 @@ export interface GameState {
   status: "lobby" | "active" | "gameover";
   joinCode?: string;
   visibility?: "private" | "public"; // absent/"private" = player-created; "public" = server-created, auto-starts
+  solo?: boolean; // partie solo (1 humain + bots) — classée à part au leaderboard
   minPlayers: number;
   maxPlayers: number;
   players: Player[];
@@ -232,7 +252,9 @@ export interface GameState {
   startedAt?: string;
   kickVotes?: Record<string, string[]>; // public lobbies: target player id -> voter ids
   lastWave?: WaveReport;
+  monstersKilled: number; // total creatures slain (leaderboard achievement)
   town: {
+    name: string; // generated town name (server-side, townnames.go)
     x: number;
     y: number;
     hp: number;

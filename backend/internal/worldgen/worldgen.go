@@ -243,6 +243,7 @@ func newWorld(width, height int, seed int64) *game.GameState {
 		Wave:      0,
 		CreatedAt: time.Now(),
 	}
+	gs.Town.Name = game.NewTownName()
 	gs.Town.X, gs.Town.Y = tx, ty
 	// Accès aux biomes : garantit une forêt (bois) et une montagne (pierre)
 	// atteignables près de la ville — sinon les matériaux de base sont hors de

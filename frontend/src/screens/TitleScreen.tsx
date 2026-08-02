@@ -81,7 +81,7 @@ export function TitleScreen() {
           </>
         )}
         <div className="menu-row">
-          <button className="pill cream" onClick={() => pushLog("Classement — bientôt")}>
+          <button className="pill cream" onClick={() => setScreen("leaderboard")}>
             🏆 Classement
           </button>
           <button className="pill cream" onClick={() => openSettings("menu")}>

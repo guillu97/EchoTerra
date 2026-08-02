@@ -47,6 +47,27 @@ func Open(dsn string) (*Store, error) {
 	)`); err != nil {
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
+	// Leaderboard: one row per STARTED game, refreshed on every save and surviving
+	// the game row itself — the ranking screen reads from here, so a town's record
+	// outlives the purge of its game.
+	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS leaderboard (
+		game_id         TEXT PRIMARY KEY,
+		town_name       TEXT NOT NULL,
+		game_name       TEXT NOT NULL,
+		mode            TEXT NOT NULL,
+		players         TEXT NOT NULL,
+		days            INTEGER NOT NULL,
+		waves           INTEGER NOT NULL,
+		monsters_killed INTEGER NOT NULL,
+		game_over       INTEGER NOT NULL,
+		updated_at      BIGINT NOT NULL
+	)`); err != nil {
+		return nil, fmt.Errorf("migrate leaderboard: %w", err)
+	}
+	// Databases written before the leaderboard was split by mode lack the column.
+	if _, err := db.Exec(`ALTER TABLE leaderboard ADD COLUMN mode TEXT NOT NULL DEFAULT 'private'`); err != nil && !alreadyExists(err) {
+		return nil, fmt.Errorf("migrate leaderboard mode: %w", err)
+	}
 	if err := s.migrateAuth(); err != nil {
 		return nil, err
 	}
@@ -54,6 +75,99 @@ func Open(dsn string) (*Store, error) {
 		return nil, err
 	}
 	return s, nil
+}
+
+// ScoreEntry is one town's record on the leaderboard: which kind of run it was
+// (solo / public / private), how long it survived and how many monsters it slew.
+type ScoreEntry struct {
+	GameID         string    `json:"gameId"`
+	TownName       string    `json:"townName"`
+	GameName       string    `json:"gameName"`
+	Mode           string    `json:"mode"` // "solo" | "public" | "private"
+	Players        []string  `json:"players"`
+	Days           int       `json:"days"`
+	Waves          int       `json:"waves"`
+	MonstersKilled int       `json:"monstersKilled"`
+	GameOver       bool      `json:"gameOver"`
+	UpdatedAt      time.Time `json:"updatedAt"`
+}
+
+// saveScore upserts the game's leaderboard row. Lobbies haven't played yet and are
+// skipped; every started game (active or fallen) keeps its row forever.
+func (s *Store) saveScore(gs *game.GameState) error {
+	if gs.Status == game.StatusLobby {
+		return nil
+	}
+	names := make([]string, 0, len(gs.Players))
+	for _, p := range gs.Players {
+		if p.Bot {
+			continue // les joueurs-IA ne figurent pas au tableau d'honneur
+		}
+		names = append(names, p.Name)
+	}
+	blob, err := json.Marshal(names)
+	if err != nil {
+		return err
+	}
+	gameOver := 0
+	if gs.Status == game.StatusGameOver {
+		gameOver = 1
+	}
+	_, err = s.db.Exec(s.rebind(`INSERT INTO leaderboard
+		(game_id, town_name, game_name, mode, players, days, waves, monsters_killed, game_over, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(game_id) DO UPDATE SET
+			town_name=excluded.town_name, game_name=excluded.game_name, mode=excluded.mode,
+			players=excluded.players, days=excluded.days, waves=excluded.waves,
+			monsters_killed=excluded.monsters_killed, game_over=excluded.game_over,
+			updated_at=excluded.updated_at`),
+		gs.ID, gs.Town.Name, gs.Name, gs.LeaderboardMode(), string(blob),
+		gs.Day, gs.WaveNumber, gs.MonstersKilled, gameOver, time.Now().Unix())
+	return err
+}
+
+// Leaderboard returns the best towns: longest survival first (waves, the finest
+// clock), monsters slain as the tie-breaker. An empty mode ranks every run
+// together; "solo" / "public" / "private" restrict it to one kind of game, which is
+// how the ranking screen's tabs read it — the three are not comparable.
+func (s *Store) Leaderboard(mode string, limit int) ([]ScoreEntry, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	query := `SELECT game_id, town_name, game_name, mode, players,
+		days, waves, monsters_killed, game_over, updated_at
+		FROM leaderboard`
+	args := []any{}
+	if mode != "" {
+		query += ` WHERE mode = ?`
+		args = append(args, mode)
+	}
+	query += ` ORDER BY waves DESC, monsters_killed DESC, updated_at DESC LIMIT ?`
+	args = append(args, limit)
+
+	rows, err := s.db.Query(s.rebind(query), args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []ScoreEntry{}
+	for rows.Next() {
+		var e ScoreEntry
+		var players string
+		var gameOver int
+		var updated int64
+		if err := rows.Scan(&e.GameID, &e.TownName, &e.GameName, &e.Mode, &players,
+			&e.Days, &e.Waves, &e.MonstersKilled, &gameOver, &updated); err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal([]byte(players), &e.Players); err != nil || e.Players == nil {
+			e.Players = []string{}
+		}
+		e.GameOver = gameOver != 0
+		e.UpdatedAt = time.Unix(updated, 0)
+		out = append(out, e)
+	}
+	return out, rows.Err()
 }
 
 // migrateGameColumns adds the columns the heartbeat needs (see ActiveGames): the
@@ -155,6 +269,9 @@ func (s *Store) Save(gs *game.GameState) error {
 		ON CONFLICT(id) DO UPDATE SET state=excluded.state, updated_at=excluded.updated_at,
 			status=excluded.status, next_wave_at=excluded.next_wave_at, rev=games.rev+1`),
 		gs.ID, string(blob), time.Now().Unix(), gs.Status, unixOrZero(gs.NextWaveAt))
+	if err == nil {
+		_ = s.saveScore(gs) // instantané best-effort : la partie reste la source de vérité
+	}
 	return err
 }
 
@@ -177,6 +294,9 @@ func (s *Store) SaveIfUnchanged(gs *game.GameState) error {
 	if n, err := res.RowsAffected(); err == nil && n == 0 {
 		return ErrConflict
 	}
+	// Le battement fait avancer les vagues sans joueur connecté : sans ça, une ville
+	// qui survit toute seule ne monterait jamais au classement.
+	_ = s.saveScore(gs)
 	return nil
 }
 

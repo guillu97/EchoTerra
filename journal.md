@@ -6,6 +6,65 @@
 
 ---
 
+## 2026-08-02 (88) — Classement des villes, trié par nature de partie
+
+Reprise de la PR #13 (« leaderboard », jamais mergée, base du 13/07 très en retard) : on en
+garde **le classement et les noms de ville**, on jette la refonte TopBar/BottomNav de l'époque
+(le design system de juillet l'a remplacée), et on ajoute ce qui manquait — **le tri entre
+villes solo et villes publiques/privées**.
+
+### Fait
+
+- **`game/townnames.go`** : générateur de noms français (racine + terminaison + épithète
+  occasionnelle, ~10k combinaisons). `Town.Name` posé au worldgen (`newWorld`), donc TOUTE
+  partie (solo, publique, privée, test) a une ville nommée. Les salons publics du serveur
+  s'appellent désormais « Expédition de <Ville> » (deux salons successifs se distinguent ;
+  la déduplication de `housekeeping` porte sur la visibilité, pas sur le nom — rien ne casse).
+- **`GameState.MonstersKilled`** : incrémenté dans `CastMapSkill` (à hauteur de `rep.Slain`,
+  couvre les 7 compétences de carte) et dans `FinishCombat` (le pack entier tombe avec le
+  combat, donc `m.Count` — ce qui couvre AUSSI les combats auto-résolus des bots, qui passent
+  par là).
+- **`GameState.Solo`** + **`LeaderboardMode()`** : `POST /api/games/solo` marque la partie ;
+  le classement en tire trois natures qui **ne se comparent pas** — `solo` / `public` /
+  `private`. Repli pour les parties d'avant le drapeau : privée + 1 humain + ≥1 bot = solo.
+- **Table `leaderboard`** (SQLite ET Postgres) : une ligne par partie LANCÉE (les salons sont
+  exclus), remise à jour à chaque `Save` **et à chaque `SaveIfUnchanged`** — sans ce second
+  point, une ville qui survit uniquement grâce au battement ne monterait jamais au tableau.
+  La ligne **survit à la suppression de la partie**. Colonne `mode` ajoutée par `ALTER TABLE`
+  idempotent pour les bases existantes. Seuls les joueurs HUMAINS sont listés.
+- **`GET /api/leaderboard[?mode=solo|public|private]`** : top 50, `ORDER BY waves DESC,
+  monsters_killed DESC, updated_at DESC` ; un mode inconnu répond 400.
+- **`LeaderboardScreen`** (bouton « 🏆 Classement » de l'écran titre, qui affichait
+  « bientôt ») : 4 onglets **Toutes · Solo · Publiques · Privées**, chacun refait la requête
+  avec son `?mode=`. Ligne = rang (🥇🥈🥉) · nom de VILLE · pastille d'état ⚔️/💀 · badge de
+  mode (onglet « Toutes » seulement) · joueurs · vague / jour / monstres tués.
+- **TopBar** : affiche le nom de la VILLE (repli sur le nom de partie) — c'est lui qui figure
+  au classement, il faut pouvoir la reconnaître en jeu.
+
+### Fonctionnel (vérifié)
+
+- `go test ./...` vert (nouveaux : `achievements_test.go` — compteur de kills sort/combat +
+  `LeaderboardMode` ; `store_test.go` — `TestLeaderboardSavesAndRanks` et
+  `TestLeaderboardFiltersByMode`).
+- `tsc -b` + `npm run build` verts.
+- **Bout en bout sur un vrai serveur** : partie solo → `mode:"solo"` ; lobby privé à 2 humains
+  lancé → `mode:"private"` ; salon public → « Expédition de Ormecombe-la-Forêt » ; jets de
+  pierre répétés sur un pack → `monstersKilled` passe à 1 **et remonte dans
+  `/api/leaderboard`** ; `?mode=zzz` → 400.
+- **Captures Playwright** en 390px et 1024px, 4 onglets : pas de débordement horizontal.
+  Deux passes de correction de mise en page ont été nécessaires (le nom de ville en nœud de
+  texte nu ne pouvait pas rétrécir et chevauchait la colonne des scores ; la barre à 4 onglets
+  débordait faute de `min-width:0`).
+
+### À faire
+
+- Le classement ne connaît que « vagues survécues » et « monstres tués » — les bâtiments
+  construits / ressources récoltées seraient de bons départages supplémentaires.
+- Pas de mise en avant de MA ville dans la liste (surlignage du rang du joueur connecté).
+- Les parties de test legacy (`POST /api/games`, 0 joueur) atterrissent en « privées ».
+
+---
+
 ## 2026-08-01 (87) — Le monde tourne sans personne : horloge de simulation + battement
 
 Retour : *« je suis déployé sur Vercel, il faut m'assurer que les games continuent
