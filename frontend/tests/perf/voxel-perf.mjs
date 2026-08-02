@@ -66,10 +66,16 @@ check("payload voxel ≤4 MiB", payload.bytes <= 4 * 1024 * 1024, `${(payload.by
 check("aucun .vox téléchargé deux fois", payload.dupes === 0, `${payload.dupes} doublons`);
 
 // --- la carte est 100 % ON-DEMAND (les nuages ne vivent qu'en ville) ---------
-const f0 = await page.evaluate(() => window.__vm.engine.renderer.info.render.frame);
+// ⚠ on compte `engine.frames` (un par REDRAW), pas `renderer.info.render.frame`
+// (un par appel de rendu) : depuis que le mode beauté est le défaut, un seul
+// redraw fait ~17 appels de rendu — la passe bloom en enchaîne plusieurs. Le
+// contrat qu'on veut tenir est « combien de fois redessine-t-on », pas
+// « combien coûte un redessin ».
+const f0 = await page.evaluate(() => window.__vm.engine.frames);
 await wait(3000);
-const f1 = await page.evaluate(() => window.__vm.engine.renderer.info.render.frame);
-check("carte on-demand (pas de boucle continue)", f1 - f0 <= 2, `${f1 - f0} rendus en 3s au repos`);
+const f1 = await page.evaluate(() => window.__vm.engine.frames);
+// ≤2 : le cycle solaire tique toutes les 5 s et redessine — 0 ou 1 sur 3 s.
+check("carte on-demand (pas de boucle continue)", f1 - f0 <= 2, `${f1 - f0} redraws en 3s au repos`);
 check("pas de nuages sur la carte (retour perf mobile)", await page.evaluate(() => !window.__vm.world.clouds), "clouds absent");
 
 // --- pas de fuite : géométries stables à travers les redraws -----------------
@@ -88,10 +94,12 @@ check("géométries stables (pas de fuite au redraw)", Math.abs(g1 - g0) <= 4, `
 // --- quitter l'onglet Map : la boucle continue s'arrête ----------------------
 await page.evaluate(() => window.__eg.store.setState({ tab: "stock" }));
 await wait(700);
-const fA = await page.evaluate(() => window.__vm.engine.renderer.info.render.frame);
+const fA = await page.evaluate(() => window.__vm.engine.frames);
 await wait(2000);
-const fB = await page.evaluate(() => window.__vm.engine.renderer.info.render.frame);
-check("rendu STOPPÉ hors de l'onglet Map (batterie)", fB - fA <= 2, `${fB - fA} rendus en 2s`);
+const fB = await page.evaluate(() => window.__vm.engine.frames);
+// 0 attendu : hors de l'onglet Map, l'animator est coupé ET le cycle solaire
+// est en pause (la vue reste MONTÉE, masquée en CSS — c'est à elle de se taire).
+check("rendu STOPPÉ hors de l'onglet Map (batterie)", fB - fA === 0, `${fB - fA} redraws en 2s`);
 await page.evaluate(() => window.__eg.store.setState({ tab: "map" }));
 await wait(800);
 

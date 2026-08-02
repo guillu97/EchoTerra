@@ -1,9 +1,29 @@
 // Registre + boucle d'animation des unités voxel (héros/monstres), partagé par
 // la carte, le combat et la ville. Les vues RECONSTRUISENT leurs meshes à chaque
 // draw ; l'animator garde l'ÉTAT par id (phase d'idle, déplacement en cours,
-// one-shot d'attaque/compétence) à travers ces reconstructions et pilote chaque
-// frame les transforms du rig. Une seule boucle rAF invalide le moteur tant
-// qu'il reste des unités et que l'onglet est visible.
+// one-shot d'attaque/compétence) à travers ces reconstructions et pilote les
+// transforms du rig.
+//
+// QUI PILOTE LES FRAMES (2026-08-02). L'animator réarmait son rAF « tant qu'il
+// reste une unité » : comme l'idle (respiration, battements d'ailes) ne s'arrête
+// jamais, la CARTE rendait ~35 fps en continu dès qu'un héros existait — c'est
+// à dire toujours. Sur un téléphone c'est la batterie dépensée pour un détail
+// qu'on ne regarde pas, et ça contredisait le contrat « la carte est 100 %
+// on-demand » (les nuages en avaient déjà été retirés pour la même raison).
+//
+// Deux rôles, donc, choisis par la vue à la construction :
+//   - PRODUCTEUR de frames (`idleDrivesFrames: true`, défaut — combat, ville) :
+//     la boucle tourne tant qu'il reste une unité, l'idle vit en permanence ;
+//   - CONSOMMATEUR (`idleDrivesFrames: false` — la carte) : la boucle ne tourne
+//     que tant qu'il se PASSE quelque chose (un pas, un one-shot, une mort) et
+//     s'arrête ensuite. Les poses sont alors rafraîchies par `pose()`, que la
+//     vue branche sur `engine.onBeforeFrame` : à chaque frame que QUELQU'UN
+//     D'AUTRE demande (rotation de caméra, redraw, déplacement), les rigs sont
+//     posés — mais aucune frame n'est demandée pour eux seuls.
+//
+// `setActive(false)` coupe tout : la carte reste MONTÉE quand on change d'onglet
+// (elle est seulement masquée en CSS), sans ça elle continuait d'animer derrière
+// un `visibility: hidden`.
 
 import * as THREE from "three";
 import type { Rig, AnimState } from "./rig";
@@ -35,10 +55,38 @@ export class UnitAnimator {
   private raf = 0;
   private clockHash = 0;
 
+  private active = true;
+  private idleDrivesFrames: boolean;
+
   constructor(
     private engine: { invalidate(): void; azimuthNow: number },
     private now: () => number = () => performance.now(),
-  ) {}
+    opts: { idleDrivesFrames?: boolean } = {},
+  ) {
+    this.idleDrivesFrames = opts.idleDrivesFrames ?? true;
+  }
+
+  /** Coupe ou relance l'animation (onglet applicatif quitté : la vue reste
+   *  montée mais masquée, elle ne doit plus rien animer). */
+  setActive(on: boolean) {
+    if (this.active === on) return;
+    this.active = on;
+    if (!on) {
+      if (this.raf) cancelAnimationFrame(this.raf);
+      this.raf = 0;
+    } else this.ensureLoop();
+  }
+
+  /** Y a-t-il quelque chose de TRANSITOIRE en cours ? (un pas, un one-shot, une
+   *  mort) — par opposition à l'idle, qui ne finit jamais. */
+  private busy(t: number) {
+    if (this.dying.length) return true;
+    for (const u of this.units.values()) {
+      if (u.moveStart) return true;
+      if (u.state !== "idle" && t - u.stateStart < this.stateDur(u.state)) return true;
+    }
+    return false;
+  }
 
   /** Début de passe de draw : marque toutes les unités absentes jusqu'au sync. */
   beginFrame() { this.seen.clear(); }
@@ -114,15 +162,29 @@ export class UnitAnimator {
     this.ensureLoop();
   }
 
-  private ensureLoop() { if (!this.raf) this.raf = requestAnimationFrame(this.tick); }
+  private ensureLoop() { if (!this.raf && this.active) this.raf = requestAnimationFrame(this.tick); }
 
   private tick = () => {
     this.raf = 0;
+    if (!this.active) return;
     if (typeof document !== "undefined" && document.visibilityState !== "visible") {
       this.raf = requestAnimationFrame(this.tick); // reste armé, ne rend pas
       return;
     }
     const t = this.now();
+    this.pose(t);
+    this.engine.invalidate();
+    // On ne DEMANDE des frames que tant qu'il se passe quelque chose. En mode
+    // consommateur, l'idle seul ne réarme pas : la respiration continue de vivre
+    // sur les frames demandées par d'autres (rotation, redraw), pas sur les
+    // siennes.
+    const keep = this.busy(t) || (this.idleDrivesFrames && this.units.size > 0);
+    this.raf = keep ? requestAnimationFrame(this.tick) : 0;
+  };
+
+  /** Pose toutes les unités pour l'instant `t`. N'invalide RIEN et ne réarme
+   *  RIEN — c'est ce que la carte branche sur `engine.onBeforeFrame`. */
+  pose(t: number = this.now()) {
     const clock = t / 1000;
     for (const u of this.units.values()) {
       // pose : lerp de déplacement + arc de saut
@@ -169,11 +231,7 @@ export class UnitAnimator {
       d.rig.root.position.y = d.y - 0.12 * e;          // s'enfonce
       for (const m of d.mats) (m as THREE.Material).opacity = 1 - p; // se fond
     }
-
-    this.engine.invalidate();
-    // continuer tant qu'il reste des unités vivantes OU une mort en cours
-    this.raf = this.units.size || this.dying.length ? requestAnimationFrame(this.tick) : 0;
-  };
+  }
 
   dispose() {
     if (this.raf) cancelAnimationFrame(this.raf);

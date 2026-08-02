@@ -292,7 +292,25 @@ PA→0 adds `Fatigue`). Search = 1 PA, **tirage pondéré de la table du terrain
 plaine : fleur/viande/débris + baies/fibres ; forêt : herbe/peau/bois + champignons/baies ; montagne/neige :
 paliers de rareté pierre > fer/charbon > argent/or/givre), decrements tile `resources`. **Search et Hide sont
 REFUSÉS sur la case ville** (serveur `actions.go` + menu radial masqué ; la tuile ville est générée avec
-`resources: 0` pour que les bots/UI ne la ciblent pas).
+`resources: 0` pour que les bots/UI ne la ciblent pas). Une case **ÉPUISÉE** (`resources` à 0) reste
+FOUILLABLE : `depletedFindPct` 25 % de vraie ressource, sinon des Débris (que la Recyclerie transforme).
+⚠ le client désactivait le bouton dès `resources <= 0`, rendant ce mode inatteignable — corrigé 2026-08-02,
+ne pas réintroduire cette garde. Le tirage est partagé par `searchLoot` (fouille manuelle ET automatique).
+
+**Fouille AUTOMATIQUE** (`forage.go`, 2026-08-02) — le PA de la fouille n'achète plus une trouvaille mais
+une INSTALLATION : `SearchTile` pose `Hero.ForageAt`, et le héros continue de fouiller sa case **tout seul,
+sans PA**, tant qu'il ne bouge pas. C'est ce qui donne un intérêt à POSTER un héros sur un jeu joué en
+plusieurs jours réels. `ForageInterval() = WaveInterval / 6` — exprimé en fraction de vague et pas en
+minutes fixes, sinon les 6 h de vague du déploiement donneraient 72 trouvailles entre deux vagues ; un
+sixième donne SIX récoltes par période, exactement les 6 PA d'un héros. **C'est une TROISIÈME horloge de
+`AdvanceTo`** (sim.go), entrelacée chronologiquement avec les vagues et les rounds de bots — sans quoi elle
+ne tournerait pas sans joueur connecté ; bornée par `SimBudget.Forages` et par `trimBacklog` (une partie
+oubliée trois jours ne doit pas déverser des milliers d'objets). Interrompue par : bouger, s'échapper, se
+cacher, entrer en combat, être Tétanisé, tomber (`StopForaging` + `canForage`, vérifié paresseusement par
+`nextForage`). Pas de plafond de sac : ce qui borne le camping, c'est que la case s'épuise (~75 % de Débris
+ensuite), que le héros posté hors des murs se fait frapper à chaque vague, et que recycler coûte 1 PA.
+Front : le bouton devient « 🔄 Fouille auto » avec compte à rebours (`useForageRemaining`), plus un rappel
+dans `MapHeroBar`. Tests `forage_test.go`.
 
 **Compétences de carte PAR CLASSE** (`mapskills.go`, 2026-07-20 — remplacent la boule de feu universelle) —
 catalogue data `MapSkills []MapSkillDef {id, classId, name, icon, pa, desc, kind, base, stat, loot}` servi par
@@ -649,10 +667,28 @@ bâtiments s'affichent via `buildingName(id)` (`data/buildings.ts`), pas via `b.
   **vierges**, les monstres sur tuiles cachées sont **omis**, et la **seed est masquée** (seed +
   générateur = toute la carte). Tests : `fog_test.go` (`TestClientViewRedactsUndiscovered`).
   L'onglet Map reste **MONTÉ toute la partie** (`GameScreen` le rend en permanence avec une prop
-  `active`, caché via `visibility:hidden` — PAS `display:none`). Tap a hero (or the **⚡ Actions**
+  `active`, caché via `visibility:hidden` — PAS `display:none`) : c'est donc à **`VoxelMapView`
+  d'honorer `active`** (animator coupé, cycle solaire en pause), sinon la vue travaille derrière un
+  `visibility:hidden`. Tap a hero (or the **⚡ Actions**
   button) opens a **radial action menu** (Fight if monster on tile / compétence de classe / Search /
   Hide / **Escape only when Tétanisé** ; **Search/Hide cachés sur la case ville**). Combat reached
-  from the map.
+  from the map. Boutons de vue en haut à droite (`.view-rot`) : **🔼/🎥 vue de dessus**
+  (`engine.setTopDown`, ~78° — le MÊME contrôle qu'en combat ; seule l'élévation change, azimut/zoom/
+  cible conservés, on retrouve donc sa vue en ressortant) puis ↺/↻ rotation 4 orientations.
+- **Cases ÉPUISÉES** (2026-08-02) : `Tile.resources` à 0 → un InstancedMesh de quads texturés « terre
+  retournée » (`depletedTexture()`, un seul mesh pour toute la carte : une carte explorée peut en
+  compter des milliers). ⚠ `resources === 0` seul ne veut RIEN dire — le fog renvoie une tuile
+  **vierge** (donc `resources: 0` ET `biome: 0`) : le test est `discovered && resources <= 0 && biome
+  !== 0 && pas la case ville`. Un aplat uniforme avait été essayé d'abord : discret il se confondait
+  avec les variations du terrain, visible il noircissait la carte — d'où la texture.
+- **Déplacement OPTIMISTE** (2026-08-02) : `store.move` applique le pas LOCALEMENT avant d'envoyer
+  (`predictMove`, module de `store.ts`), donc l'animation de marche part au doigt et non à la réponse
+  HTTP (mesuré : 0-1 ms au lieu de ~30-90 ms en local, bien pire en déploiement). `predictMove` est un
+  **miroir de `game.MoveHero`** et doit le rester ; il renvoie `null` — « je ne sais pas, on attend » —
+  dès qu'il y a le moindre doute, en particulier sur une case **sous le brouillard** (marcher sur de
+  l'eau inconnue coûte 1 PA et laisse le héros sur place : indevinable côté client). Un compteur
+  `moveSeq` ignore une réponse doublée par un pas plus récent (sinon le héros reculait), et un échec
+  resynchronise par `refreshGame()` plutôt que par un rollback à la main.
 - Server timer: `nextWaveAt` drives "Next wave in"; GameScreen polls every 20s so scheduler waves show up.
 
 ## 7a-bis. Chantier VOXEL (2026-07-17 — voir `VOXEL-PLAN.md`, branche `claude/voxel-map-mobile-2blara`)
@@ -698,8 +734,17 @@ chaque membre autour de son articulation (`buildRig` root→tilt→pivots, offse
 du portail) ; les sans-membres (slime/mushroom=squash, ghost=flottement, windelemental=rotation) animent
 le corps entier. `applyAnim(rig,state,…)` : idle respiration / **walk** foulée+saut / **attack** lunge+piqué
 / **skill** accroupi→jaillit+pulse / **hit** recul. `UnitAnimator` = registre par id survivant aux redraws,
-détecte les déplacements (lerp de pose + arc → walk), joue les one-shots, UNE boucle rAF qui invalide tant
-qu'il reste des unités (onglet visible). `CharLibrary.makeRig(key)` (géométries découpées en cache) +
+détecte les déplacements (lerp de pose + arc → walk), joue les one-shots. **QUI PILOTE LES FRAMES
+(2026-08-02)** : la boucle réarmait « tant qu'il reste une unité » — or l'idle (respiration) ne s'arrête
+jamais, donc la CARTE rendait ~35 fps en continu dès qu'un héros existait, c'est-à-dire toujours (batterie
+sur téléphone, et contrat « carte 100 % on-demand » rompu ; les nuages en avaient déjà été retirés pour ça).
+Deux rôles, choisis à la construction : **producteur** (`idleDrivesFrames: true`, défaut — combat, ville :
+l'idle vit en permanence) et **CONSOMMATEUR** (`false` — la carte : la boucle ne tourne que tant qu'il se
+PASSE quelque chose, un pas / un one-shot / une mort, et les poses sont rafraîchies par `pose()` branché sur
+`engine.onBeforeFrame`, donc sur les frames que d'AUTRES demandent). `setActive(false)` coupe tout quand
+l'onglet Map est quitté. ⚠ le budget de perf compte `engine.frames` (un par REDRAW) et non
+`renderer.info.render.frame` (un par appel GL) : depuis que le mode beauté est le défaut, la passe bloom
+fait ~17 appels pour un seul redraw. `CharLibrary.makeRig(key)` (géométries découpées en cache) +
 `setRigOpacity` (héros des autres, translucides). Carte : rigs face caméra (idle + marche au pas) ; Combat :
 rigs orientés Facing, l'action du JOUEUR émet `EV.CombatAnim{unitId,kind}` (lunge/cast précis), recul des
 cibles depuis `lastHits`, acteur ENNEMI déduit (unité active adverse ou la plus proche d'une cible).

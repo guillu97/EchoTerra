@@ -67,6 +67,7 @@ type tickGameResult struct {
 	ID        string `json:"id"`
 	Waves     int    `json:"waves,omitempty"`
 	BotRounds int    `json:"botRounds,omitempty"`
+	Forages   int    `json:"forages,omitempty"`
 	Skipped   int    `json:"skipped,omitempty"`
 	Pending   bool   `json:"pending,omitempty"`
 	Conflict  bool   `json:"conflict,omitempty"`
@@ -119,7 +120,7 @@ func (s *Server) sweep(started time.Time) tickResult {
 			out.Games = append(out.Games, *g)
 			if g.Conflict {
 				out.Conflicts++
-			} else if g.Waves > 0 || g.BotRounds > 0 || g.Skipped > 0 {
+			} else if g.Waves > 0 || g.BotRounds > 0 || g.Forages > 0 || g.Skipped > 0 {
 				out.Advanced++
 			}
 			if g.Pending {
@@ -151,7 +152,7 @@ func (s *Server) advanceOne(gs *game.GameState) *tickGameResult {
 			return nil
 		}
 		s.persist(cached)
-		return &tickGameResult{ID: cached.ID, Waves: res.Waves, BotRounds: res.BotRounds, Skipped: res.SkippedWaves, Pending: !res.Done}
+		return &tickGameResult{ID: cached.ID, Waves: res.Waves, BotRounds: res.BotRounds, Forages: res.Forages, Skipped: res.SkippedWaves, Pending: !res.Done}
 	}
 
 	res := gs.AdvanceTo(time.Now(), game.TickBudget)
@@ -159,7 +160,7 @@ func (s *Server) advanceOne(gs *game.GameState) *tickGameResult {
 		return nil
 	}
 	gs.Recompute()
-	out := &tickGameResult{ID: gs.ID, Waves: res.Waves, BotRounds: res.BotRounds, Skipped: res.SkippedWaves, Pending: !res.Done}
+	out := &tickGameResult{ID: gs.ID, Waves: res.Waves, BotRounds: res.BotRounds, Forages: res.Forages, Skipped: res.SkippedWaves, Pending: !res.Done}
 	if err := s.store.SaveIfUnchanged(gs); err != nil {
 		out.Conflict = true
 		if !errors.Is(err, store.ErrConflict) {

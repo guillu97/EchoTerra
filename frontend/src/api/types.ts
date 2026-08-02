@@ -84,6 +84,10 @@ export interface Hero {
   inventory: Item[];
   bars: Record<string, number>;
   drewWaterDay: number;
+  // Échéance de la prochaine FOUILLE AUTOMATIQUE (absent = le héros n'est pas
+  // installé à récolter). La première fouille, payée 1 PA, l'installe ; la suite
+  // est jouée par la simulation serveur, même sans personne connecté.
+  forageAt?: string; // RFC3339
   classId: string;
   classTier: number;
   classBonuses: Stats;

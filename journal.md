@@ -6,6 +6,166 @@
 
 ---
 
+## 2026-08-02 (92) — La fouille devient un POSTE : premier PA, puis récolte automatique
+
+Deux demandes liées, à partir de l'incohérence relevée au lot précédent.
+
+### 1. Une case épuisée reste fouillable
+
+Le serveur prévoyait déjà le cas (`depletedFindPct` : 25 % d'une vraie ressource, sinon des Débris — et
+la Recyclerie existe pour les transformer), mais le client désactivait le bouton dès `resources <= 0`.
+Le mode était donc écrit, testé… et inatteignable en jeu. La garde est retirée des deux endroits qui la
+portaient (`MapTab`, `HeroActionsMenu`) et un test la fige côté serveur.
+
+### 2. Le PA achète une installation, pas une trouvaille
+
+Nouveau fonctionnement : fouiller coûte toujours 1 PA, mais le héros **reste sur place et continue de
+fouiller tout seul, gratuitement**, tant qu'il ne bouge pas. Le bouton devient « 🔄 Fouille auto » avec
+le temps restant avant la prochaine trouvaille.
+
+**L'intervalle est une fraction de la vague, pas un nombre de minutes.** `ForageInterval() =
+WaveInterval / 6`. Le rythme du jeu est réglé par `ECHOTERRA_WAVE_SECONDS` (10 min en dev, 6 h en
+déploiement) : une constante en minutes aurait donné 72 trouvailles entre deux vagues en réel, et la
+fouille manuelle n'aurait plus servi à rien. Un sixième donne six récoltes par période — exactement les
+six PA d'un héros, donc poster un héros vaut à peu près une journée de fouille à la main.
+
+**C'est une TROISIÈME horloge de la simulation**, et c'est le point qui a décidé de l'architecture. Un
+minuteur côté client aurait été inutile : Echo Terra tourne sans personne de connecté. La récolte est
+donc entrelacée chronologiquement avec les vagues et les rounds de bots dans `AdvanceTo`, avec son
+propre budget (`SimBudget.Forages`) et son propre plafond de retard — sans ça, une partie oubliée trois
+jours aurait déversé des milliers d'objets d'un coup dans les sacs.
+
+Elle passe **avant** une vague due au même instant : une récolte antérieure doit avoir eu lieu avant que
+la horde ne blesse (donc n'interrompe) le héros.
+
+**Ce qui interrompt** : bouger, s'échapper, se cacher, entrer en combat, être Tétanisé, tomber. Les trois
+derniers ne repassent par aucune action du joueur, ils sont donc vérifiés paresseusement (`canForage`,
+appelé par `nextForage`) — un héros tétanisé par une vague est désinstallé à la première échéance.
+
+**Pourquoi il n'y a pas de plafond de sac** (le sac n'en a aucun aujourd'hui) : la case s'épuise et ne
+rend plus que ~75 % de Débris, un héros posté hors des murs se fait frapper à CHAQUE vague, et
+transformer les Débris coûte 1 PA à la Recyclerie. Camper est un pari, pas un revenu.
+
+### Fonctionnel (vérifié)
+
+- `forage_test.go` : le PA n'est payé qu'à la première fouille, la récolte tourne dans la simulation,
+  budget respecté ET repris là où il s'est arrêté, plafond de retard, interruptions (déplacement,
+  cachette, fuite, Tétanisé, mort), fouille autorisée sur case épuisée, intervalle qui suit
+  `WaveInterval`.
+- Bout en bout (serveur à `ECHOTERRA_WAVE_SECONDS=120`, donc récolte toutes les 20 s) : après 65 s
+  **sans aucune action**, le héros a +3 objets et **exactement les mêmes PA** ; la récolte est toujours
+  installée ; un pas l'interrompt ; fouiller une case à 0 ressource renvoie 200 (« Bois ×1 » sur ce
+  tirage) et réinstalle la récolte.
+- Navigateur : le bouton passe de « 🔎 Fouiller -1 » à « 🔄 Fouille auto 00:16 », le compte à rebours
+  descend (00:16 → 00:10), et la barre des héros l'explique en clair.
+- `go test ./...`, `npx tsc -b`, `npm run build`, `npm run test:perf` (12/12) verts.
+
+### À faire
+
+- Le compte à rebours peut rester à « 00:00 » quelques secondes : la récolte est jouée par la
+  simulation, donc elle n'arrive au client qu'au sondage suivant (20 s). Assumé — afficher zéro est plus
+  honnête que de faire semblant d'avoir trouvé. Un rafraîchissement déclenché à l'échéance serait mieux.
+- Les bots héritent de la mécanique (ils fouillent par les actions publiques) mais `BotAct` les fait
+  bouger souvent, donc ils n'en profitent presque pas. À regarder si on veut qu'ils campent aussi.
+- Rien n'indique sur la CARTE quels héros sont en train de récolter (seulement le héros sélectionné) ;
+  un liseré sur la pastille des autres serait utile.
+
+---
+
+## 2026-08-02 (91) — La carte redevient on-demand ; vue de dessus, pas instantané, cases épuisées
+
+### 1. La carte rendait 35 fps en permanence
+
+Les deux checks rouges de `test:perf` (« carte on-demand », « rendu stoppé hors de l'onglet Map »)
+avaient **une seule cause**, et ce n'était pas les nuages : `UnitAnimator.tick` réarmait son rAF
+« tant qu'il reste une unité ». Comme l'idle (respiration, battements d'ailes) ne s'arrête jamais,
+la carte demandait une frame par tour de rAF dès qu'un héros existait — c'est-à-dire toujours.
+Mesuré : 102 rendus en 3 s au repos. Sur téléphone, c'est la batterie dépensée pour une respiration
+qu'on ne regarde pas ; et ça contredisait le contrat posé quand les nuages ont été retirés de la
+carte pour exactement la même raison.
+
+Le correctif inverse le rôle de l'animator sur la carte. Il avait deux métiers confondus : **poser**
+les rigs et **demander** des frames. On les sépare :
+
+- `pose()` est passif — il ne demande rien. La carte le branche sur le nouveau
+  `engine.onBeforeFrame`, donc les rigs sont posés sur les frames que quelqu'un d'AUTRE demande
+  (rotation de caméra, redraw, déplacement). C'est ce qui garde la respiration vivante sans qu'elle
+  coûte une seule frame à elle seule. Avant le rendu et non après : posés après, les rigs face-caméra
+  accusaient une frame de retard, visible quand la caméra tourne.
+- la boucle ne tourne plus que tant qu'il se **passe** quelque chose (un pas, un one-shot, une mort),
+  via `idleDrivesFrames: false`. Le combat et la ville, eux, gardent l'idle permanent (scènes légères,
+  et on veut de la vie devant soi).
+- `setActive(false)` coupe tout quand on quitte l'onglet Map. La vue reste MONTÉE toute la partie
+  (la démonter rendait l'ouverture de l'onglet interminable) et n'est que masquée en CSS : c'était
+  donc à elle de se taire. La prop `active` existait déjà dans la signature… et était jetée par un
+  `void active;`. Le cycle solaire est mis en pause avec, et rattrapé d'un coup au retour.
+
+**Le compteur du test était faux aussi.** Après correctif il affichait encore 17 rendus/3 s. En
+instrumentant `invalidate()` : **un seul appel** (le tick solaire, toutes les 5 s) produisait ces 17.
+`renderer.info.render.frame` compte les appels de rendu, or depuis que le mode beauté est le défaut
+(#38) la passe bloom en enchaîne une quinzaine pour UN redraw. Le test mesurait donc le coût d'un
+redessin en croyant compter les redessins. `VoxelEngine.frames` compte désormais les redraws, et
+c'est ce que la suite regarde. 12/12.
+
+### 2. Vue de dessus sur la carte
+
+Le bouton 🔼/🎥 du combat, tel quel, sur la carte : à 30° les reliefs cachent ce qu'il y a derrière
+eux (un pack, une ruine, un héros au pied d'une falaise). `engine.setTopDown` ne change QUE
+l'élévation — azimut, zoom et cible sont conservés, on retrouve sa vue en ressortant.
+
+### 3. Le pas ne s'aligne plus sur le serveur
+
+`store.move` n'affichait rien avant la réponse HTTP : un aller-retour entre le doigt et le premier
+pixel, alors que l'animation de marche (lerp + petit saut, 320 ms) était déjà là et n'attendait
+qu'une position qui bouge plus tôt. On applique donc le pas localement avant d'envoyer.
+
+`predictMove` est un **miroir de `game.MoveHero`** — c'est sa force et sa fragilité : toute règle
+ajoutée côté serveur et oubliée ici produirait un héros qui avance puis revient. D'où le parti pris :
+**le doute vaut refus de prédire**, et `predictMove` renvoie `null` (on attend le serveur, comme
+avant) dès qu'une condition n'est pas certaine. Le cas qui justifie à lui seul ce choix : une case
+**sous le brouillard**. Le serveur y renvoie une tuile vierge, donc le client ignore son biome ;
+marcher sur de l'eau inconnue coûte 1 PA et laisse le héros sur place — indevinable.
+
+Deux garde-fous : un compteur `moveSeq` (une réponse doublée par un pas plus récent est ignorée,
+sinon le héros reculait le temps d'un aller-retour) et, en cas d'échec, un `refreshGame()` plutôt
+qu'un rollback bricolé à la main.
+
+### 4. Les cases épuisées se voient
+
+`Tile.resources` à 0 : la fouille n'y rend plus grand-chose, et rien ne le disait — il fallait
+marcher dessus et lire un bouton grisé. Un InstancedMesh de quads (un seul mesh : une carte bien
+explorée peut compter des milliers de cases épuisées) marque la case au sol.
+
+Deux essais. Un **aplat brun uniforme** d'abord : mesuré à 17/255 d'écart moyen, il se confondait
+avec les variations du terrain, et le monter assez pour se voir noircissait la moitié de la carte.
+Une **texture de terre retournée** ensuite — des taches couvrant à peine la moitié de la case : 37/255
+d'écart, ça se lit comme un marqueur (aucun terrain ne ressemble à ça) sans assombrir quoi que ce soit.
+
+⚠ Le piège : `resources === 0` tout seul ne veut RIEN dire, le fog renvoie une tuile **vierge** pour
+tout ce qui n'est pas découvert — donc `resources: 0` ET `biome: 0`. Le test est
+`discovered && resources <= 0 && biome !== 0 && pas la case ville`.
+
+### Fonctionnel (vérifié)
+
+- `npm run test:perf` : **12/12** (0 redraw en 3 s au repos, 0 hors de l'onglet Map).
+- Navigateur : pas rendu en **0-1 ms** au lieu de 29-93 ms (réponse serveur) ; trois pas enchaînés
+  sans attendre donnent une trajectoire strictement croissante (11,11 → 12,11 → 13,11 → 14,11) et
+  3 PA restants — le compteur de séquence tient ; bouton de vue de dessus (`aria-pressed`, `.on`,
+  caméra à 78°) ; voile des cases épuisées présent, sans fuite de géométrie sur 5 redraws forcés.
+- `go test ./...`, `npx tsc -b`, `npm run build` verts.
+
+### À faire
+
+- **Incohérence trouvée en chemin, non corrigée** (décision de game design) : le serveur laisse
+  fouiller une case épuisée (`depletedFindPct` = 25 % d'une vraie ressource, sinon des Débris — et
+  `craft.go` mentionne le recyclage des Débris), mais le client **désactive** le bouton Fouiller dès
+  `resources <= 0` (`MapTab.tsx`, `HeroActionsMenu.tsx`). Ce mode est donc inatteignable en jeu. Soit
+  on rouvre le bouton, soit on retire le code serveur.
+- `predictMove` duplique la règle de `MoveHero` dans un autre langage. Aucun test ne les compare ;
+  un test de conformité (rejouer une table de cas contre les deux) serait le vrai filet.
+
+---
+
 ## 2026-08-02 (90) — Durabilité de départ, vraies listes de persos, et la messagerie de la ville
 
 Quatre retours de jeu, du plus petit au plus gros.
