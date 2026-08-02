@@ -3738,3 +3738,247 @@ body {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+
+/* ===== LE MOMENT DE LA VAGUE (components/WaveCinematic.tsx) =================
+   Tout est animé en CSS sur `transform`/`opacity` — donc sur le compositeur.
+   C'est LE point : cette cinématique existe pour couvrir l'instant où le thread
+   principal est occupé (résolution serveur de la vague, puis première frame avec
+   des centaines de monstres). Une animation pilotée en JS se figerait exactement
+   là où on a besoin qu'elle bouge. Aucune propriété de layout n'est animée.
+   `prefers-reduced-motion` neutralise déjà tout ça globalement (voir plus haut). */
+.wavecine {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal-top);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  /* La secousse est portée par le conteneur : la scène derrière encaisse le coup. */
+  animation: wc-shake 620ms var(--ease) 180ms both;
+}
+/* Le ciel vire au rouge et se referme comme une paupière. */
+.wavecine .wc-sky {
+  position: absolute;
+  inset: 0;
+  /* Une base sombre PLEINE (c'est elle qui couvre la carte pendant qu'elle se
+     reconstruit), plus une lueur rouge au zénith et une ombre qui monte du bas.
+     La version précédente n'était que les deux dégradés : jolie, mais si claire
+     au centre qu'elle ne masquait rien. */
+  background:
+    radial-gradient(120% 85% at 50% 0%, rgba(214, 72, 34, 0.72), transparent 66%),
+    radial-gradient(150% 100% at 50% 125%, rgba(18, 9, 6, 0.96), rgba(18, 9, 6, 0.6) 48%, transparent),
+    rgba(22, 12, 8, 0.72);
+  opacity: 0;
+  animation: wc-fade 420ms var(--ease) both;
+}
+.wavecine.report .wc-sky {
+  animation: wc-fade 420ms var(--ease) both, wc-dim 320ms var(--ease) both;
+}
+
+/* --- la frappe ------------------------------------------------------------ */
+.wc-strike {
+  position: relative;
+  text-align: center;
+  color: #fff6e6;
+  text-shadow: 0 3px 0 rgba(0, 0, 0, 0.45), 0 0 26px rgba(255, 138, 76, 0.7);
+  pointer-events: none;
+}
+.wavecine.report .wc-strike {
+  animation: wc-out 300ms var(--ease) both;
+}
+.wc-kicker {
+  font-size: var(--t-md);
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  opacity: 0;
+  animation: wc-rise 460ms var(--ease) 120ms both;
+}
+.wc-title {
+  font-family: var(--font-title), system-ui, sans-serif;
+  font-size: clamp(38px, 13vw, 84px);
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 0.06em;
+  margin: var(--s-2) 0;
+  /* frappée comme un tampon : elle arrive de trop grand et se pose. */
+  animation: wc-stamp 520ms cubic-bezier(0.16, 1.2, 0.3, 1) both;
+}
+.wc-sub {
+  font-size: var(--t-lg);
+  font-weight: 700;
+  opacity: 0;
+  animation: wc-rise 460ms var(--ease) 260ms both;
+}
+.wc-hit {
+  margin-top: var(--s-4);
+  font-family: var(--font-title), system-ui, sans-serif;
+  font-size: clamp(26px, 8vw, 46px);
+  font-weight: 900;
+  color: #ff9a7a;
+  opacity: 0;
+  animation: wc-hit 700ms var(--ease) 620ms both;
+}
+
+/* --- le rapport ------------------------------------------------------------ */
+.wc-card {
+  position: relative;
+  width: min(92vw, 420px);
+  max-height: 82vh;
+  overflow-y: auto;
+  background: linear-gradient(180deg, var(--parch-0), var(--parch));
+  border: 2px solid var(--gold);
+  border-radius: var(--r-lg);
+  padding: var(--s-5);
+  color: var(--ink-2);
+  box-shadow: var(--sh-overlay);
+  animation: wc-card 340ms var(--ease) both;
+}
+.wc-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-3);
+  margin-bottom: var(--s-4);
+}
+.wc-h-title {
+  font-family: var(--font-title), system-ui, sans-serif;
+  font-size: var(--t-xl);
+  font-weight: 900;
+}
+.wc-h-day {
+  font-size: var(--t-xs);
+  color: var(--ink-muted);
+  font-weight: 700;
+  white-space: nowrap;
+}
+.wc-duel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-4);
+  margin-bottom: var(--s-4);
+}
+.wc-side {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--s-3);
+  border-radius: var(--r-md);
+  background: var(--cream);
+  border: 1.5px solid var(--line-2);
+}
+.wc-side.horde {
+  border-color: var(--red-2);
+}
+.wc-side.def {
+  border-color: var(--green-ink);
+}
+.wc-n {
+  font-family: var(--font-title), system-ui, sans-serif;
+  font-size: var(--t-2xl);
+  font-weight: 900;
+  line-height: 1;
+}
+.wc-side.horde .wc-n {
+  color: var(--red-2);
+}
+.wc-side.def .wc-n {
+  color: var(--green-ink);
+}
+.wc-l {
+  font-size: var(--t-xs);
+  font-weight: 800;
+  color: var(--ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.wc-vs {
+  font-size: var(--t-sm);
+  font-weight: 800;
+  color: var(--ink-muted);
+}
+.wc-lines {
+  list-style: none;
+  margin: 0 0 var(--s-5);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.wc-lines li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-4);
+  font-size: var(--t-md);
+  padding: var(--s-2) var(--s-3);
+  background: var(--cream);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+}
+/* Le libellé ne se coupe pas ; c'est la VALEUR qui passe à la ligne (une vague
+   peut abîmer cinq bâtiments). */
+.wc-lines li > span:first-child {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+.wc-lines b {
+  text-align: right;
+  font-weight: 800;
+}
+.wc-lines b.bad {
+  color: var(--red-2);
+}
+.wc-lines b.ok {
+  color: var(--green-ink);
+}
+.wc-go {
+  width: 100%;
+}
+.wc-fallen {
+  text-align: center;
+  font-weight: 800;
+  color: var(--red-2);
+  padding: var(--s-3);
+}
+
+@keyframes wc-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes wc-dim {
+  to { opacity: 0.82; }
+}
+@keyframes wc-out {
+  to { opacity: 0; transform: translateY(-18px) scale(0.94); }
+}
+@keyframes wc-stamp {
+  0% { opacity: 0; transform: scale(2.4); }
+  60% { opacity: 1; }
+  100% { opacity: 1; transform: scale(1); }
+}
+@keyframes wc-rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes wc-hit {
+  0% { opacity: 0; transform: scale(0.6); }
+  40% { opacity: 1; transform: scale(1.18); }
+  100% { opacity: 1; transform: scale(1); }
+}
+@keyframes wc-card {
+  from { opacity: 0; transform: translateY(16px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+/* Secousse d'impact : de moins en moins fort, jamais de layout. */
+@keyframes wc-shake {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  12% { transform: translate3d(-7px, 4px, 0); }
+  26% { transform: translate3d(6px, -5px, 0); }
+  40% { transform: translate3d(-5px, -3px, 0); }
+  55% { transform: translate3d(4px, 3px, 0); }
+  70% { transform: translate3d(-2px, 2px, 0); }
+  85% { transform: translate3d(2px, -1px, 0); }
+}

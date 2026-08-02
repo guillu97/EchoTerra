@@ -690,6 +690,24 @@ bâtiments s'affichent via `buildingName(id)` (`data/buildings.ts`), pas via `b.
   `moveSeq` ignore une réponse doublée par un pas plus récent (sinon le héros reculait), et un échec
   resynchronise par `refreshGame()` plutôt que par un rollback à la main.
 - Server timer: `nextWaveAt` drives "Next wave in"; GameScreen polls every 20s so scheduler waves show up.
+- **LE MOMENT DE LA VAGUE** (`components/WaveCinematic.tsx`, 2026-08-02) — la horde qui frappe était
+  trois lignes de log, alors que c'est le battement du jeu ET le pire instant côté client : le serveur
+  résout la vague (mesuré jusqu'à 1,3 s en local, plus en déploiement) puis des centaines de créatures
+  apparaissent, ce qui alourdit la frame suivante (450-1100 ms en GL logiciel ; le redessin, lui, ne
+  coûte que 1-3 ms — ce n'est PAS lui le problème). Deux temps : **frappe** (ciel rouge, « VAGUE N »
+  frappé comme un tampon, secousse, −N PV) 1,6 s, puis **rapport** en carte parchemin (horde vs
+  défense, PV, bâtiments et héros touchés, renforts). ⚠ **tout est en CSS pur, sur `transform`/
+  `opacity`** : une animation pilotée en JS se figerait exactement à l'instant qu'on cherche à masquer,
+  puisque c'est le thread principal qui maille et qui rend. Vérifié : 90 % des pixels changent entre
+  deux captures prises PENDANT un blocage de 1,2 s du thread principal. Déclenchée par `refreshGame`
+  (diff de `lastWave.wave`) et par `advance` (triche), et **au retour de partie** par
+  `waveCinemaOnEnter` — les vagues d'une absence sont déjà dans l'état chargé, il n'y a rien à
+  diffé­rencier : c'est la trace locale `echoterra:waveSeen:<gameId>` (dernière vague vue + PV de la
+  ville à ce moment) qui donne le nombre de vagues manquées et le cumul de dégâts, en UNE cinématique.
+  ⚠ `WaveReport.buildingsHit/heroesHit` étaient `nil` côté Go, donc `null` en JSON : lire `.length`
+  dessus plantait le rendu (et, dans `refreshGame`, l'exception avalée par le `catch` sautait le
+  `renderMap()`). Les slices sont désormais initialisées côté serveur, et le client garde un `?? []`
+  pour les rapports déjà enregistrés.
 
 ## 7a-bis. Chantier VOXEL (2026-07-17 — voir `VOXEL-PLAN.md`, branche `claude/voxel-map-mobile-2blara`)
 

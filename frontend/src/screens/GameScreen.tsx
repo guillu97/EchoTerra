@@ -11,6 +11,7 @@ import { HeroOverlay } from "../components/HeroOverlay";
 import { TownStatus } from "../components/TownStatus";
 import { TownJournal } from "../components/TownJournal";
 import { TownChat } from "../components/TownChat";
+import { WaveCinematic } from "../components/WaveCinematic";
 import { GameOver } from "../components/GameOver";
 import { CheatPanel } from "../components/CheatPanel";
 import { Toasts } from "../ui/Toasts";
@@ -59,6 +60,7 @@ export function GameScreen() {
       <TownStatus />
       <TownJournal />
       <TownChat />
+      <WaveCinematic />
       <GameOver />
       <CheatPanel />
       <Toasts />

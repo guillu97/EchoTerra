@@ -189,7 +189,14 @@ func (g *GameState) processWave(now time.Time, safeTown bool) {
 	power := hordePower(g.WaveNumber)
 	defense := g.TownDefense()
 
-	r := &WaveReport{Wave: g.WaveNumber, Day: g.Day, HordePower: power, Defense: defense, At: now}
+	// Slices INITIALISÉES : nil se sérialise en `null`, pas en `[]`, et le client
+	// lit `buildingsHit.length` — une vague qui n'abîme rien (le cas courant) lui
+	// faisait donc lever une TypeError. Le type annoncé est un tableau : qu'il en
+	// soit toujours un.
+	r := &WaveReport{
+		Wave: g.WaveNumber, Day: g.Day, HordePower: power, Defense: defense, At: now,
+		BuildingsHit: []WaveHit{}, HeroesHit: []WaveHit{},
+	}
 
 	if !safeTown {
 		// Defensive structures absorb the blow, wearing down in the process.
