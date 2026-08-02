@@ -48,6 +48,13 @@ func main() {
 			game.TurnLimit = time.Duration(n) * time.Second
 		}
 	}
+	// Retard maximal réellement rejoué quand une partie est restée sans personne
+	// (au-delà, les vagues manquées sont sautées — voir game.AdvanceTo).
+	if v := os.Getenv("ECHOTERRA_CATCHUP_HOURS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			game.CatchUpMaxBacklog = time.Duration(n) * time.Hour
+		}
+	}
 
 	st, err := store.Open(dsn)
 	if err != nil {
@@ -59,11 +66,19 @@ func main() {
 	if os.Getenv("VERCEL") != "" {
 		// Scale-to-zero platform: background goroutines die with the instance and
 		// several instances may coexist, so run stateless — no scheduler, no
-		// cross-request cache, waves/bots/housekeeping catch up lazily.
+		// cross-request cache. Le monde avance alors par le BATTEMENT (POST /api/tick,
+		// appelé par un cron externe) et, à défaut, par le rattrapage des requêtes.
 		srv = api.NewServerless(st)
 	} else {
 		srv = api.New(st)
 	}
+	// Jeton du battement : ECHOTERRA_TICK_TOKEN, ou le CRON_SECRET que les crons Vercel
+	// envoient d'eux-mêmes en `Authorization: Bearer …`.
+	tickToken := os.Getenv("ECHOTERRA_TICK_TOKEN")
+	if tickToken == "" {
+		tickToken = os.Getenv("CRON_SECRET")
+	}
+	srv.SetTickToken(tickToken)
 	log.Printf("Echo Terra API en écoute sur %s (db=%s, vercel=%v)", addr, dsn, os.Getenv("VERCEL") != "")
 	if err := http.ListenAndServe(addr, srv.Router()); err != nil {
 		log.Fatalf("server: %v", err)

@@ -158,6 +158,9 @@ type GameState struct {
 	NextWaveAt time.Time   `json:"nextWaveAt"`         // when the next wave hits the town
 	LastBotAt  time.Time   `json:"lastBotAt,omitzero"` // last lazy bot round (serverless catch-up, see bots.go)
 	Status     string      `json:"status"`             // "lobby" | "active" | "gameover"
+	// Rev is the store revision this state was loaded at — persistence bookkeeping,
+	// never serialized into the blob nor sent to clients (see store.SaveIfUnchanged).
+	Rev int64 `json:"-"`
 	LastWave   *WaveReport `json:"lastWave,omitempty"`
 	Town       struct {
 		X         int             `json:"x"`
