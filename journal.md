@@ -6,6 +6,86 @@
 
 ---
 
+## 2026-08-02 (93) — Le moment de la vague
+
+Retour : « ça va lagguer un peu côté client au moment de la vague, il faudrait faire quelque chose de
+stylé ».
+
+### D'abord mesurer, pour savoir ce qu'on masque
+
+Trois mesures, en forçant des vagues jusqu'à 1 200 créatures sur une carte au brouillard levé :
+
+| | coût |
+|---|---|
+| `POST /advance` (résolution serveur) | ~30 ms, **pic à 1 265 ms** |
+| `world.draw()` (reconstruction des overlays) | **1-3 ms**, même à 842 créatures |
+| première frame rendue après la vague | **450 → 1 100 ms** (GL logiciel, donc pessimiste) |
+| `refreshGame()` complet | 11-43 ms |
+
+Donc le redessin n'est PAS le problème — c'est la résolution serveur (bien pire en déploiement, où la
+fonction se réveille et où Neon répond) et la frame GPU qui suit l'apparition des monstres. C'est cette
+fenêtre-là, et pas une autre, que la cinématique doit couvrir.
+
+### La décision qui compte : tout en CSS
+
+**L'animation est en CSS pur, sur `transform`/`opacity` uniquement.** Une cinématique pilotée en JS
+(rAF, compteurs animés) se figerait précisément à l'instant qu'elle est censée masquer, puisque c'est le
+thread principal qui maille et qui rend. Les keyframes composables tournent sur le compositeur.
+
+Vérifié plutôt que supposé, et le premier essai de vérification était faux : lire
+`Animation.currentTime` avant/après un blocage ne prouve rien (cette valeur est mise à jour par le
+thread principal, elle ne peut pas bouger pendant qu'il est bloqué — elle affichait « 0/6 animations ont
+avancé »). La bonne mesure passe par la capture d'écran, qui vient du processus navigateur : **90 % des
+pixels changent entre deux captures prises pendant un blocage de 1,2 s du thread principal**.
+
+### Ce que ça donne
+
+Deux temps. **Frappe** (1,6 s) : le ciel vire au rouge et couvre la carte, « VAGUE N » arrive comme un
+tampon, secousse d'impact, « −N PV ». **Rapport** : carte parchemin, horde vs défense, PV restants,
+bâtiments et héros touchés, renforts. Taper pendant la frappe saute au rapport.
+
+Le voile a été monté d'un cran après une première capture : joli mais si clair au centre qu'il ne
+masquait pas la carte — or masquer est sa seule fonction.
+
+### Le cas fréquent qu'on aurait raté
+
+Sur un jeu asynchrone, on revient le plus souvent APRÈS plusieurs vagues. Or l'état chargé les contient
+déjà : il n'y a rien à différencier, et le premier jet ne se déclenchait pas du tout dans ce cas — c'est
+à dire dans le cas le plus courant. La trace locale `echoterra:waveSeen:<gameId>` (dernière vague vue +
+PV de la ville à ce moment) donne le nombre de vagues manquées ET le cumul réel des dégâts, en UNE
+cinématique : « 3 vagues pendant ton absence — −78 PV », en-tête « Vagues 2–4 ».
+
+### Deux bugs trouvés en chemin
+
+- **`WaveReport.buildingsHit`/`heroesHit` étaient `nil` côté Go**, donc `null` en JSON alors que le type
+  annonce un tableau. Lire `.length` dessus plantait le rendu — et le même motif existait déjà dans
+  `refreshGame`, où l'exception était avalée par le `catch` du sondage : la carte ne se redessinait alors
+  plus jusqu'au sondage suivant. Slices initialisées côté serveur, `?? []` côté client pour les rapports
+  déjà enregistrés.
+- **`EscapeHero` ne coupait pas la fouille automatique une fois sur quatre** : il y a 25 % de chance de
+  trébucher, et ce chemin sortait de la fonction avant mon `StopForaging`. Trouvé par une flakiness de
+  `forage_test.go` — le test avait raison.
+
+### Fonctionnel (vérifié)
+
+- Timeline mesurée dans le navigateur : frappe de 189 à 743 ms, rapport à 1 715 ms.
+- Retour après absence : « 3 vagues pendant ton absence », cumul −78 PV, en-tête « Vagues 2–4 ».
+- Bâtiments touchés plusieurs fois dans la même vague : cumulés (« Panneau -5 · Panneau -11 » ne veut
+  rien dire).
+- `go test ./...`, `npx tsc -b`, `npm run build`, `npm run test:perf` (12/12) verts.
+
+### À faire / à savoir
+
+- La cinématique ne se déclenche qu'au SONDAGE (20 s) : une vague peut donc tomber jusqu'à 20 s avant
+  d'être annoncée. Déclencher un `refreshGame` quand le compte à rebours atteint zéro serait mieux.
+- `serverless/TestHandlerServesAPI` **échoue sous `-count>1`** : `Handler` initialise son store via
+  `sync.Once`, donc le second run réutilise le `t.TempDir()` du premier, déjà supprimé. Limite du
+  harnais, pas du produit (vert en `-count=1`) — mais ça piège quand on cherche une flakiness.
+- Pas de son : le moment gagnerait énormément à un tambour + un impact. Rien n'est câblé côté audio
+  aujourd'hui.
+
+---
+
 ## 2026-08-02 (92) — La fouille devient un POSTE : premier PA, puis récolte automatique
 
 Deux demandes liées, à partir de l'incohérence relevée au lot précédent.

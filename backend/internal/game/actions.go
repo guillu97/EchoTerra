@@ -162,6 +162,10 @@ func (g *GameState) EscapeHero(heroID string) error {
 	if h.PA == 0 {
 		h.AddState(StateFatigue)
 	}
+	// Tenter de fuir rompt l'installation, qu'on parte ou qu'on trébuche : le
+	// héros a lâché sa fouille dans les deux cas. (Placé AVANT le tirage : le
+	// mettre après le pas laissait la récolte tourner une fois sur quatre.)
+	h.StopForaging()
 	if rand.Intn(100) < 25 {
 		h.AddState("Blessé") // stumbled
 		return nil
@@ -194,7 +198,6 @@ func (g *GameState) EscapeHero(heroID string) error {
 		if t := g.TileAt(nx, ny); t != nil && t.Biome.Walkable() {
 			h.X, h.Y = nx, ny
 			h.RemoveState("Caché")
-			h.StopForaging()
 			break
 		}
 	}

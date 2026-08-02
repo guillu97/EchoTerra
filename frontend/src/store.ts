@@ -12,6 +12,7 @@ import type {
   MyGameSummary,
   Recipe,
   User,
+  WaveReport,
 } from "./api/types";
 import { bus, EV } from "./eventBus";
 import { effectiveTownHeroId } from "./townUtils";
@@ -40,6 +41,31 @@ export function loadChatSeen(gameId: string): number {
     return Number(localStorage.getItem(lsChatSeenKey(gameId))) || 0;
   } catch {
     return 0;
+  }
+}
+
+// Dernière vague MONTRÉE au joueur sur cet appareil, avec les PV de la ville à ce
+// moment-là. Sans cette trace, le cas le plus fréquent d'un jeu asynchrone était
+// muet : on revient après quelques heures, l'état chargé contient DÉJÀ la
+// nouvelle vague, il n'y a rien à diffé­rencier, et l'événement principal de la
+// session passait inaperçu. Les PV mémorisés donnent le cumul réel des dégâts
+// encaissés pendant l'absence.
+const lsWaveSeenKey = (gameId: string) => `echoterra:waveSeen:${gameId}`;
+function saveWaveSeen(gameId: string, wave: number, hp: number) {
+  try {
+    localStorage.setItem(lsWaveSeenKey(gameId), JSON.stringify({ wave, hp }));
+  } catch {
+    /* ignore */
+  }
+}
+function loadWaveSeen(gameId: string): { wave: number; hp: number } | null {
+  try {
+    const raw = localStorage.getItem(lsWaveSeenKey(gameId));
+    if (!raw) return null;
+    const v = JSON.parse(raw) as { wave?: number; hp?: number };
+    return typeof v.wave === "number" ? { wave: v.wave, hp: v.hp ?? 0 } : null;
+  } catch {
+    return null;
   }
 }
 
@@ -167,6 +193,10 @@ interface StoreState {
   chat: ChatMessage[]; // board content — served by its own gated route, never by the game payload
   chatSeen: number; // how many messages this device had seen (drives the unread pip)
   chatLocked?: string; // server's reason when the board is out of reach (no hero in town, no Poste)
+  // Cinématique de vague en cours (null = aucune). `waves` > 1 quand plusieurs
+  // vagues sont tombées pendant une absence ; `townDamage` est le cumul réel
+  // (PV de la ville avant/après), pas seulement celui du dernier rapport.
+  waveCinema: { report: WaveReport; waves: number; townDamage: number } | null;
   cheatOpen: boolean;
   townHeroId?: string; // preferred hero paying for town work
   recipes: Recipe[];
@@ -210,6 +240,7 @@ interface StoreState {
   toggleTownStatus: (open?: boolean) => void;
   toggleTownJournal: (open?: boolean) => void;
   toggleChat: (open?: boolean) => void;
+  dismissWaveCinema: () => void;
   refreshChat: () => Promise<void>; // sondage silencieux de la messagerie
   sendChat: (text: string) => Promise<void>;
   toggleCheat: () => void;
@@ -351,6 +382,40 @@ export const useStore = create<StoreState>((set, get) => {
     setTimeout(() => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })), TOAST_MS);
   };
 
+  // LE MOMENT DE LA VAGUE. La horde qui frappe est le battement du jeu, et c'était
+  // jusqu'ici trois lignes de log. C'est aussi le pire moment côté client : le
+  // serveur résout la vague (mesuré jusqu'à 1,3 s en local, davantage en
+  // déploiement où la fonction se réveille) puis des centaines de monstres
+  // apparaissent d'un coup, ce qui rend la frame suivante très lourde. La
+  // cinématique couvre exactement cette fenêtre — voir WaveCinematic.tsx.
+  //
+  // `waves > 1` = on revient après une absence : une seule cinématique, avec le
+  // cumul, plutôt que N d'affilée.
+  const openWaveCinema = (report: WaveReport, waves: number, townDamage: number) => {
+    const g = get().game;
+    if (g) saveWaveSeen(g.id, report.wave, g.town.hp); // vu : ne pas la rejouer au prochain retour
+    set({ waveCinema: { report, waves: Math.max(1, waves), townDamage: Math.max(0, townDamage) } });
+  };
+
+  // À la reprise d'une partie : les vagues tombées pendant l'absence sont déjà
+  // dans l'état chargé, il n'y a donc RIEN à diffé­rencier — c'est la trace locale
+  // qui dit ce que ce joueur a déjà vu. Une seule cinématique pour tout le
+  // rattrapage : en rejouer cinq d'affilée serait insupportable.
+  const waveCinemaOnEnter = () => {
+    const g = get().game;
+    const lw = g?.lastWave;
+    if (!g || !lw) return;
+    const seen = loadWaveSeen(g.id);
+    if (!seen) {
+      // Première ouverture sur cet appareil : on prend acte sans rien jouer (on
+      // ne sait pas ce que le joueur a déjà vu ailleurs).
+      saveWaveSeen(g.id, lw.wave, g.town.hp);
+      return;
+    }
+    if (lw.wave <= seen.wave) return;
+    openWaveCinema(lw, lw.wave - seen.wave, seen.hp - g.town.hp);
+  };
+
   const renderMap = () => {
     const { game, selectedHeroId, showOthers, playerId } = get();
     const myHeroIds = game?.players?.find((p) => p.id === playerId)?.heroIds ?? [];
@@ -467,6 +532,7 @@ export const useStore = create<StoreState>((set, get) => {
     // vit) ; sinon onglet Home par défaut.
     const inCombat = get().view === "combat" && !!get().combat;
     set({ appScreen: "game", tab: inCombat ? "map" : "home", settingsScreen: null });
+    if (!inCombat) waveCinemaOnEnter(); // « voilà ce qui s'est passé pendant ton absence »
   };
 
   // My team's hero ids in a multiplayer game (empty in legacy solo games).
@@ -502,6 +568,7 @@ export const useStore = create<StoreState>((set, get) => {
     chatOpen: false,
     chat: [],
     chatSeen: 0,
+    waveCinema: null,
     cheatOpen: false,
     recipes: [],
     classes: [],
@@ -1158,6 +1225,7 @@ export const useStore = create<StoreState>((set, get) => {
       withBusy(async () => {
         const { game } = get();
         if (!game) return;
+        const prevHp = game.town.hp;
         const next = await api.advance(game.id, safe);
         set({ game: next });
         const lw = next.lastWave;
@@ -1168,6 +1236,9 @@ export const useStore = create<StoreState>((set, get) => {
             pushLog(`🌊 Vague ${lw.wave} forcée : -${lw.townDamage} PV ville (déf ${lw.defense} / horde ${lw.hordePower}).`);
             if (lw.gameOver) pushLog("💀 La ville est tombée…");
           }
+          // Même cinématique qu'une vraie vague : c'est aussi ce qui rend le
+          // moment testable sans attendre l'horloge.
+          openWaveCinema(lw, 1, prevHp - next.town.hp);
         }
         renderMap();
       }),
@@ -1203,20 +1274,29 @@ export const useStore = create<StoreState>((set, get) => {
       try {
         const next = await api.getGame(game.id);
         const prevWave = game.lastWave?.wave ?? 0;
+        const prevHp = game.town.hp;
         set({ game: next });
         if (next.lastWave && next.lastWave.wave > prevWave) {
           const lw = next.lastWave;
           pushLog(`🌊 Vague ${lw.wave} : -${lw.townDamage} PV ville (déf ${lw.defense} / horde ${lw.hordePower}).`);
-          if (lw.heroesHit.length) {
-            pushLog(`⚔️ Hors ville : ${lw.heroesHit.map((h) => `${h.name} ${h.delta}`).join(", ")}.`);
+          // `?? []` : les rapports déjà enregistrés portent `null` là où le type
+          // annonce un tableau (nil côté Go). Sans ça, une vague sans héros
+          // touché levait une TypeError ICI — avalée par le catch du sondage, qui
+          // sautait alors le renderMap() : la carte ne se redessinait plus.
+          const hit = lw.heroesHit ?? [];
+          if (hit.length) {
+            pushLog(`⚔️ Hors ville : ${hit.map((h) => `${h.name} ${h.delta}`).join(", ")}.`);
           }
           if (lw.gameOver) pushLog("💀 La ville est tombée…");
+          openWaveCinema(lw, lw.wave - prevWave, prevHp - next.town.hp);
         }
         renderMap();
       } catch {
         /* ignore polling errors */
       }
     },
+
+    dismissWaveCinema: () => set({ waveCinema: null }),
 
     startCombat: () =>
       withBusy(async () => {
