@@ -341,11 +341,31 @@ func (s *Store) Delete(id string) error {
 // List returns the most recently updated games (newest first), up to limit.
 // The prototype stores state as a JSON blob, so listing decodes each row; fine at
 // prototype scale (add real columns/indexes before any public deployment).
-func (s *Store) List(limit int) ([]*game.GameState, error) {
+func (s *Store) List(limit int) ([]*game.GameState, error) { return s.list("", limit) }
+
+// ListByStatus returns the most recently updated games IN THAT STATUS. Filtrer dans
+// le SQL (sur la colonne miroir `status`) et non après le LIMIT est ce qui garde un
+// salon tranquille VISIBLE : un salon public est écrit une fois puis plus jamais,
+// tandis que chaque partie active est réécrite à chaque vague ET par le battement
+// (toutes les 15 min). Passé ~50 parties, le salon sortait de la fenêtre de
+// `List(50)` et la recherche de partie publique ne trouvait plus rien.
+func (s *Store) ListByStatus(status string, limit int) ([]*game.GameState, error) {
+	return s.list(status, limit)
+}
+
+func (s *Store) list(status string, limit int) ([]*game.GameState, error) {
 	if limit <= 0 {
 		limit = 50
 	}
-	rows, err := s.db.Query(s.rebind(`SELECT state FROM games ORDER BY updated_at DESC LIMIT ?`), limit)
+	query := `SELECT state FROM games`
+	args := []any{}
+	if status != "" {
+		query += ` WHERE status = ?`
+		args = append(args, status)
+	}
+	query += ` ORDER BY updated_at DESC LIMIT ?`
+	args = append(args, limit)
+	rows, err := s.db.Query(s.rebind(query), args...)
 	if err != nil {
 		return nil, err
 	}

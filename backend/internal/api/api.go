@@ -93,13 +93,13 @@ const lobbyTTL = 24 * time.Hour
 // launched) so the open-lobby list and the DB don't fill up with dead salons.
 func (s *Server) lobbyJanitor() {
 	purge := func() {
-		games, err := s.store.List(500)
+		games, err := s.store.ListByStatus(game.StatusLobby, 500)
 		if err != nil {
 			return
 		}
 		cutoff := time.Now().Add(-lobbyTTL)
 		for _, gs := range games {
-			if gs.Status == game.StatusLobby && !gs.CreatedAt.IsZero() && gs.CreatedAt.Before(cutoff) {
+			if !gs.CreatedAt.IsZero() && gs.CreatedAt.Before(cutoff) {
 				unlock := s.lockGame(gs.ID)
 				s.drop(gs.ID)
 				unlock()
@@ -377,16 +377,13 @@ func summarize(gs *game.GameState) gameSummary {
 // no resident process: purge stale lobbies and keep EXACTLY one public lobby open. Il
 // tourne sur le battement (POST /api/tick) et sur le poll de la liste des salons.
 func (s *Server) housekeeping() {
-	games, err := s.store.List(200)
+	games, err := s.store.ListByStatus(game.StatusLobby, 200)
 	if err != nil {
 		return
 	}
 	cutoff := time.Now().Add(-lobbyTTL)
 	var public []*game.GameState
 	for _, gs := range games {
-		if gs.Status != game.StatusLobby {
-			continue
-		}
 		if !gs.CreatedAt.IsZero() && gs.CreatedAt.Before(cutoff) {
 			unlock := s.lockGame(gs.ID)
 			s.drop(gs.ID)
@@ -438,17 +435,16 @@ func (s *Server) listGames(w http.ResponseWriter, r *http.Request) {
 	if s.stateless {
 		s.housekeeping()
 	}
-	games, err := s.store.List(50)
+	// Le filtre de statut est appliqué EN SQL : filtrer après le LIMIT faisait
+	// disparaître les salons de la liste dès qu'il y avait 50 parties actives plus
+	// fraîches (elles sont réécrites à chaque vague et par le battement).
+	games, err := s.store.ListByStatus(r.URL.Query().Get("status"), 50)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	status := r.URL.Query().Get("status")
 	out := []gameSummary{}
 	for _, gs := range games {
-		if status != "" && gs.Status != status {
-			continue
-		}
 		out = append(out, summarize(gs))
 	}
 	writeJSON(w, http.StatusOK, out)
@@ -565,12 +561,12 @@ const publicLobbyName = "Expédition de "
 // always a game to join without a code. Called at startup, from the janitor, and
 // after a public game auto-starts.
 func (s *Server) ensurePublicLobby() {
-	games, err := s.store.List(200)
+	games, err := s.store.ListByStatus(game.StatusLobby, 200)
 	if err != nil {
 		return
 	}
 	for _, gs := range games {
-		if gs.Status == game.StatusLobby && gs.IsPublic() {
+		if gs.IsPublic() {
 			return
 		}
 	}
@@ -588,13 +584,13 @@ func (s *Server) joinByCode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	code := strings.ToUpper(strings.TrimSpace(body.Code))
-	games, err := s.store.List(200)
+	games, err := s.store.ListByStatus(game.StatusLobby, 200)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	for _, cand := range games {
-		if cand.Status == game.StatusLobby && (cand.JoinCode == code || cand.ID == body.Code) {
+		if cand.JoinCode == code || cand.ID == body.Code {
 			// This route lives outside the /{gameID} middleware: take the lock here.
 			unlock := s.lockGame(cand.ID)
 			s.join(w, r, cand.ID, body.PlayerName)

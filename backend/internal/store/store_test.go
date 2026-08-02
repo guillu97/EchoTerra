@@ -2,6 +2,7 @@ package store
 
 import (
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -40,6 +41,48 @@ func TestSaveLoadListRoundTrip(t *testing.T) {
 	}
 	if len(all) != 2 {
 		t.Fatalf("List returned %d games, want 2", len(all))
+	}
+}
+
+// Un salon tranquille ne doit pas être chassé de la liste par les parties actives :
+// il est écrit une fois, alors qu'une partie active est réécrite à chaque vague ET
+// par le battement. Filtrer le statut APRÈS un LIMIT rendait la recherche de partie
+// publique aveugle dès qu'il y avait `limit` parties plus fraîches.
+func TestListByStatusIgnoresFresherGames(t *testing.T) {
+	st, err := Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+
+	lobby := &game.GameState{ID: "public-lobby", Status: game.StatusLobby,
+		Visibility: game.VisibilityPublic, CreatedAt: time.Now()}
+	if err := st.Save(lobby); err != nil {
+		t.Fatal(err)
+	}
+	// 60 parties actives écrites APRÈS le salon : elles occupent toute la fenêtre.
+	for i := 0; i < 60; i++ {
+		if err := st.Save(&game.GameState{ID: "active-" + strconv.Itoa(i), Status: game.StatusActive}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if all, err := st.List(50); err != nil || len(all) != 50 {
+		t.Fatalf("List(50) = %d games, %v — la fenêtre récente est bien saturée", len(all), err)
+	}
+	lobbies, err := st.ListByStatus(game.StatusLobby, 50)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(lobbies) != 1 || lobbies[0].ID != "public-lobby" {
+		t.Fatalf("le salon doit rester listé malgré 60 parties plus fraîches, got %+v", lobbies)
+	}
+	actives, err := st.ListByStatus(game.StatusActive, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(actives) != 60 {
+		t.Fatalf("ListByStatus(active) = %d, want 60", len(actives))
 	}
 }
 

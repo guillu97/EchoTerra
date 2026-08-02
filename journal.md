@@ -6,6 +6,49 @@
 
 ---
 
+## 2026-08-02 (89) — La recherche de partie publique était aveuglée par les parties actives
+
+Retour : *« j'ai l'impression que la recherche de partie publique ne marche plus »*. C'était vrai,
+et ce n'était PAS le classement — un bug latent que le battement (#52) a rendu systématique.
+
+### Le diagnostic
+
+`listGames` faisait `store.List(50)` (les 50 parties les plus RÉCEMMENT ÉCRITES) **puis** filtrait
+`status == "lobby"` en Go. Or les deux populations n'ont pas du tout le même rythme d'écriture :
+
+- un **salon** est écrit à sa création, puis plus jamais tant que personne ne le rejoint ;
+- une partie **active** est réécrite à chaque vague **et par le battement toutes les 15 min**.
+
+Donc dès qu'il existe 50 parties actives, elles occupent toute la fenêtre et le salon public en sort :
+`GET /api/games?status=lobby` renvoie `[]` et l'écran reste bloqué sur « Recherche de parties… ».
+Reproduit à l'identique : base neuve → 1 salon listé ; on crée 55 parties → 0 salon listé.
+
+Le même motif cassait **quatre autres chemins** avec la même fenêtre : `joinByCode` (rejoindre par
+code échouait pour un salon sorti de la fenêtre), `ensurePublicLobby` (ne voyant plus le salon
+existant, il en aurait créé des DOUBLONS), `housekeeping` et `lobbyJanitor` (purge aveugle).
+
+### Le correctif
+
+`store.ListByStatus(status, limit)` : le filtre passe **dans le SQL**, sur la colonne miroir `status`
+déjà ajoutée par le battement (`migrateGameColumns`) — c'est exactement ce pour quoi elle existe.
+Les cinq appelants (`listGames`, `joinByCode`, `ensurePublicLobby`, `housekeeping`, `lobbyJanitor`)
+l'utilisent et perdent leur filtre en Go. `List()` reste pour le listing non filtré.
+
+### Fonctionnel (vérifié)
+
+- **Sur la base de la reproduction** (1 salon + 55 parties actives plus fraîches) : avant `[]`,
+  après le correctif → « Expédition de Lunegarde » de nouveau listée. Aucun doublon créé.
+- Rejoindre par code vérifié sur une base saturée (salon privé + 30 parties écrites après lui) : OK.
+- `go test ./...` vert, avec `TestListByStatusIgnoresFresherGames` qui fige la régression
+  (60 parties actives ne doivent pas chasser le salon de `ListByStatus(lobby, 50)`).
+
+### À faire
+
+- `List(50)`/`List(200)`/`List(500)` restent des fenêtres arbitraires ; à l'échelle réelle il
+  faudra de vrais index (et une pagination) plutôt qu'un `LIMIT` généreux.
+
+---
+
 ## 2026-08-02 (88) — Classement des villes, trié par nature de partie
 
 Reprise de la PR #13 (« leaderboard », jamais mergée, base du 13/07 très en retard) : on en

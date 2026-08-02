@@ -239,7 +239,12 @@ l'IA monstre, bataille entière résolue sous le verrou du tick), sinon boule de
 avant la vague, eau/dépôt/chantier/réparation en ville, fouille et exploration sinon, évolution de
 classe auto aux paliers jour 2/4 selon les stats (`botEvolve`) — via les actions publiques validées ;
 pas encore de craft [aucune mécanique de consommation d'objets]). Tout est persisté en SQLite (le salon survit à un redémarrage ; les
-salons ouverts se listent via `GET /api/games?status=lobby`). Le front garde l'identité par partie dans
+salons ouverts se listent via `GET /api/games?status=lobby`). ⚠ **toute recherche de salon passe par
+`store.ListByStatus(StatusLobby, n)`, JAMAIS par `List(n)` + filtre en Go** : un salon est écrit une
+fois puis plus jamais, alors que chaque partie active est réécrite à chaque vague ET par le battement —
+filtrer après le `LIMIT` rendait la recherche publique, le `joinByCode` et `ensurePublicLobby` aveugles
+dès qu'il y avait `n` parties plus fraîches (bug 2026-08-02, test `TestListByStatusIgnoresFresherGames`).
+Le front garde l'identité par partie dans
 `localStorage` (`echoterra:player:<gameId>`, nom dans `echoterra:playerName`) ; la salle d'attente poll
 toutes les 3 s et bascule tout le monde en jeu quand l'hôte lance. `POST /api/games` (legacy) reste le
 flux solo instantané à 3 héros pour "Test rapide". **Ownership serveur** : dans une partie AVEC joueurs,
