@@ -87,6 +87,17 @@ export class VoxelEngine {
    *  monstres masqués par les piliers/reliefs, sans changer l'azimut. */
   topDown = false;
   onFrame: ((info: { calls: number; triangles: number; ms: number }) => void) | null = null;
+  /** Nombre de REDRAWS effectués — un par tour de boucle, quoi qu'il en coûte en
+   *  passes GL. C'est la mesure du contrat « on-demand » : `renderer.info.render
+   *  .frame` compte les appels de rendu, or la passe beauté (bloom) en fait une
+   *  quinzaine pour UN redraw, ce qui rendait ce compteur illisible dès que le
+   *  mode cinématique est devenu le défaut. */
+  frames = 0;
+  /** Appelé JUSTE AVANT le rendu. C'est le crochet des choses qui doivent être à
+   *  jour DANS la frame qu'on s'apprête à dessiner — typiquement la pose des
+   *  personnages : les poser depuis `onFrame` les rendrait avec une frame de
+   *  retard, visible quand la caméra tourne (les rigs face-caméra pivotent). */
+  onBeforeFrame: (() => void) | null = null;
 
   /** passe « beauté » expérimentale : tone mapping ACES filmique + ciel dégradé chaud
    *  + BLOOM SÉLECTIF (glow des cristaux/lucioles/fleurs, sans délaver la scène).
@@ -461,6 +472,7 @@ export class VoxelEngine {
     if (this.raf) return;
     this.raf = requestAnimationFrame(() => {
       this.raf = 0;
+      this.frames++;
       const t0 = performance.now();
       if (this.rotAnim) {
         const k = Math.min(1, (t0 - this.rotAnim.t0) / ROT_MS);
@@ -472,6 +484,7 @@ export class VoxelEngine {
         } else this.invalidate();
       }
       this.applyCamera();
+      this.onBeforeFrame?.();
       if (this.sun) {
         const k = `${this.target.x.toFixed(2)},${this.target.y.toFixed(2)},${this.target.z.toFixed(2)},${this.dayTime.toFixed(3)}`;
         if (k !== this.lastShadowKey) {

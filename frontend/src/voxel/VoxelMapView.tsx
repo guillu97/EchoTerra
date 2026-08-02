@@ -12,7 +12,7 @@
 // sont "dans les murs" (masqués), ceux des autres joueurs translucides.
 // Déplacement SANS animation : positions snap sur l'état serveur.
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { signacify } from "./signacMaterial";
 import { bus, EV } from "../eventBus";
@@ -39,6 +39,37 @@ const OTHER_ALPHA = 0.45;
 // géométries GPU par poll de 20 s (voir clearOwned dans engine.ts).
 const QUAD_GEOM = new THREE.PlaneGeometry(0.96, 0.96).rotateX(-Math.PI / 2);
 const SEL_RING_GEOM = new THREE.RingGeometry(0.2, 0.27, 24).rotateX(-Math.PI / 2);
+
+// Texture des cases ÉPUISÉES : de la terre retournée, pas un aplat.
+//
+// Un simple voile brun uniforme ne marchait pas : assez discret pour ne pas
+// salir la carte, il se confondait avec les variations du terrain (mesuré :
+// 17/255 d'écart moyen, indiscernable d'une bande d'herbe plus sombre) ; assez
+// fort pour se voir, il noircissait la moitié d'une carte bien explorée. Une
+// TEXTURE règle les deux : des taches de terre couvrant à peine la moitié de la
+// case se lisent comme un marqueur (ça ne ressemble à aucun terrain), tout en
+// laissant passer le sol entre elles.
+let DEPLETED_TEX: THREE.CanvasTexture | null = null;
+function depletedTexture(): THREE.CanvasTexture {
+  if (DEPLETED_TEX) return DEPLETED_TEX;
+  const S = 96;
+  const c = document.createElement("canvas");
+  c.width = c.height = S;
+  const g = c.getContext("2d")!;
+  // PRNG figé : la tache doit être identique d'une session à l'autre.
+  let seed = 1337;
+  const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
+  for (let i = 0; i < 34; i++) {
+    const x = rnd() * S, y = rnd() * S, r = 4 + rnd() * 9;
+    const dark = rnd() < 0.45;
+    g.fillStyle = dark ? "rgba(74,55,32,0.92)" : "rgba(120,94,56,0.85)";
+    g.beginPath();
+    g.ellipse(x, y, r, r * (0.6 + rnd() * 0.5), rnd() * Math.PI, 0, Math.PI * 2);
+    g.fill();
+  }
+  DEPLETED_TEX = new THREE.CanvasTexture(c);
+  return DEPLETED_TEX;
+}
 // Props « arbres » : montés d'un cran sur la carte pour dépasser les personnages.
 const TREE_IDS = new Set(["tree-green", "tree-pink", "pine", "pine-snow", "dead-tree"]);
 // Échelle relative des monstres par apparence (× la taille de base d'un perso) :
@@ -74,6 +105,10 @@ class MapWorld {
   chars = new CharLibrary(); // modèles voxel des héros (fallback billboard)
   charMeshes: THREE.Mesh[] = []; // orientés face caméra à chaque frame
   animator: UnitAnimator; // rigs animés (idle/marche/attaque) — pose + rotation gérées ici
+  /** Cycle solaire : le tick et son timer, mis en pause quand l'onglet Map est
+   *  quitté (la vue reste montée, elle ne doit pas continuer à travailler). */
+  sunTick?: () => void;
+  sunTimer: ReturnType<typeof setInterval> | undefined;
   libReady = false;
   terrain: THREE.Group | null = null;
   terrainKey = "";
@@ -105,7 +140,11 @@ class MapWorld {
 
   constructor(readonly engine: VoxelEngine) {
     engine.enableLighting({ shadowSpan: 45 }); // passe beauté : lumière pastel + ombres
-    this.animator = new UnitAnimator(engine);
+    // CONSOMMATEUR de frames, pas producteur : sur la carte, l'idle ne doit pas
+    // réarmer la boucle (cf. l'en-tête de unitAnim.ts — la respiration des héros
+    // faisait rendre la carte à ~35 fps en permanence). Les poses sont
+    // rafraîchies par `onBeforeFrame`, sur les frames que d'autres demandent.
+    this.animator = new UnitAnimator(engine, undefined, { idleDrivesFrames: false });
     engine.scene.add(this.overlays);
     engine.scene.add(this.sprites);
     void this.lib
@@ -131,7 +170,12 @@ class MapWorld {
       this.terrainKey = "";
       this.draw();
     });
-    // les modèles voxel tournent avec la caméra (rotation animée incluse) ;
+    // Les rigs sont posés AVANT le rendu : posés après, ils accuseraient une
+    // frame de retard, ce qui se voit quand la caméra tourne (ils font face à
+    // la caméra). C'est aussi ce qui garde la respiration vivante alors que
+    // l'animator ne demande plus de frames pour elle.
+    engine.onBeforeFrame = () => this.animator.pose();
+    // les billboards tournent avec la caméra (rotation animée incluse) ;
     // le shader d'eau avance son temps sur chaque frame RENDUE
     engine.onFrame = () => {
       for (const m of this.charMeshes) m.rotation.y = engine.azimuthNow;
@@ -394,6 +438,52 @@ class MapWorld {
       this.sprites.add(s);
     };
 
+    // CASES ÉPUISÉES : `Tile.resources` tombé à 0, la fouille n'y rend plus
+    // grand-chose. Un voile de terre retournée le dit d'un coup d'œil — sans ça
+    // le joueur ne pouvait le découvrir qu'en marchant dessus et en lisant un
+    // bouton grisé.
+    //
+    // ⚠ `resources === 0` tout seul ne veut RIEN dire : le brouillard renvoie
+    // une tuile VIERGE (donc `resources: 0`, et `biome: 0` = eau) pour tout ce
+    // qui n'est pas découvert. D'où les trois exclusions : non découverte, eau
+    // (jamais fouillable), et la case ville (générée sans ressources, et la
+    // fouille y est refusée par le serveur).
+    //
+    // UN SEUL InstancedMesh : sur une carte largement explorée il peut y avoir
+    // des milliers de cases épuisées, un mesh par case ferait autant de draw
+    // calls et ferait exploser le budget de la suite de perf.
+    const depleted: { x: number; y: number }[] = [];
+    for (let y = 0; y < game.height; y++) {
+      for (let x = 0; x < game.width; x++) {
+        const t = game.tiles[y * game.width + x];
+        if (!t?.discovered || t.resources > 0) continue;
+        if (t.biome === 0) continue;
+        if (x === game.town.x && y === game.town.y) continue;
+        depleted.push({ x, y });
+      }
+    }
+    if (depleted.length) {
+      const im = new THREE.InstancedMesh(
+        QUAD_GEOM,
+        new THREE.MeshBasicMaterial({
+          map: depletedTexture(), // texture PARTAGÉE (jamais libérée : une seule pour la partie)
+          transparent: true,
+          opacity: 0.72,
+          depthWrite: false,
+        }),
+        depleted.length,
+      );
+      im.userData.ownMat = true; // géométrie PARTAGÉE (QUAD_GEOM) : ne pas la marquer ownGeom
+      im.renderOrder = -1; // sous les losanges de déplacement, qui doivent rester lisibles
+      const m4 = new THREE.Matrix4();
+      depleted.forEach((c, i) => {
+        m4.makeTranslation(c.x, topOf(c.x, c.y) + 0.03, c.y);
+        im.setMatrixAt(i, m4);
+      });
+      im.instanceMatrix.needsUpdate = true;
+      this.overlays.add(im);
+    }
+
     // sélection + losanges de déplacement (mêmes règles que MapScene : ortho,
     // eau connue infranchissable, porte construite fermée = ville scellée)
     const hero = this.selectedHero();
@@ -591,11 +681,17 @@ class MapWorld {
 
 // Pas de nuages ici (retour 2026-07-19 : la boucle continue sur la scène LOURDE
 // lagait sur téléphone) — la carte est 100 % on-demand ; les nuages vivent sur
-// la vue VILLE, légère. `active` reste dans la signature (MapTab la passe).
+// la vue VILLE, légère.
+//
+// `active` = l'onglet Map est-il celui qu'on regarde ? La vue reste MONTÉE toute
+// la partie (démonter le moteur rendait l'ouverture de l'onglet interminable) et
+// n'est que masquée en CSS — donc c'est à elle de se taire : sans ça, elle
+// animait et faisait tourner son cycle solaire derrière un `visibility: hidden`.
 export function VoxelMapView({ active = true }: { active?: boolean }) {
-  void active;
   const hostRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<VoxelEngine | null>(null);
+  const worldRef = useRef<MapWorld | null>(null);
+  const [topDown, setTopDown] = useState(false);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -606,6 +702,7 @@ export function VoxelMapView({ active = true }: { active?: boolean }) {
     engine.maxZoom = 120;
     const controls = new VoxelControls(engine);
     const world = new MapWorld(engine);
+    worldRef.current = world;
     controls.onTap = (t) => world.onTap(t.cssX, t.cssY);
     // mode terrain (blocs ⇄ lisse) + passe beauté depuis les Réglages, à chaud
     world.smoothMode = useStore.getState().settings.voxelSmooth;
@@ -661,26 +758,59 @@ export function VoxelMapView({ active = true }: { active?: boolean }) {
       world.smooth.setTime(performance.now() / 1000);
     };
     sunTick();
+    world.sunTick = sunTick; // re-joué au retour sur l'onglet (cf. l'effet `active`)
     const sunTimer = setInterval(sunTick, 5000);
+    world.sunTimer = sunTimer;
 
     if (import.meta.env.DEV) (window as unknown as { __vm?: unknown }).__vm = { engine, world };
     return () => {
       off();
       offFocus();
       unsubSettings();
-      clearInterval(sunTimer);
+      clearInterval(world.sunTimer);
       controls.dispose();
       world.dispose();
       engine.dispose();
       engineRef.current = null;
+      worldRef.current = null;
     };
   }, []);
+
+  // Onglet quitté : on coupe l'animation ET le cycle solaire. Retrouvé : on
+  // rattrape le cycle d'un coup (l'heure du jour dépend du timer de vague, pas
+  // du nombre de ticks) puis on relance.
+  useEffect(() => {
+    const world = worldRef.current;
+    if (!world) return;
+    world.animator.setActive(active);
+    clearInterval(world.sunTimer);
+    if (active) {
+      world.sunTick?.();
+      world.sunTimer = setInterval(() => world.sunTick?.(), 5000);
+    }
+  }, [active]);
 
   return (
     <>
       <div ref={hostRef} style={{ position: "absolute", inset: 0 }} />
       {/* la rotation 4 orientations — LA nouveauté 3D de la carte voxel */}
       <div className="view-rot">
+        {/* Vue de dessus, comme en combat : à 30° les reliefs cachent ce qui se
+            trouve derrière eux — un pack de monstres, une ruine, un héros au
+            pied d'une falaise. Le moteur ne change QUE l'élévation : azimut,
+            zoom et cible sont conservés, on retrouve donc sa vue en ressortant. */}
+        <button
+          className={`iconbtn${topDown ? " on" : ""}`}
+          aria-pressed={topDown}
+          title={topDown ? "Vue inclinée" : "Vue de dessus (voir ce que les reliefs cachent)"}
+          onClick={() => {
+            const v = !topDown;
+            setTopDown(v);
+            engineRef.current?.setTopDown(v);
+          }}
+        >
+          {topDown ? "🎥" : "🔼"}
+        </button>
         <button className="iconbtn" aria-label="Pivoter la vue à gauche" onClick={() => engineRef.current?.rotate(-1)}>
           ↺
         </button>

@@ -287,6 +287,55 @@ interface StoreState {
   dismissToast: (id: number) => void;
 }
 
+// predictMove applique LOCALEMENT un pas de héros, ou renvoie null si l'issue
+// n'est pas certaine — auquel cas l'appelant attend simplement le serveur.
+//
+// C'est un MIROIR de game.MoveHero (backend/internal/game/actions.go) et il doit
+// le rester : toute règle que le serveur ajoute et qu'on oublie ici produit un
+// héros qui avance puis revient en arrière. D'où le parti pris : on ne prédit
+// que ce qui est certain, et le doute vaut refus de prédire.
+//
+// Le cas qu'on ne PEUT pas prédire, et qui justifie à lui seul le `null` : une
+// case sous le brouillard. Le serveur y renvoie une tuile vierge (fog.go), donc
+// le client ignore son biome ; marcher sur de l'eau inconnue coûte 1 PA et
+// laisse le héros sur place. Impossible à deviner — on attend.
+function predictMove(game: GameState, heroId: string, dx: number, dy: number): GameState | null {
+  const hero = game.heroes.find((h) => h.id === heroId);
+  if (!hero) return null;
+  if (Math.abs(dx) + Math.abs(dy) !== 1) return null;
+  if (hero.hp <= 0 || hero.pa <= 0) return null;
+  if (hero.states.includes("Tétanisé")) return null;
+  // Héros engagé dans un combat : le serveur refuse. On ne cherche pas à le
+  // déduire finement, la présence d'un combat actif suffit à s'abstenir.
+  for (const id in game.combats ?? {}) {
+    const c = game.combats![id];
+    if (c.status === "active" && c.units.some((u) => u.side === "hero" && u.refId === heroId && u.hp > 0 && !u.fled)) {
+      return null;
+    }
+  }
+  const nx = hero.x + dx, ny = hero.y + dy;
+  if (nx < 0 || ny < 0 || nx >= game.width || ny >= game.height) return null;
+  const t = game.tiles[ny * game.width + nx];
+  if (!t || !t.discovered) return null; // brume : issue inconnue (cf. ci-dessus)
+  if (t.biome === 0) return null; // eau connue — le serveur refuse
+  const gate = game.town.buildings?.find((b) => b.id === "gate");
+  if (gate?.built && !gate.open) {
+    const toTown = nx === game.town.x && ny === game.town.y;
+    const fromTown = hero.x === game.town.x && hero.y === game.town.y;
+    if (toTown || fromTown) return null; // porte close : la ville est scellée
+  }
+
+  const pa = hero.pa - 1;
+  const states = hero.states.filter((s) => s !== "Caché"); // bouger rompt la discrétion
+  if (pa === 0 && !states.includes("Fatigue")) states.push("Fatigue");
+  return {
+    ...game,
+    heroes: game.heroes.map((h) =>
+      h.id === heroId ? { ...h, x: nx, y: ny, pa, states } : h,
+    ),
+  };
+}
+
 export const useStore = create<StoreState>((set, get) => {
   const pushLog = (msg: string) => set((s) => ({ log: [...s.log.slice(-40), msg] }));
 
@@ -306,6 +355,10 @@ export const useStore = create<StoreState>((set, get) => {
     bus.emit(EV.ShowScene, "map");
     bus.emit(EV.MapRender, { game, selectedHeroId, myHeroIds, showOthers });
   };
+
+  // Numéro de séquence des pas : une réponse serveur doublée par un pas plus
+  // récent est ignorée, sinon le héros reculerait le temps d'un aller-retour.
+  let moveSeq = 0;
 
   const renderCombat = () => {
     const { combat, current, combatMode, combatSkillIdx, combatThreats, threatUnitId } = get();
@@ -950,7 +1003,37 @@ export const useStore = create<StoreState>((set, get) => {
         if (!game || !selectedHeroId) return;
         if (!ownsHero(selectedHeroId)) return;
         const before = game.heroes.find((h) => h.id === selectedHeroId);
-        const next = await api.move(game.id, selectedHeroId, dx, dy, playerId);
+
+        // DÉPLACEMENT OPTIMISTE. Le héros ne bougeait qu'à la réponse HTTP : un
+        // aller-retour serveur (et, en déploiement, un réveil de fonction) entre
+        // le doigt et le premier pixel — le jeu paraissait poisseux alors que
+        // l'animation de marche, elle, était déjà là. On applique donc le pas
+        // localement AVANT d'envoyer : l'animator voit la position changer et
+        // joue la foulée immédiatement, la réponse arrive pendant le pas.
+        //
+        // On ne prédit QUE ce qui est certain (predictMove) : un pas sur une
+        // case sous brume peut se solder par « c'est de l'eau, demi-tour, -1 PA »
+        // et le client n'a aucun moyen de le savoir — il ne prédit pas ce
+        // cas-là, il attend.
+        const seq = ++moveSeq;
+        const predicted = predictMove(game, selectedHeroId, dx, dy);
+        if (predicted) {
+          set({ game: predicted });
+          renderMap();
+        }
+
+        let next: GameState;
+        try {
+          next = await api.move(game.id, selectedHeroId, dx, dy, playerId);
+        } catch (e) {
+          // Prédiction fausse (ou refus serveur) : on ne bricole pas un rollback
+          // à la main, on redemande la vérité.
+          if (predicted) await get().refreshGame();
+          throw e;
+        }
+        // Une réponse dépassée par un pas plus récent ne doit pas ramener le
+        // héros en arrière : c'est la dernière qui fait foi.
+        if (seq !== moveSeq) return;
         set({ game: next });
         // Sonde d'exploration : PA dépensé mais position inchangée = le héros a
         // découvert de l'EAU sous le brouillard et rebroussé chemin (serveur).
