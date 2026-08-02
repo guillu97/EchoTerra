@@ -74,6 +74,7 @@ func (g *GameState) TownDefense() int {
 // Recompute refreshes derived fields (town defense, hero "Tétanisé", building costs,
 // Bank usage). Safe anytime.
 func (g *GameState) Recompute() {
+	g.backfillBuildings()
 	g.Town.Defense = g.TownDefense()
 	g.recomputeTetanise()
 	g.RevealVision() // grow the shared fog-of-war reveal set from current positions
@@ -95,6 +96,24 @@ func (g *GameState) Recompute() {
 		b.Defense = buildingDefense(b)
 		if b.ID == "bank" {
 			b.Capacity = total // the Bank's "contents" = the town storage
+		}
+	}
+}
+
+// backfillBuildings adds any building the catalog gained since a game was created.
+// DefaultBuildings() only ever runs at worldgen, so a town saved before a building
+// existed would never see it — buildingByID returns nil forever and the site is
+// simply missing from the Structure tab. Appending the missing entries AT THEIR
+// PRISTINE STATE (a construction site) makes every new building reach games in
+// flight. Existing buildings are never touched and never reordered.
+func (g *GameState) backfillBuildings() {
+	have := make(map[string]bool, len(g.Town.Buildings))
+	for _, b := range g.Town.Buildings {
+		have[b.ID] = true
+	}
+	for _, def := range DefaultBuildings() {
+		if !have[def.ID] {
+			g.Town.Buildings = append(g.Town.Buildings, def)
 		}
 	}
 }

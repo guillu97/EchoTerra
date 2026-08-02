@@ -259,7 +259,7 @@ export function VoxelTownView({
     let clouds: Clouds | null = null;
     void propsLib
       .load(["bld-well", "bld-panel", "bld-bank", "bld-workshop", "bld-gate", "bld-tower",
-             "bld-townhall", "bld-kitchen", "bld-wall", "bld-recyclerie", "bld-chantier",
+             "bld-townhall", "bld-kitchen", "bld-wall", "bld-recyclerie", "bld-poste", "bld-chantier",
              "bld-gate-door-l", "bld-gate-door-r", "cloud", ...TOWN_DECOR_PROPS])
       .then(() => {
         drawBuildings();

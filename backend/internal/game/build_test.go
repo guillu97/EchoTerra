@@ -14,6 +14,30 @@ func newBuildTestGame(heroPA int) (*GameState, *Hero) {
 	return g, h
 }
 
+// A brand-new town is not a worn-out town. Every BUILT building starts at full
+// durability — the seed used to ship them damaged (wall 20/100, gate 40/100),
+// which, since buildingDefense scales with the durability ratio, opened the first
+// wave with a defense of ~2 against a horde of 18. Wear is what the waves do.
+func TestFreshTownStartsAtFullDurability(t *testing.T) {
+	for _, b := range DefaultBuildings() {
+		if !b.Built {
+			// Sites carry no durability until the chantier completes (which sets it
+			// to MaxDurability, see TownAction "build").
+			if b.Durability != 0 {
+				t.Errorf("%s is a construction site but carries durability %d", b.ID, b.Durability)
+			}
+			continue
+		}
+		if b.MaxDurability == 0 {
+			t.Errorf("%s is built but has no MaxDurability", b.ID)
+			continue
+		}
+		if b.Durability != b.MaxDurability {
+			t.Errorf("%s starts at %d/%d — a fresh town starts intact", b.ID, b.Durability, b.MaxDurability)
+		}
+	}
+}
+
 // A fresh site is gated by THREE things: a FOUND blueprint (consumed at plan-laying),
 // the level-1 materials (present while investing, consumed at completion) and the PA.
 func TestChantierPlanThenInvestGatedByBlueprintAndMaterials(t *testing.T) {
@@ -153,7 +177,7 @@ func TestBuildingPlansAreLootable(t *testing.T) {
 			found[d.Name] = true
 		}
 	}
-	for _, id := range []string{"townhall", "tower", "kitchen", "recyclerie"} {
+	for _, id := range []string{"townhall", "tower", "kitchen", "recyclerie", "poste"} {
 		plan := buildingPlanItem(id)
 		if plan == "" {
 			t.Fatalf("%s should have a blueprint", id)
@@ -176,6 +200,9 @@ func TestBuildingPlansAreLootable(t *testing.T) {
 	}
 	if weightIn(BiomeGrass, "Plan de la Cuisine") < 2 {
 		t.Fatal("the Kitchen plan (simple building) must be common on grass")
+	}
+	if weightIn(BiomeGrass, "Plan de la Poste") < 2 {
+		t.Fatal("the Poste plan (simple building) must be common on grass")
 	}
 }
 

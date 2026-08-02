@@ -62,7 +62,9 @@ export function CombatHeroBar() {
                   ) : down ? (
                     <span className="mhb-badge dead">💀</span>
                   ) : isTurn ? (
-                    <span className="mhb-badge town">▶</span>
+                    // ⚠ PAS `town` : la règle globale `.town { inset: 0 }` étalait
+                    // ce badge sur tout le portrait (cf. CLAUDE.md §8).
+                    <span className="mhb-badge turn">▶</span>
                   ) : null}
                 </span>
                 <span className="mhb-info">

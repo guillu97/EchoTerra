@@ -60,6 +60,7 @@ var ruinDefs = map[Biome]ruinDef{
 		{"plante", "Graines anciennes", 1, 2},
 		{"minerai", "Acier", 1, 1},
 		{"objet", "Plan de la Cuisine", 1, 2}, // ferme/moulin → cuisine
+		{"objet", "Plan de la Poste", 1, 2},   // relais de poste sur la route → poste
 	}},
 	3: {Type: "sanctuaire", Name: "Sanctuaire englouti", Icon: "🗿", ClearPA: 10, Loot: []DropDef{
 		{"plante", "Herbe médicinale", 1, 3},
@@ -67,6 +68,7 @@ var ruinDefs = map[Biome]ruinDef{
 		{"objet", "Bois", 3, 2},
 		{"objet", "Cœur de chêne ancien", 1, 1},
 		{"objet", "Plan de la Mairie", 1, 2}, // sanctuaire civique → mairie
+		{"objet", "Plan de la Poste", 1, 1},  // scriptorium du sanctuaire → poste
 	}},
 	4: {Type: "mine", Name: "Mine effondrée", Icon: "⛏️", ClearPA: 12, Loot: []DropDef{
 		{"minerai", "Minerai de fer", 2, 3},

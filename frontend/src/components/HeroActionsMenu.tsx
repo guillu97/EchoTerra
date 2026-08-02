@@ -1,12 +1,18 @@
 import { useStore } from "../store";
 import { myTeamHeroes } from "../townUtils";
 import { mapSkillsForHero } from "../skills";
+import { HeroChip } from "./HeroChip";
 import type { Hero } from "../api/types";
 
 // Dropdown anchored on the TopBar smiley: MY team's roster, one row per hero with
-// its map actions. The hero's name button opens the character sheet; the action
-// buttons select the hero then act. Movement itself is unchanged (select a hero,
-// tap the yellow diamonds on the map).
+// its map actions. The ⓘ button opens the character sheet; the action buttons
+// select the hero then act. Movement itself is unchanged (select a hero, tap the
+// yellow diamonds on the map).
+//
+// The rows are the shared `HeroChip` (portrait, HP bar, PA, location badge) —
+// this dropdown used to be the last dark-glass island of the interface, a navy
+// panel with `#fff` text dropped on a parchment app, and it showed less about a
+// hero than either of the other two rosters.
 export function HeroActionsMenu({ onClose }: { onClose: () => void }) {
   const game = useStore((s) => s.game);
   const playerId = useStore((s) => s.playerId);
@@ -57,30 +63,25 @@ export function HeroActionsMenu({ onClose }: { onClose: () => void }) {
           const canDrink = rations > 0 && h.pa < h.maxPa;
           return (
             <div key={h.id} className={`hm-row ${h.id === selectedHeroId ? "sel" : ""} ${dead ? "dead" : ""}`}>
-              <button
-                className="hm-head"
-                title="Ouvrir la fiche de personnage"
-                onClick={() => {
+              <HeroChip
+                hero={h}
+                layout="column"
+                inTown={onTown && !dead}
+                selected={h.id === selectedHeroId}
+                onSelect={() => {
+                  selectHero(h.id);
+                  setTab("map");
+                  onClose();
+                }}
+                onOpenSheet={() => {
                   onClose();
                   openHero(h.id);
                 }}
-              >
-                <span className="hm-name">{dead ? "💀" : "🙂"} {h.name}</span>
-                <span className="hm-stats">❤️{h.hp}/{h.maxHp} ⚡{h.pa}/{h.maxPa}</span>
-              </button>
+              />
               {!dead && (
                 <div className="hm-actions">
-                  <button
-                    className="hm-act"
-                    title="Sélectionner sur la carte (losanges jaunes = déplacements)"
-                    onClick={() => {
-                      selectHero(h.id);
-                      setTab("map");
-                      onClose();
-                    }}
-                  >
-                    🎯
-                  </button>
+                  {/* Plus de bouton 🎯 : taper la pastille elle-même sélectionne
+                      le héros et bascule sur la carte. */}
                   {onMonster && (
                     <button className="hm-act fight" title="Combattre" disabled={busy} onClick={() => run(h, startCombat)}>
                       ⚔️

@@ -47,12 +47,19 @@ func (g *GameState) RevealVision() {
 // ClientView returns a copy of the state that is safe to send to players: tiles no
 // hero has discovered are blanked (their biome/height/resources/monster would leak
 // through the HTTP payload even though the client hides them), monsters standing on
-// undiscovered tiles are omitted, and the worldgen seed is zeroed (seed + generator
-// would reconstruct the whole map). The receiver is NOT modified — persistence and
-// all game logic keep operating on the full state.
+// undiscovered tiles are omitted, the worldgen seed is zeroed (seed + generator
+// would reconstruct the whole map) and the chat board is stripped. The receiver is
+// NOT modified — persistence and all game logic keep operating on the full state.
 func (g *GameState) ClientView() *GameState {
 	cp := *g
 	cp.Seed = 0
+	// The messaging board never rides the game payload: who may READ it depends on
+	// the requesting player (in town, or the Poste built — see chat.go) and this
+	// function has no idea who is asking. Only the count survives, so the ✉️ button
+	// can carry an unread pip without leaking a word. Content is served by the
+	// dedicated, gated GET /town/chat. (cp.Town is a value copy — g is untouched.)
+	cp.Town.ChatCount = len(g.Town.Chat)
+	cp.Town.Chat = nil
 	// DEBUG « lever le brouillard » : envoie TOUTE la carte (tuiles marquées
 	// découvertes) sans toucher au vrai jeu de tuiles explorées de `g` — désactiver
 	// le flag rend le brouillard réel. Monstres/ruines suivent (tout est visible).

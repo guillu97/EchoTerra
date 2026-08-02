@@ -29,6 +29,7 @@ function BuildingMenu({ layout, b, onClose }: { layout: BuildingLayout; b: TownB
   const setTab = useStore((s) => s.setTab);
   const toggleTownStatus = useStore((s) => s.toggleTownStatus);
   const toggleTownJournal = useStore((s) => s.toggleTownJournal);
+  const toggleChat = useStore((s) => s.toggleChat);
   const busy = useStore((s) => s.busy);
   const game = useStore((s) => s.game);
   const townHeroId = useStore((s) => s.townHeroId);
@@ -67,6 +68,8 @@ function BuildingMenu({ layout, b, onClose }: { layout: BuildingLayout; b: TownB
         }
       : layout.id === "panel"
       ? { label: "📋 Journal", fn: () => { onClose(); toggleTownJournal(true); }, cost: 0 }
+      : layout.id === "poste"
+      ? { label: "✉️ Ouvrir la messagerie", fn: () => { onClose(); toggleChat(true); }, cost: 0 }
       : null;
 
   return (
@@ -145,6 +148,25 @@ function BuildingMenu({ layout, b, onClose }: { layout: BuildingLayout; b: TownB
   );
 }
 
+// La bulle de conversation posée sur la ville : le DERNIER message réel du
+// board, cliquable pour ouvrir la messagerie.
+//
+// Elle affichait jusqu'ici deux répliques codées en dur reprises de la maquette
+// (« Neko : Putain qui a laissé la porte ouverte encore !! » et le bandeau
+// Shinki 🦊) — une promesse de fonctionnalité que rien ne tenait. Le bandeau du
+// bas a disparu avec elles : c'est la place de la liste des personnages.
+function ChatBubble() {
+  const chat = useStore((s) => s.chat);
+  const toggleChat = useStore((s) => s.toggleChat);
+  const last = chat[chat.length - 1];
+  if (!last) return null;
+  return (
+    <button className="chat-bubble" title="Ouvrir la messagerie" onClick={() => toggleChat(true)}>
+      <span className="who">{last.author} :</span> {last.text}
+    </button>
+  );
+}
+
 // Home tab = the town. Buildings funded by the PA of heroes in town + Bank materials.
 export function HomeTab() {
   const game = useStore((s) => s.game);
@@ -166,9 +188,7 @@ export function HomeTab() {
 
   return (
     <div className="town-wrap" style={{ position: "absolute", inset: 0 }}>
-      <div className="chat-bubble">
-        <span className="who">Neko :</span> Putain qui a laissé la porte ouverte encore !!
-      </div>
+      <ChatBubble />
 
       <div className={`town ${selected ? "dim" : ""}`}>
         {/* Le tertre en voxel. Le rendu 2D isométrique de secours a été retiré
@@ -176,14 +196,6 @@ export function HomeTab() {
             compatible d'une grille de cases, ce qui interdisait précisément la
             géométrie polaire et le terrain lissé. */}
         <VoxelTownView selected={selected} onBuildingClick={onBuildingClick} onClear={() => setSelected(null)} />
-
-        <div className="shinki">
-          <div className="face">🦊</div>
-          <div className="msg">
-            <div className="who">Shinki</div>
-            <div className="txt">Bienvenue à Echo Terra, voyageuse ! La horde approche…</div>
-          </div>
-        </div>
       </div>
 
       {sel && selState && selState.built && (

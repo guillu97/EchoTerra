@@ -10,6 +10,7 @@ import { CraftTab } from "../tabs/CraftTab";
 import { HeroOverlay } from "../components/HeroOverlay";
 import { TownStatus } from "../components/TownStatus";
 import { TownJournal } from "../components/TownJournal";
+import { TownChat } from "../components/TownChat";
 import { GameOver } from "../components/GameOver";
 import { CheatPanel } from "../components/CheatPanel";
 import { Toasts } from "../ui/Toasts";
@@ -19,11 +20,23 @@ import { Toasts } from "../ui/Toasts";
 export function GameScreen() {
   const tab = useStore((s) => s.tab);
   const refreshGame = useStore((s) => s.refreshGame);
+  const refreshChat = useStore((s) => s.refreshChat);
+  const chatOpen = useStore((s) => s.chatOpen);
 
   useEffect(() => {
     const t = setInterval(() => refreshGame(), 20000);
     return () => clearInterval(t);
   }, [refreshGame]);
+
+  // La messagerie a sa propre cadence : 20 s, c'est acceptable pour une vague,
+  // pas pour une conversation. Sa route est légère et ne déclenche PAS le
+  // rattrapage de simulation (voir townChatList côté serveur), donc sonder plus
+  // vite ne coûte pas de tours de jeu. Fermée, on ralentit : le compteur de
+  // non-lus voyage déjà avec le payload de partie.
+  useEffect(() => {
+    const t = setInterval(() => refreshChat(), chatOpen ? 4000 : 30000);
+    return () => clearInterval(t);
+  }, [refreshChat, chatOpen]);
 
   return (
     <div className="screen sky">
@@ -45,6 +58,7 @@ export function GameScreen() {
       <HeroOverlay />
       <TownStatus />
       <TownJournal />
+      <TownChat />
       <GameOver />
       <CheatPanel />
       <Toasts />

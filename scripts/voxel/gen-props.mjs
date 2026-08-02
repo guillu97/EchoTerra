@@ -1343,6 +1343,42 @@ function bldRecyclerie(seed) {
   return g;
 }
 
+function bldPoste(seed) {
+  // Le relais de poste : une petite maison de courrier, l'abri à chevaux ouvert
+  // sur le côté, une boîte aux lettres sur la route et le cor accroché au pignon.
+  // C'est un bâtiment SOCIAL — il doit se lire de loin comme « on écrit ici »,
+  // d'où l'enseigne au cor et le rouge du courrier, la seule tache vive du bourg.
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz, FINE);
+  const rnd = makeRng(seed); void rnd;
+  const MAIL = [186, 74, 62]; // rouge du courrier
+  g.box(4.5, 13.5, 7.5, 13.5, 0, 5.4, shade(THATCH, 0.72)); // corps torchis
+  for (const x of [4.8, 8.9, 13.0]) g.box(x, x + 0.55, 7.1, 7.5, 0, 5.4, shade(TIMBER, 1.1)); // colombages
+  g.box(7.6, 10.4, 7.1, 7.5, 0, 4.4, DARK_W); // porte
+  g.box(11.2, 12.8, 7.1, 7.5, 2.4, 4.2, [122, 186, 202]); // fenêtre du guichet
+  prismRoof(g, 4.5, 13.5, 7.8, 13.2, 5.6, GOLD_THATCH);
+  // Auvent du relais : deux poteaux et une couverture, la partie ouverte où
+  // s'arrêtent les coursiers.
+  g.box(14.2, 14.8, 8.4, 9.0, 0, 4.2, TIMBER);
+  g.box(14.2, 14.8, 11.8, 12.4, 0, 4.2, TIMBER);
+  g.box(13.4, 15.6, 8.0, 12.8, 4.2, 4.7, shade(ROOF_TILE, 0.96));
+  // Casier à courrier sous l'auvent.
+  g.box(14.0, 15.2, 9.4, 11.4, 0, 1.8, shade(WOOD_W, 1.06));
+  g.box(14.0, 15.2, 9.4, 11.4, 1.8, 2.0, DARK_W);
+  // Boîte aux lettres sur son pieu, DEVANT la façade (y < 6.8) : le débord du
+  // toit couvre tout le pourtour du corps, un objet posé sur le côté disparaît
+  // dessous — c'est en avant du bâtiment qu'on le voit.
+  g.box(5.6, 6.0, 5.4, 5.8, 0, 2.4, TIMBER);
+  g.box(5.0, 6.6, 4.9, 6.3, 2.4, 3.8, MAIL);
+  g.box(6.6, 6.9, 5.3, 5.9, 2.8, 3.4, TRIM_GOLD); // le drapeau du facteur
+  // Enseigne : le COR de poste, en laiton, accroché à la façade SOUS l'avancée
+  // du toit (au-dessus, il traversait le chaume).
+  g.box(11.0, 12.6, 7.0, 7.2, 4.2, 5.0, shade(DARK_W, 1.25)); // la plaque
+  g.box(11.2, 12.0, 6.88, 7.08, 4.4, 4.7, TRIM_GOLD); // corps du cor
+  g.box(12.0, 12.5, 6.84, 7.12, 4.3, 4.9, shade(TRIM_GOLD, 1.14)); // pavillon
+  g.set(11.1, 6.95, 4.8, MAIL); // cordon rouge
+  return g;
+}
+
 function bldWall(seed) {
   // PALISSADE de pieux, pas rempart de pierre. C'est l'enceinte du Rohan : des
   // troncs jointifs taillés en pointe, une lisse intérieure et un chemin de
@@ -1828,6 +1864,9 @@ async function main() {
       ["bld-workshop", bldWorkshop], ["bld-gate", bldGate], ["bld-tower", bldTower],
       ["bld-townhall", bldTownhall], ["bld-kitchen", bldKitchen], ["bld-wall", bldWall],
       ["bld-recyclerie", bldRecyclerie],
+      // ⚠ AJOUTER EN FIN DE LISTE : l'index `bi` sème chaque bâtiment, insérer au
+      // milieu re-sèmerait (et donc redessinerait) tous les suivants.
+      ["bld-poste", bldPoste],
     ].map(([id, mk], bi) => ({
       id,
       make: (v) => {

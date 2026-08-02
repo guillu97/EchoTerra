@@ -186,6 +186,15 @@ type GameState struct {
 		// gate toggles, well draws, bank deposits, builds/repairs, town crafts —
 		// newest first, capped (see logTown). Shared by all players.
 		Log []TownLogEntry `json:"log,omitempty"`
+		// Chat is the players' messaging board (see chat.go): OLDEST FIRST (reading
+		// order of a conversation, unlike Log), capped by chatCap. It NEVER reaches a
+		// client through the game payload — ClientView blanks it and serves ChatCount
+		// instead, because reading is gated per player (in town, or the Poste built).
+		// The dedicated GET /town/chat route is the only way in.
+		Chat []ChatMessage `json:"chat,omitempty"`
+		// ChatCount is len(Chat), filled by ClientView only: it drives the unread pip
+		// on the ✉️ button without leaking a single message.
+		ChatCount int `json:"chatCount"`
 		// Townhall resurrections: how many were performed today (daily allowance is
 		// the Townhall's level; level 3 is unlimited AND free).
 		ReviveDay    int `json:"reviveDay,omitempty"`

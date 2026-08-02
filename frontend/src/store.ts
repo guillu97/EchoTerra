@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { api, getAuthToken, setAuthToken } from "./api/client";
 import type {
+  ChatMessage,
   ClassDef,
   CombatCurrent,
   CombatThreat,
@@ -21,6 +22,26 @@ const LS_SETTINGS = "echoterra:settings";
 const LS_PLAYER_NAME = "echoterra:playerName";
 // Per-game player identity: which player *I* am in that game (multiplayer lobby flow).
 const lsPlayerKey = (gameId: string) => `echoterra:player:${gameId}`;
+
+// How many chat messages this DEVICE has already seen, per game. Read-state is
+// deliberately local: the server has no business tracking who read what, and two
+// devices of the same player legitimately carry different pips.
+const lsChatSeenKey = (gameId: string) => `echoterra:chatSeen:${gameId}`;
+function saveChatSeen(gameId: string | undefined, n: number) {
+  if (!gameId) return;
+  try {
+    localStorage.setItem(lsChatSeenKey(gameId), String(n));
+  } catch {
+    /* ignore */
+  }
+}
+export function loadChatSeen(gameId: string): number {
+  try {
+    return Number(localStorage.getItem(lsChatSeenKey(gameId))) || 0;
+  } catch {
+    return 0;
+  }
+}
 
 // Deux « créneaux » de partie en cours, indépendants : le joueur peut être dans
 // UNE partie solo ET UNE partie publique/privée en même temps (mais pas deux
@@ -142,6 +163,10 @@ interface StoreState {
   heroOverlay?: string; // hero id whose character screen is open
   townStatusOpen: boolean; // town status panel overlay
   townJournalOpen: boolean; // town journal overlay (Panel building)
+  chatOpen: boolean; // messagerie de la ville (feuille ✉️)
+  chat: ChatMessage[]; // board content — served by its own gated route, never by the game payload
+  chatSeen: number; // how many messages this device had seen (drives the unread pip)
+  chatLocked?: string; // server's reason when the board is out of reach (no hero in town, no Poste)
   cheatOpen: boolean;
   townHeroId?: string; // preferred hero paying for town work
   recipes: Recipe[];
@@ -184,6 +209,9 @@ interface StoreState {
   closeHero: () => void;
   toggleTownStatus: (open?: boolean) => void;
   toggleTownJournal: (open?: boolean) => void;
+  toggleChat: (open?: boolean) => void;
+  refreshChat: () => Promise<void>; // sondage silencieux de la messagerie
+  sendChat: (text: string) => Promise<void>;
   toggleCheat: () => void;
   startTestGame: () => Promise<void>;
   continueTestGame: () => Promise<void>;
@@ -374,6 +402,12 @@ export const useStore = create<StoreState>((set, get) => {
 
   const enterActiveGame = async () => {
     await loadCatalogs();
+    // Restore this device's read mark so re-entering a game doesn't light the ✉️
+    // pip for messages already read, and fetch the board once (the panel and the
+    // Ville bubble both read it).
+    const gid = get().game?.id;
+    if (gid) set({ chat: [], chatLocked: undefined, chatSeen: loadChatSeen(gid) });
+    void get().refreshChat();
     // reprise EN COMBAT (adoptGame a posé view:"combat") → onglet Map (l'arène y
     // vit) ; sinon onglet Home par défaut.
     const inCombat = get().view === "combat" && !!get().combat;
@@ -410,6 +444,9 @@ export const useStore = create<StoreState>((set, get) => {
     settings: loadSettings(),
     townStatusOpen: false,
     townJournalOpen: false,
+    chatOpen: false,
+    chat: [],
+    chatSeen: 0,
     cheatOpen: false,
     recipes: [],
     classes: [],
@@ -453,6 +490,48 @@ export const useStore = create<StoreState>((set, get) => {
       set((s) => ({ townStatusOpen: open === undefined ? !s.townStatusOpen : open })),
     toggleTownJournal: (open) =>
       set((s) => ({ townJournalOpen: open === undefined ? !s.townJournalOpen : open })),
+
+    toggleChat: (open) => {
+      const next = open === undefined ? !get().chatOpen : open;
+      set({ chatOpen: next });
+      // Opening marks everything read AND refetches: the pip is driven by
+      // town.chatCount (which rides the 20 s game poll), so the count is what we
+      // acknowledge, not the length of the list we happen to hold.
+      if (next) {
+        set({ chatSeen: get().game?.town.chatCount ?? get().chat.length });
+        saveChatSeen(get().game?.id, get().chatSeen);
+        void get().refreshChat();
+      }
+    },
+
+    refreshChat: async () => {
+      const { game, playerId } = get();
+      if (!game) return;
+      try {
+        const res = await api.townChat(game.id, playerId);
+        set({ chat: res.messages, chatLocked: undefined });
+        if (get().chatOpen) {
+          const seen = game.town.chatCount ?? res.messages.length;
+          set({ chatSeen: Math.max(seen, res.messages.length) });
+          saveChatSeen(game.id, get().chatSeen);
+        }
+      } catch (e: any) {
+        // 400 = the positional gate (no hero in town, no Poste). That is not an
+        // error to toast — it is the state the panel is meant to explain.
+        set({ chat: [], chatLocked: e?.message || "messagerie hors de portée" });
+      }
+    },
+
+    sendChat: (text) =>
+      withBusy(async () => {
+        const { game, playerId } = get();
+        if (!game || !text.trim()) return;
+        const res = await api.townChatSend(game.id, text, playerId);
+        set({ chat: res.messages, chatLocked: undefined, chatSeen: res.messages.length });
+        saveChatSeen(game.id, res.messages.length);
+        if (res.message.filtered) notify("Message envoyé — un mot a été masqué par la modération.", "warn");
+      }),
+
     toggleCheat: () => set((s) => ({ cheatOpen: !s.cheatOpen })),
     startTestGame: () =>
       withBusy(async () => {
