@@ -188,6 +188,24 @@ func (s *Server) Router() http.Handler {
 		writeJSON(w, http.StatusOK, game.Classes)
 	})
 
+	// Classement des villes. ?mode=solo|public|private restreint à un type de partie
+	// (les trois ne se comparent pas) ; sans mode, tout est classé ensemble.
+	r.Get("/api/leaderboard", func(w http.ResponseWriter, r *http.Request) {
+		mode := r.URL.Query().Get("mode")
+		switch mode {
+		case "", game.ModeSolo, game.ModePublic, game.ModePrivate:
+		default:
+			writeErr(w, http.StatusBadRequest, "mode inconnu: "+mode)
+			return
+		}
+		entries, err := s.store.Leaderboard(mode, 50)
+		if err != nil {
+			writeErr(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, entries)
+	})
+
 	r.Get("/api/mapskills", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, game.MapSkills)
 	})
@@ -406,8 +424,11 @@ func (s *Server) housekeeping() {
 
 // newPublicLobby crée et persiste un salon public ouvert (celui qu'on rejoint sans code).
 func (s *Server) newPublicLobby() *game.GameState {
-	gs := worldgen.NewLobby(22, 22, time.Now().UnixNano(), publicLobbyName, 2, 4)
+	gs := worldgen.NewLobby(22, 22, time.Now().UnixNano(), "", 2, 4)
 	gs.Visibility = game.VisibilityPublic
+	// Nommée d'après sa ville ("Expédition de Clairmont") : deux salons publics
+	// successifs se distinguent, et le classement lit le même nom.
+	gs.Name = publicLobbyName + gs.Town.Name
 	s.persist(gs)
 	return gs
 }
@@ -513,6 +534,7 @@ func (s *Server) soloGame(w http.ResponseWriter, r *http.Request) {
 	now := time.Now()
 	gs := worldgen.NewLobby(body.Width, body.Height, body.Seed, name, 1, 5)
 	gs.Visibility = game.VisibilityPrivate
+	gs.Solo = true // classement : les runs solo se comparent entre eux
 	p, err := gs.AddPlayer(body.PlayerName, now)
 	if err != nil {
 		writeActionErr(w, err)
@@ -535,8 +557,9 @@ func (s *Server) soloGame(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, map[string]any{"game": gs, "player": p})
 }
 
-// publicLobbyName is the display name of server-created public games.
-const publicLobbyName = "Expédition publique"
+// publicLobbyName prefixes the display name of server-created public games, which
+// is completed by the generated town name (see newPublicLobby).
+const publicLobbyName = "Expédition de "
 
 // ensurePublicLobby guarantees at least one OPEN public lobby exists, so there is
 // always a game to join without a code. Called at startup, from the janitor, and

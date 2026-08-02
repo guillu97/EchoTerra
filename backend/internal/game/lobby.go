@@ -31,6 +31,41 @@ const (
 // IsPublic reports whether this is a server-created public game.
 func (g *GameState) IsPublic() bool { return g.Visibility == VisibilityPublic }
 
+// Leaderboard modes: how a town's run is classified in the ranking. The three are
+// not comparable (a solo run with 4 bots plays nothing like a public expedition of
+// four humans), so the leaderboard is browsed one mode at a time.
+const (
+	ModeSolo    = "solo"
+	ModePublic  = "public"
+	ModePrivate = "private"
+)
+
+// LeaderboardMode classifies the game for the ranking: "solo" (one human + bots),
+// "public" (server-created open expedition) or "private" (coded lobby between
+// friends). The Solo flag is authoritative; games created before the flag existed
+// fall back to the shape a solo game has — private, exactly one human, at least one
+// bot — which is also a fair description of any such run.
+func (g *GameState) LeaderboardMode() string {
+	if g.Solo {
+		return ModeSolo
+	}
+	if g.IsPublic() {
+		return ModePublic
+	}
+	humans, bots := 0, 0
+	for _, p := range g.Players {
+		if p.Bot {
+			bots++
+		} else {
+			humans++
+		}
+	}
+	if humans == 1 && bots > 0 {
+		return ModeSolo
+	}
+	return ModePrivate
+}
+
 // HeroesPerPlayer is the size of each player's team (GDD: 1 joueur = 3 héros).
 const HeroesPerPlayer = 3
 

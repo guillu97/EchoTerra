@@ -3526,3 +3526,117 @@ body {
   font-size: 20px;
   color: var(--red);
 }
+
+/* =====================  CLASSEMENT (leaderboard)  ========================== */
+/* Réutilise la coque du lobby (.lobby-screen/.lobby-panel/.lobby-card/.lobby-tabs)
+   — seules les LIGNES du palmarès sont propres à cet écran. */
+/* Un palmarès est un TABLEAU, pas un formulaire : il respire mieux que les
+   340px du lobby dès qu'il y a la place (sur téléphone, c'est 100% comme avant). */
+.lb-panel {
+  width: min(520px, 100%);
+}
+/* Quatre onglets au lieu de deux : sans min-width:0 les libellés refusent de
+   rétrécir et la barre déborde du panneau sur un écran de téléphone. */
+.lb-tabs button {
+  min-width: 0;
+  padding: 9px var(--s-1);
+  font-size: var(--t-sm);
+  white-space: nowrap;
+}
+.lb-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.lb-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: rgba(255, 255, 255, 0.55);
+}
+.lb-row.top {
+  border-color: var(--gold);
+  background: var(--cream);
+  box-shadow: var(--sh-card);
+}
+.lb-rank {
+  flex: 0 0 auto;
+  min-width: 28px;
+  text-align: center;
+  font-family: var(--font-title);
+  font-weight: 800;
+  font-size: var(--t-lg);
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+.lb-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 auto;
+  text-align: left; /* `.screen` centre tout : une ligne de palmarès s'aligne à gauche */
+}
+.lb-name {
+  font-family: var(--font-title);
+  font-weight: 800;
+  font-size: var(--t-lg);
+  color: var(--ink);
+  line-height: var(--lh-tight);
+}
+.lb-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-width: 0;
+}
+.lb-name,
+.lb-players {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lb-status {
+  flex: 0 0 auto;
+  font-family: var(--font-body);
+  font-weight: 800;
+  font-size: var(--t-xs);
+  padding: 1px var(--s-2);
+  border-radius: var(--r-pill);
+}
+.lb-status.live {
+  background: rgba(111, 165, 68, 0.18);
+  color: var(--green-ink);
+}
+.lb-status.over {
+  background: rgba(192, 57, 43, 0.14);
+  color: var(--red-2);
+}
+.lb-players {
+  flex: 1 1 auto;
+  font-size: var(--t-xs);
+  color: var(--ink-soft);
+  min-width: 0;
+}
+.lb-mode {
+  flex: 0 0 auto;
+  font-size: var(--t-xs);
+  font-weight: 800;
+  color: var(--ink-muted);
+}
+.lb-scores {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  flex: 0 0 auto;
+  font-size: var(--t-xs);
+  font-weight: 800;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}

@@ -135,6 +135,7 @@ func (g *GameState) CastMapSkill(heroID, skillID string) (*MapSkillReport, error
 		}
 	}
 
+	g.MonstersKilled += rep.Slain // tableau des scores : les créatures tombées au sort
 	h.PA -= sk.PA
 	h.Bars["combat"]++
 	h.RemoveState(StateCache) // lancer un sort révèle le héros

@@ -75,7 +75,7 @@ const TOAST_MS = 4000;
 type View = "map" | "combat";
 type CombatMode = "move" | "attack" | "skill" | "push";
 
-export type AppScreen = "loading" | "title" | "cinematic" | "game" | "editor" | "designer" | "voxelbench" | "voxeledit" | "charstudio" | "lobby" | "account";
+export type AppScreen = "loading" | "title" | "cinematic" | "game" | "editor" | "designer" | "voxelbench" | "voxeledit" | "charstudio" | "lobby" | "account" | "leaderboard";
 export type Tab = "home" | "map" | "stock" | "structure" | "craft";
 export type SettingsScreen = "menu" | "setting" | "language" | "notifications";
 

@@ -129,8 +129,10 @@ backend/
                                 HeroesInTown/TownPA/spendFor/canPay, Bank storage helpers, TownAction
     craft.go                    Recipe, Recipes catalog, Craft (town vs field), hero-item helpers
     monsters.go                 NewMonster, MonsterSpecies
+    townnames.go                NewTownName: noms de ville générés (Town.Name, posé au worldgen)
     *_test.go                   worldgen, combat, tetanise, build (TestBuildConsumesBankMaterials), evolve
   internal/store/store.go       SQLite OU Postgres (DSN postgres://): one row per game, state as JSON blob
+                                + table leaderboard (ScoreEntry, saveScore/Leaderboard — voir §5)
   internal/store/users.go       comptes (email unique, bcrypt ou Google) + sessions (token TTL 30j)
   internal/api/auth.go          register/login/logout/me/me/games, Bearer, userFromReq (anonyme OK)
   internal/api/google.go        Google Sign-In: /auth/config + /auth/google (id_token vérifié via tokeninfo)
@@ -146,7 +148,8 @@ frontend/src/
   townUtils.ts                  heroesInTown, townPA, effectiveTownHeroId, TOWN_TABS
   useWave.ts                    useWaveRemaining (server nextWaveAt), formatHMS
   api/{client.ts,types.ts}      REST client + TS DTOs mirroring Go JSON
-  screens/                      LoadingScreen, TitleScreen, CinematicScreen, GameScreen, LobbyScreen
+  screens/                      LoadingScreen, TitleScreen, CinematicScreen, GameScreen, LobbyScreen,
+                                AccountScreen, LeaderboardScreen (classement, onglets par mode)
   components/                   TopBar, BottomNav, HeroChips, Logo, TownWorker(+useWorkerPA),
                                 TownStatus, GameOver, HeroOverlay, ItemGrid, MapHeroBar
   ui/                           Overlay.tsx (LA primitive de modale/feuille : Échap, piège à focus,
@@ -161,12 +164,14 @@ frontend/src/
 ## 4. Backend domain model (the JSON the client sees)
 
 - **GameState**: `id, name, seed, width(22), height(22), tiles[], heroes[], monsters{id->Monster}, day(1),
-  wave(0), waveNumber, nextWaveAt(time), status("lobby"|"active"|"gameover"), lastWave?, town, activeCombat?,
-  combats{}` + lobby: `joinCode, minPlayers, maxPlayers, players[], createdAt, startedAt`.
+  wave(0), waveNumber, nextWaveAt(time), status("lobby"|"active"|"gameover"), lastWave?, monstersKilled, town,
+  activeCombat?, combats{}` + lobby: `joinCode, visibility, solo, minPlayers, maxPlayers, players[], createdAt,
+  startedAt`.
 - **Player** (lobby.go): `id, name, heroIds[3], host, joinedAt` — **1 joueur = 3 héros** (équipe : le 1er
   héros porte le nom du joueur, les 2 autres viennent du pool `companionNames`) ; le 1er joueur est l'hôte.
-- **Town** (inline in GameState): `x, y, hp(100), maxHp(100), defense(computed), buildings[], storage[]`.
-  **`storage` = the Bank** (shared town stash).
+- **Town** (inline in GameState): `name, x, y, hp(100), maxHp(100), defense(computed), buildings[], storage[]`.
+  **`storage` = the Bank** (shared town stash). `name` = nom généré au worldgen (`townnames.go`,
+  « Clairmont », « Valbourg-sur-Brume ») — affiché dans la TopBar et **c'est lui qui figure au classement**.
 - **Hero**: `id, name, x, y, pa(6), maxPa, hp, maxHp, stats{force,dexterite,agilite,endurance,athletisme,
   precision}, class("Sans classe"), classId, classTier(0|1|2), classBonuses{Stats}, states[], inventory[Item],
   bars{}`.
@@ -214,12 +219,13 @@ per-building `defense`, per-building `cost`, `bank.capacity = sum(storage qty)`,
 
 **Lobby / multijoueur** (`lobby.go`, `LobbyScreen.tsx`) — deux visibilités (`GameState.Visibility`,
 "" = private legacy) : **privée** = créée par un joueur, join par CODE, lancée par l'HÔTE, kick = hôte ;
-**publique** = créée automatiquement par le serveur ("Expédition publique", `ensurePublicLobby` au boot
+**publique** = créée automatiquement par le serveur ("Expédition de <Ville>", `ensurePublicLobby` au boot
 + janitor + après chaque auto-start → il y a toujours un salon public ouvert), listée sans joinCode,
 **démarre seule dès `minPlayers` atteint** (`MaybeAutoStart`), start manuel/bots/pouvoirs d'hôte
 refusés, expulsion par **vote majoritaire** (`VoteKick`, `KickVotes`, majorité stricte des autres
 humains, lobby only, votes purgés aux départs). **Mode solo** : `POST /api/games/solo` = partie privée
-créateur + 4 bots lancée immédiatement (bouton menu "🤖 Solo"). Une partie naît en statut **`lobby`** :
+créateur + 4 bots lancée immédiatement (bouton menu "🤖 Solo"), marquée `GameState.Solo` (classement).
+Une partie naît en statut **`lobby`** :
 `POST /api/games/lobby` génère le monde SANS héros, SANS monstres ni vague programmée, avec un `joinCode`
 (5 car.) et auto-join du créateur (= hôte 👑). Chaque `join` (par code ou id) spawn l'ÉQUIPE de 3 héros du
 joueur en ville (stats du pool GDD cyclées). L'hôte lance via `POST /{id}/start` **une fois `minPlayers`
@@ -245,6 +251,22 @@ dépose que le sac de SON héros ; **`town/action` exige `heroId` en multi** (le
 que MES héros pour la présence en ville, le worker, les PA et le Stock. `POST /{id}/leave` (lobby only, salon vidé = supprimé, hôte transféré),
 `POST /{id}/kick` (hôte). Goroutine `lobbyJanitor` purge les lobbies non lancés de +24 h (`store.Delete`).
 Tests: `lobby_test.go`, `store_test.go`, worldgen `TestNewLobby*`.
+
+**Classement des villes** (`store.go` table `leaderboard`, `GET /api/leaderboard`,
+`LeaderboardScreen.tsx`, 2026-08-02) — **une ligne par partie LANCÉE** (les salons sont exclus),
+upsertée à chaque `Save` ET à chaque `SaveIfUnchanged` (sans ce second point, une ville qui ne
+survit que par le BATTEMENT ne monterait jamais au tableau) et qui **survit à la suppression de la
+partie**. `ScoreEntry {gameId, townName, gameName, mode, players[] (humains seulement), days, waves,
+monstersKilled, gameOver, updatedAt}` ; tri `waves DESC, monsters_killed DESC, updated_at DESC`,
+top 50. **Trois natures de partie qui NE SE COMPARENT PAS** (`GameState.LeaderboardMode()`) :
+`solo` (drapeau `GameState.Solo`, posé par `POST /api/games/solo` ; repli pour les parties d'avant
+le drapeau : privée + 1 humain + ≥1 bot), `public`, `private` — le paramètre `?mode=` filtre, un mode
+inconnu répond 400. Le score suivi est `GameState.MonstersKilled`, incrémenté dans `CastMapSkill`
+(`rep.Slain`) et dans `FinishCombat` sur une victoire (`m.Count`, le pack entier — ce qui couvre
+aussi les combats auto-résolus des bots). Front : bouton « 🏆 Classement » de l'écran titre →
+4 onglets **Toutes · Solo · Publiques · Privées**, chacun refaisant la requête avec son mode ; le
+badge de mode par ligne n'apparaît que dans « Toutes ». Tests : `achievements_test.go`,
+`store_test.go` (`TestLeaderboardSavesAndRanks`, `TestLeaderboardFiltersByMode`).
 
 **Comptes utilisateur** (`store/users.go`, `api/auth.go`, `api/google.go`, `AccountScreen.tsx`,
 `googleAuth.ts`) — email+mot de passe (bcrypt, gratuit) **et Google Sign-In**, sessions Bearer 30 j,
@@ -420,6 +442,8 @@ POST /api/tick                                   BATTEMENT: avance TOUTES les pa
                                                  des salons (jeton ECHOTERRA_TICK_TOKEN/CRON_SECRET en
                                                  Bearer ou ?token=; GET accepté aussi) -> {ok,games[],…}
 GET  /api/recipes
+GET  /api/leaderboard[?mode=solo|public|private]  classement des villes (top 50, vagues puis monstres tués ;
+                                                 mode inconnu -> 400) -> [] ScoreEntry
 GET  /api/auth/config                            {googleClientId} (""=Google désactivé; le front s'y adapte)
 POST /api/auth/register                          {email,name?,password} -> {user,token} (bcrypt, session 30j)
 POST /api/auth/login                             {email,password} -> {user,token} ; POST /api/auth/logout

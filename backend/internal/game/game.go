@@ -145,6 +145,10 @@ type GameState struct {
 	// becomes "active" once the host launches it with at least MinPlayers players.
 	JoinCode   string    `json:"joinCode,omitempty"`   // short shareable code to join the lobby
 	Visibility string    `json:"visibility,omitempty"` // "private" (default) | "public" (see lobby.go)
+	// Solo marks a game created by POST /api/games/solo (one human + bots). It is
+	// private like any other coded lobby, so visibility alone can't tell them apart —
+	// the leaderboard ranks solo towns separately (see LeaderboardMode).
+	Solo       bool      `json:"solo,omitempty"`
 	MinPlayers int       `json:"minPlayers"`
 	MaxPlayers int       `json:"maxPlayers"`
 	Players    []*Player `json:"players"`
@@ -162,7 +166,11 @@ type GameState struct {
 	// never serialized into the blob nor sent to clients (see store.SaveIfUnchanged).
 	Rev int64 `json:"-"`
 	LastWave   *WaveReport `json:"lastWave,omitempty"`
-	Town       struct {
+	// MonstersKilled counts every creature slain in this game (iso combat wins, map
+	// skills, bot auto-resolves) — the leaderboard's "monstres tués par ville".
+	MonstersKilled int `json:"monstersKilled"`
+	Town           struct {
+		Name      string          `json:"name"` // generated town name (see townnames.go)
 		X         int             `json:"x"`
 		Y         int             `json:"y"`
 		HP        int             `json:"hp"`
