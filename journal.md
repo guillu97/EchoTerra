@@ -46,9 +46,16 @@ les parties actives + l'entretien des salons. Authentifié (`ECHOTERRA_TICK_TOKE
 qu'un endpoint de travail ouvert à tous. Balayage borné (25 parties, 20 s) et amorti
 contre le martèlement.
 
-**3. Qui l'appelle** : **GitHub Actions toutes les 5 min** (`.github/workflows/heartbeat.yml`,
+**3. Qui l'appelle** : **GitHub Actions toutes les 15 min** (`.github/workflows/heartbeat.yml`,
 gratuit et illimité sur un repo public) + un **cron Vercel quotidien** en filet — le plan
 Hobby plafonne son cron natif à **1×/jour**, ce qui interdisait de s'en contenter.
+La cadence est **15 min et non 5** (le minimum GitHub) à cause de la BASE, pas de Vercel :
+le plan gratuit Neon suspend le compute après **5 min d'inactivité** et n'offre que
+**100 CU-h/mois** — un battement toutes les 5 min tombe pile sur ce seuil, la base ne dort
+jamais (~182 CU-h, presque le double du quota). À 15 min : ~61 CU-h. Aucune perte de
+fidélité : `AdvanceTo` rejoue chaque vague à SON heure, la ville est seulement révélée
+plus tard si personne ne joue. Côté Vercel le battement pèse <1 % des quotas Hobby (un
+sweep coûte 10–30 ms ; le poll du frontend, 20 s par joueur, pèse 20× plus).
 
 **4. Concurrence** : le battement introduit un écrivain de fond, donc `store.SaveIfUnchanged`
 (colonne `rev`) — **il abandonne son rattrapage plutôt que d'écraser l'action d'un joueur**

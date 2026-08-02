@@ -17,10 +17,18 @@ name: Battement (tick)
 
 on:
   schedule:
-    # Toutes les 5 minutes — c'est le plus court que GitHub accepte. La cadence est
-    # « au mieux » (des retards de plusieurs minutes sont normaux) : sans importance
-    # ici, le serveur rattrape le temps écoulé, il ne compte pas les appels.
-    - cron: "*/5 * * * *"
+    # Toutes les 15 minutes. Ce n'est PAS un compromis sur la simulation : AdvanceTo
+    # rejoue les vagues à LEUR heure prévue, pas à l'heure de l'appel — l'histoire de
+    # la ville reste exacte, elle est seulement révélée un peu plus tard si personne
+    # ne joue (et la première requête d'un joueur rattrape le reliquat aussitôt).
+    #
+    # Pourquoi pas 5 min (le minimum que GitHub accepte) ? À cause de la BASE, pas de
+    # Vercel : le plan gratuit de Neon suspend le compute après 5 minutes d'inactivité
+    # et n'offre que 100 CU-heures/mois. Un appel toutes les 5 min tombe pile sur cette
+    # limite — le compute ne s'endort jamais, soit ~182 CU-h/mois, presque le double du
+    # quota. À 15 min la base dort ~10 min sur 15 : ~61 CU-h, avec de la marge.
+    # (Côté Vercel le battement est négligeable : <1 % des invocations Hobby.)
+    - cron: "*/15 * * * *"
   workflow_dispatch: # déclenchement manuel, pour vérifier le réglage
 
 # Un battement à la fois : si un run traîne, le suivant ne s'empile pas.

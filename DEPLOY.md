@@ -81,7 +81,7 @@ La réponse tient en deux pièces :
    facultatif `ECHOTERRA_URL` si l'URL du déploiement diffère de
    `https://echo-terra-kappa.vercel.app`.)
 3. C'est tout : `.github/workflows/heartbeat.yml` appelle `/api/tick` **toutes les
-   5 minutes**. Vérifier une fois à la main par *Actions → Battement (tick) → Run
+   15 minutes**. Vérifier une fois à la main par *Actions → Battement (tick) → Run
    workflow* — la réponse JSON liste les parties avancées.
 
 Le workflow est gratuit (Actions est illimité sur un repo public) et sans jeton il
@@ -99,9 +99,36 @@ variable `CRON_SECRET` (envoyée en `Authorization: Bearer …`) : le serveur l'
 aussi, donc poser `CRON_SECRET` = `ECHOTERRA_TICK_TOKEN` suffit.
 
 **Autres pingers** : n'importe quel service qui sait appeler une URL fait l'affaire
-(cron-job.org toutes les minutes, UptimeRobot toutes les 5 min). `GET /api/tick` est
-accepté au même titre que `POST`, avec le jeton en `?token=…` pour ceux qui ne savent
-pas poser d'en-tête.
+(cron-job.org, UptimeRobot…). `GET /api/tick` est accepté au même titre que `POST`,
+avec le jeton en `?token=…` pour ceux qui ne savent pas poser d'en-tête.
+
+### Pourquoi 15 minutes, et ce que ça coûte
+
+La cadence du battement n'a pas à suivre l'intervalle des vagues : `AdvanceTo` rejoue
+chaque vague **à son heure prévue**, pas à l'heure de l'appel. Un battement toutes les
+15 minutes sur des vagues de 10 minutes donne donc une histoire de ville **exacte**,
+simplement révélée jusqu'à 15 min plus tard quand personne ne joue — et la première
+requête d'un joueur rattrape le reliquat aussitôt.
+
+Le facteur limitant n'est pas Vercel mais **la base**. Ordres de grandeur mensuels :
+
+| Ressource | Quota gratuit | Battement à 15 min | Part |
+|---|---|---|---|
+| Vercel — invocations | 1 000 000 | ~2 900 | ~0,3 % |
+| Vercel — Active CPU | 4 CPU-h | ~0,1 CPU-h | ~2 % |
+| Vercel — mémoire provisionnée | 360 GB-h | ~2 GB-h | ~0,5 % |
+| **Neon — compute** | **100 CU-h** | **~61 CU-h** | **~61 %** |
+| GitHub Actions (repo public) | illimité | — | 0 € |
+
+Un sweep coûte 10–30 ms de CPU : côté Vercel le battement disparaît dans le bruit (le
+poll du frontend, toutes les 20 s par joueur, pèse bien plus lourd). Côté Neon en
+revanche, le plan gratuit **suspend le compute après 5 minutes d'inactivité** et n'offre
+que 100 CU-heures : un battement toutes les 5 min tomberait pile sur ce seuil, la base
+ne s'endormirait jamais (~182 CU-h/mois, **presque le double du quota**). À 15 min elle
+dort ~10 min sur 15. Si tu passes à une cadence plus courte, prévois le plan Neon payant.
+
+Sur Hobby, un dépassement **met le projet en pause** au lieu de facturer — pas de
+surprise sur la carte.
 
 ### Parties oubliées
 

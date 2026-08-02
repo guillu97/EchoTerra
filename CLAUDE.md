@@ -94,8 +94,8 @@ avancées au-delà du joué, l'appel suivant continue) et **plafonné** (`CatchU
 ville — sinon 3 jours d'oubli = des centaines de vagues et des dizaines de milliers de monstres).
 Trois appelants, même horloge : `POST /api/tick` (**le battement**, budget `TickBudget`), toute
 requête touchant une partie (`tick()`, budget `RequestBudget`, plus petit — un joueur attend), et le
-`waveScheduler` résident en dev. Le battement est appelé par **GitHub Actions toutes les 5 min**
-(`.github/workflows/heartbeat.yml`, gratuit sur repo public) + un **cron Vercel quotidien** en filet
+`waveScheduler` résident en dev. Le battement est appelé par **GitHub Actions toutes les 15 min**
+(`.github/workflows/heartbeat.yml`, gratuit sur repo public ; 15 et pas 5 min à cause du quota compute de Neon, cf. DEPLOY.md) + un **cron Vercel quotidien** en filet
 (`vercel.json` ; le plan Hobby ne permet pas mieux qu'1×/jour) ; jeton `ECHOTERRA_TICK_TOKEN` (ou
 `CRON_SECRET`), sans jeton l'endpoint répond **503** en déploiement. Il écrit avec
 `store.SaveIfUnchanged` (colonne `rev`) : **il abandonne son rattrapage plutôt que d'écraser l'action
