@@ -113,14 +113,22 @@ export function HeroActionsMenu({ onClose }: { onClose: () => void }) {
                     <span className="hm-note">🏰 en ville</span>
                   ) : (
                     <>
-                      <button
-                        className="hm-act"
-                        title="Fouiller (-1 PA)"
-                        disabled={noPa || stuck || (tile?.resources ?? 0) <= 0}
-                        onClick={() => run(h, search)}
-                      >
-                        🔎
-                      </button>
+                      {/* ⚠ pas de garde `resources <= 0` : une case épuisée reste
+                          fouillable (des Débris, que la Recyclerie transforme). */}
+                      {h.forageAt ? (
+                        <span className="hm-note" title="Fouille automatique — sans PA">
+                          🔄 fouille auto
+                        </span>
+                      ) : (
+                        <button
+                          className="hm-act"
+                          title="Fouiller (-1 PA) — le héros continue ensuite tout seul"
+                          disabled={noPa || stuck}
+                          onClick={() => run(h, search)}
+                        >
+                          🔎
+                        </button>
+                      )}
                       <button
                         className="hm-act"
                         title={stuck ? "Tétanisé — impossible de se cacher" : "Hide (-1 PA)"}

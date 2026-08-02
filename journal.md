@@ -6,6 +6,72 @@
 
 ---
 
+## 2026-08-02 (92) — La fouille devient un POSTE : premier PA, puis récolte automatique
+
+Deux demandes liées, à partir de l'incohérence relevée au lot précédent.
+
+### 1. Une case épuisée reste fouillable
+
+Le serveur prévoyait déjà le cas (`depletedFindPct` : 25 % d'une vraie ressource, sinon des Débris — et
+la Recyclerie existe pour les transformer), mais le client désactivait le bouton dès `resources <= 0`.
+Le mode était donc écrit, testé… et inatteignable en jeu. La garde est retirée des deux endroits qui la
+portaient (`MapTab`, `HeroActionsMenu`) et un test la fige côté serveur.
+
+### 2. Le PA achète une installation, pas une trouvaille
+
+Nouveau fonctionnement : fouiller coûte toujours 1 PA, mais le héros **reste sur place et continue de
+fouiller tout seul, gratuitement**, tant qu'il ne bouge pas. Le bouton devient « 🔄 Fouille auto » avec
+le temps restant avant la prochaine trouvaille.
+
+**L'intervalle est une fraction de la vague, pas un nombre de minutes.** `ForageInterval() =
+WaveInterval / 6`. Le rythme du jeu est réglé par `ECHOTERRA_WAVE_SECONDS` (10 min en dev, 6 h en
+déploiement) : une constante en minutes aurait donné 72 trouvailles entre deux vagues en réel, et la
+fouille manuelle n'aurait plus servi à rien. Un sixième donne six récoltes par période — exactement les
+six PA d'un héros, donc poster un héros vaut à peu près une journée de fouille à la main.
+
+**C'est une TROISIÈME horloge de la simulation**, et c'est le point qui a décidé de l'architecture. Un
+minuteur côté client aurait été inutile : Echo Terra tourne sans personne de connecté. La récolte est
+donc entrelacée chronologiquement avec les vagues et les rounds de bots dans `AdvanceTo`, avec son
+propre budget (`SimBudget.Forages`) et son propre plafond de retard — sans ça, une partie oubliée trois
+jours aurait déversé des milliers d'objets d'un coup dans les sacs.
+
+Elle passe **avant** une vague due au même instant : une récolte antérieure doit avoir eu lieu avant que
+la horde ne blesse (donc n'interrompe) le héros.
+
+**Ce qui interrompt** : bouger, s'échapper, se cacher, entrer en combat, être Tétanisé, tomber. Les trois
+derniers ne repassent par aucune action du joueur, ils sont donc vérifiés paresseusement (`canForage`,
+appelé par `nextForage`) — un héros tétanisé par une vague est désinstallé à la première échéance.
+
+**Pourquoi il n'y a pas de plafond de sac** (le sac n'en a aucun aujourd'hui) : la case s'épuise et ne
+rend plus que ~75 % de Débris, un héros posté hors des murs se fait frapper à CHAQUE vague, et
+transformer les Débris coûte 1 PA à la Recyclerie. Camper est un pari, pas un revenu.
+
+### Fonctionnel (vérifié)
+
+- `forage_test.go` : le PA n'est payé qu'à la première fouille, la récolte tourne dans la simulation,
+  budget respecté ET repris là où il s'est arrêté, plafond de retard, interruptions (déplacement,
+  cachette, fuite, Tétanisé, mort), fouille autorisée sur case épuisée, intervalle qui suit
+  `WaveInterval`.
+- Bout en bout (serveur à `ECHOTERRA_WAVE_SECONDS=120`, donc récolte toutes les 20 s) : après 65 s
+  **sans aucune action**, le héros a +3 objets et **exactement les mêmes PA** ; la récolte est toujours
+  installée ; un pas l'interrompt ; fouiller une case à 0 ressource renvoie 200 (« Bois ×1 » sur ce
+  tirage) et réinstalle la récolte.
+- Navigateur : le bouton passe de « 🔎 Fouiller -1 » à « 🔄 Fouille auto 00:16 », le compte à rebours
+  descend (00:16 → 00:10), et la barre des héros l'explique en clair.
+- `go test ./...`, `npx tsc -b`, `npm run build`, `npm run test:perf` (12/12) verts.
+
+### À faire
+
+- Le compte à rebours peut rester à « 00:00 » quelques secondes : la récolte est jouée par la
+  simulation, donc elle n'arrive au client qu'au sondage suivant (20 s). Assumé — afficher zéro est plus
+  honnête que de faire semblant d'avoir trouvé. Un rafraîchissement déclenché à l'échéance serait mieux.
+- Les bots héritent de la mécanique (ils fouillent par les actions publiques) mais `BotAct` les fait
+  bouger souvent, donc ils n'en profitent presque pas. À regarder si on veut qu'ils campent aussi.
+- Rien n'indique sur la CARTE quels héros sont en train de récolter (seulement le héros sélectionné) ;
+  un liseré sur la pastille des autres serait utile.
+
+---
+
 ## 2026-08-02 (91) — La carte redevient on-demand ; vue de dessus, pas instantané, cases épuisées
 
 ### 1. La carte rendait 35 fps en permanence

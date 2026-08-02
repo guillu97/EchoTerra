@@ -14,9 +14,10 @@ import (
 // ÉCOULÉ, rejouable à n'importe quel moment par n'importe quelle instance.
 //
 // AdvanceTo est ce rejeu. Il déroule la période écoulée dans l'ORDRE CHRONOLOGIQUE en
-// entrelaçant deux horloges — les vagues (NextWaveAt, toutes les WaveInterval) et les
-// rounds de bots (LastBotAt, toutes les BotCatchUpInterval) — pour que la partie
-// retrouvée soit celle qui SE SERAIT déroulée, et pas un raccourci. Deux appelants :
+// entrelaçant TROIS horloges — les vagues (NextWaveAt, toutes les WaveInterval), les
+// rounds de bots (LastBotAt, toutes les BotCatchUpInterval) et les fouilles
+// automatiques (Hero.ForageAt, toutes les ForageInterval, cf. forage.go) — pour que la
+// partie retrouvée soit celle qui SE SERAIT déroulée, et pas un raccourci. Deux appelants :
 //   - le battement (`POST /api/tick`, cron externe) : le monde tourne sans joueur ;
 //   - toute requête touchant la partie (filet de sécurité si le battement a sauté).
 //
@@ -41,20 +42,22 @@ var CatchUpMaxBacklog = 12 * time.Hour
 type SimBudget struct {
 	Waves     int // vagues résolues au maximum
 	BotRounds int // rounds de bots joués au maximum
+	Forages   int // fouilles automatiques jouées au maximum
 }
 
 // RequestBudget est le budget d'une requête de JEU : petit, car un joueur attend sa
 // réponse. Le reste du retard sera absorbé par les requêtes/battements suivants.
-var RequestBudget = SimBudget{Waves: 4, BotRounds: 6}
+var RequestBudget = SimBudget{Waves: 4, BotRounds: 6, Forages: 24}
 
 // TickBudget est le budget du BATTEMENT (cron) : personne n'attend, on peut rattraper
 // franchement. Le balayage complet reste borné par son échéance (voir api/tick.go).
-var TickBudget = SimBudget{Waves: 24, BotRounds: 30}
+var TickBudget = SimBudget{Waves: 24, BotRounds: 30, Forages: 200}
 
 // SimResult décrit ce qu'un rattrapage a réellement joué.
 type SimResult struct {
 	Waves        int  // vagues résolues
 	BotRounds    int  // rounds de joueurs-IA joués
+	Forages      int  // fouilles automatiques jouées
 	SkippedWaves int  // vagues sautées par le plafond de retard
 	Changed      bool // l'état a changé → l'appelant doit persister
 	Done         bool // l'horloge de la partie a rattrapé `now` (sinon : budget épuisé)
@@ -98,8 +101,23 @@ func (g *GameState) AdvanceTo(now time.Time, b SimBudget) SimResult {
 		waveDue := !now.Before(g.NextWaveAt)
 		botAt := g.LastBotAt.Add(BotCatchUpInterval)
 		botDue := hasBots && !now.Before(botAt)
-		if !waveDue && !botDue {
+		forager, forageAt := g.nextForage()
+		forageDue := forager != nil && !now.Before(forageAt)
+		if !waveDue && !botDue && !forageDue {
 			break
+		}
+		// La fouille automatique passe en premier quand c'est elle la plus ancienne :
+		// une récolte due AVANT une vague doit avoir eu lieu avant que la horde ne
+		// blesse le héros (elle pourrait l'interrompre).
+		if forageDue && (!waveDue || forageAt.Before(g.NextWaveAt)) && (!botDue || forageAt.Before(botAt)) {
+			if res.Forages >= b.Forages {
+				res.Done = false
+				break
+			}
+			g.forageOnce(forager)
+			res.Forages++
+			res.Changed = true
+			continue
 		}
 		// Ordre chronologique strict : l'événement le plus ancien d'abord. À égalité la
 		// vague passe en premier (elle régénère les PA dont le round de bots profite).
@@ -145,6 +163,13 @@ func (g *GameState) trimBacklog(now time.Time) int {
 	cutoff := now.Add(-CatchUpMaxBacklog)
 	if g.LastBotAt.Before(cutoff) {
 		g.LastBotAt = cutoff // les bots ne rattrapent jamais plus que la fenêtre
+	}
+	// Idem pour les fouilles automatiques : sans ça, une partie oubliée trois jours
+	// déverserait des milliers d'objets dans les sacs d'un coup.
+	for _, h := range g.Heroes {
+		if h.Foraging() && h.ForageAt.Before(cutoff) {
+			h.ForageAt = cutoff
+		}
 	}
 	if !g.NextWaveAt.Before(cutoff) {
 		return 0

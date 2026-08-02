@@ -1,6 +1,9 @@
 package game
 
-import "math/rand"
+import (
+	"math/rand"
+	"time"
+)
 
 // Map-level state names used by the slice.
 const (
@@ -80,6 +83,7 @@ func (g *GameState) MoveHero(heroID string, dx, dy int) error {
 			h.PA--
 			h.Bars["athletisme"]++
 			h.RemoveState("Caché") // il a bougé à découvert
+			h.StopForaging()       // il a quitté son poste, même sans changer de case
 			t.Discovered = true
 			if h.PA == 0 {
 				h.AddState(StateFatigue)
@@ -101,6 +105,7 @@ func (g *GameState) MoveHero(heroID string, dx, dy int) error {
 	h.PA--
 	h.Bars["athletisme"]++
 	h.RemoveState("Caché") // moving breaks concealment
+	h.StopForaging()       // on ne récolte plus la case qu'on vient de quitter
 	if h.PA == 0 {
 		h.AddState(StateFatigue)
 	}
@@ -133,6 +138,7 @@ func (g *GameState) HideHero(heroID string) error {
 	h.PA--
 	h.Bars["athletisme"]++
 	h.AddState("Caché")
+	h.StopForaging() // se terrer et fouiller bruyamment s'excluent
 	if h.PA == 0 {
 		h.AddState(StateFatigue)
 	}
@@ -188,6 +194,7 @@ func (g *GameState) EscapeHero(heroID string) error {
 		if t := g.TileAt(nx, ny); t != nil && t.Biome.Walkable() {
 			h.X, h.Y = nx, ny
 			h.RemoveState("Caché")
+			h.StopForaging()
 			break
 		}
 	}
@@ -229,23 +236,37 @@ func (g *GameState) SearchTile(heroID string) (*Item, error) {
 	if h.PA == 0 {
 		h.AddState(StateFatigue)
 	}
+	it := g.searchLoot(h, t, td)
+	if it == nil {
+		return nil, ActionError{"rien trouvé"}
+	}
+	// Le PA payé ici ouvre la FOUILLE AUTOMATIQUE : le héros reste sur place et
+	// continue de fouiller tout seul (voir forage.go).
+	h.ForageAt = time.Now().Add(ForageInterval())
+	return it, nil
+}
+
+// searchLoot tire le butin d'une fouille et le range dans le sac : épuisement de
+// la case, table pondérée du terrain, passifs de récolte des classes. Partagé par
+// la fouille MANUELLE (qui paie 1 PA) et la fouille AUTOMATIQUE (gratuite) — les
+// deux doivent rendre exactement la même chose.
+func (g *GameState) searchLoot(h *Hero, t *Tile, td TerrainDef) *Item {
 	// ÉPUISEMENT : une case n'est riche que `Resources` fouilles ; ensuite elle ne
 	// rend plus grand chose — le plus souvent des débris, et seulement de temps en
 	// temps une vraie ressource — ce qui pousse à explorer des cases fraîches.
 	if t.Resources <= 0 {
-		if rand.Intn(100) < depletedFindPct {
-			// coup de chance : une dernière ressource traîne encore
-		} else {
+		if rand.Intn(100) >= depletedFindPct {
 			it := Item{Type: "objet", Name: "Débris", Qty: 1}
 			h.AddLoot(it)
-			return &it, nil
+			return &it
 		}
+		// coup de chance : une dernière ressource traîne encore
 	} else {
 		t.Resources--
 	}
 	d := weightedDrop(td.Drops)
 	if d == nil {
-		return nil, ActionError{"rien trouvé"}
+		return nil
 	}
 	it := Item{Type: d.Type, Name: d.Name, Qty: d.Qty}
 	// Class harvest passives: Récupérateur carries +1 of anything it digs up;
@@ -257,7 +278,7 @@ func (g *GameState) SearchTile(heroID string) (*Item, error) {
 		it.Qty++
 	}
 	h.AddLoot(it)
-	return &it, nil
+	return &it
 }
 
 // RationPA is the action points a Ration d'eau restores when drunk on the map.

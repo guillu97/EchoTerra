@@ -8,7 +8,7 @@ import { MapHeroBar } from "../components/MapHeroBar";
 import { CombatHeroBar } from "../components/CombatHeroBar";
 import { mapSkillsForHero } from "../skills";
 import { myActiveCombat } from "../combatUtils";
-import { useTurnRemaining } from "../useWave";
+import { formatHMS, useForageRemaining, useTurnRemaining } from "../useWave";
 
 // Radial action menu (Hordes-style) that pops at the selected hero when tapped on the map.
 function ActionMenu() {
@@ -17,8 +17,12 @@ function ActionMenu() {
 
   useEffect(() => bus.on(EV.MapHeroMenu, ({ sx, sy }: { sx: number; sy: number }) => setPos({ x: sx, y: sy })), []);
 
+  // ⚠ avant les retours anticipés : c'est un hook.
+  const selHero = game?.heroes.find((h) => h.id === selectedHeroId);
+  const forageIn = useForageRemaining(selHero);
+
   if (!pos || !game) return null;
-  const hero = game.heroes.find((h) => h.id === selectedHeroId);
+  const hero = selHero;
   if (!hero) return null;
   const tileAt = (x: number, y: number) =>
     x < 0 || y < 0 || x >= game.width || y >= game.height ? undefined : game.tiles[y * game.width + x];
@@ -38,6 +42,9 @@ function ActionMenu() {
   // Boire une ration : possible si le héros en a une ET n'est pas déjà au max de PA.
   const rations = hero.inventory.find((it) => it.name === "Ration d'eau")?.qty ?? 0;
   const canDrink = rations > 0 && hero.pa < hero.maxPa;
+  // Fouille AUTOMATIQUE : une fois le PA payé, le héros continue de fouiller sa
+  // case tout seul. Le bouton devient un compte à rebours (voir forage.go).
+  const foraging = !!hero.forageAt;
   const close = () => setPos(null);
   const run = async (fn: () => Promise<void>) => {
     close();
@@ -106,10 +113,19 @@ function ActionMenu() {
         {!onTown && (
           <>
             {/* Fouille et cachette impossibles quand le héros est tenu par la horde
-                (Tétanisé) — le serveur les refuse aussi. */}
-            <button disabled={noPa || stuck || (tile?.resources ?? 0) <= 0} onClick={() => run(search)}>
-              🔎 Fouiller <i>-1</i>
-            </button>
+                (Tétanisé) — le serveur les refuse aussi.
+                ⚠ PAS de `resources <= 0` ici : une case épuisée reste fouillable
+                (le plus souvent des Débris, que la Recyclerie transforme). Le
+                client désactivait le bouton, rendant ce mode inatteignable. */}
+            {foraging ? (
+              <button className="am-forage" disabled title="La récolte tourne toute seule, sans PA">
+                🔄 Fouille auto <i>{formatHMS(forageIn ?? 0)}</i>
+              </button>
+            ) : (
+              <button disabled={noPa || stuck} onClick={() => run(search)}>
+                🔎 Fouiller <i>-1</i>
+              </button>
+            )}
             <button
               disabled={noPa || stuck}
               title={stuck ? "Tétanisé — impossible de se cacher" : ""}

@@ -3018,6 +3018,18 @@ body {
   border: none;
   justify-content: center;
 }
+/* Fouille AUTOMATIQUE en cours : ce n'est pas une action à déclencher mais un
+   état qui tourne — vert « en marche », et désactivé sans être grisé au point
+   de devenir illisible (c'est un compte à rebours qu'on vient lire). */
+.action-menu .am-forage {
+  background: linear-gradient(180deg, #7fb95e, var(--green-ink));
+  border: none;
+  color: #fff;
+}
+.action-menu .am-forage:disabled {
+  opacity: 1;
+  cursor: default;
+}
 .action-menu .am-skill {
   background: linear-gradient(180deg, #8a6bff, #5a3fd8);
   border: none;

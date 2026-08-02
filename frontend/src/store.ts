@@ -331,7 +331,9 @@ function predictMove(game: GameState, heroId: string, dx: number, dy: number): G
   return {
     ...game,
     heroes: game.heroes.map((h) =>
-      h.id === heroId ? { ...h, x: nx, y: ny, pa, states } : h,
+      // `forageAt` retombe : on ne récolte plus la case qu'on quitte (miroir du
+      // StopForaging de MoveHero).
+      h.id === heroId ? { ...h, x: nx, y: ny, pa, states, forageAt: undefined } : h,
     ),
   };
 }

@@ -292,7 +292,25 @@ PA→0 adds `Fatigue`). Search = 1 PA, **tirage pondéré de la table du terrain
 plaine : fleur/viande/débris + baies/fibres ; forêt : herbe/peau/bois + champignons/baies ; montagne/neige :
 paliers de rareté pierre > fer/charbon > argent/or/givre), decrements tile `resources`. **Search et Hide sont
 REFUSÉS sur la case ville** (serveur `actions.go` + menu radial masqué ; la tuile ville est générée avec
-`resources: 0` pour que les bots/UI ne la ciblent pas).
+`resources: 0` pour que les bots/UI ne la ciblent pas). Une case **ÉPUISÉE** (`resources` à 0) reste
+FOUILLABLE : `depletedFindPct` 25 % de vraie ressource, sinon des Débris (que la Recyclerie transforme).
+⚠ le client désactivait le bouton dès `resources <= 0`, rendant ce mode inatteignable — corrigé 2026-08-02,
+ne pas réintroduire cette garde. Le tirage est partagé par `searchLoot` (fouille manuelle ET automatique).
+
+**Fouille AUTOMATIQUE** (`forage.go`, 2026-08-02) — le PA de la fouille n'achète plus une trouvaille mais
+une INSTALLATION : `SearchTile` pose `Hero.ForageAt`, et le héros continue de fouiller sa case **tout seul,
+sans PA**, tant qu'il ne bouge pas. C'est ce qui donne un intérêt à POSTER un héros sur un jeu joué en
+plusieurs jours réels. `ForageInterval() = WaveInterval / 6` — exprimé en fraction de vague et pas en
+minutes fixes, sinon les 6 h de vague du déploiement donneraient 72 trouvailles entre deux vagues ; un
+sixième donne SIX récoltes par période, exactement les 6 PA d'un héros. **C'est une TROISIÈME horloge de
+`AdvanceTo`** (sim.go), entrelacée chronologiquement avec les vagues et les rounds de bots — sans quoi elle
+ne tournerait pas sans joueur connecté ; bornée par `SimBudget.Forages` et par `trimBacklog` (une partie
+oubliée trois jours ne doit pas déverser des milliers d'objets). Interrompue par : bouger, s'échapper, se
+cacher, entrer en combat, être Tétanisé, tomber (`StopForaging` + `canForage`, vérifié paresseusement par
+`nextForage`). Pas de plafond de sac : ce qui borne le camping, c'est que la case s'épuise (~75 % de Débris
+ensuite), que le héros posté hors des murs se fait frapper à chaque vague, et que recycler coûte 1 PA.
+Front : le bouton devient « 🔄 Fouille auto » avec compte à rebours (`useForageRemaining`), plus un rappel
+dans `MapHeroBar`. Tests `forage_test.go`.
 
 **Compétences de carte PAR CLASSE** (`mapskills.go`, 2026-07-20 — remplacent la boule de feu universelle) —
 catalogue data `MapSkills []MapSkillDef {id, classId, name, icon, pa, desc, kind, base, stat, loot}` servi par

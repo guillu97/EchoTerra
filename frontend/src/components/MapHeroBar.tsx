@@ -1,6 +1,7 @@
 import { useStore } from "../store";
 import { myTeamHeroes } from "../townUtils";
 import { HeroChip } from "./HeroChip";
+import { formatHMS, useForageRemaining } from "../useWave";
 
 // Barre de sélection des héros, posée sur la carte (vue Map uniquement). Une
 // pastille par héros de MON équipe : portrait, nom, barre de PV, PA, et un badge
@@ -17,12 +18,14 @@ export function MapHeroBar() {
   const selectedHeroId = useStore((s) => s.selectedHeroId);
   const focusHero = useStore((s) => s.focusHero);
   const openHero = useStore((s) => s.openHero);
+  // ⚠ avant tout retour anticipé : c'est un hook.
+  const selected = game?.heroes.find((h) => h.id === selectedHeroId);
+  const forageIn = useForageRemaining(selected);
   if (!game) return null;
 
   const roster = myTeamHeroes(game, playerId);
   if (roster.length === 0) return null;
 
-  const selected = roster.find((h) => h.id === selectedHeroId);
   const selInTown = !!selected && selected.hp > 0 && selected.x === game.town.x && selected.y === game.town.y;
 
   return (
@@ -41,7 +44,10 @@ export function MapHeroBar() {
       </div>
       {selected && selected.hp > 0 && (
         <div className="mhb-hint">
-          {selInTown ? (
+          {forageIn !== null ? (
+            <>🔄 <strong>{selected.name}</strong> fouille sur place — prochaine trouvaille dans{" "}
+              <strong>{formatHMS(forageIn)}</strong> (sans PA ; bouger l'interrompt).</>
+          ) : selInTown ? (
             <>🏰 <strong>{selected.name}</strong> est en ville — tape une case adjacente pour le faire sortir.</>
           ) : selected.states.includes("Tétanisé") ? (
             <>⚠️ <strong>{selected.name}</strong> est Tétanisé — tue le pack ou fuis.</>
