@@ -1,4 +1,5 @@
 import type {
+  ChatMessage,
   ClassDef,
   CombatResponse,
   GameState,
@@ -225,6 +226,22 @@ export const api = {
 
   townDeposit: (gameId: string, playerId?: string) =>
     req<{ moved: number; game: GameState }>("POST", `/api/games/${gameId}/town/deposit`, { playerId }),
+
+  // Messagerie de la ville. Route DÉDIÉE (pas le payload de partie) : la lecture
+  // est gatée par joueur — un héros en ville, ou la Poste construite. Le GET
+  // porte le playerId en query (un GET n'a pas de corps).
+  townChat: (gameId: string, playerId?: string) =>
+    req<{ messages: ChatMessage[]; poste: boolean }>(
+      "GET",
+      `/api/games/${gameId}/town/chat${playerId ? `?playerId=${encodeURIComponent(playerId)}` : ""}`,
+    ),
+
+  townChatSend: (gameId: string, text: string, playerId?: string) =>
+    req<{ message: ChatMessage; messages: ChatMessage[]; poste: boolean }>(
+      "POST",
+      `/api/games/${gameId}/town/chat`,
+      { text, playerId },
+    ),
 
   craft: (gameId: string, recipeId: string, heroId?: string, playerId?: string) =>
     req<{ crafted: Item; game: GameState }>("POST", `/api/games/${gameId}/town/craft`, {

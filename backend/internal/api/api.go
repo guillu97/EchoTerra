@@ -238,6 +238,8 @@ func (s *Server) Router() http.Handler {
 			r.Post("/town/action", s.townAction)
 			r.Post("/town/deposit", s.townDeposit)
 			r.Post("/town/craft", s.townCraft)
+			r.Get("/town/chat", s.townChatList)
+			r.Post("/town/chat", s.townChatPost)
 			r.Post("/heroes/{heroID}/move", s.moveHero)
 			r.Post("/heroes/{heroID}/search", s.searchTile)
 			r.Post("/heroes/{heroID}/hide", s.hideHero)
@@ -1092,6 +1094,54 @@ func (s *Server) townDeposit(w http.ResponseWriter, r *http.Request) {
 	}
 	s.persist(gs)
 	writeJSON(w, http.StatusOK, map[string]any{"moved": moved, "game": gs})
+}
+
+// townChatList serves the messaging board to one player (see game/chat.go).
+//
+// It deliberately does NOT go through mustGame: mustGame runs tick(), which
+// replays missed waves and bot rounds and writes to the store. The chat is polled
+// every few seconds while the sheet is open — routing that through the simulation
+// would multiply catch-up work and DB writes by an order of magnitude. Loading
+// without ticking is exactly what getWorld does, for the same reason.
+func (s *Server) townChatList(w http.ResponseWriter, r *http.Request) {
+	gs, err := s.load(chi.URLParam(r, "gameID"))
+	if err != nil || gs == nil {
+		writeErr(w, http.StatusNotFound, "partie introuvable")
+		return
+	}
+	msgs, err := gs.ChatFor(r.URL.Query().Get("playerId")) // GET: the player id rides the query string
+	if err != nil {
+		writeActionErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"messages": msgs, "poste": gs.PosteReady()})
+}
+
+func (s *Server) townChatPost(w http.ResponseWriter, r *http.Request) {
+	gs := s.mustGame(w, r)
+	if gs == nil {
+		return
+	}
+	var body struct {
+		PlayerID string `json:"playerId"`
+		Text     string `json:"text"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeErr(w, http.StatusBadRequest, "corps invalide")
+		return
+	}
+	msg, err := gs.PostChat(body.PlayerID, body.Text)
+	if err != nil {
+		writeActionErr(w, err)
+		return
+	}
+	s.persist(gs)
+	msgs, err := gs.ChatFor(body.PlayerID)
+	if err != nil {
+		writeActionErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"message": msg, "messages": msgs, "poste": gs.PosteReady()})
 }
 
 func (s *Server) townCraft(w http.ResponseWriter, r *http.Request) {

@@ -25,9 +25,14 @@ export function TopBar() {
   const openSettings = useStore((s) => s.openSettings);
   const toggleTownStatus = useStore((s) => s.toggleTownStatus);
   const toggleTownJournal = useStore((s) => s.toggleTownJournal);
+  const toggleChat = useStore((s) => s.toggleChat);
+  const chatSeen = useStore((s) => s.chatSeen);
   const game = useStore((s) => s.game);
   const playerId = useStore((s) => s.playerId);
   const selectedHeroId = useStore((s) => s.selectedHeroId);
+  // Le compteur vient du payload de partie (town.chatCount) : le CONTENU du
+  // board ne transite jamais par là — la lecture est gatée par joueur.
+  const unread = Math.max(0, (game?.town.chatCount ?? 0) - chatSeen);
   const [heroMenu, setHeroMenu] = useState(false);
   const hpPct = game ? Math.round((game.town.hp / game.town.maxHp) * 100) : 100;
   const hpClass = hpPct > 60 ? "" : hpPct > 30 ? "warn" : "alert";
@@ -83,6 +88,13 @@ export function TopBar() {
           📋
         </button>
       )}
+      {/* La messagerie n'est PAS gatée sur la présence en ville : c'est la
+          feuille qui explique le blocage (« construis la Poste »). Un bouton qui
+          disparaît n'apprend rien à personne. */}
+      <button className="iconbtn chat" title="Messages de la ville" onClick={() => toggleChat(true)}>
+        ✉️
+        {unread > 0 && <span className="pip">{unread > 9 ? "9+" : unread}</span>}
+      </button>
       <button className="iconbtn" title="Paramètres" onClick={() => openSettings("menu")}>
         ⚙️
       </button>

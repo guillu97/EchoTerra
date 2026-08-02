@@ -25,6 +25,20 @@ export interface TownLogEntry {
   text: string;
 }
 
+// One message of the town board — mirrors game.ChatMessage. It NEVER arrives in
+// the game payload (ClientView strips it, only town.chatCount survives): reading
+// is gated per player, so the content comes from GET /town/chat.
+export interface ChatMessage {
+  id: string;
+  at: string; // RFC3339 timestamp
+  day: number;
+  playerId: string;
+  author: string;
+  text: string; // already moderated server-side
+  filtered?: boolean; // moderation masked at least one word
+  remote?: boolean; // sent from the field, through the Poste
+}
+
 export interface Item {
   type: string;
   name: string;
@@ -265,6 +279,9 @@ export interface GameState {
     waterDrawnToday: string[];
     // Town journal (Panel building): in-town actions, newest first, capped server-side.
     log?: TownLogEntry[];
+    // How many messages the board holds. The messages THEMSELVES never ride this
+    // payload (see ChatMessage) — this count only feeds the ✉️ unread pip.
+    chatCount?: number;
     reviveDay?: number; // Townhall resurrections performed today (allowance = level)
     revivesToday?: number;
   };

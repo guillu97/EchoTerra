@@ -35,6 +35,8 @@ func buildingPlanItem(id string) string {
 		return "Plan de la Cuisine"
 	case "recyclerie":
 		return "Plan de la Recyclerie"
+	case "poste":
+		return "Plan de la Poste"
 	}
 	return ""
 }
@@ -74,6 +76,7 @@ var buildPA = map[string]int{
 	"workshop":   15,
 	"panel":      6,
 	"recyclerie": 12,
+	"poste":      12,
 }
 
 // planPACost is the price of laying down the plan that opens a chantier.
@@ -138,24 +141,34 @@ func (g *GameState) checkBuildRequires(b *TownBuilding) error {
 }
 
 // DefaultBuildings seeds the city. Built at start: gate, wall, bank, well, workshop,
-// panel. Construction sites (not built): townhall (the old House — revive), tower, kitchen.
+// panel. Construction sites (not built): townhall (the old House — revive), tower,
+// kitchen, recyclerie, poste.
+//
+// Every BUILT building starts at FULL durability. The old seed shipped them worn
+// (wall 20/100, gate 40/100, bank 80/100…) for flavour, but nothing in the design
+// justified those numbers and buildingDefense scales with the durability ratio —
+// so the town opened the first wave with ~2 defense against a 18-power horde. A
+// fresh town is a fresh town: the wear comes from the waves, not from the seed.
 func DefaultBuildings() []*TownBuilding {
 	return []*TownBuilding{
 		{ID: "townhall", Name: "Townhall", Built: false, Level: 0, MaxDurability: 120},
-		{ID: "well", Name: "Well", Built: true, Level: 1, Durability: 97, MaxDurability: 100, Capacity: 12, MaxCapacity: 50},
-		{ID: "bank", Name: "Bank", Built: true, Level: 1, Durability: 80, MaxDurability: 100, MaxCapacity: 500},
+		{ID: "well", Name: "Well", Built: true, Level: 1, Durability: 100, MaxDurability: 100, Capacity: 12, MaxCapacity: 50},
+		{ID: "bank", Name: "Bank", Built: true, Level: 1, Durability: 100, MaxDurability: 100, MaxCapacity: 500},
 		{ID: "tower", Name: "Tower", Built: false, Level: 0, MaxDurability: 100},
-		{ID: "workshop", Name: "Workshop", Built: true, Level: 1, Durability: 85, MaxDurability: 100},
+		{ID: "workshop", Name: "Workshop", Built: true, Level: 1, Durability: 100, MaxDurability: 100},
 		// The gate starts OPEN: a built, closed gate seals the town (nobody in or out),
 		// and freshly spawned heroes must be able to leave. Closing it (1 PA toggle)
 		// restores its defense contribution — that's the Hordes-style trade-off.
-		{ID: "gate", Name: "Gate", Built: true, Level: 2, Durability: 40, MaxDurability: 100, Open: true},
-		{ID: "wall", Name: "Wall", Built: true, Level: 1, Durability: 20, MaxDurability: 100},
+		{ID: "gate", Name: "Gate", Built: true, Level: 2, Durability: 100, MaxDurability: 100, Open: true},
+		{ID: "wall", Name: "Wall", Built: true, Level: 1, Durability: 100, MaxDurability: 100},
 		{ID: "kitchen", Name: "Kitchen", Built: false, Level: 0, MaxDurability: 80},
-		{ID: "panel", Name: "Panel", Built: true, Level: 1, Durability: 97, MaxDurability: 100},
+		{ID: "panel", Name: "Panel", Built: true, Level: 1, Durability: 100, MaxDurability: 100},
 		// Recyclerie : chantier à construire — débloque le recyclage des débris en
 		// matériaux (recettes de forge gatées sur ce bâtiment, cf. craft.go).
 		{ID: "recyclerie", Name: "Recyclerie", Built: false, Level: 0, MaxDurability: 80},
+		// Poste : chantier à construire — débloque la messagerie de la ville DEPUIS
+		// LE TERRAIN (en ville on écrit toujours, cf. chat.go / ChatAccess).
+		{ID: "poste", Name: "Poste", Built: false, Level: 0, MaxDurability: 80},
 	}
 }
 

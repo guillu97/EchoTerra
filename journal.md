@@ -6,6 +6,105 @@
 
 ---
 
+## 2026-08-02 (90) — Durabilité de départ, vraies listes de persos, et la messagerie de la ville
+
+Quatre retours de jeu, du plus petit au plus gros.
+
+### 1. Les bâtiments démarrent à 100 %
+
+`DefaultBuildings()` semait des durabilités arbitraires — muraille **20/100**, portail 40/100, banque
+80/100. Rien ne le justifiait côté design, et comme `buildingDefense` est proportionnelle au ratio de
+durabilité, la ville ouvrait la vague 1 avec **2 de défense** face à une horde de puissance 18. Tout
+bâtiment construit démarre désormais intact ; la défense de départ passe de 2 à 10 (26 portail fermé).
+L'usure, c'est le travail des vagues. Test `TestFreshTownStartsAtFullDurability`.
+
+### 2. Une seule pastille de héros, partout
+
+Le jeu avait TROIS listes de héros qui ne se ressemblaient pas. La barre de la Carte montrait portrait,
+PV, PA, lieu ; le dropdown de la TopBar était le dernier îlot de **verre bleu nuit** de l'interface (un
+panneau `--glass-2` et du `#fff` posés sur une application parchemin) et n'affichait qu'un nom et deux
+chiffres ; l'écran Ville, lui, affichait la **classe** du héros et — tant qu'il n'en avait pas, donc
+toute la première journée — un tableau de secours codé en dur : « Pionnier », « Récupérateur »,
+« Éclaireur ». Trois libellés qui n'étaient le nom de personne, une initiale, une ★ décorative.
+
+`components/HeroChip.tsx` extrait la bonne pastille (celle de la Carte) et les trois listes s'en
+servent. L'écran Ville devient une vraie liste de PERSONNAGES — et taper un héros en ville en fait
+l'ouvrier qui paie les PA, ce qui est justement la décision qu'on prend sur cet écran. Le dropdown
+repasse au parchemin, avec les tokens du design system.
+
+En le faisant, un bug ancien est tombé : le badge « en ville » s'appelait `.mhb-badge.town` et héritait
+donc de la règle GLOBALE `.town { position:absolute; inset:0 }` — il s'étalait sur tout le portrait,
+qu'il recouvrait d'un rectangle. **Troisième fois** que ce piège frappe (après l'onglet Ville et le nom
+de ville de la TopBar). Renommé `intown`, et `turn` pour le marqueur de tour de `CombatHeroBar`.
+
+### 3. La messagerie de la ville, et la Poste
+
+Les deux bulles de l'écran Ville (« Neko : … », le bandeau Shinki 🦊) étaient des répliques codées en
+dur reprises de la maquette : la promesse d'une fonctionnalité que rien ne tenait.
+
+Elle existe maintenant, et sa règle est **POSITIONNELLE** : un héros vivant sur la case ville écrit et
+lit librement ; en expédition on est hors de portée — sauf si la ville a bâti la **Poste**. Ce n'est
+donc pas un salon greffé sur le jeu : c'est une chose qu'on peut perdre (tout le monde dehors, pas de
+Poste) et qu'on peut rebâtir, comme le Puits ou le Portail. Le message parti du terrain est marqué 📮.
+
+Deux décisions de fond :
+
+- **Le board ne transite JAMAIS par le payload de partie.** La lecture est gatée PAR JOUEUR et
+  `ClientView` ne sait pas qui appelle : il remplace `Town.Chat` par `Town.ChatCount` (juste la pastille
+  de non-lus) et le contenu passe par `GET /town/chat`, gatée. Cette route **n'appelle pas `tick()`** —
+  la faire passer par la simulation multiplierait rattrapages de vagues et écritures SQL par la cadence
+  de sondage (4 s feuille ouverte).
+- **La modération masque, elle ne refuse pas.** Un message rejeté punit le faux positif d'une erreur que
+  le joueur ne peut pas corriger (« quel mot ? ») ; masqué, la conversation continue. Le matcher
+  travaille **jeton par jeton** parce que la normalisation change les longueurs — masquer par indice sur
+  une copie normalisée étalerait le masque sur les mauvais caractères. Normalisation : minuscules,
+  accents dépliés, leet (`0→o`, `4→a`…), `*` traité comme un **joker positionnel** (« f\*ck »), lettres
+  répétées réduites. La liste est **stricte par défaut** (égalité + suffixes FR) ; la correspondance par
+  sous-chaîne est réservée aux mots longs et sans ambiguïté. Sont volontairement ABSENTS « retard » (« je
+  suis en retard »), « crever » (« je crève de soif » — c'est un état de jeu), « rape » (« fromage
+  râpé »), « con »/« conne » (« cône ») : la moitié coûteuse d'un filtre, ce sont les mots qu'il ne doit
+  PAS toucher, et un test de non-régression les fige.
+
+La **Poste** est un bâtiment complet, calqué sur la Recyclerie : plan lootable (prairie/sable poids 2-3,
+ruines ferme et sanctuaire), matériaux et PA par niveau, prérequis Panneau, parcelle polaire à 70° et
+**modèle voxel dédié** `bld-poste` (relais de chaume, auvent à coursiers, boîte aux lettres rouge, cor
+de laiton sur la façade). Deux allers-retours sur le modèle : le cor traversait le toit, et la boîte aux
+lettres disparaissait sous le débord — le pourtour du toit couvre tout le corps, un objet ne se voit
+qu'en AVANT de la façade.
+
+Et un piège de fond : `DefaultBuildings()` ne tourne QU'AU worldgen. Sans rien, la Poste n'aurait jamais
+atteint aucune partie déjà enregistrée. `Recompute` → `backfillBuildings()` ajoute à l'état neuf tout
+bâtiment du catalogue qui manque, sans toucher aux existants — ce qui règle aussi tous les ajouts futurs.
+
+### Fonctionnel (vérifié)
+
+- `go test ./...` vert, dont `chat_test.go` (les trois chemins d'accès, Poste en ruine, héros mort, cap,
+  anti-flood par joueur, backfill idempotent) et `moderation_test.go` (masquage, accents, leet, joker,
+  **et la liste des phrases françaises ordinaires à ne pas toucher**).
+- Bout en bout sur une vraie partie (curl) : durabilités 100/100 et défense 10 au lancement ; message
+  modéré publié (`●●●`) ; tous les héros sortis → GET **et** POST refusés en 400 ; Poste bâtie → lecture
+  et écriture rétablies, message `remote:true` ; deuxième message immédiat refusé (anti-flood) ;
+  `GET /api/games/{id}` ne contient **aucun** texte de message, seulement `chatCount`.
+- Bout en bout dans le navigateur (Playwright) : la liste de l'écran Ville affiche « Aventurier, Brisa,
+  Cael » (plus de « Pionnier/Récupérateur/… »), le dropdown est en parchemin, l'envoi d'un message
+  ressort masqué et la bulle de la Ville le reprend, la sortie de tous les héros bascule la feuille sur
+  le panneau verrouillé (champ de saisie retiré), la Poste apparaît dans Bâtir et se pose proprement sur
+  le tertre sans mordre un voisin ni la route.
+- `npx tsc -b` et `npm run build` verts. `npm run test:perf` : 10/12, **les 2 échecs sont antérieurs**
+  (vérifié en stashant : la branche de base échoue pareil sur « carte on-demand » / « rendu stoppé hors
+  onglet », 102 rendus contre 119). Le payload voxel passe de 77 à 81 fichiers, toujours 2,00 MiB.
+
+### À faire
+
+- Les 2 échecs `test:perf` (boucle de rendu continue sur la carte) sont un vrai problème de batterie,
+  antérieur à ce lot — à traiter pour lui-même.
+- Modération : pas de signalement ni de masquage par joueur (décision : v1 masque et publie). Si le
+  multi public prend, `VoteKick` est le modèle existant à reprendre.
+- La Poste n'a aucun effet mécanique aux niveaux 2 et 3 (effets textuels) — cap de messages ou historique
+  plus long seraient les candidats naturels.
+
+---
+
 ## 2026-08-02 (89) — La recherche de partie publique était aveuglée par les parties actives
 
 Retour : *« j'ai l'impression que la recherche de partie publique ne marche plus »*. C'était vrai,

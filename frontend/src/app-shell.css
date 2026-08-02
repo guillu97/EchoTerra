@@ -716,22 +716,54 @@ body {
   border-color: var(--gold);
   color: #7a5410;
 }
+/* Pastille de messages non lus sur le bouton ✉️. Le compteur vient de
+   `town.chatCount` (le CONTENU du board ne transite jamais par le payload de
+   partie) moins ce que cet appareil a déjà lu. */
+.iconbtn.chat {
+  position: relative;
+  overflow: visible;
+}
+.iconbtn.chat .pip {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: var(--r-pill);
+  background: var(--red);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 17px;
+  box-shadow: var(--sh-card);
+}
 
+/* Bulle du DERNIER message de la ville, posée sur l'écran Ville : cliquable,
+   elle ouvre la messagerie. (Elle contenait jusqu'ici une réplique codée en
+   dur reprise de la maquette.) */
 .chat-bubble {
   position: absolute;
   top: 70px;
-  left: 12px;
-  z-index: 20;
-  background: #fff;
-  color: #223;
-  border-radius: 14px;
-  padding: 6px 10px;
-  font-size: 12px;
+  left: var(--s-5);
+  z-index: var(--z-chrome);
+  background: var(--cream);
+  color: var(--ink-2);
+  border: 1.5px solid var(--line-2);
+  border-radius: var(--r-md);
+  padding: var(--s-2) var(--s-4);
+  font-size: var(--t-sm);
+  line-height: var(--lh-body);
+  text-align: left;
   max-width: 78%;
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+  box-shadow: var(--sh-raised);
+}
+.chat-bubble:hover {
+  background: var(--parch-0);
 }
 .chat-bubble .who {
-  font-weight: 700;
+  font-weight: 800;
   color: var(--red-2);
 }
 
@@ -864,88 +896,82 @@ body {
   font-weight: 700;
   white-space: nowrap;
 }
-/* ----- hero dropdown (TopBar smiley) --------------------------------------- */
+/* ----- hero dropdown (TopBar smiley) ---------------------------------------
+   C'était le DERNIER îlot de verre bleu nuit de l'interface : un panneau
+   `--glass-2` avec du texte `#fff` posé sur une application parchemin, alors
+   que la barre de la carte et les pastilles de la ville avaient déjà été
+   repassées au système. Les rangées sont maintenant la pastille partagée
+   (`.mhb-chip`, cf. components/HeroChip.tsx) ; il ne reste ici que le cadre du
+   popover et les boutons d'action. */
 .hm-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 39;
+  z-index: var(--z-float);
 }
 .hero-menu {
   position: absolute;
-  left: 8px;
+  left: var(--s-3);
   top: 54px;
-  z-index: 40;
-  background: var(--glass-2);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 14px;
-  padding: 8px;
+  z-index: var(--z-overlay);
+  background: linear-gradient(180deg, var(--parch-0), var(--parch));
+  border: 2px solid var(--gold);
+  border-radius: var(--r-lg);
+  padding: var(--s-3);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--s-3);
   min-width: 250px;
   max-width: min(92vw, 340px);
-  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.5);
-  color: #fff;
+  box-shadow: var(--sh-raised);
+  color: var(--ink-2);
 }
 .hm-row {
-  border-radius: 10px;
-  padding: 4px;
+  border-radius: var(--r-md);
+  padding: var(--s-1);
 }
 .hm-row.sel {
-  background: rgba(240, 196, 32, 0.14);
-  outline: 1px solid rgba(240, 196, 32, 0.5);
+  background: rgba(217, 164, 65, 0.16);
+  outline: 1px solid var(--gold);
 }
 .hm-row.dead {
   opacity: 0.55;
 }
-.hm-head {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  color: #fff;
-  border-radius: 8px;
-  padding: 6px 9px;
-  font-weight: 700;
-  font-size: 13px;
-  cursor: pointer;
-}
-.hm-stats {
-  font-weight: 600;
-  font-size: 12px;
-  color: #cbd6e6;
-}
 .hm-actions {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin-top: 5px;
+  gap: var(--s-2);
+  margin-top: var(--s-1);
   padding: 0 2px;
   flex-wrap: wrap;
 }
 .hm-act {
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 8px;
-  padding: 5px 9px;
-  font-size: 15px;
+  min-width: var(--tap);
+  min-height: var(--tap);
+  background: var(--cream);
+  border: 1.5px solid var(--line-2);
+  border-radius: var(--r-sm);
+  padding: var(--s-2) var(--s-4);
+  font-size: var(--t-lg);
   cursor: pointer;
-  color: #fff;
+  color: var(--ink-2);
+  box-shadow: var(--sh-card);
+}
+.hm-act:hover {
+  background: var(--parch-0);
 }
 .hm-act:disabled {
-  opacity: 0.35;
+  opacity: 0.4;
   cursor: default;
+  box-shadow: none;
 }
 .hm-act.fight {
-  background: linear-gradient(180deg, #e0523f, var(--red-2));
-  border: none;
+  background: linear-gradient(180deg, var(--red-hi), var(--red-2));
+  border-color: var(--red-2);
+  color: #fff;
 }
 .hm-note {
-  font-size: 11px;
-  color: #9fb0c8;
+  font-size: var(--t-xs);
+  color: var(--ink-muted);
 }
 .building {
   position: absolute;
@@ -1272,89 +1298,21 @@ body {
   height: 100%;
 }
 
-.shinki {
-  position: absolute;
-  bottom: 8px;
-  left: 10px;
-  right: 10px;
-  z-index: 15;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: rgba(255, 255, 255, 0.92);
-  border-radius: 12px;
-  padding: 8px 10px;
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
-}
-.shinki .face {
-  width: 38px;
-  height: 38px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #ffe0b0, #d99a6c);
-  display: grid;
-  place-items: center;
-  font-size: 20px;
-  flex: 0 0 auto;
-}
-.shinki .msg .who {
-  font-weight: 800;
-  font-size: 12px;
-  color: #5b3b1e;
-}
-.shinki .msg .txt {
-  font-size: 12px;
-  color: #333;
-}
-
-/* hero chips column (left, above nav) */
+/* Liste des personnages de l'écran Ville (colonne à gauche, au-dessus de la
+   nav). Les pastilles elles-mêmes sont les `.mhb-chip` partagées (variante
+   `.col`) : cette colonne montrait auparavant la CLASSE du héros — et, tant
+   qu'il n'en avait pas, un libellé de secours en dur qui n'était le nom de
+   personne. Le bandeau « Shinki » qui occupait le bas de l'écran a été retiré
+   avec sa réplique factice : c'est cette place-là que la liste réclamait. */
 .hero-chips {
   position: absolute;
-  left: 8px;
+  left: var(--s-3);
   bottom: 66px;
-  z-index: 16;
+  z-index: var(--z-chrome);
   display: flex;
   flex-direction: column;
-  gap: 6px;
-}
-/* Les pastilles de héros étaient en verre sombre sur une scène parchemin : le
-   seul îlot bleu nuit de l'écran Ville. Repassées sur le système (crème, liseré
-   doré, encre), comme dans le prototype de design. */
-.hero-chips .hc {
-  display: flex;
-  align-items: center;
   gap: var(--s-2);
-  background: linear-gradient(180deg, #fffaf0, #f3e7ce);
-  border: 1.5px solid var(--gold);
-  border-radius: var(--r-pill);
-  padding: 3px var(--s-5) 3px 3px;
-  color: var(--ink-2);
-  font-size: var(--t-sm);
-  font-weight: 800;
-  cursor: pointer;
-  box-shadow: var(--sh-raised);
-  transition: transform var(--dur-fast) var(--ease);
-}
-.hero-chips .hc:active {
-  transform: translateY(1px);
-}
-.hero-chips .hc.sel {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
-}
-.hero-chips .hc .dot {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #ffd27d, #e08a4a);
-  border: 1px solid var(--gold);
-  color: #5a3a12;
-  display: grid;
-  place-items: center;
-  font-size: var(--t-xs);
-  font-weight: 900;
-}
-.hero-chips .hc .star {
-  color: #c9902b;
+  width: min(46vw, 176px);
 }
 
 /* Contrôle de rotation de vue (Ville / Carte voxel). */
@@ -1914,8 +1872,10 @@ body {
 }
 .mhb-badge {
   position: absolute;
-  right: -2px;
-  bottom: -2px;
+  /* Collé au coin, pas débordant : `.mhb-portrait` est en `overflow: hidden`,
+     un décalage négatif se faisait rogner. */
+  right: 0;
+  bottom: 0;
   font-size: 11px;
   line-height: 1;
   background: rgba(42, 33, 20, 0.85);
@@ -1984,6 +1944,38 @@ body {
 }
 .mhb-hint strong {
   color: var(--ink);
+}
+/* Les badges de lieu — la règle de base ne couvrait que `.warn`, alors que le
+   JSX pose aussi le badge « en ville » et `.dead` depuis toujours. Le premier
+   s'appelait `.town`, et héritait donc du `inset: 0` de la règle GLOBALE
+   `.town` (le conteneur de l'écran Ville) : le badge s'étalait sur tout le
+   portrait au lieu de se poser dans son coin. Renommé `intown`. */
+.mhb-badge.intown {
+  background: rgba(38, 62, 40, 0.85);
+}
+.mhb-badge.dead {
+  background: rgba(70, 20, 20, 0.9);
+}
+/* Combat : l'unité dont c'est le tour (ex-`.town`, même collision). */
+.mhb-badge.turn {
+  background: var(--red-2);
+  color: #fff;
+}
+/* Variante COLONNE de la pastille : pleine largeur, empilée. Elle sert la liste
+   des personnages de l'écran Ville et les rangées du dropdown de la TopBar,
+   là où la variante `row` sert la barre horizontale de la carte. */
+.mhb-chip.col {
+  flex: 0 0 auto;
+  width: 100%;
+  min-width: 0;
+}
+.mhb-note {
+  font-size: var(--t-xs);
+  font-weight: 700;
+  color: var(--ink-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .map-controls .line {
   display: flex;
@@ -2455,8 +2447,8 @@ body {
     height: 66px;
     font-size: 30px;
   }
-  .hero-chips .hc {
-    font-size: 13px;
+  .hero-chips {
+    width: 208px;
   }
   /* Full-bleed shell: keep wide rows readable instead of stretching edge to edge.
      The map-controls BAR stays full width (glass background), its content centers. */
@@ -2510,6 +2502,100 @@ body {
   color: #6b5a3c;
   font-size: 13px;
   padding: 10px 2px;
+}
+
+/* ----- messagerie de la ville (feuille ✉️) ---------------------------------
+   Un fil de conversation, à l'inverse du journal : du plus ANCIEN au plus
+   récent, collé au bas. La saisie est en pied de feuille, et quand la ville est
+   hors de portée (aucun héros dedans, pas de Poste) c'est un panneau qui
+   EXPLIQUE qui prend sa place — pas un champ mort. */
+.chat-list {
+  max-height: min(48vh, 420px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding-right: var(--s-1);
+}
+.chat-msg {
+  background: var(--cream);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: var(--s-2) var(--s-4);
+  box-shadow: var(--sh-card);
+  max-width: 92%;
+  align-self: flex-start;
+}
+/* Mes propres messages, alignés à droite : dans un fil partagé par quatre
+   joueurs, c'est ce qui laisse retrouver sa propre voix d'un coup d'œil. */
+.chat-msg.mine {
+  align-self: flex-end;
+  background: linear-gradient(180deg, #fffaf0, var(--parch));
+  border-color: var(--gold);
+}
+.cm-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-3);
+}
+.cm-who {
+  font-weight: 800;
+  font-size: var(--t-sm);
+  color: var(--red-2);
+}
+.cm-when {
+  flex: none;
+  font-size: var(--t-xs);
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+.cm-text {
+  font-size: var(--t-md);
+  line-height: var(--lh-body);
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+.chat-compose {
+  display: flex;
+  gap: var(--s-2);
+  margin-top: var(--s-3);
+}
+.chat-input {
+  flex: 1;
+  min-width: 0;
+  min-height: var(--tap);
+  background: var(--cream);
+  border: 1.5px solid var(--line-2);
+  border-radius: var(--r-pill);
+  padding: 0 var(--s-5);
+  font: inherit;
+  font-size: var(--t-md);
+  color: var(--ink-2);
+}
+.chat-note {
+  font-size: var(--t-xs);
+  color: var(--ink-muted);
+  padding: var(--s-2) 2px 0;
+  line-height: var(--lh-body);
+}
+.chat-locked {
+  text-align: center;
+  padding: var(--s-4) var(--s-3) var(--s-2);
+  color: var(--ink-2);
+  font-size: var(--t-md);
+  line-height: var(--lh-body);
+}
+.chat-locked .cl-icon {
+  font-size: 34px;
+  margin-bottom: var(--s-2);
+}
+.chat-locked p {
+  margin: 0 0 var(--s-3);
+}
+.chat-locked .cl-hint {
+  color: var(--ink-soft);
+  font-size: var(--t-sm);
 }
 
 .ts-hp {

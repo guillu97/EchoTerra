@@ -63,6 +63,7 @@ export const TOWN_BUILDINGS: BuildingLayout[] = [
   { id: "workshop", name: "Atelier",  icon: "🔨",  assetKey: "building-workshop", blurb: "Menuiserie & forge — gère les constructions.", primary: "", island: "sw", x: 62, y: 42 },
   { id: "kitchen",  name: "Cuisine",  icon: "🍳",  assetKey: "building-kitchen",  blurb: "Feu de camp / cuisine.", primary: "Cuisiner", island: "sw", x: 50, y: 62 },
   { id: "recyclerie", name: "Recyclerie", icon: "♻️", assetKey: "building-workshop", blurb: "Recycle les débris ramassés en matériaux de construction (Bois/Pierre).", primary: "", island: "sw", x: 38, y: 62 },
+  { id: "poste",    name: "Poste",     icon: "📮",  assetKey: "building-panel",    blurb: "Relais de courrier. Tant qu'elle n'est pas debout, on n'écrit à la ville que DEPUIS la ville.", primary: "Messagerie", island: "core", x: 50, y: 72 },
 ];
 
 export function buildingIcon(id: string): string {

@@ -243,6 +243,9 @@ const POLAR: PolarPlot[] = [
   { bid: "workshop", r: 0.60, deg: 196, cells: 3.6 },
   { bid: "recyclerie", r: 0.66, deg: 112, cells: 3.6 },
   { bid: "kitchen", r: 0.70, deg: 312, cells: 3.6 },
+  // La Poste occupe le secteur resté vide entre la Banque (28°) et la
+  // Recyclerie (112°) — un relais se pose au bord de la route, pas au sommet.
+  { bid: "poste", r: 0.64, deg: 70, cells: 3.2 },
 ];
 
 const polarXY = (r: number, deg: number) => {

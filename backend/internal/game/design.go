@@ -63,14 +63,16 @@ var Terrains = map[Biome]TerrainDef{
 	BiomeSand: {Searchable: true, ResourcesMin: 3, ResourcesMax: 6, Drops: []DropDef{
 		{"plante", "Fleur", 1, 1}, {"animal", "Viande", 1, 1}, {"objet", "Débris", 1, 1}, {"aliment", "Poisson", 1, 1},
 		// Plans de chantier trouvables à la fouille. Les bâtiments SIMPLES (recyclerie,
-		// cuisine) ont des plans COMMUNS dans les biomes proches de la ville (sable/prairie) ;
-		// les avancés (tour/mairie) restent modérés (forêt/montagne).
+		// cuisine, poste) ont des plans COMMUNS dans les biomes proches de la ville
+		// (sable/prairie) ; les avancés (tour/mairie) restent modérés (forêt/montagne).
 		{"objet", "Plan de la Recyclerie", 1, 3}, {"objet", "Plan de la Cuisine", 1, 1},
+		{"objet", "Plan de la Poste", 1, 2},
 	}},
 	BiomeGrass: {Searchable: true, ResourcesMin: 3, ResourcesMax: 6, Drops: []DropDef{
 		{"plante", "Fleur", 1, 1}, {"animal", "Viande", 1, 1}, {"objet", "Débris", 1, 1},
 		{"plante", "Baie sauvage", 1, 2}, {"plante", "Fibre végétale", 1, 2},
 		{"objet", "Plan de la Cuisine", 1, 3}, {"objet", "Plan de la Recyclerie", 1, 2},
+		{"objet", "Plan de la Poste", 1, 3},
 	}},
 	BiomeForest: {Searchable: true, ResourcesMin: 3, ResourcesMax: 6, Drops: []DropDef{
 		// la forêt est LA source de bois (poids fort) — le reste en appoint
@@ -437,6 +439,18 @@ var BuildingDesigns = map[string]BuildingDesign{
 			{Materials: []Item{{"objet", "Bois", 3}, {"minerai", "Pierre", 2}}, Effects: "débloque le recyclage des débris"},
 			{Materials: []Item{{"objet", "Bois", 6}, {"minerai", "Pierre", 4}, {"objet", "Planche", 1}}, Effects: "recyclage plus efficace"},
 			{Materials: []Item{{"objet", "Bois", 9}, {"minerai", "Pierre", 6}, {"minerai", "Brique", 1}}, Effects: "recyclage optimisé"},
+		},
+	},
+	// Poste : le relais de courrier. Tant qu'elle n'est pas debout, on n'écrit à la
+	// ville que depuis la ville (cf. chat.go / ChatAccess) ; une fois construite,
+	// l'expédition reste jointe depuis le terrain. Le Panneau (déjà construit au
+	// départ) est un prérequis thématique — il n'a jamais à être débloqué.
+	"poste": {
+		Requires: []BuildingRequire{{"panel", 1}},
+		Levels: []BuildingLevelDef{
+			{Materials: []Item{{"objet", "Bois", 3}, {"plante", "Fibre végétale", 2}}, Effects: "messagerie accessible depuis le terrain"},
+			{Materials: []Item{{"objet", "Bois", 6}, {"objet", "Corde", 1}, {"objet", "Planche", 1}}, Effects: "courrier plus fiable"},
+			{Materials: []Item{{"objet", "Bois", 9}, {"objet", "Planche", 2}, {"minerai", "Brique", 1}}, Effects: "relais permanent"},
 		},
 	},
 }

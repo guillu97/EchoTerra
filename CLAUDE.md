@@ -151,7 +151,9 @@ frontend/src/
   screens/                      LoadingScreen, TitleScreen, CinematicScreen, GameScreen, LobbyScreen,
                                 AccountScreen, LeaderboardScreen (classement, onglets par mode)
   components/                   TopBar, BottomNav, HeroChips, Logo, TownWorker(+useWorkerPA),
-                                TownStatus, GameOver, HeroOverlay, ItemGrid, MapHeroBar
+                                TownStatus, GameOver, HeroOverlay, ItemGrid, MapHeroBar,
+                                HeroChip (LA pastille de héros, partagée par les 3 listes),
+                                TownJournal, TownChat (messagerie, cf. §5)
   ui/                           Overlay.tsx (LA primitive de modale/feuille : Échap, piège à focus,
                                 retour du focus, role=dialog/aria-modal), Toasts.tsx (file aria-live),
                                 ErrorBoundary.tsx (écran de secours au lieu d'un écran blanc)
@@ -361,8 +363,14 @@ fois par vague. Défense des bâtiments = valeur PAR NIVEAU du design (wall 10/1
 tower 6/9/12) × ratio de durabilité. **Game over** when town HP hits 0 (`status:"gameover"`).
 `POST /advance` = force a wave now (dev/testing ; `{safe:true}` = sans dégâts ville).
 
-**Town buildings & construction** — built at start: **gate, wall, bank, well, workshop, panel**.
-Construction sites (Built=false): **townhall (renamed from House — revive), tower, kitchen**.
+**Town buildings & construction** — built at start: **gate, wall, bank, well, workshop, panel**, tous
+**à 100 % de durabilité** (2026-08-02 : la graine les livrait usés — muraille 20/100, portail 40/100 —
+et comme `buildingDefense` est proportionnelle au ratio, la ville ouvrait la vague 1 avec ~2 de défense
+contre une horde à 18 ; l'usure vient des vagues, pas de la graine). Construction sites (Built=false) :
+**townhall (renamed from House — revive), tower, kitchen, recyclerie, poste**. ⚠ `DefaultBuildings()` ne
+tourne QU'AU worldgen : `Recompute` → `backfillBuildings()` ajoute à l'état neuf tout bâtiment du
+catalogue absent d'une partie déjà enregistrée (sans jamais toucher aux existants) — sinon un bâtiment
+ajouté après coup n'atteindrait aucune partie en cours.
 `TownAction(buildingId, action, points, heroId)`:
 - `build` → **flux CHANTIER collectif (2026-07-14)** : (1) **poser le PLAN** (1 PA, `planPACost`) ouvre le
   chantier (`UnderConstruction=true`, `PaInvested=0`) — vaut pour les sites ET les améliorations ; (2)
@@ -425,6 +433,26 @@ ville : porte OUVERTE/FERMÉE, ration puisée au puits, dépôts à la Banque (p
 lancés/terminés/améliorations, réparations, crafts en ville, `use`. Front : `TownJournal.tsx` (overlay,
 `store.townJournalOpen`), ouvert par le bouton « 📋 Journal » du Panel. Tests `townlog_test.go`.
 
+**Messagerie de la ville** (`chat.go` + `moderation.go`, `TownChat.tsx`, 2026-08-02) — les joueurs d'une
+même ville se parlent, et l'accès est **POSITIONNEL** : un héros vivant sur la case ville ⇒ on écrit et on
+lit librement ; sinon il faut que la ville ait bâti la **Poste** (`ChatAccess` → `remote:true`, message
+marqué 📮). Une Poste à 0 de durabilité ne relaie plus (même convention que le Portail). `ChatMessage
+{id, at, day, playerId, author, text, filtered, remote}` dans `Town.Chat`, **du plus ANCIEN au plus
+récent** (à l'inverse du journal), plafonné à `chatCap` 120 en coupant par la tête ; anti-flood
+`chatMinInterval` 3 s par joueur, déduit du board (pas d'état en plus). ⚠ **le board ne transite JAMAIS
+par le payload de partie** : `ClientView` le remplace par `Town.ChatCount` (la pastille de non-lus), parce
+que la lecture est gatée PAR JOUEUR et que `ClientView` ne sait pas qui appelle — le contenu passe par la
+route dédiée `GET /town/chat`, qui **n'appelle pas `tick()`** (sondage à 4 s quand la feuille est ouverte :
+le faire passer par la simulation multiplierait rattrapages et écritures SQL). **Modération = MASQUER,
+jamais refuser** (`Moderate`) : découpage en JETONS (normaliser change les longueurs, masquer par indice
+smearait le masque), normalisation par jeton (minuscules, accents dépliés, leet `0→o 4→a…`, `*` → JOKER
+positionnel, lettres répétées réduites), liste `badWords` **strict par défaut** (égalité + suffixes FR)
+et `loose:true` (sous-chaîne) réservé aux mots longs et sans ambiguïté — « retard », « crever », « rape »,
+« con » sont volontairement ABSENTS (vocabulaire ordinaire ; cf. le test de non-régression). Front :
+bouton ✉️ de la TopBar (pastille `chatCount − chatSeen`, lu localStorage par partie), feuille
+`store.chatOpen`, bulle du DERNIER message sur l'écran Ville, panneau verrouillé explicatif hors de
+portée. Tests `chat_test.go`, `moderation_test.go`.
+
 **Crafting** (`craft.go`, `CraftTab.tsx`) — **town mode** (≥1 hero in town): full recipes, ingredients from the
 Bank, paid by the chosen *town worker*, output to the Bank. **Field mode** (no hero in town): only `field`
 recipes (kitchen/campfire), ingredients from the **selected hero's bag**, paid by that hero, output to the bag.
@@ -472,6 +500,10 @@ POST /api/games/{id}/advance                      force a wave (dev)
 POST /api/games/{id}/town/action                  {buildingId, action: build|restore|use|water|toggle|revive, points?, heroId?}
 POST /api/games/{id}/town/deposit                 deposit in-town heroes' loot into the Bank
 POST /api/games/{id}/town/craft                   {recipeId, heroId}
+GET  /api/games/{id}/town/chat?playerId=…         messagerie de la ville (gatée : héros en ville OU Poste
+                                                  bâtie) -> {messages[], poste} ; 400 = hors de portée.
+                                                  N'appelle PAS tick() (sondage rapide, cf. §5)
+POST /api/games/{id}/town/chat                    {playerId, text} -> {message, messages[], poste}
 POST /api/games/{id}/heroes/{h}/move              {DX,DY}
 POST /api/games/{id}/heroes/{h}/search
 POST /api/games/{id}/heroes/{h}/hide
@@ -520,14 +552,21 @@ bâtiments s'affichent via `buildingName(id)` (`data/buildings.ts`), pas via `b.
   player's hero in town doesn't open MY city screen) — l'onglet verrouillé reste **focusable**
   (`aria-disabled`, pas `disabled`) et explique la raison par un **toast** au tap, le `title=` étant
   invisible au doigt. **Map/Stock/Structure/Craft are always accessible.**
-- **TopBar**: l'avatar (🙂) ouvre le **dropdown des héros** (`HeroActionsMenu`) : une ligne par héros de
-  MON équipe — le bouton nom/PV/PA ouvre la **fiche de personnage** (HeroOverlay), puis 🎯 sélectionne
-  sur la carte (et bascule sur l'onglet Map), et les actions contextuelles du héros (⚔️ si monstre sur
-  sa case, 🔥 si pack à portée, 🔎/🫥 hors ville, 🏃 si Tétanisé, note « en ville » sinon). Les actions
-  sélectionnent le héros puis agissent. La barre du bas de la Map est réduite à Forcer vague + 👥 Autres
-  (déplacement inchangé : losanges jaunes). ⚠ le span du nom de ville est `className="town-name"`
+- **TopBar**: l'avatar (🙂) ouvre le **dropdown des héros** (`HeroActionsMenu`) : une `HeroChip` par héros
+  de MON équipe (taper la pastille = sélectionner + basculer sur la Map ; ⓘ = **fiche de personnage**),
+  puis les actions contextuelles du héros (⚔️ si monstre sur sa case, compétence de classe si pack à
+  portée, 💧 ration, 🔎/🫥 hors ville, 🏃 si Tétanisé, note « en ville » sinon). Les actions sélectionnent
+  le héros puis agissent. La barre du bas de la Map est réduite à Forcer vague + 👥 Autres (déplacement
+  inchangé : losanges jaunes). ⚠ le span du nom de ville est `className="town-name"`
   — PAS `town` (collision `.town{position:absolute;inset:0}` qui recouvrait l'avatar et mangeait ses
-  clics). 🏰% chip opens **TownStatus**; ⚙️ opens Settings.
+  clics). 🏰% chip opens **TownStatus**; ✉️ ouvre la **messagerie** (pastille de non-lus ; JAMAIS gaté sur
+  la présence en ville — c'est la feuille qui explique le blocage) ; ⚙️ opens Settings.
+- **HeroChip** (`components/HeroChip.tsx`) : LA pastille de héros — portrait de classe, nom, barre de PV,
+  PA, badge de lieu 🏰/🔒/💀 — partagée par les TROIS listes (barre de la Map, liste de l'écran Ville,
+  dropdown de la TopBar ; `CombatHeroBar` recopie déjà les mêmes classes `.mhb-*`). Variante `layout=
+  "column"` pour les listes empilées. ⚠ le badge « en ville » s'appelle `intown`, PAS `town` : la règle
+  GLOBALE `.town{inset:0}` l'étalait sur tout le portrait (même piège que §8, corrigé 2026-08-02, aussi
+  dans `CombatHeroBar` où le marqueur de tour est passé à `turn`).
 - **MapHeroBar** (`components/MapHeroBar.tsx`, bas de la vue Map) : **barre de sélection des héros** — une
   pastille par héros de MON équipe (portrait de classe, nom, barre de PV, PA, badge de lieu 🏰/🔒/💀). Taper
   une pastille = `store.focusHero(id)` : sélectionne le héros ACTIF (celui que les losanges jaunes déplacent)
@@ -547,7 +586,14 @@ bâtiments s'affichent via `buildingName(id)` (`data/buildings.ts`), pas via `b.
   plan » 1 PA), **🏠 Construits** (bouton « 📐 Améliorer » = pose le plan d'amélioration). Tris A-Z/Lv
   = liste plate. Coût affiché = TOTAL du chantier (PA + matériaux vs Banque) ; actions exigent un
   héros en ville (consultation sinon).
-- **Home**: la ville est un **plan GÉNÉRÉ à partir de l'état de jeu** — `voxel/townLayout.ts`
+- **Home**: en surimpression du plan, une **bulle** reprend le DERNIER message de la messagerie (clic =
+  ouvre la feuille ✉️) et la **liste des personnages** (`HeroChips`, colonne à gauche au-dessus de la nav)
+  aligne une `HeroChip` par héros de MON équipe. Taper un héros EN VILLE le sélectionne **et** en fait
+  l'ouvrier qui paie les PA (`setTownHero`, même choix que `TownWorker`). ⚠ 2026-08-02 : cette colonne
+  affichait la CLASSE du héros et, faute de classe, un tableau de secours en dur (« Pionnier »,
+  « Récupérateur », « Éclaireur ») qui n'était le nom de personne ; la bulle et le bandeau « Shinki »
+  contenaient deux répliques factices de la maquette — les trois ont été remplacés par du réel.
+  La ville est un **plan GÉNÉRÉ à partir de l'état de jeu** — `voxel/townLayout.ts`
   (`buildTownLayout()`). Depuis 2026-07-29 elle s'inspire d'**EDORAS** : géométrie POLAIRE, plus
   aucune coordonnée sur une grille. Un **tertre** ovale isolé au milieu de la plaine (la hauteur ne
   dépend que du rayon elliptique, donc strictement décroissante — aucune cuvette possible ; lobage
@@ -846,7 +892,10 @@ setSpeed, setTurntable, state, engine}` — pilotable en headless (vérif Playwr
 - **CSS class collision**: do NOT use `town` as a tag/utility modifier — it collides with `.town
   { position:absolute; inset:0 }` (the Home town container) and blows the element up to fill its parent with a
   blue overlay. The tab modifier was renamed `ttown`. (This caused the "Structure is all blue" bug,
-  and the TopBar's town-name span — renamed `town-name` — used to cover the avatar and eat its clicks.)
+  the TopBar's town-name span — renamed `town-name` — used to cover the avatar and eat its clicks, and
+  **`.mhb-badge.town`** — le badge « en ville » des pastilles de héros — héritait de `inset:0` et
+  s'étalait sur TOUT le portrait qu'il recouvrait ; renommé `intown` (et `turn` en combat) le 2026-08-02.
+  Trois fois le même piège : **greper `className=".*\btown\b"` avant d'ajouter un modificateur.**)
 - **Les vues voxel** doivent retirer leurs écouteurs (bus / resize) au démontage — sinon une vue détruite
   continue de réagir aux événements et plante.
 - **Pas de React StrictMode** (le double-invoke monterait le moteur deux fois).
