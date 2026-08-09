@@ -5,6 +5,7 @@ import { TOWN_BUILDINGS, TOWN_REPAIR_HP, type BuildingLayout } from "../data/bui
 import { VoxelTownView } from "../voxel/VoxelTownView";
 import type { TownBuilding } from "../api/types";
 import { HeroChips } from "../components/HeroChips";
+import { TownOrders } from "../components/TownOrders";
 import { TownWorker, useWorkerPA } from "../components/TownWorker";
 import { effectiveTownHeroId } from "../townUtils";
 
@@ -212,6 +213,9 @@ export function HomeTab() {
 
   return (
     <div className="town-wrap" style={{ position: "absolute", inset: 0 }}>
+      {/* L'ordre du jour passe AVANT tout le reste : c'est la première chose qu'une
+          session de cinq minutes doit lire. */}
+      <TownOrders />
       <ChatBubble />
 
       <div className={`town ${selected ? "dim" : ""}`}>

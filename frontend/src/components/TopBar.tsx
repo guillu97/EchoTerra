@@ -75,11 +75,23 @@ export function TopBar() {
 
       {game?.status === "active" && (
         <button
-          className="chip wave"
+          className={"chip wave" + (game.town.forecast?.fatal ? " fatal" : "")}
           onClick={() => toggleTownStatus(true)}
-          title="Prochaine vague — état de la ville"
+          title={
+            game.town.forecast
+              ? `Horde ~${game.town.forecast.horde} contre ${game.town.forecast.defense} de défense` +
+                (game.town.forecast.besieging > 0
+                  ? ` · ${game.town.forecast.besieging} créatures aux abords — les abattre fait baisser ce chiffre`
+                  : " · abords dégagés")
+              : "Prochaine vague — état de la ville"
+          }
         >
           🌊 {formatHMS(waveRemaining)}
+          {/* Les dégâts ATTENDUS, pas le numéro de vague : c'est le chiffre sur lequel
+              le joueur peut agir en sortant nettoyer l'anneau (orders.go). */}
+          {game.town.forecast && game.town.forecast.damage > 0 && (
+            <i className="wave-dmg">−{game.town.forecast.damage}</i>
+          )}
         </button>
       )}
 

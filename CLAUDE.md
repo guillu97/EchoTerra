@@ -503,6 +503,15 @@ C'est la réponse au trou de rétention n°1 (`RETENTION-PLAN.md`). Front : menu
 voxel `site-*` v0 enseveli / v1 déblayé (variante par ÉTAT serveur), socle doré. Tests
 `ruins_test.go`. (Les bots ignorent les ruines.)
 
+**Ordre du jour & prévision de vague** (`orders.go`, `components/TownOrders.tsx`, 2026-08-09) —
+`Town.Orders` (≤ `townOrdersCap` 4 lignes) et `Town.Forecast` sont **entièrement DÉRIVÉS**, refaits par
+`Recompute` EN DERNIER (ils lisent les `b.Cost` qu'on vient de recalculer). L'ordre du jour classe par
+urgence : menace chiffrée → portail ouvert → remparts → chantier en cours → matériau manquant pour la
+prochaine amélioration défensive → plan posable → usure. `Forecast` = `hordePower` SANS le terme
+aléatoire (on annonce « ~34 », pas une promesse) et n'est actionnable que parce que la puissance dérive
+des assiégeants : tuer fait baisser le chiffre sous les yeux du joueur. Réponse aux trous T3/T5 de
+`RETENTION-PLAN.md`. Tests `orders_test.go`.
+
 **Journal de la ville** (`town.log`, bâtiment Panel) — `TownLogEntry {at, day, text}`, **serveur-side,
 partagé, plus récent en premier, plafonné à 100** (`logTown`). Recense UNIQUEMENT les actions faites en
 ville : porte OUVERTE/FERMÉE, ration puisée au puits, dépôts à la Banque (par héros), chantiers

@@ -83,6 +83,25 @@ export function ruinEpitaph(r: Ruin): string {
   return `Tombée à la vague ${r.fellAtWave}, défendue par ${names}.`;
 }
 
+// Une ligne de l'ordre du jour : ce que la ville demande, maintenant.
+export interface TownOrder {
+  kind: "threat" | "gate" | "repair" | "material" | "plan" | "chantier" | "wear";
+  icon: string;
+  text: string;
+  urgent: boolean; // coûte des PV à la PROCHAINE vague, par opposition aux suivantes
+}
+
+// Ce que la prochaine vague fera si personne ne bouge. `besieging` est le levier : ces
+// créatures-là entrent dans la puissance de la horde, donc les tuer fait baisser
+// `horde` sous les yeux du joueur.
+export interface WaveForecast {
+  horde: number;
+  defense: number;
+  besieging: number;
+  damage: number;
+  fatal: boolean;
+}
+
 export interface Hero {
   id: string;
   name: string;
@@ -305,6 +324,10 @@ export interface GameState {
     // How many messages the board holds. The messages THEMSELVES never ride this
     // payload (see ChatMessage) — this count only feeds the ✉️ unread pip.
     chatCount?: number;
+    // L'ORDRE DU JOUR et la PRÉVISION de vague (backend orders.go) — entièrement
+    // dérivés de l'état. C'est ce qui donne un énoncé à une session de cinq minutes.
+    orders?: TownOrder[];
+    forecast?: WaveForecast;
     reviveDay?: number; // Townhall resurrections performed today (allowance = level)
     revivesToday?: number;
   };

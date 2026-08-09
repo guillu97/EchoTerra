@@ -61,7 +61,11 @@ de rétention que le jeu possède : « il y a 40 créatures à nos portes, si pe
 
 ## 3. Ce qu'il faut construire, par ordre de rapport valeur / effort
 
-### P1 · L'ordre du jour — *le plus rentable, et de loin*
+### P1 · L'ordre du jour — ✅ **LIVRÉ** (2026-08-09)
+
+> `game/orders.go` : `BuildOrders()`, reconstruit par `Recompute` en DERNIER (il lit les
+> coûts qu'on vient de recalculer) · `components/TownOrders.tsx`, replié à sa ligne la
+> plus urgente en haut de l'écran du bourg. Tests : `orders_test.go`.
 
 Le Panneau (déjà bâti dès le départ) affiche 2 à 4 lignes **dérivées de l'état**, pas écrites à la
 main :
@@ -76,7 +80,11 @@ main :
 Fonction pure de `GameState` : aucune donnée nouvelle, aucun stockage. Transforme une session vide en
 liste de courses. **C'est la réponse directe à T3, et T3 est le trou qui coûte le plus de sessions.**
 
-### P2 · L'annonce de la vague — *l'appointement*
+### P2 · L'annonce de la vague — ✅ **LIVRÉ** (2026-08-09)
+
+> `game/orders.go` : `Forecast()` — même formule que `hordePower` sans le terme
+> aléatoire (on annonce « ~34 », pas une promesse) · pastille 🌊 de la TopBar : les
+> dégâts ATTENDUS, pas le numéro de vague.
 
 Un encart permanent : `Prochaine vague dans 4 h 12 · horde ~34 · défense 26 · −8 PV attendus`.
 Exact, puisque la puissance dérive maintenant des packs présents. Et surtout **actionnable** : nettoyer

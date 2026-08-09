@@ -100,6 +100,11 @@ func (g *GameState) Recompute() {
 			b.Capacity = total // the Bank's "contents" = the town storage
 		}
 	}
+	// EN DERNIER : l'ordre du jour lit les coûts qu'on vient de recalculer (matériaux
+	// manquants, plans, chantiers). Le placer plus haut le ferait travailler sur les
+	// coûts de la vague précédente.
+	g.Town.Forecast = g.Forecast()
+	g.Town.Orders = g.BuildOrders()
 }
 
 // backfillBuildings adds any building the catalog gained since a game was created.

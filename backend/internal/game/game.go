@@ -203,6 +203,12 @@ type GameState struct {
 		// the Townhall's level; level 3 is unlimited AND free).
 		ReviveDay    int `json:"reviveDay,omitempty"`
 		RevivesToday int `json:"revivesToday,omitempty"`
+		// L'ORDRE DU JOUR et la PRÉVISION de la prochaine vague (orders.go) — dérivés,
+		// reconstruits par Recompute comme la défense. C'est ce qui donne un énoncé à
+		// une session de cinq minutes : sans eux, le joueur arrive avec 18 PA devant un
+		// jeu qui ne lui dit pas ce dont la ville a besoin.
+		Orders   []TownOrder  `json:"orders"`
+		Forecast WaveForecast `json:"forecast"`
 	} `json:"town"`
 	// ActiveCombat is the id of the combat in progress, if any.
 	ActiveCombat string             `json:"activeCombat,omitempty"`
