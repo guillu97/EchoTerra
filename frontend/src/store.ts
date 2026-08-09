@@ -276,6 +276,7 @@ interface StoreState {
   ) => Promise<void>;
   setTownHero: (id: string) => void;
   townDeposit: () => Promise<void>;
+  scoutWave: () => Promise<void>; // monter à la Tour estimer la vague (collectif)
   craft: (recipeId: string) => Promise<void>;
   evolve: (classId: string) => Promise<void>;
   startAdventure: () => void; // Title "Start the game" -> cinematic
@@ -845,6 +846,27 @@ export const useStore = create<StoreState>((set, get) => {
           );
           await enterActiveGame();
         }
+      }),
+
+    // Monter à la Tour de guet. C'est une manœuvre COLLECTIVE : chaque joueur qui s'y
+    // colle resserre la fourchette pour toute la ville, et chacun ne compte qu'une fois
+    // par vague (backend orders.go).
+    scoutWave: () =>
+      withBusy(async () => {
+        const { game, playerId, townHeroId } = get();
+        if (!game) return;
+        const heroId = effectiveTownHeroId(game, playerId, townHeroId);
+        if (!heroId) {
+          get().notify("Il faut un de tes héros en ville pour monter à la Tour");
+          return;
+        }
+        const res = await api.scoutWave(game.id, heroId, playerId ?? undefined);
+        adoptGame(res.game);
+        const f = res.forecast;
+        get().notify(
+          `🔭 Horde estimée entre ${f.min} et ${f.max} — fiable à ${f.precision}%` +
+            (f.scouts > 1 ? ` (${f.scouts} observateurs)` : ""),
+        );
       }),
 
     startLobby: () =>

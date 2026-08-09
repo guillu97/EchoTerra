@@ -436,6 +436,19 @@ func (g *GameState) FinishCombat(c *Combat) {
 					slain = 1
 				}
 				g.MonstersKilled += slain
+				// Le pack tombe grâce à ceux qui étaient dans l'arène : chaque équipe
+				// engagée est créditée. Un combat gagné à plusieurs est un fait
+				// collectif, pas la prise d'un seul.
+				credited := map[string]bool{}
+				for _, u := range c.Units {
+					if u.Side != "hero" {
+						continue
+					}
+					if owner := g.OwnerOfHero(u.RefID); owner != "" && !credited[owner] {
+						credited[owner] = true
+						g.credit(u.RefID, func(cc *Contribution) { cc.Slain += slain })
+					}
+				}
 			}
 			delete(g.Monsters, t.MonsterID)
 			t.MonsterID = ""

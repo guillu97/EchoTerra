@@ -4,6 +4,7 @@ import type {
   CombatResponse,
   GameState,
   GameSummary,
+  WaveForecast,
   Item,
   LeaderboardMode,
   MapSkillDef,
@@ -149,6 +150,24 @@ export const api = {
   logout: () => req<{ ok: boolean }>("POST", "/api/auth/logout", {}),
 
   me: () => req<{ user: User }>("GET", "/api/auth/me"),
+
+  // Monter à la Tour estimer la vague : chaque JOUEUR qui le fait resserre la
+  // fourchette pour toute la ville (backend orders.go ScoutWave).
+  scoutWave: (gameId: string, heroId: string, playerId?: string) =>
+    req<{ forecast: WaveForecast; game: GameState }>("POST", `/api/games/${gameId}/town/scout`, {
+      heroId,
+      playerId,
+    }),
+  postRequest: (gameId: string, playerId: string, item: string, qty: number) =>
+    req<{ game: GameState }>("POST", `/api/games/${gameId}/town/request`, { playerId, item, qty }),
+  cancelRequest: (gameId: string, playerId: string, cancel: string) =>
+    req<{ game: GameState }>("POST", `/api/games/${gameId}/town/request`, { playerId, cancel }),
+  fillRequest: (gameId: string, requestId: string, heroId: string, playerId?: string) =>
+    req<{ game: GameState }>("POST", `/api/games/${gameId}/town/request/fill`, {
+      requestId,
+      heroId,
+      playerId,
+    }),
 
   myGames: () => req<MyGameSummary[]>("GET", "/api/auth/me/games"),
 

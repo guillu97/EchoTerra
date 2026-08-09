@@ -80,11 +80,14 @@ main :
 Fonction pure de `GameState` : aucune donnée nouvelle, aucun stockage. Transforme une session vide en
 liste de courses. **C'est la réponse directe à T3, et T3 est le trou qui coûte le plus de sessions.**
 
-### P2 · L'annonce de la vague — ✅ **LIVRÉ** (2026-08-09)
+### P2 · L'annonce de la vague — ✅ **LIVRÉ** (2026-08-09), puis **AMÉLIORÉ**
 
-> `game/orders.go` : `Forecast()` — même formule que `hordePower` sans le terme
-> aléatoire (on annonce « ~34 », pas une promesse) · pastille 🌊 de la TopBar : les
-> dégâts ATTENDUS, pas le numéro de vague.
+> `game/orders.go` : `Forecast()` rend une **FOURCHETTE**, pas un chiffre — et sa
+> largeur se MÉRITE. Sans Tour de guet on devine (±50 %) ; chaque niveau de Tour
+> resserre ; chaque JOUEUR monté observer (`ScoutWave`, 2 PA, route `/town/scout`)
+> resserre encore, une fois par joueur et par vague, **pour toute la ville**.
+> La première version donnait le chiffre exact et gratuitement : trop généreux, et la
+> Tour n'avait aucun rôle au-delà de ses points de défense.
 
 Un encart permanent : `Prochaine vague dans 4 h 12 · horde ~34 · défense 26 · −8 PV attendus`.
 Exact, puisque la puissance dérive maintenant des packs présents. Et surtout **actionnable** : nettoyer
@@ -93,7 +96,11 @@ jour » en « il faut que je sorte avant ce soir ».
 
 Coût : un champ dérivé de plus dans le payload. Effet : le rendez-vous devient un enjeu.
 
-### P3 · Le registre de contribution — *rendre le groupe réel*
+### P3 · Le registre de contribution — ✅ **LIVRÉ** (2026-08-09)
+
+> `game/contribution.go` : `credit()` sur six actions (chantier, remparts, dépôt, craft,
+> compétence, combat gagné — crédité à TOUTE équipe engagée) · `Ledger()` rend l'ordre
+> d'ARRIVÉE, jamais le mérite.
 
 Compteurs par joueur, incrémentés sur les actions qui portent déjà un `heroID` : PA investis en
 chantier, objets déposés, créatures abattues dans l'anneau, remparts relevés, camarades dégagés.
@@ -144,7 +151,11 @@ Trois raisons d'y croire :
 3. Le coût est faible : les ruines existent, il manque un registre des villes tombées et un crochet
    au worldgen.
 
-### P6 · Les requêtes sur le Panneau — *la réciprocité*
+### P6 · Les requêtes sur le Panneau — ✅ **LIVRÉ** (2026-08-09)
+
+> `game/requests.go` : `PostRequest` / `FillRequest` / `CancelRequest`, routes
+> `/town/request` et `/town/request/fill`. Première SORTIE contrôlée de la Banque —
+> et elle exige d'être deux. Tests : `requests_test.go`.
 
 Un joueur affiche un besoin (« il me faut 3 Corde »), n'importe qui le sert depuis la Banque, le
 journal note qui l'a fait. La réciprocité est la colle sociale la plus solide qui existe, et

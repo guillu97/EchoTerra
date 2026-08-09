@@ -27,6 +27,7 @@ function Bar({ value, max, color }: { value: number; max: number; color: string 
 // done from the Structure tab, so the "Améliorer" entry jumps there.
 function BuildingMenu({ layout, b, onClose }: { layout: BuildingLayout; b: TownBuilding; onClose: () => void }) {
   const townAction = useStore((s) => s.townAction);
+  const scoutWave = useStore((s) => s.scoutWave);
   const setTab = useStore((s) => s.setTab);
   const toggleTownStatus = useStore((s) => s.toggleTownStatus);
   const toggleTownJournal = useStore((s) => s.toggleTownJournal);
@@ -121,6 +122,24 @@ function BuildingMenu({ layout, b, onClose }: { layout: BuildingLayout; b: TownB
                   : `Puiser de l'eau${worker ? ` (${worker.name})` : ""}`}
               </span>
               <span className="c">1/jour</span>
+            </button>
+          )}
+          {/* LA TOUR DE GUET : monter observer la horde. Ce n'est pas un bonus solo —
+              chaque JOUEUR qui s'y colle resserre la fourchette pour toute la ville, et
+              chacun ne compte qu'une fois par vague. C'est ce qui donne à la Tour un
+              rôle au-delà de ses points de défense. */}
+          {b.id === "tower" && (
+            <button
+              className="primary"
+              disabled={busy || (game?.town.forecast?.precision ?? 0) >= 99}
+              onClick={() => { scoutWave(); }}
+            >
+              <span>
+                🔭 Estimer la vague
+                {game?.town.forecast &&
+                  ` (${game.town.forecast.min}–${game.town.forecast.max}, ${game.town.forecast.precision}%)`}
+              </span>
+              <span className="c">-2</span>
             </button>
           )}
           {b.id === "gate" && (

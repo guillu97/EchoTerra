@@ -173,6 +173,10 @@ type GameState struct {
 	// MonstersKilled counts every creature slain in this game (iso combat wins, map
 	// skills, bot auto-resolves) — the leaderboard's "monstres tués par ville".
 	MonstersKilled int `json:"monstersKilled"`
+	// Contributions : ce que chaque joueur a apporté à CETTE ville (contribution.go).
+	// Clé = playerID. Rendre la contribution visible est la récompense principale d'un
+	// jeu coopératif ; le registre est volontairement NON trié par mérite.
+	Contributions map[string]*Contribution `json:"contributions,omitempty"`
 	Town           struct {
 		Name      string          `json:"name"` // generated town name (see townnames.go)
 		X         int             `json:"x"`
@@ -209,6 +213,12 @@ type GameState struct {
 		// jeu qui ne lui dit pas ce dont la ville a besoin.
 		Orders   []TownOrder  `json:"orders"`
 		Forecast WaveForecast `json:"forecast"`
+		// Requests : le tableau d'affichage des besoins (requests.go). C'est la seule
+		// sortie de la Banque vers un joueur, et elle exige d'être DEUX.
+		Requests []*TownRequest `json:"requests,omitempty"`
+		// Scouts : les JOUEURS montés à la Tour estimer la vague qui vient (orders.go).
+		// Remis à zéro à chaque vague — la horde suivante est une autre horde.
+		Scouts []string `json:"scouts,omitempty"`
 	} `json:"town"`
 	// ActiveCombat is the id of the combat in progress, if any.
 	ActiveCombat string             `json:"activeCombat,omitempty"`

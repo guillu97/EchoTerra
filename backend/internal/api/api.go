@@ -238,6 +238,9 @@ func (s *Server) Router() http.Handler {
 			r.Post("/town/action", s.townAction)
 			r.Post("/town/deposit", s.townDeposit)
 			r.Post("/town/craft", s.townCraft)
+			r.Post("/town/scout", s.townScout)     // monter à la Tour estimer la vague
+			r.Post("/town/request", s.townRequest) // afficher / retirer un besoin
+			r.Post("/town/request/fill", s.townRequestFill)
 			r.Get("/town/chat", s.townChatList)
 			r.Post("/town/chat", s.townChatPost)
 			r.Post("/heroes/{heroID}/move", s.moveHero)
@@ -723,6 +726,96 @@ func (s *Server) join(w http.ResponseWriter, r *http.Request, gameID, playerName
 	}
 	s.persist(gs)
 	writeJSON(w, http.StatusOK, map[string]any{"game": gs, "player": p})
+}
+
+// townScout : un héros monte à la Tour de guet estimer la horde. Manœuvre COLLECTIVE —
+// chaque joueur qui s'y colle resserre la fourchette pour toute la ville.
+func (s *Server) townScout(w http.ResponseWriter, r *http.Request) {
+	gs := s.mustGame(w, r)
+	if gs == nil {
+		return
+	}
+	var body struct {
+		HeroID   string `json:"heroId"`
+		PlayerID string `json:"playerId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeErr(w, http.StatusBadRequest, "corps invalide")
+		return
+	}
+	if err := gs.CheckHeroOwnership(body.PlayerID, body.HeroID); err != nil {
+		writeActionErr(w, err)
+		return
+	}
+	f, err := gs.ScoutWave(body.HeroID)
+	if err != nil {
+		writeActionErr(w, err)
+		return
+	}
+	s.persist(gs)
+	writeJSON(w, http.StatusOK, map[string]any{"forecast": f, "game": gs})
+}
+
+// townRequest affiche un besoin au Panneau, ou retire le sien (`cancel`).
+func (s *Server) townRequest(w http.ResponseWriter, r *http.Request) {
+	gs := s.mustGame(w, r)
+	if gs == nil {
+		return
+	}
+	var body struct {
+		PlayerID string `json:"playerId"`
+		Item     string `json:"item"`
+		Qty      int    `json:"qty"`
+		Cancel   string `json:"cancel"` // id de la demande à retirer
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeErr(w, http.StatusBadRequest, "corps invalide")
+		return
+	}
+	if body.Cancel != "" {
+		if err := gs.CancelRequest(body.PlayerID, body.Cancel); err != nil {
+			writeActionErr(w, err)
+			return
+		}
+		s.persist(gs)
+		writeJSON(w, http.StatusOK, map[string]any{"game": gs})
+		return
+	}
+	req, err := gs.PostRequest(body.PlayerID, body.Item, body.Qty)
+	if err != nil {
+		writeActionErr(w, err)
+		return
+	}
+	s.persist(gs)
+	writeJSON(w, http.StatusOK, map[string]any{"request": req, "game": gs})
+}
+
+// townRequestFill honore la demande d'un camarade depuis la Banque.
+func (s *Server) townRequestFill(w http.ResponseWriter, r *http.Request) {
+	gs := s.mustGame(w, r)
+	if gs == nil {
+		return
+	}
+	var body struct {
+		RequestID string `json:"requestId"`
+		HeroID    string `json:"heroId"`
+		PlayerID  string `json:"playerId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeErr(w, http.StatusBadRequest, "corps invalide")
+		return
+	}
+	if err := gs.CheckHeroOwnership(body.PlayerID, body.HeroID); err != nil {
+		writeActionErr(w, err)
+		return
+	}
+	req, err := gs.FillRequest(body.RequestID, body.HeroID)
+	if err != nil {
+		writeActionErr(w, err)
+		return
+	}
+	s.persist(gs)
+	writeJSON(w, http.StatusOK, map[string]any{"request": req, "game": gs})
 }
 
 // leaveGame removes the calling player (and their hero) from a lobby. An emptied

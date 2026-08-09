@@ -95,11 +95,44 @@ export interface TownOrder {
 // créatures-là entrent dans la puissance de la horde, donc les tuer fait baisser
 // `horde` sous les yeux du joueur.
 export interface WaveForecast {
-  horde: number;
+  // La horde s'annonce en FOURCHETTE : on l'estime, on ne la lit pas. Sa largeur est
+  // ce que la ville a gagné — sa Tour de guet, et les joueurs montés observer.
+  min: number;
+  max: number;
   defense: number;
   besieging: number;
-  damage: number;
-  fatal: boolean;
+  damageMin: number;
+  damageMax: number;
+  fatal: boolean; // même au mieux, la ville n'y survit pas
+  atRisk: boolean; // au pire, elle n'y survit pas
+  precision: number; // 0-100
+  tower: number; // niveau de la Tour (0 = pas de tour)
+  scouts: number; // joueurs ayant estimé cette vague
+}
+
+// Un besoin affiché au Panneau. La seule sortie de la Banque vers un joueur — et elle
+// exige d'être deux : un qui demande, un qui sert.
+export interface TownRequest {
+  id: string;
+  playerId: string;
+  author: string;
+  item: string;
+  qty: number;
+  wave: number;
+  at: string;
+  filledBy?: string; // "" / absent = encore ouverte
+}
+
+// Ce qu'un joueur a apporté à cette ville. JAMAIS trié par mérite (voir contribution.go).
+export interface Contribution {
+  playerId: string;
+  name: string;
+  buildPa: number;
+  deposited: number;
+  slain: number;
+  repaired: number;
+  crafted: number;
+  filled: number;
 }
 
 export interface Hero {
@@ -328,12 +361,15 @@ export interface GameState {
     // dérivés de l'état. C'est ce qui donne un énoncé à une session de cinq minutes.
     orders?: TownOrder[];
     forecast?: WaveForecast;
+    requests?: TownRequest[];
+    scouts?: string[];
     reviveDay?: number; // Townhall resurrections performed today (allowance = level)
     revivesToday?: number;
   };
   activeCombat?: string;
   combats?: Record<string, Combat>;
   ruins?: Record<string, Ruin>;
+  contributions?: Record<string, Contribution>;
 }
 
 export interface CombatUnit {

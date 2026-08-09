@@ -75,11 +75,15 @@ export function TopBar() {
 
       {game?.status === "active" && (
         <button
-          className={"chip wave" + (game.town.forecast?.fatal ? " fatal" : "")}
+          className={"chip wave" + (game.town.forecast?.atRisk ? " fatal" : "")}
           onClick={() => toggleTownStatus(true)}
           title={
             game.town.forecast
-              ? `Horde ~${game.town.forecast.horde} contre ${game.town.forecast.defense} de défense` +
+              ? `Horde estimée entre ${game.town.forecast.min} et ${game.town.forecast.max} contre ` +
+                `${game.town.forecast.defense} de défense · fiable à ${game.town.forecast.precision}%` +
+                (game.town.forecast.tower === 0
+                  ? " (sans Tour de guet, on devine)"
+                  : ` (Tour niv.${game.town.forecast.tower}, ${game.town.forecast.scouts} observateur(s))`) +
                 (game.town.forecast.besieging > 0
                   ? ` · ${game.town.forecast.besieging} créatures aux abords — les abattre fait baisser ce chiffre`
                   : " · abords dégagés")
@@ -87,10 +91,15 @@ export function TopBar() {
           }
         >
           🌊 {formatHMS(waveRemaining)}
-          {/* Les dégâts ATTENDUS, pas le numéro de vague : c'est le chiffre sur lequel
-              le joueur peut agir en sortant nettoyer l'anneau (orders.go). */}
-          {game.town.forecast && game.town.forecast.damage > 0 && (
-            <i className="wave-dmg">−{game.town.forecast.damage}</i>
+          {/* Les dégâts ATTENDUS en FOURCHETTE, pas le numéro de vague : c'est le
+              chiffre sur lequel le joueur peut agir, et son imprécision est elle-même
+              une information (elle se paie en Tour de guet et en observateurs). */}
+          {game.town.forecast && game.town.forecast.damageMax > 0 && (
+            <i className="wave-dmg">
+              −{game.town.forecast.damageMin}
+              {game.town.forecast.damageMax !== game.town.forecast.damageMin &&
+                `/${game.town.forecast.damageMax}`}
+            </i>
           )}
         </button>
       )}

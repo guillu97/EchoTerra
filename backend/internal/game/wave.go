@@ -103,6 +103,7 @@ func (g *GameState) Recompute() {
 	// EN DERNIER : l'ordre du jour lit les coûts qu'on vient de recalculer (matériaux
 	// manquants, plans, chantiers). Le placer plus haut le ferait travailler sur les
 	// coûts de la vague précédente.
+	g.trimRequests()
 	g.Town.Forecast = g.Forecast()
 	g.Town.Orders = g.BuildOrders()
 }
@@ -309,6 +310,10 @@ func (g *GameState) processWave(now time.Time, safeTown bool) {
 			h.RemoveState(StateTetanise)
 		}
 	}
+
+	// Les observateurs de la tour valaient pour LA vague qui vient de frapper : la
+	// suivante est une autre horde, et il faudra remonter voir.
+	g.Town.Scouts = nil
 
 	// The Well slowly refills between waves.
 	if w := g.buildingByID("well"); w != nil && w.Built && w.Capacity < w.MaxCapacity {

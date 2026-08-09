@@ -381,6 +381,7 @@ func (g *GameState) DepositHeroLoot(only []string) (int, error) {
 		}
 		h.Inventory = []Item{}
 		if n > 0 {
+			g.credit(h.ID, func(c *Contribution) { c.Deposited += n })
 			g.logTown(fmt.Sprintf("📦 %s a déposé %d objet(s) à la Banque", h.Name, n))
 		}
 		moved += n
@@ -486,6 +487,7 @@ func (g *GameState) TownAction(buildingID, action string, points int, heroID str
 			return ActionError{"PA insuffisants"}
 		}
 		b.PaInvested += points
+		g.credit(heroID, func(c *Contribution) { c.BuildPA += points })
 		if b.PaInvested < cost.PA {
 			g.logTown(fmt.Sprintf("🏗️ %s a travaillé sur %s (+%d PA — %d/%d)", worker, b.Name, points, b.PaInvested, cost.PA))
 			return nil
@@ -544,6 +546,7 @@ func (g *GameState) TownAction(buildingID, action string, points int, heroID str
 			healed = g.Town.MaxHP - g.Town.HP
 		}
 		g.Town.HP += healed
+		g.credit(heroID, func(c *Contribution) { c.Repaired += healed })
 		g.logTown(fmt.Sprintf("🧱 %s a relevé les remparts (+%d PV, %d %s)", worker, healed, points, TownRepairMaterial))
 		return nil
 

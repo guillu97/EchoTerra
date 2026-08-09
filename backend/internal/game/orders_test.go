@@ -3,6 +3,7 @@ package game
 import (
 	"strings"
 	"testing"
+	"time"
 )
 
 func ordersGame() *GameState {
@@ -56,8 +57,8 @@ func TestForecastCountsTheSiegeAndDropsWhenItIsCleared(t *testing.T) {
 	if sieged.Besieging != 25 {
 		t.Fatalf("assiégeants comptés = %d, want 25", sieged.Besieging)
 	}
-	if sieged.Horde <= calm.Horde {
-		t.Fatalf("un siège doit alourdir la prévision : %d -> %d", calm.Horde, sieged.Horde)
+	if sieged.Min <= calm.Min {
+		t.Fatalf("un siège doit alourdir la prévision : %d -> %d", calm.Min, sieged.Min)
 	}
 	if o, ok := kinds(g.Town.Orders)["threat"]; !ok || !o.Urgent || !strings.Contains(o.Text, "25") {
 		t.Fatalf("la menace doit être annoncée, chiffrée et urgente : %+v", o)
@@ -68,9 +69,9 @@ func TestForecastCountsTheSiegeAndDropsWhenItIsCleared(t *testing.T) {
 	delete(g.Monsters, m.ID)
 	g.TileAt(m.X, m.Y).MonsterID = ""
 	g.Recompute()
-	if g.Town.Forecast.Horde != calm.Horde {
-		t.Fatalf("dégager le siège doit rendre la prévision d'origine : %d vs %d",
-			g.Town.Forecast.Horde, calm.Horde)
+	if g.Town.Forecast.Min != calm.Min || g.Town.Forecast.Max != calm.Max {
+		t.Fatalf("dégager le siège doit rendre la prévision d'origine : %d-%d vs %d-%d",
+			g.Town.Forecast.Min, g.Town.Forecast.Max, calm.Min, calm.Max)
 	}
 }
 
@@ -149,5 +150,132 @@ func TestNoOrdersBeforeTheGameStarts(t *testing.T) {
 	g.Recompute()
 	if len(g.Town.Orders) != 0 {
 		t.Fatalf("un salon n'a pas d'ordre du jour, got %+v", g.Town.Orders)
+	}
+}
+
+// buildTower stands the watchtower up at the given level.
+func buildTower(g *GameState, level int) {
+	b := g.buildingByID("tower")
+	b.Built, b.Level = true, level
+	b.Durability, b.MaxDurability = 100, 100
+	g.Recompute()
+}
+
+// LA PRÉCISION SE MÉRITE. Sans tour de guet on devine ; chaque niveau resserre la
+// fourchette. C'est ce qui donne à la Tour un rôle au-delà de ses points de défense.
+func TestTowerLevelsNarrowTheForecast(t *testing.T) {
+	g := ordersGame()
+	// Une vague avancée : à une horde de cinq, ±50 % et ±5 % donnent la même fourchette
+	// ENTIÈRE, et le mécanisme n'a rien à montrer. Ce n'est pas un défaut — une vague
+	// de début de partie est trivialement prévisible — mais ça ne se teste pas là.
+	g.WaveNumber = 14
+	g.Recompute()
+	blind := g.Forecast()
+	if blind.Tower != 0 {
+		t.Fatal("staging: pas de tour au départ")
+	}
+	width := func(f WaveForecast) int { return f.Max - f.Min }
+
+	prev := width(blind)
+	for lvl := 1; lvl <= MaxBuildingLevel; lvl++ {
+		buildTower(g, lvl)
+		f := g.Town.Forecast
+		if f.Tower != lvl {
+			t.Fatalf("niveau de tour rapporté = %d, want %d", f.Tower, lvl)
+		}
+		if w := width(f); w >= prev {
+			t.Fatalf("la tour niveau %d doit resserrer la fourchette : %d -> %d", lvl, prev, w)
+		} else {
+			prev = w
+		}
+	}
+	if g.Town.Forecast.Precision <= blind.Precision {
+		t.Fatalf("la précision annoncée doit monter avec la tour : %d -> %d",
+			blind.Precision, g.Town.Forecast.Precision)
+	}
+	// La vraie valeur reste TOUJOURS dans la fourchette — une estimation qui ment ne
+	// vaut rien.
+	f := g.Town.Forecast
+	if f.Min > f.Max || f.Min < 0 {
+		t.Fatalf("fourchette incohérente : %+v", f)
+	}
+}
+
+// …et elle se mérite À PLUSIEURS : chaque JOUEUR monté observer resserre la fourchette
+// pour TOUT LE MONDE. C'est une manœuvre collective, comme le reste du jeu.
+func TestEachScoutingPlayerNarrowsItForEveryone(t *testing.T) {
+	g, ana, bo := twoPlayerTown(t)
+	g.WaveNumber = 14 // cf. TestTowerLevelsNarrowTheForecast : une horde qui a de la marge
+	buildTower(g, 1)
+	width := func() int { return g.Town.Forecast.Max - g.Town.Forecast.Min }
+
+	alone := width()
+	if _, err := g.ScoutWave(ana.HeroIDs[0]); err != nil {
+		t.Fatalf("Ana doit pouvoir observer : %v", err)
+	}
+	oneScout := width()
+	if oneScout >= alone {
+		t.Fatalf("un observateur doit resserrer : %d -> %d", alone, oneScout)
+	}
+
+	// La même ÉQUIPE ne compte qu'une fois : ce qu'on récompense, c'est que plusieurs
+	// PERSONNES s'y collent, pas qu'une seule ait trois héros.
+	if _, err := g.ScoutWave(ana.HeroIDs[1]); err == nil {
+		t.Fatal("un second héros de la même équipe ne doit pas compter")
+	}
+	if width() != oneScout {
+		t.Fatal("un doublon ne doit rien changer")
+	}
+
+	if _, err := g.ScoutWave(bo.HeroIDs[0]); err != nil {
+		t.Fatalf("Bo doit pouvoir observer à son tour : %v", err)
+	}
+	if width() >= oneScout {
+		t.Fatalf("un second JOUEUR doit resserrer encore : %d -> %d", oneScout, width())
+	}
+	if g.Town.Forecast.Scouts != 2 {
+		t.Fatalf("observateurs comptés = %d, want 2", g.Town.Forecast.Scouts)
+	}
+}
+
+// Sans tour, on ne monte nulle part ; et il faut être en ville.
+func TestScoutingNeedsAStandingTowerAndPresence(t *testing.T) {
+	g, ana, _ := twoPlayerTown(t)
+	if _, err := g.ScoutWave(ana.HeroIDs[0]); err == nil {
+		t.Fatal("observer sans Tour doit être refusé")
+	}
+	buildTower(g, 1)
+	h := g.HeroByID(ana.HeroIDs[0])
+	h.X, h.Y = g.Town.X+3, g.Town.Y
+	if _, err := g.ScoutWave(h.ID); err == nil {
+		t.Fatal("observer depuis le terrain doit être refusé")
+	}
+	h.X, h.Y = g.Town.X, g.Town.Y
+	pa := h.PA
+	if _, err := g.ScoutWave(h.ID); err != nil {
+		t.Fatal(err)
+	}
+	if h.PA != pa-scoutPA {
+		t.Fatalf("observer coûte %d PA : %d -> %d", scoutPA, pa, h.PA)
+	}
+}
+
+// Les observateurs valaient pour LA vague qui vient de frapper : la suivante est une
+// autre horde, il faut remonter voir.
+func TestScoutsResetOnEveryWave(t *testing.T) {
+	g, ana, _ := twoPlayerTown(t)
+	buildTower(g, 2)
+	if _, err := g.ScoutWave(ana.HeroIDs[0]); err != nil {
+		t.Fatal(err)
+	}
+	if len(g.Town.Scouts) != 1 {
+		t.Fatal("staging")
+	}
+	g.ForceWave(time.Now())
+	if len(g.Town.Scouts) != 0 {
+		t.Fatalf("les observateurs doivent être remis à zéro, got %v", g.Town.Scouts)
+	}
+	if _, err := g.ScoutWave(ana.HeroIDs[0]); err != nil {
+		t.Fatalf("on doit pouvoir réobserver la vague suivante : %v", err)
 	}
 }

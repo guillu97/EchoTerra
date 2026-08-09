@@ -32,28 +32,145 @@ type TownOrder struct {
 // Ici, dégager deux packs change la prévision sous ses yeux — c'est ce qui transforme
 // « je me connecterai un jour » en « il faut que je sorte avant ce soir ».
 type WaveForecast struct {
-	Horde     int  `json:"horde"`     // estimation (le tirage aléatoire reste inconnu)
-	Defense   int  `json:"defense"`   // ce que la ville oppose en l'état
-	Besieging int  `json:"besieging"` // créatures dans l'anneau — LE levier
-	Damage    int  `json:"damage"`    // PV attendus en moins
-	Fatal     bool `json:"fatal"`     // la ville n'y survivrait pas
+	// La horde est annoncée en FOURCHETTE, jamais en chiffre exact : on l'estime, on
+	// ne la lit pas dans un registre. La largeur de la fourchette est ce que la ville
+	// a GAGNÉ — par sa tour de guet et par les gens qui sont montés observer.
+	Min       int `json:"min"`
+	Max       int `json:"max"`
+	Defense   int `json:"defense"`   // ce que la ville oppose en l'état
+	Besieging int `json:"besieging"` // créatures dans l'anneau — LE levier, et observable
+	DamageMin int `json:"damageMin"` // PV attendus en moins, au mieux
+	DamageMax int `json:"damageMax"` // …et au pire
+
+	Fatal  bool `json:"fatal"`  // même au mieux, la ville n'y survit pas
+	AtRisk bool `json:"atRisk"` // au pire, elle n'y survit pas
+
+	// D'où vient la précision : le niveau de la tour de guet, et le nombre de joueurs
+	// montés estimer CETTE vague. Le client les affiche pour que le progrès se voie.
+	Precision int `json:"precision"` // 0-100
+	Tower     int `json:"tower"`     // niveau de la Tour (0 = pas de tour)
+	Scouts    int `json:"scouts"`    // joueurs ayant estimé cette vague
+}
+
+// LA PRÉCISION SE MÉRITE, et elle se mérite À PLUSIEURS.
+//
+//	towerSpread    — sans tour de guet, la ville devine (±50 %). Chaque niveau de Tour
+//	                 resserre la fourchette : c'est le rôle d'une tour, et jusqu'ici
+//	                 elle ne servait qu'à ajouter de la défense.
+//	scoutFactor    — chaque JOUEUR monté estimer la vague resserre encore. Distinct par
+//	                 joueur, pas par héros : ce qu'on récompense, c'est que plusieurs
+//	                 personnes se soient donné la peine, pas qu'une seule ait trois
+//	                 héros. C'est une manœuvre collective, comme le reste du jeu.
+//	minSpread      — un plancher : même à vingt observateurs sur une tour de niveau 3,
+//	                 la horde garde sa part d'imprévu.
+const (
+	baseForecastSpread = 0.50
+	scoutFactor        = 0.70
+	minForecastSpread  = 0.05
+	scoutPA            = 2 // monter observer coûte du temps
+)
+
+// towerSpread : le facteur d'incertitude apporté par la tour de guet.
+func towerSpread(level int) float64 {
+	switch {
+	case level >= 3:
+		return 0.28
+	case level == 2:
+		return 0.42
+	case level == 1:
+		return 0.60
+	}
+	return 1.0 // pas de tour : on devine
+}
+
+// forecastSpread combine la tour et les observateurs.
+func (g *GameState) forecastSpread() (spread float64, tower, scouts int) {
+	if b := g.buildingByID("tower"); b != nil && b.Built {
+		tower = b.Level
+	}
+	scouts = len(g.Town.Scouts)
+	spread = baseForecastSpread * towerSpread(tower)
+	for i := 0; i < scouts; i++ {
+		spread *= scoutFactor
+	}
+	if spread < minForecastSpread {
+		spread = minForecastSpread
+	}
+	return spread, tower, scouts
 }
 
 // Forecast estime la prochaine vague à partir de l'état courant.
 func (g *GameState) Forecast() WaveForecast {
 	besieging := g.besiegingCreatures()
-	// Même formule que hordePower, sans le terme aléatoire : on annonce une estimation,
-	// pas une promesse. Mieux vaut un « ~34 » honnête qu'un chiffre faussement exact.
-	horde := int(float64(hordeBase+(g.WaveNumber+1)*hordeGrowth)*g.hordeScale()) + besieging*assaultPerAttack
+	// Même formule que hordePower, sans son terme aléatoire : on estime, on ne promet
+	// pas. La fourchette autour de cette valeur est ce que la ville a gagné.
+	center := int(float64(hordeBase+(g.WaveNumber+1)*hordeGrowth)*g.hordeScale()) + besieging*assaultPerAttack
+	spread, tower, scouts := g.forecastSpread()
+	margin := int(float64(center)*spread + 0.5)
+	if margin < 1 {
+		margin = 1
+	}
+	lo, hi := center-margin, center+margin
+	if lo < 0 {
+		lo = 0
+	}
 	def := g.TownDefense()
-	dmg := horde - def
-	if dmg < 0 {
-		dmg = 0
+	dmgLo, dmgHi := lo-def, hi-def
+	if dmgLo < 0 {
+		dmgLo = 0
+	}
+	if dmgHi < 0 {
+		dmgHi = 0
 	}
 	return WaveForecast{
-		Horde: horde, Defense: def, Besieging: besieging,
-		Damage: dmg, Fatal: dmg >= g.Town.HP,
+		Min: lo, Max: hi, Defense: def, Besieging: besieging,
+		DamageMin: dmgLo, DamageMax: dmgHi,
+		Fatal:     dmgLo >= g.Town.HP,
+		AtRisk:    dmgHi >= g.Town.HP,
+		Precision: int(100*(1-spread) + 0.5),
+		Tower:     tower, Scouts: scouts,
 	}
+}
+
+// ScoutWave : un héros monte à la tour de guet estimer la horde qui approche.
+//
+// C'est une manœuvre COLLECTIVE — chaque joueur qui s'y colle resserre la fourchette
+// pour TOUT LE MONDE, et chacun ne compte qu'une fois par vague. Sur un jeu où l'on
+// passe cinq minutes deux fois par jour, c'est une action qui a du sens même seule :
+// deux PA, et l'expédition entière y voit plus clair.
+func (g *GameState) ScoutWave(heroID string) (WaveForecast, error) {
+	h := g.HeroByID(heroID)
+	if h == nil || h.HP <= 0 {
+		return WaveForecast{}, ActionError{"héros invalide"}
+	}
+	b := g.buildingByID("tower")
+	if b == nil || !b.Built {
+		return WaveForecast{}, ActionError{"il faut une Tour de guet pour observer la horde"}
+	}
+	if h.X != g.Town.X || h.Y != g.Town.Y {
+		return WaveForecast{}, ActionError{h.Name + " doit être en ville pour monter à la tour"}
+	}
+	owner := g.OwnerOfHero(heroID)
+	if owner == "" {
+		owner = heroID // parties héritées sans joueurs : le héros compte pour lui-même
+	}
+	for _, id := range g.Town.Scouts {
+		if id == owner {
+			return WaveForecast{}, ActionError{"ton équipe a déjà observé cette vague — laisse la place aux autres"}
+		}
+	}
+	if h.PA < scoutPA {
+		return WaveForecast{}, ActionError{fmt.Sprintf("observer coûte %d PA", scoutPA)}
+	}
+	h.PA -= scoutPA
+	if h.PA == 0 {
+		h.AddState(StateFatigue)
+	}
+	g.Town.Scouts = append(g.Town.Scouts, owner)
+	g.Recompute() // la fourchette se resserre immédiatement, pour tout le monde
+	g.logTown(fmt.Sprintf("🔭 %s a observé la horde depuis la Tour (%d observateur(s), précision %d%%)",
+		h.Name, len(g.Town.Scouts), g.Town.Forecast.Precision))
+	return g.Town.Forecast, nil
 }
 
 // townOrdersCap borne l'ordre du jour. Au-delà de quatre lignes ce n'est plus un ordre
@@ -76,17 +193,29 @@ func (g *GameState) BuildOrders() []TownOrder {
 	f := g.Forecast()
 
 	// 1. La menace, chiffrée. C'est la ligne qui donne envie de jouer maintenant.
+	rng := fmt.Sprintf("%d à %d", f.Min, f.Max)
 	switch {
 	case f.Fatal:
-		add("threat", "☠️", fmt.Sprintf("%d créatures aux portes — la prochaine vague emporterait la ville (~%d contre %d de défense)",
-			f.Besieging, f.Horde, f.Defense), true)
+		add("threat", "☠️", fmt.Sprintf("%d créatures aux portes — la prochaine vague (%s contre %d de défense) emporterait la ville",
+			f.Besieging, rng, f.Defense), true)
+	case f.AtRisk:
+		add("threat", "⚠️", fmt.Sprintf("%d créatures aux portes — la vague est estimée entre %s : au pire, la ville tombe",
+			f.Besieging, rng), true)
 	case f.Besieging > 0:
-		add("threat", "⚔️", fmt.Sprintf("%d créatures dans l'anneau — la vague frappera à ~%d contre %d de défense (−%d PV)",
-			f.Besieging, f.Horde, f.Defense, f.Damage), true)
-	case f.Damage > 0:
-		add("threat", "🌊", fmt.Sprintf("Abords dégagés — la vague ne coûtera que %d PV", f.Damage), false)
+		add("threat", "⚔️", fmt.Sprintf("%d créatures dans l'anneau — vague estimée entre %s contre %d de défense (−%d à −%d PV)",
+			f.Besieging, rng, f.Defense, f.DamageMin, f.DamageMax), true)
+	case f.DamageMax > 0:
+		add("threat", "🌊", fmt.Sprintf("Abords dégagés — la vague coûterait entre %d et %d PV", f.DamageMin, f.DamageMax), false)
 	default:
 		add("threat", "🛡️", "Abords dégagés — la ville encaissera la prochaine vague sans une égratignure", false)
+	}
+	// La tour de guet : ce qu'on gagnerait à monter observer. C'est une action
+	// collective, donc l'ordre du jour la propose à tout le monde.
+	if f.Tower == 0 {
+		add("scout", "🔭", "Sans Tour de guet, la horde ne s'estime qu'à vue de nez — la bâtir affinerait chaque prévision", false)
+	} else if f.Precision < 90 {
+		add("scout", "🔭", fmt.Sprintf("Tour niveau %d · %d observateur(s) · prévision fiable à %d%% — chaque joueur qui monte resserre la fourchette",
+			f.Tower, f.Scouts, f.Precision), false)
 	}
 
 	// 2. Le portail ouvert : la plus grosse fuite de défense du jeu, et la moins chère
