@@ -6,6 +6,64 @@
 
 ---
 
+## 2026-08-09 (100) — Les saisons : un classement qui ne se fige pas
+
+Dernier point du plan de rétention (P8). `RETENTION-PLAN.md` est désormais livré en totalité.
+
+### Le trou
+
+Un classement cumulatif SE FIGE. Au bout de quelques mois, les dix premières lignes sont tenues par
+des expéditions qu'on ne reverra pas, et un joueur qui arrive n'a plus rien à viser : le tableau lui
+dit seulement qu'il est arrivé trop tard. C'est un problème de rétention à retardement — invisible au
+lancement, structurel ensuite.
+
+### Une saison = un mois civil
+
+Une expédition dure une dizaine de jours réels à la cadence visée (2 vagues/jour), donc un mois en
+contient deux ou trois : assez pour qu'une saison raconte quelque chose, assez court pour que le
+tableau ne se fige pas. Et c'est une frontière que tout le monde lit sans explication, contrairement
+à un compteur de semaines depuis une époque arbitraire que personne ne sait situer. Les identifiants
+(`2026-08`) se trient chronologiquement en tant que CHAÎNES, ce dont dépend l'`ORDER BY season DESC`
+côté base — pas de conversion, pas de colonne de plus.
+
+### La décision qui compte : la saison du LANCEMENT
+
+Une partie appartient à la saison où elle a **commencé**, pas à celle où elle finit. La faire changer
+de saison en cours de route la ferait disparaître du tableau qu'elle disputait, exactement au moment
+où elle y monte. C'est aussi ce qui rend la valeur STABLE : `StartedAt` ne bouge plus une fois posé,
+donc chaque réécriture de la ligne de classement — à chaque vague, à chaque battement — recalcule la
+même saison. Une saison dérivée de « maintenant » aurait fait sauter des villes d'un tableau à
+l'autre en silence.
+
+### Ce qu'on ne remet PAS à zéro
+
+Les saisons passées restent consultables, et la chronique de compte (entrée 99) ne se réinitialise
+jamais. Une remise à zéro qui effacerait le passé serait une punition, pas un renouveau. Et comme
+partout ailleurs — mémoriaux, titres — **rien ne traverse une saison** : elle change ce qu'on VISE,
+jamais ce qu'on a.
+
+Les lignes écrites avant l'existence de la colonne portent `''` et ne figurent que dans « tous les
+temps » : on ne sait pas à quelle saison les rattacher, et deviner serait pire que de les laisser
+hors concours.
+
+### Fonctionnel (vérifié)
+
+- `go test ./... -count=2` vert, `go vet` propre, `npx tsc -b` et `npm run build` verts.
+- Testé : la saison suit le lancement et pas le calendrier, les frontières de mois, le tri des
+  identifiants, le filtrage du classement, les lignes hors saison, et les deux routes (le classement
+  par défaut sur la saison en cours, le sélecteur qui propose la saison en cours même vierge).
+- Écran Classement : sélecteur « 📅 Saison » (saison en cours par défaut, saisons jouées, « Tous les
+  temps »), et un texte de vide qui dit « la place est libre » plutôt que « lance une partie ».
+
+### À faire
+
+- `RETENTION-PLAN.md` est livré de P1 à P8. Ce qui reste est du GAME DESIGN non couvert par le plan
+  (consommation d'objets, faim, moral de la ville) et les points de la §9 de `CLAUDE.md`.
+- **Rien de tout cela n'a été vu tourner par l'utilisateur** : ordre du jour, tour de guet, chronique
+  et sélecteur de saison n'existent que vérifiés par des tests et un build.
+
+---
+
 ## 2026-08-09 (99) — La chronique de compte, et la forge que personne ne montait
 
 Suite du plan de rétention (`RETENTION-PLAN.md`). Deux choses : le dernier gros point encore ouvert

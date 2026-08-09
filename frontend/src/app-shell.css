@@ -4185,3 +4185,30 @@ body {
 .lobby-row.static {
   cursor: default;
 }
+
+/* ── Sélecteur de saison du classement (P8) ──────────────────────────────────
+   Le classement repart à chaque saison ; les précédentes restent consultables. */
+.lb-seasons {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: 0 var(--s-2);
+}
+.lb-seasons label {
+  font-size: var(--t-sm);
+  font-weight: 700;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+.lb-seasons select {
+  flex: 1;
+  min-height: var(--tap);
+  padding: var(--s-2) var(--s-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: rgba(255, 255, 255, 0.55);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--t-sm);
+  font-weight: 700;
+}

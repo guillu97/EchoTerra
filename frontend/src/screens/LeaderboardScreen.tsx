@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useStore } from "../store";
 import { Logo } from "../components/Logo";
 import { api } from "../api/client";
-import type { LeaderboardMode, ScoreEntry } from "../api/types";
+import type { LeaderboardMode, ScoreEntry, Season } from "../api/types";
 
 const MEDALS = ["🥇", "🥈", "🥉"];
 
@@ -29,21 +29,37 @@ const MODE_BADGE: Record<LeaderboardMode, string> = {
 export function LeaderboardScreen() {
   const setScreen = useStore((s) => s.setScreen);
   const [tab, setTab] = useState<LeaderboardMode | "">("");
+  // "" = la saison EN COURS (le défaut du serveur), "all" = tous les temps.
+  const [season, setSeason] = useState("");
+  const [seasons, setSeasons] = useState<Season[]>([]);
   const [entries, setEntries] = useState<ScoreEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    api
+      .seasons()
+      .then((r) => alive && setSeasons(r.seasons))
+      .catch(() => {
+        /* le sélecteur disparaît, le classement reste : ce n'est pas une panne du jeu */
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   useEffect(() => {
     let alive = true;
     setEntries(null);
     setError(null);
     api
-      .leaderboard(tab || undefined)
+      .leaderboard(tab || undefined, season || undefined)
       .then((list) => alive && setEntries(list))
       .catch((e) => alive && setError(e instanceof Error ? e.message : String(e)));
     return () => {
       alive = false;
     };
-  }, [tab]);
+  }, [tab, season]);
 
   const active = TABS.find((t) => t.mode === tab) ?? TABS[0];
 
@@ -70,16 +86,40 @@ export function LeaderboardScreen() {
           ))}
         </div>
 
+        {seasons.length > 0 && (
+          <div className="lb-seasons">
+            <label htmlFor="lb-season">📅 Saison</label>
+            <select
+              id="lb-season"
+              value={season}
+              onChange={(e) => setSeason(e.target.value)}
+            >
+              {seasons.map((sn) => (
+                <option key={sn.id} value={sn.current ? "" : sn.id}>
+                  {sn.label}
+                  {sn.current ? " (en cours)" : ""}
+                </option>
+              ))}
+              <option value="all">Tous les temps</option>
+            </select>
+          </div>
+        )}
+
         <div className="lobby-card">
           <div className="lobby-card-title">🏆 Classement des villes</div>
           <div className="lobby-hint">
             {active.hint} Survie la plus longue d'abord, monstres tués en départage.
+            {season === "all"
+              ? " Toutes saisons confondues."
+              : " Le classement repart à chaque saison — les précédentes restent consultables."}
           </div>
           {error && <div className="lobby-error">⚠️ {error}</div>}
           {!entries && !error && <div className="lobby-hint">Chargement…</div>}
           {entries && entries.length === 0 && (
             <div className="lobby-hint">
-              Aucune ville dans ce classement — lance une première partie !
+              {season === "all"
+                ? "Aucune ville dans ce classement — lance une première partie !"
+                : "Aucune ville dans cette saison — la place est libre."}
             </div>
           )}
           {entries && entries.length > 0 && (

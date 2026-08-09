@@ -191,10 +191,34 @@ gagnés. De l'identité qui traverse les parties — **cosmétique, jamais de la
   Un vétéran et un débutant qui rejoignent la même ville y arrivent strictement égaux ; c'est cette
   égalité qui fait tenir une survie de groupe.
 
-### P8 · Saisons
+### P8 · Saisons — ✅ **LIVRÉ** (2026-08-09)
 
-Le classement se remet à zéro périodiquement ; les expéditions publiques appartiennent à une saison.
-Peu coûteux, et redonne un enjeu à un tableau qui, sinon, se fige.
+Le classement se remet à zéro périodiquement ; chaque expédition appartient à une saison. Peu
+coûteux, et redonne un enjeu à un tableau qui, sinon, se fige : au bout de quelques mois les dix
+premières lignes sont tenues par des villes qu'on ne reverra pas, et qui arrive n'a plus rien à
+viser — le tableau lui dit seulement qu'il est arrivé trop tard.
+
+- **Une saison = un MOIS civil** (`game/season.go`, identifiant `2026-08`). Une expédition dure une
+  dizaine de jours réels à la cadence visée, donc un mois en contient deux ou trois : assez pour
+  qu'une saison raconte quelque chose, assez court pour que le tableau ne se fige pas. Et c'est une
+  frontière que tout le monde lit sans explication, contrairement à un compteur de semaines depuis
+  une époque arbitraire. Les identifiants se trient chronologiquement en tant que chaînes, ce dont
+  dépend l'`ORDER BY season DESC` côté base.
+- ⚠ **Une partie appartient à la saison où elle a COMMENCÉ**, pas à celle où elle finit. La faire
+  changer de saison en cours de route la ferait disparaître du tableau qu'elle disputait, au moment
+  précis où elle y monte. C'est aussi ce qui rend la valeur STABLE : `StartedAt` ne bouge plus une
+  fois posé, donc chaque réécriture de la ligne (à chaque vague, à chaque battement) recalcule la
+  même saison.
+- **Colonne `season` sur `leaderboard`** (pas de table de plus). `GET /api/leaderboard?season=` rend
+  la **saison en cours par défaut**, `all` le palmarès de tous les temps, un identifiant une saison
+  passée — **les précédentes restent consultables** : une remise à zéro qui effacerait le passé
+  serait une punition, pas un renouveau. `GET /api/seasons` liste les saisons RÉELLEMENT jouées plus
+  celle en cours (même vierge : c'est celle qu'on dispute).
+- Les lignes écrites avant l'existence des saisons portent `''` et ne figurent que dans « tous les
+  temps » : on ne sait pas à quelle saison les rattacher, et deviner serait pire.
+- ⚠ **Rien ne traverse une saison**, comme rien ne traverse une partie (cf. P5, P7) : une saison
+  change ce qu'on VISE, jamais ce qu'on a. Et la **chronique de compte ne se réinitialise jamais** —
+  effacer le souvenir serait une punition.
 
 ## 4. Ce qu'il ne faut PAS faire
 

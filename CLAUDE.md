@@ -321,6 +321,20 @@ aussi les combats auto-résolus des bots). Front : bouton « 🏆 Classement » 
 badge de mode par ligne n'apparaît que dans « Toutes ». Tests : `achievements_test.go`,
 `store_test.go` (`TestLeaderboardSavesAndRanks`, `TestLeaderboardFiltersByMode`).
 
+**Saisons du classement** (`game/season.go`, colonne `leaderboard.season`, `GET /api/seasons`,
+2026-08-09) — P8 de `RETENTION-PLAN.md`. **Une saison = un MOIS civil** (identifiant `2026-08`, qui
+se trie chronologiquement en tant que chaîne — d'où l'`ORDER BY season DESC` sans conversion). ⚠ **une
+partie appartient à la saison de son LANCEMENT** (`GameState.Season()` lit `StartedAt`, repli sur
+`CreatedAt`) : une expédition dure une dizaine de jours réels, la faire changer de saison en route la
+ferait disparaître du tableau qu'elle dispute au moment où elle y monte — et `StartedAt` ne bougeant
+plus, chaque réécriture de la ligne recalcule la MÊME saison. `GET /api/leaderboard?season=` rend la
+**saison en cours par défaut**, `all` tous les temps, un identifiant une saison passée (elles restent
+consultables : une remise à zéro qui effacerait le passé serait une punition). `GET /api/seasons` rend
+les saisons réellement jouées + celle en cours même vierge. Les lignes d'avant la colonne portent `''`
+et ne figurent que dans « tous les temps ». ⚠ **rien ne traverse une saison** (même règle que les
+mémoriaux et les titres) et la chronique de compte, elle, ne se réinitialise JAMAIS. Tests :
+`game/season_test.go`, `store` (`TestLeaderboardFiltersBySeason`), `api/season_test.go`.
+
 **Chronique de compte & titres** (`store/chronicle.go`, `api/chronicle.go`,
 `components/ChronicleCard.tsx`, 2026-08-09) — ce qu'un compte garde des villes qu'il a vues tomber
 (P7 de `RETENTION-PLAN.md`). Table `chronicle`, **une ligne par (compte, partie)**, upsertée avec la
@@ -659,8 +673,10 @@ POST /api/tick                                   BATTEMENT: avance TOUTES les pa
                                                  des salons (jeton ECHOTERRA_TICK_TOKEN/CRON_SECRET en
                                                  Bearer ou ?token=; GET accepté aussi) -> {ok,games[],…}
 GET  /api/recipes
-GET  /api/leaderboard[?mode=solo|public|private]  classement des villes (top 50, vagues puis monstres tués ;
-                                                 mode inconnu -> 400) -> [] ScoreEntry
+GET  /api/leaderboard[?mode=…][&season=…]         classement des villes (top 50, vagues puis monstres
+                                                 tués ; mode inconnu -> 400). season: SAISON EN COURS
+                                                 par défaut, `all` = tous les temps -> [] ScoreEntry
+GET  /api/seasons                                {current, seasons[{id,label,current}]} (jouées + en cours)
 GET  /api/auth/config                            {googleClientId} (""=Google désactivé; le front s'y adapte)
 POST /api/auth/register                          {email,name?,password} -> {user,token} (bcrypt, session 30j)
 POST /api/auth/login                             {email,password} -> {user,token} ; POST /api/auth/logout

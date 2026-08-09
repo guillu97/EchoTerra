@@ -15,6 +15,7 @@ import type {
   Recipe,
   Ruin,
   ScoreEntry,
+  SeasonList,
   User,
 } from "./types";
 
@@ -236,8 +237,17 @@ export const api = {
 
   // Classement des villes. Sans mode, tout est classé ensemble ; avec, on ne
   // compare que les parties de même nature (solo / publiques / privées).
-  leaderboard: (mode?: LeaderboardMode) =>
-    req<ScoreEntry[]>("GET", `/api/leaderboard${mode ? `?mode=${mode}` : ""}`),
+  // Le classement est SAISONNIER : sans `season` le serveur rend la saison EN COURS,
+  // "all" rend le palmarès de tous les temps, un identifiant rend une saison passée.
+  leaderboard: (mode?: LeaderboardMode, season?: string) => {
+    const q = new URLSearchParams();
+    if (mode) q.set("mode", mode);
+    if (season) q.set("season", season);
+    const qs = q.toString();
+    return req<ScoreEntry[]>("GET", `/api/leaderboard${qs ? `?${qs}` : ""}`);
+  },
+
+  seasons: () => req<SeasonList>("GET", "/api/seasons"),
 
   evolve: (gameId: string, heroId: string, classId: string, playerId?: string) =>
     req<GameState>("POST", `/api/games/${gameId}/heroes/${heroId}/evolve`, { classId, playerId }),

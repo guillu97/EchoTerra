@@ -282,6 +282,23 @@ export interface MyGameSummary extends GameSummary {
   myPlayerId: string;
 }
 
+// LES SAISONS (GET /api/seasons, backend game/season.go) — un classement cumulatif se
+// FIGE : au bout de quelques mois les premières lignes sont tenues par des expéditions
+// qu'on ne reverra pas, et qui arrive n'a plus rien à viser. Une partie appartient à la
+// saison où elle a COMMENCÉ (elle dure une dizaine de jours réels : la faire changer de
+// saison en route la ferait disparaître du tableau qu'elle dispute). Les saisons passées
+// restent consultables, et la chronique de compte ne se réinitialise jamais.
+export interface Season {
+  id: string; // "2026-08"
+  label: string; // "Saison d'août 2026"
+  current: boolean;
+}
+
+export interface SeasonList {
+  current: string;
+  seasons: Season[];
+}
+
 // LA CHRONIQUE DE COMPTE (GET /api/auth/me/chronicle, backend api/chronicle.go) — ce
 // qu'un compte garde des villes qu'il a vues tomber. ⚠ COSMÉTIQUE : un titre n'a jamais
 // d'effet en jeu. Deux joueurs qui rejoignent la même expédition y arrivent égaux.
@@ -369,6 +386,7 @@ export interface ScoreEntry {
   monstersKilled: number;
   gameOver: boolean;
   updatedAt: string;
+  season: string; // "" pour les villes d'avant les saisons (hors concours)
 }
 
 export interface GameState {
