@@ -2,6 +2,11 @@
 // capacity, build progress) come from the backend (game.town.buildings, matched by id).
 import type { AssetKey } from "../assets";
 
+// Tailles de salon proposées à la création. Le maximum reflète
+// worldgen.MaxPlayersPerGame côté serveur (20 équipes de 3 = 60 héros) ; la carte est
+// générée à la taille du salon, donc choisir 20 ne fait pas jouer 20 joueurs à l'étroit.
+export const LOBBY_SIZES = [1, 2, 3, 4, 6, 8, 10, 12, 16, 20];
+
 // PV de ville rendus par point d'action à l'action « repair » des remparts. Miroir de
 // game.TownRepairHP (backend/internal/game/town.go) — garder les deux d'accord.
 export const TOWN_REPAIR_HP = 5;

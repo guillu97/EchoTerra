@@ -27,21 +27,23 @@ import (
 // Config describes one simulated run.
 type Config struct {
 	Seed    int64 // world seed (also seeds the global RNG → runs are reproducible)
-	Width   int   // map size (0 → worldgen.DefaultSize)
+	Width   int   // map size (0 → worldgen.SizeForPlayers)
 	Height  int
 	Players int // bot players; each fields game.HeroesPerPlayer heroes
 	Waves   int // how many waves to simulate before stopping
 }
 
 func (c Config) withDefaults() Config {
-	if c.Width <= 0 {
-		c.Width = worldgen.DefaultSize
-	}
-	if c.Height <= 0 {
-		c.Height = worldgen.DefaultSize
-	}
 	if c.Players <= 0 {
 		c.Players = 4
+	}
+	// La carte suit l'expédition, comme en jeu (worldgen.SizeForPlayers) : simuler
+	// vingt joueurs sur une carte de quatre mesurerait l'encombrement, pas l'équilibre.
+	if c.Width <= 0 {
+		c.Width = worldgen.SizeForPlayers(c.Players)
+	}
+	if c.Height <= 0 {
+		c.Height = c.Width
 	}
 	if c.Waves <= 0 {
 		c.Waves = 20
@@ -126,7 +128,7 @@ func Run(cfg Config) Report {
 func run(cfg Config) (*game.GameState, Report) {
 	rand.Seed(cfg.Seed) // determinism: same seed ⇒ same run
 
-	g := worldgen.NewLobby(cfg.Width, cfg.Height, cfg.Seed, "Simulation", 1, 8)
+	g := worldgen.NewLobby(cfg.Width, cfg.Height, cfg.Seed, "Simulation", 1, cfg.Players)
 	now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
 
 	host, err := g.AddPlayer("Bot 1", now)

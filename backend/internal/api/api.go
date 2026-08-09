@@ -423,7 +423,9 @@ func (s *Server) housekeeping() {
 
 // newPublicLobby crée et persiste un salon public ouvert (celui qu'on rejoint sans code).
 func (s *Server) newPublicLobby() *game.GameState {
-	gs := worldgen.NewLobby(22, 22, time.Now().UnixNano(), "", 2, 4)
+	// Un salon public accueille large : 2 minimum, jusqu'à MaxPlayersPerGame, et la
+	// carte suit (taille 0 = worldgen.SizeForPlayers).
+	gs := worldgen.NewLobby(0, 0, time.Now().UnixNano(), "", 2, worldgen.MaxPlayersPerGame)
 	gs.Visibility = game.VisibilityPublic
 	// Nommée d'après sa ville ("Expédition de Clairmont") : deux salons publics
 	// successifs se distinguent, et le classement lit le même nom.
@@ -464,12 +466,9 @@ func (s *Server) createLobby(w http.ResponseWriter, r *http.Request) {
 		Seed       int64  `json:"seed"`
 	}
 	_ = json.NewDecoder(r.Body).Decode(&body)
-	if body.Width == 0 {
-		body.Width = worldgen.DefaultSize
-	}
-	if body.Height == 0 {
-		body.Height = worldgen.DefaultSize
-	}
+	// Width/Height à 0 = « la taille qui va avec ce lobby » (worldgen.SizeForPlayers) :
+	// une carte fixe voudrait dire vingt équipes sur les mêmes gisements, ou un solo
+	// perdu dans un monde vide.
 	if body.Seed == 0 {
 		body.Seed = time.Now().UnixNano()
 	}
@@ -512,12 +511,6 @@ func (s *Server) soloGame(w http.ResponseWriter, r *http.Request) {
 		Seed       int64  `json:"seed"`
 	}
 	_ = json.NewDecoder(r.Body).Decode(&body)
-	if body.Width == 0 {
-		body.Width = worldgen.DefaultSize
-	}
-	if body.Height == 0 {
-		body.Height = worldgen.DefaultSize
-	}
 	if body.Seed == 0 {
 		body.Seed = time.Now().UnixNano()
 	}

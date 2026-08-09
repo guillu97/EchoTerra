@@ -163,42 +163,53 @@ func (g *GameState) recomputeTetanise() {
 	}
 }
 
-// La PUISSANCE DE LA HORDE, et pourquoi cette courbe-là.
+// LA PUISSANCE DE LA HORDE — ce que les joueurs peuvent y changer.
 //
-// L'ancienne (12 + 6×vague) dépassait à la vague 6 le total qu'une ville PARFAITE
-// peut opposer (muraille 20 + portail 16 + tour 12 = 48) : aucune partie, si bien
-// jouée soit-elle, ne pouvait passer la vague 8 — la simulation le montrait,
-// systématiquement morte à la vague 5. Elle ignorait aussi le nombre de joueurs : une
-// expédition de 18 héros et un solo de 3 recevaient exactement la même horde.
+// Elle a deux termes, et la distinction est TOUT le design :
 //
-// La courbe actuelle vise l'arc décrit par le design : les dix premières vagues
-// s'absorbent avec les murs, ensuite le débordement se paie en PIERRE (réparation des
-// remparts, cf. TownRepairHP) — donc la vraie limite devient l'épuisement de la carte
-// et non l'arithmétique de la horde. La croissance reste LINÉAIRE et sans plafond :
-// la ville finit toujours par tomber, plus tard et pour une raison jouable.
-// Réglés sur la MARGE, pas sur la moyenne. Une ville de départ oppose ~22 (muraille
-// niv.1 + portail niv.2 fermé) ; à 8+3×vague le débordement cumulé atteignait déjà
-// 100 PV vers la vague 12, si bien que la graine la plus malchanceuse tombait PILE à
-// la vague 10 — le seuil que le jeu doit garantir. Six points de base laissent la
-// marge qui manquait, sans toucher à la pente : c'est la pente qui fait la fin de
-// partie, la base qui fait le démarrage.
+//	pression  — un plancher qui monte avec les vagues, quoi qu'on fasse. Le monde se
+//	            dégrade ; on ne gagne pas, on tient plus ou moins longtemps.
+//	assaut    — les créatures RÉELLEMENT massées aux abords de la ville au moment où
+//	            la horde frappe. Ce terme-là, on le fait baisser en tuant.
+//
+// Avant, la puissance était une pure fonction du numéro de vague : nettoyer les
+// approches ne retirait pas un seul point de dégâts, donc le combat ne servait qu'au
+// butin. Une expédition de vingt joueurs ne pouvait pas non plus aller plus loin qu'un
+// solo — le plafond de défense (muraille + portail + tour) est le même à trois héros
+// qu'à soixante, donc l'arithmétique garantissait l'inverse de ce qu'on veut. En liant
+// l'assaut aux packs présents, l'effectif se convertit enfin en survie : plus de héros,
+// plus de packs abattus avant qu'ils n'atteignent les murs, moins de dégâts.
+//
+// Les packs qui ont porté l'assaut s'y brisent (spendAssaultingPacks) : ils frappent
+// une fois, et le calcul se fait AVANT qu'ils ne soient retirés.
 const (
-	hordeBase   = 6 // puissance de départ
-	hordeGrowth = 3 // par vague, sans plafond
+	hordeBase        = 6 // pression de départ
+	hordeGrowth      = 2 // pression ajoutée par vague (plancher incompressible)
+	assaultRadius    = 2 // rayon de Chebyshev où un pack « touche » la ville
+	assaultPerAttack = 1 // dégâts apportés par créature massée aux abords
 )
 
-// hordeScale pondère la horde par la taille de l'expédition (équipes de 3 héros) :
-// quatre joueurs = valeur nominale, un solo nettement moins, une pleine table un peu
-// plus. On compte les héros TOTAUX (morts inclus) — sinon perdre des héros allégerait
-// la horde.
-//
-// La pondération reste DOUCE, et c'est mesuré : des joueurs en plus n'apportent PAS
-// de défense en plus. Le plafond (muraille + portail + tour) est le même à trois héros
-// qu'à dix-huit ; ce que l'effectif apporte, c'est de la main-d'œuvre et de la récolte,
-// donc la vitesse à laquelle on atteint ce plafond — et, revers, plus de monstres semés
-// au lancement (SeedStartingMonsters) et plus de héros exposés dehors. Une première
-// version en (2+équipes)/6 (soit ×1,33 à six joueurs) inversait carrément la courbe :
-// les grandes expéditions tombaient AVANT les petites, une graine dès la vague 9.
+// besiegingCreatures compte les créatures massées dans le rayon d'assaut de la ville.
+// C'est la partie de la horde que les joueurs contrôlent : chacune abattue (combat,
+// compétence de carte) est un point de puissance en moins à la prochaine vague.
+func (g *GameState) besiegingCreatures() int {
+	n := 0
+	for _, m := range g.Monsters {
+		if m == nil {
+			continue
+		}
+		if absI(m.X-g.Town.X) <= assaultRadius && absI(m.Y-g.Town.Y) <= assaultRadius {
+			n += m.Count
+		}
+	}
+	return n
+}
+
+// hordeScale pondère la PRESSION (pas l'assaut) par la taille de l'expédition. Elle
+// reste douce : le gros de la difficulté d'une grande partie vient désormais du nombre
+// de packs semés sur une carte plus grande, donc de l'assaut — que les joueurs peuvent
+// combattre. On compte les héros TOTAUX (morts inclus), sinon perdre des héros
+// allégerait la horde.
 func (g *GameState) hordeScale() float64 {
 	teams := len(g.Heroes) / HeroesPerPlayer
 	if teams < 1 {
@@ -207,8 +218,10 @@ func (g *GameState) hordeScale() float64 {
 	return float64(6+teams) / 10.0
 }
 
-func hordePower(waveNumber int, scale float64) int {
-	p := int(float64(hordeBase+waveNumber*hordeGrowth)*scale) + rand.Intn(4)
+// hordePower assemble les deux termes pour la vague qui frappe maintenant.
+func hordePower(waveNumber int, scale float64, besieging int) int {
+	pressure := float64(hordeBase+waveNumber*hordeGrowth) * scale
+	p := int(pressure) + besieging*assaultPerAttack + rand.Intn(4)
 	if p < 1 {
 		p = 1
 	}
@@ -236,7 +249,8 @@ func (g *GameState) processWave(now time.Time, safeTown bool) {
 		g.Day++
 	}
 
-	power := hordePower(g.WaveNumber, g.hordeScale())
+	besieging := g.besiegingCreatures()
+	power := hordePower(g.WaveNumber, g.hordeScale(), besieging)
 	defense := g.TownDefense()
 
 	// Slices INITIALISÉES : nil se sérialise en `null`, pas en `[]`, et le client
@@ -462,7 +476,7 @@ func (g *GameState) spendAssaultingPacks() int {
 		if m == nil || busy[[2]int{m.X, m.Y}] {
 			continue
 		}
-		if absI(m.X-g.Town.X) > 1 || absI(m.Y-g.Town.Y) > 1 {
+		if absI(m.X-g.Town.X) > assaultRadius || absI(m.Y-g.Town.Y) > assaultRadius {
 			continue // not at the walls yet
 		}
 		if t := g.TileAt(m.X, m.Y); t != nil && t.MonsterID == id {

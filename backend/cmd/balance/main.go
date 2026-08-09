@@ -33,7 +33,7 @@ func main() {
 
 	configs := []int{*players}
 	if *sweep {
-		configs = []int{1, 2, 3, 4, 5, 6}
+		configs = []int{1, 2, 4, 8, 12, 20}
 	}
 
 	var all []balance.Report

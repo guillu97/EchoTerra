@@ -31,6 +31,34 @@ func TestTownSurvivesTheFirstWaves(t *testing.T) {
 	}
 }
 
+// TestBigExpeditionsGoFurther: vingt joueurs doivent aller PLUS LOIN qu'un seul.
+//
+// Ça n'a rien d'automatique — c'est même l'inverse qui était vrai. Le plafond de
+// défense d'une ville (muraille + portail + tour) ne dépend pas de l'effectif, donc
+// tant que la puissance de la horde était une formule du numéro de vague, des joueurs
+// en plus n'apportaient que des monstres en plus. Il a fallu trois choses pour
+// renverser ça : la horde tire sa puissance des créatures RÉELLEMENT massées aux
+// abords (donc tuer compte), la carte suit l'expédition (worldgen.SizeForPlayers), et
+// les gisements garantis suivent la carte (biomeQuota) — sinon vingt équipes se
+// partagent la carrière d'un solo.
+func TestBigExpeditionsGoFurther(t *testing.T) {
+	reach := func(players int) float64 {
+		total, n := 0, 0
+		for _, seed := range []int64{11, 12, 13} {
+			rep := Run(Config{Seed: seed, Players: players, Waves: 30})
+			last := rep.Last()
+			total += last.Wave
+			n++
+		}
+		return float64(total) / float64(n)
+	}
+	solo, big := reach(1), reach(20)
+	t.Logf("portée moyenne : 1 joueur %.1f vagues · 20 joueurs %.1f vagues", solo, big)
+	if big <= solo {
+		t.Errorf("une expédition de 20 doit dépasser un solo : %.1f vs %.1f vagues", big, solo)
+	}
+}
+
 // TestEveryExpeditionSizeIsPlayable holds the floor across the whole lobby range.
 // Difficulty must not depend on how many people showed up: the horde is weighted by
 // expedition size (game.hordeScale) precisely because the town's defense ceiling —
@@ -39,7 +67,7 @@ func TestTownSurvivesTheFirstWaves(t *testing.T) {
 // died BEFORE a solo player. That is exactly the kind of regression this test exists
 // to catch, and it is invisible to every other test in the repository.
 func TestEveryExpeditionSizeIsPlayable(t *testing.T) {
-	for _, players := range []int{1, 2, 3, 4, 5, 6} {
+	for _, players := range []int{1, 2, 4, 8, 12, 20} {
 		for _, seed := range []int64{5, 6, 7} {
 			rep := Run(Config{Seed: seed, Players: players, Waves: SurvivalFloor})
 			if rep.GameOver {

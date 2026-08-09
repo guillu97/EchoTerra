@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useStore } from "../store";
 import { Logo } from "../components/Logo";
+import { LOBBY_SIZES } from "../data/buildings";
 
 // Multiplayer entry: create a game, join one by code (or from the open-lobby list),
 // then wait in the salon until enough players have joined and the host launches.
@@ -38,6 +39,7 @@ function LobbyForms() {
     setScreen,
   } = useStore();
   const [minPlayers, setMinPlayers] = useState(2);
+  const [maxPlayers, setMaxPlayers] = useState(4);
   const [code, setCode] = useState("");
   const isPublic = lobbyMode === "public";
 
@@ -128,17 +130,40 @@ function LobbyForms() {
             <label className="lobby-field row">
               <span>Joueurs minimum</span>
               <select value={minPlayers} onChange={(e) => setMinPlayers(Number(e.target.value))}>
-                {[1, 2, 3, 4].map((n) => (
+                {LOBBY_SIZES.filter((n) => n <= maxPlayers).map((n) => (
                   <option key={n} value={n}>
                     {n}
                   </option>
                 ))}
               </select>
             </label>
+            <label className="lobby-field row">
+              <span>Joueurs maximum</span>
+              <select
+                value={maxPlayers}
+                onChange={(e) => {
+                  const v = Number(e.target.value);
+                  setMaxPlayers(v);
+                  if (minPlayers > v) setMinPlayers(v);
+                }}
+              >
+                {LOBBY_SIZES.map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {/* La carte est générée à la taille du salon (worldgen.SizeForPlayers) :
+                la surface par joueur reste constante, et les gisements garantis suivent. */}
+            <div className="lobby-hint left">
+              La carte est taillée pour {maxPlayers} joueur{maxPlayers > 1 ? "s" : ""} — plus
+              l'expédition est grande, plus le monde l'est, et plus la horde l'est aussi.
+            </div>
             <button
               className="pill red compact"
               disabled={busy}
-              onClick={() => createLobby({ minPlayers, maxPlayers: 4 })}
+              onClick={() => createLobby({ minPlayers, maxPlayers })}
             >
               Créer le salon
             </button>

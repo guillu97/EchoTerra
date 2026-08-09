@@ -232,7 +232,8 @@ func (g *GameState) botHeroAct(h *Hero, curfew int) bool {
 		// inside repairing the same wall while the Bank held no stone and no chantier
 		// could advance. Measured: twelve heroes still within three tiles of the town at
 		// wave 8, with a discovered mountain four tiles away.
-		builder := g.heroIsBuilder(h.ID)
+		role := g.heroRole(h.ID)
+		builder := role == roleBuilder
 		if builder {
 			// A BUILDER DOES NOT LEAVE. It is the town's standing crew: the chantiers,
 			// the repairs and the gate all need someone who is reliably home. Letting
@@ -249,10 +250,26 @@ func (g *GameState) botHeroAct(h *Hero, curfew int) bool {
 		if tx, ty, ok := g.botRallyTile(h); ok && h.PA >= 2 && g.botStepToward(h, tx, ty) {
 			return true
 		}
+		// So does a pack camped against our own walls — that is the DEFENDER's job.
+		// Letting every hero chase the siege starved the town of stone: measured, the
+		// Bank held 190 items and zero Pierre while nobody was gathering at all.
+		if tx, ty, ok := g.botSiegeTile(h, botDefenderLeash); ok && role == roleDefender && h.PA >= 2 {
+			if g.GateClosed() {
+				if err := g.TownAction("gate", "toggle", 1, h.ID); err == nil {
+					return true
+				}
+			}
+			if g.botStepToward(h, tx, ty) {
+				return true
+			}
+		}
 		// Fresh legs: go gather, or push the fog back when nothing known supplies what
-		// the town is waiting for.
+		// the town is waiting for. A defender only forages within its leash — it must
+		// stay able to answer the horn.
 		if h.PA >= 3 {
-			if tx, ty, ok := g.botGatherTarget(h); ok && g.botStepToward(h, tx, ty) {
+			if tx, ty, ok := g.botGatherTarget(h); ok &&
+				(role != roleDefender || absI(tx-g.Town.X)+absI(ty-g.Town.Y) <= botDefenderLeash) &&
+				g.botStepToward(h, tx, ty) {
 				return true
 			}
 		}
@@ -265,6 +282,22 @@ func (g *GameState) botHeroAct(h *Hero, curfew int) bool {
 	// (The concealment reserve is enforced above, before any of this can run.)
 	if tx, ty, ok := g.botRallyTile(h); ok && g.botStepToward(h, tx, ty) {
 		return true
+	}
+	// Break the siege before running errands: every creature left standing in the ring
+	// is a point of damage the town eats this wave. The DEFENDER owns this; a gatherer
+	// only joins when the siege has grown past what one hero can chip at.
+	role := g.heroRole(h.ID)
+	if role == roleDefender || g.besiegingCreatures() >= botSiegeCallToArms {
+		if tx, ty, ok := g.botSiegeTile(h, botDefenderLeash); ok && g.botStepToward(h, tx, ty) {
+			return true
+		}
+	}
+	// A defender that has drifted past its leash goes home: the ring is its job, and a
+	// garrison prospecting on the far side of the map is not a garrison.
+	if role == roleDefender && distTown > botDefenderLeash {
+		if g.botStepToward(h, g.Town.X, g.Town.Y) {
+			return true
+		}
 	}
 	if t := g.TileAt(h.X, h.Y); t != nil && t.Resources > 0 {
 		if _, err := g.SearchTile(h.ID); err == nil {
@@ -340,6 +373,48 @@ func (g *GameState) friendOneStepAway(h *Hero) bool {
 	}
 	return false
 }
+
+// botSiegeTile picks the pack massed against the town that this hero should go and
+// break. Since hordePower now counts the creatures standing in the assault ring
+// (wave.go), clearing them is DEFENSE — the most valuable thing a hero outside the
+// walls can do, worth more than another armful of wood. The nearest besieger wins, so
+// heroes converge naturally and form the party the fight needs.
+func (g *GameState) botSiegeTile(h *Hero, reach int) (int, int, bool) {
+	bestX, bestY, best := 0, 0, 1<<30
+	for _, m := range g.Monsters {
+		if m == nil {
+			continue
+		}
+		if absI(m.X-g.Town.X) > assaultRadius || absI(m.Y-g.Town.Y) > assaultRadius {
+			continue
+		}
+		if sp := SpeciesByName(m.Species); sp != nil && sp.Boss {
+			continue // a boss is not a chore to squeeze in between two errands
+		}
+		d := absI(m.X-h.X) + absI(m.Y-h.Y)
+		if d > reach {
+			continue
+		}
+		// Stable tie-break on position: map iteration order must not decide.
+		if d < best || (d == best && (m.Y < bestY || (m.Y == bestY && m.X < bestX))) {
+			bestX, bestY, best = m.X, m.Y, d
+		}
+	}
+	return bestX, bestY, best < 1<<30
+}
+
+// La GARNISON. Un défenseur ne s'éloigne jamais de la ville : sur une carte de vingt
+// joueurs (120×120) les défenseurs partaient au bout du monde et l'anneau d'assaut
+// n'était tenu par personne — mesuré, 21 créatures tuées en huit vagues pendant que le
+// siège montait à 57 points de dégâts par vague. La laisse fait d'eux ce qu'ils sont
+// censés être : des gens qui gardent une ville.
+//
+//	botDefenderLeash   — au-delà, un défenseur rentre, quoi qu'il fasse ;
+//	botSiegeCallToArms — taille de siège à laquelle les récolteurs lâchent leurs courses.
+const (
+	botDefenderLeash   = 10
+	botSiegeCallToArms = 20
+)
 
 // botRallyTile finds a comrade pinned by a pack within botRallyRadius: the documented
 // way out of Tétanisé is "un renfort arrive sur la case", and no bot ever went. Walking
@@ -865,25 +940,34 @@ func heroHash(id string) int {
 	return h
 }
 
-// heroIsBuilder splits a bot team into roles the way a real expedition does: the FIRST
-// hero of each team stays home as a BUILDER (chantiers, repairs, crafting, the gate)
-// while the other two range out for materials.
+// LES TROIS RÔLES D'UNE ÉQUIPE. Un joueur aligne trois héros (HeroesPerPlayer), et le
+// jeu demande exactement trois choses en parallèle :
 //
-// The role comes from the hero's rank in its own team, not from a hash of its id: a
-// hash gives "roughly one in three" over many heroes but says nothing about any single
-// team, and a lone bot player whose three heroes all hashed to gatherers had NOBODY to
-// work the gate, hold a chantier or visit the workshop — the town simply never built
-// anything. Per-team ranking guarantees exactly one builder per three heroes, which is
-// what the split was always meant to mean.
-func (g *GameState) heroIsBuilder(heroID string) bool {
+//	roleBuilder   — reste en ville : chantiers, réparations, atelier, porte ;
+//	roleDefender  — dégage les créatures massées contre les murs (depuis que la
+//	                puissance de la horde en dépend, c'est de la DÉFENSE, pas du sport) ;
+//	roleGatherer  — rapporte le bois et la pierre dont tout le reste est fait.
+//
+// Le rôle vient du RANG dans l'équipe, pas d'un hash d'identifiant : un hash donne
+// « environ un sur trois » sur beaucoup de héros mais ne garantit rien pour UNE équipe,
+// et un bot dont les trois héros tombaient du même côté n'avait personne pour tenir la
+// porte ou pour ramener de la pierre. Le rang garantit un de chaque, et la répartition
+// tient telle quelle de un à vingt joueurs.
+const (
+	roleBuilder = iota
+	roleDefender
+	roleGatherer
+)
+
+func (g *GameState) heroRole(heroID string) int {
 	for _, p := range g.Players {
 		for i, id := range p.HeroIDs {
 			if id == heroID {
-				return i == 0
+				return i % 3
 			}
 		}
 	}
-	return false // heroes with no owner (legacy solo) are all gatherers
+	return roleGatherer // heroes with no owner (legacy solo) fend for themselves
 }
 
 // pickResourceTile chooses where the bot hero goes gathering: discovered, walkable,

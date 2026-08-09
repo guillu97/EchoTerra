@@ -51,7 +51,13 @@ func (g *GameState) spawnableSpeciesAt(x, y int, includeBosses bool) *SpeciesDef
 
 // Réglages de l'apparition pondérée (2026-07-20, densité relevée 2026-07-21).
 const (
-	spawnSafeRadius  = 1    // seul l'anneau immédiat de la ville reste vierge
+	// RIEN n'apparaît dans l'anneau d'assaut : depuis que la puissance de la horde
+	// compte les créatures massées là (wave.go), un pack qui s'y matérialise est un
+	// pack que personne n'a laissé passer — et c'est injouable. Le siège doit ARRIVER
+	// (migration), pour que les joueurs puissent l'intercepter. Mesuré avant : à vingt
+	// joueurs, neuf packs naissaient au pied des murs au lancement et la ville tombait
+	// vague 8, alors qu'à huit joueurs elle tenait vingt vagues.
+	spawnSafeRadius  = assaultRadius
 	spawnBaseChance  = 0.45 // densité de FOND partout au-delà de l'anneau (carte peuplée)
 	ruinDangerRadius = 3    // rayon autour d'une ruine qui gonfle l'apparition
 	waveSpawnGrowth  = 0.2  // chaque vague soulève tout le champ de probabilité
@@ -174,7 +180,7 @@ func (g *GameState) SeedStartingMonsters(players int) int {
 	near := 3 + (players-1)/3 // visibles dès le départ (dans le rayon de vision de la ville)
 	placed := 0
 	for i := 0; i < near; i++ {
-		if g.spawnPackInBand(spawnSafeRadius+1, townSightRadius, false) {
+		if g.spawnPackInBand(spawnSafeRadius+1, townSightRadius+1, false) {
 			placed++
 		}
 	}

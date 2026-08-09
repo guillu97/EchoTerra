@@ -23,8 +23,39 @@ const (
 	genMaxStep   = 1 // max height difference between two orthogonal neighbours
 )
 
-// DefaultSize is the default map edge from the design's mapgen parameters (60×60).
+// DefaultSize is the default map edge from the design's mapgen parameters (60×60) —
+// la taille d'une expédition de quatre joueurs.
 const DefaultSize = 60
+
+// MaxPlayersPerGame borne la taille d'un lobby. Vingt équipes de trois = soixante
+// héros autour d'une seule ville.
+const MaxPlayersPerGame = 20
+
+// Bornes de la carte. Le maximum n'est pas esthétique : chaque tuile voyage dans le
+// payload JSON de la partie, donc une carte de 200² pèserait sur chaque requête.
+const (
+	MinMapSize = 40
+	MaxMapSize = 140
+)
+
+// SizeForPlayers donne le côté de la carte pour un lobby de cette taille, à surface
+// par joueur À PEU PRÈS CONSTANTE (~900 tuiles, la densité d'une partie à quatre sur
+// 60×60). Sans ça, vingt joueurs se marchent dessus sur les mêmes gisements — et comme
+// la horde semée croît avec la SURFACE (SeedStartingMonsters), c'est aussi ce qui fait
+// monter la difficulté avec l'effectif, comme demandé.
+func SizeForPlayers(players int) int {
+	if players < 1 {
+		players = 1
+	}
+	side := int(math.Round(math.Sqrt(float64(900 * players))))
+	if side < MinMapSize {
+		side = MinMapSize
+	}
+	if side > MaxMapSize {
+		side = MaxMapSize
+	}
+	return side
+}
 
 // biomeFromLevel maps a SMOOTHED height level (0..genMaxHeight) to a biome using the
 // design thresholds applied to level/maxHeight — so biomes follow the smoothed relief
@@ -171,13 +202,37 @@ func findTown(tiles []game.Tile, width, height int) (int, int) {
 // dans le rayon nearBiomeR. La carte générée est laissée telle quelle quand elle en
 // fournit déjà assez — on ne creuse que le manque.
 const (
-	nearBiomeR     = 8  // rayon dans lequel la ville doit trouver de quoi bâtir
-	minBiomeTiles  = 12 // tuiles minimum par biome-clé dans ce rayon
+	nearBiomeR     = 8  // rayon de référence (carte 60×60) dans lequel la ville doit trouver de quoi bâtir
+	minBiomeTiles  = 12 // tuiles minimum par biome-clé dans ce rayon, pour une carte de référence
 	blobHalfSpread = 2  // demi-largeur du gisement creusé
 )
 
+// biomeQuota adapte la garantie à la TAILLE de la carte — donc à celle de l'expédition.
+// Le gisement était un absolu : douze tuiles de montagne dans le rayon 8, que la ville
+// abrite trois héros ou soixante. Vingt équipes se partageaient donc la carrière d'un
+// solo, et c'est ce qui faisait s'effondrer les grandes parties — mesuré : à vingt
+// joueurs la banque restait à ZÉRO pierre, la muraille au niveau 1 et la ville tombait
+// vague 8, quand huit joueurs tenaient vingt vagues. La densité de matériaux par héros
+// doit être la même à toutes les tailles ; la surface l'est déjà (SizeForPlayers).
+func biomeQuota(side int) (radius, tiles int) {
+	f := float64(side) / float64(DefaultSize)
+	radius = int(math.Round(float64(nearBiomeR) * f))
+	if radius < nearBiomeR {
+		radius = nearBiomeR
+	}
+	tiles = int(math.Round(float64(minBiomeTiles) * f * f)) // ∝ surface, comme la population
+	if tiles < minBiomeTiles {
+		tiles = minBiomeTiles
+	}
+	return radius, tiles
+}
+
 func ensureNearbyBiomes(gs *game.GameState) {
-	const R = nearBiomeR
+	side := gs.Width
+	if gs.Height > side {
+		side = gs.Height
+	}
+	R, quota := biomeQuota(side)
 	w, h := gs.Width, gs.Height
 	tx, ty := gs.Town.X, gs.Town.Y
 	count := func(b game.Biome) int {
@@ -236,11 +291,11 @@ func ensureNearbyBiomes(gs *game.GameState) {
 		}
 	}
 	// Mountains first: stone is the scarcer of the two and the one the walls eat.
-	if n := count(game.BiomeMountain) + count(game.BiomeSnow); n < minBiomeTiles {
-		carve(game.BiomeMountain, minBiomeTiles-n)
+	if n := count(game.BiomeMountain) + count(game.BiomeSnow); n < quota {
+		carve(game.BiomeMountain, quota-n)
 	}
-	if n := count(game.BiomeForest); n < minBiomeTiles {
-		carve(game.BiomeForest, minBiomeTiles-n)
+	if n := count(game.BiomeForest); n < quota {
+		carve(game.BiomeForest, quota-n)
 	}
 }
 
@@ -296,14 +351,21 @@ func NewLobby(width, height int, seed int64, name string, minPlayers, maxPlayers
 	if maxPlayers < 1 {
 		maxPlayers = 4
 	}
-	if maxPlayers > 8 {
-		maxPlayers = 8
+	if maxPlayers > MaxPlayersPerGame {
+		maxPlayers = MaxPlayersPerGame
 	}
 	if minPlayers < 1 {
 		minPlayers = 1
 	}
 	if minPlayers > maxPlayers {
 		minPlayers = maxPlayers
+	}
+	// La carte suit l'expédition : une taille fixe pour vingt joueurs voudrait dire
+	// vingt équipes qui se disputent les mêmes forêts, et un solo perdu au milieu d'un
+	// monde vide. Un appelant qui ne demande rien reçoit la taille de son lobby.
+	if width <= 0 || height <= 0 {
+		width = SizeForPlayers(maxPlayers)
+		height = width
 	}
 	gs := newWorld(width, height, seed)
 	gs.Name = name

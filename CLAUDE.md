@@ -57,7 +57,7 @@ fixed seed (`--seed N`, e.g. 42) is used for cohesion across the library.
 |---|---|
 | Backend | **Go** (`chi` router), REST, state serialized as JSON in **SQLite** (`modernc.org/sqlite`, pure-Go, no CGo) |
 | Frontend | **React + Vite + TypeScript**, **Three.js** (moteur voxel : carte, combat, ville), **Zustand** store |
-| Map gen | Perlin (`aquilax/go-perlin`) → heightmap **lissée (maxStep 1)** → biomes par niveau ; **60×60 par défaut** (`worldgen.DefaultSize`) ; `ensureNearbyBiomes` garantit un **gisement** de forêt ET de montagne près de la ville (`minBiomeTiles` 12 dans le rayon 8 — l'ancienne garantie « au moins UNE tuile » laissait des cartes à 21 montagnes sur 3600, donc sans pierre exploitable) |
+| Map gen | Perlin (`aquilax/go-perlin`) → heightmap **lissée (maxStep 1)** → biomes par niveau ; **taille suivant l'expédition** (`worldgen.SizeForPlayers` : surface par joueur constante ~900 tuiles, bornée `MinMapSize` 40 → `MaxMapSize` 140 ; 1 joueur 40², 4 joueurs 60² = `DefaultSize`, 20 joueurs 134²) ; **jusqu'à `MaxPlayersPerGame` = 20 joueurs** (60 héros) ; `ensureNearbyBiomes` garantit un **gisement** de forêt ET de montagne près de la ville (`biomeQuota` : ∝ surface, 12 tuiles dans le rayon 8 pour une carte de référence 60² — un quota ABSOLU faisait partager la carrière d'un solo à vingt équipes, d'où l'effondrement des grandes parties — l'ancienne garantie « au moins UNE tuile » laissait des cartes à 21 montagnes sur 3600, donc sans pierre exploitable) |
 
 ```bash
 # Backend (:8080). Env: ECHOTERRA_ADDR (:8080), ECHOTERRA_DB (echoterra.db),
@@ -261,15 +261,16 @@ par la rareté, et on explore quand aucune tuile connue ne fournit un matériau)
 annexes) ; **CRAFT** (`botCraft` : les niveaux 2-3 du design réclament TOUS un matériau crafté —
 Planche/Corde/Brique/Acier — donc une ville qui ne va jamais à l'atelier reste bloquée à sa défense de
 départ ; recycle aussi les Débris en Bois/Pierre dès que la Recyclerie est debout, la réponse du design
-à une carte qui se vide). ⚠ le rôle de bâtisseur vient du RANG dans l'équipe (`heroIsBuilder`, 1er
-héros), PAS d'un hash d'id : « environ un sur trois » ne garantit rien pour UNE équipe, et un bot dont
+à une carte qui se vide). ⚠ **trois RÔLES par équipe**, par rang (`heroRole`) : bâtisseur (reste en ville), **défenseur** (dégage l'anneau d'assaut — c'est de la défense depuis que `hordePower` en dépend — avec une LAISSE `botDefenderLeash` 10, sans quoi les défenseurs d'une carte 120² partent au bout du monde) et récolteur. Le rang, PAS un hash d'id : « environ un sur trois » ne garantit rien pour UNE équipe, et un bot dont
 les trois héros tombaient récolteurs ne construisait jamais rien. **Combat** : `botShouldEngage` juge sur
 la PUISSANCE et non l'effectif (un combat n'oppose jamais plus de 4 unités quelle que soit la taille du
 pack, et la victoire supprime le pack ENTIER — exiger un héros par unité revenait à ne jamais combattre) ;
 `botRallyTile` envoie un renfort à un camarade Tétanisé (la façon documentée de le libérer) et un pinné
-TIENT quand l'aide est à un pas. ⚠ **tuer des packs ne réduit PAS `hordePower`**, qui ne dépend que du
-numéro de vague : le combat ne sert qu'au butin, au classement et à libérer un héros — mesuré, prioriser
-le sauvetage sur le retour du butin FAIT BAISSER la survie. Tout est persisté en SQLite (le salon survit à un redémarrage ; les
+TIENT quand l'aide est à un pas. **Tuer compte désormais** : `hordePower` inclut les créatures massées dans
+l'anneau, donc dégager les abords retire directement des dégâts (règle changée le 2026-08-09 à la
+demande de l'utilisateur — auparavant le combat ne servait qu'au butin). ⚠ la récolte reste
+prioritaire sur le sauvetage pour un RÉCOLTEUR : mesuré, inverser les deux fait BAISSER la survie
+(les matériaux font vivre la ville). Tout est persisté en SQLite (le salon survit à un redémarrage ; les
 salons ouverts se listent via `GET /api/games?status=lobby`). ⚠ **toute recherche de salon passe par
 `store.ListByStatus(StatusLobby, n)`, JAMAIS par `List(n)` + filtre en Go** : un salon est écrit une
 fois puis plus jamais, alors que chaque partie active est réécrite à chaque vague ET par le battement —
@@ -391,7 +392,17 @@ legacy = pas de limite. Front : `useTurnRemaining` → badge « ⏱ Ns » dans `
 
 **Waves / horde (Hordes-like)** — `nextWaveAt` is **server-driven**; the client only shows the countdown
 (`useWaveRemaining`). Resolved lazily on access (`tick`) AND by a 15s scheduler goroutine.
-`ProcessWave`: **`hordePower = (8 + 3*waveNumber) * hordeScale()`** (2026-08-09 — l'ancienne `12 + 6*vague` dépassait dès la vague 6 le total qu'une ville PARFAITE peut opposer [20+16+12 = 48], donc AUCUNE partie n'était gagnable ; `hordeScale = (6+équipes)/10` (et `SeedStartingMonsters` n'ajoute plus que (joueurs-1)/2 packs : cumuler les deux pénalisait deux fois les grandes tables) pondère DOUCEMENT par la taille de l'expédition, car des joueurs en plus n'apportent pas de défense en plus — une pondération plus raide faisait tomber les grandes tables AVANT les solos) ; les packs arrivés au pied des murs s'y **brisent** (`spendAssaultingPacks`, `WaveReport.MonstersSpent`) — sans cette usure la horde silte le pourtour de la ville (mesuré : 130 packs / 660 créatures à la vague 12, ville encerclée, héros incapables de rentrer) ; **defense** = sum of wall/gate/tower contributions scaled by
+`ProcessWave`: **`hordePower = pression(vague) + créatures massées dans le rayon d'assaut`**
+(2026-08-09). Deux termes, et la distinction est tout le design : la **pression**
+(`hordeBase 6 + 2*vague`, × `hordeScale`) est un plancher qui monte quoi qu'on fasse ; l'**assaut**
+(`besiegingCreatures`, Chebyshev ≤ `assaultRadius` 2 autour de la ville) est la horde réellement
+présente quand elle frappe — **c'est ce terme que tuer fait baisser**. Avant, la puissance était une
+pure fonction du numéro de vague : nettoyer les abords ne retirait pas un point, donc le combat ne
+servait qu'au butin, et une expédition de 20 ne pouvait pas dépasser un solo (le plafond de défense
+20+16+12=48 est le même à 3 héros qu'à 60). ⚠ **rien n'apparaît dans l'anneau d'assaut**
+(`spawnSafeRadius = assaultRadius`) : un pack qui s'y matérialise est un pack que personne n'a laissé
+passer. Les packs qui ont porté l'assaut s'y **brisent** (`spendAssaultingPacks`,
+`WaveReport.MonstersSpent`), le calcul se faisant AVANT leur retrait ; **defense** = sum of wall/gate/tower contributions scaled by
 durability (**an open Gate = 0**, a construction site = 0); `overflow = horde - defense` → town HP loss +
 random building durability damage; defensive buildings also wear. Heroes **outside** town are hit individually
 (`Blessé`); **hidden** heroes skipped; **in-town** heroes safe. PA regen each wave; the **Well refills +10**;

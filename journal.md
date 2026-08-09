@@ -6,6 +6,82 @@
 
 ---
 
+## 2026-08-09 (95) — Tuer compte, et vingt joueurs vont plus loin qu'un
+
+Trois demandes liées : que **tuer des monstres compte pour la survie**, monter à **20 joueurs** avec
+une **carte qui grandit**, et que la difficulté monte avec l'effectif *mais* qu'une grande expédition
+aille **plus loin** qu'un solo.
+
+La troisième était mathématiquement impossible avant : le plafond de défense d'une ville (muraille 20 +
+portail 16 + tour 12 = 48) ne dépend pas du nombre de joueurs, alors que la horde, elle, montait avec.
+Des joueurs en plus n'apportaient donc que des monstres en plus. Les trois demandes se règlent en fait
+avec la même pièce.
+
+### La puissance de la horde a maintenant deux termes
+
+```
+puissance = pression(vague) + créatures massées dans le rayon d'assaut
+```
+
+La **pression** est un plancher qui monte quoi qu'on fasse (le monde se dégrade, on ne gagne pas). L'**assaut**
+est la horde réellement présente aux abords au moment où elle frappe — et ce terme-là, on le fait baisser
+en tuant. Les packs qui ont porté l'assaut s'y brisent, le calcul se faisant avant qu'ils ne soient retirés.
+
+Conséquence immédiate mesurée : les vagues 1 à 7 deviennent quasi gratuites tant que l'anneau est tenu
+(PV 100/100 à la vague 12 contre une ville morte avant), et les kills passent de 12 à 42 par partie.
+
+### Les bots ont un troisième rôle
+
+Bâtisseur / **défenseur** / récolteur, par rang dans l'équipe. Le défenseur dégage l'anneau — depuis que
+la puissance en dépend, c'est de la défense, pas du sport — et porte une **laisse** : sur une carte de
+120², les défenseurs partaient au bout du monde et personne ne tenait l'anneau. Premier essai sans
+laisse : 21 créatures tuées en huit vagues pendant que le siège montait à 57 points de dégâts.
+
+### Ce qui faisait s'effondrer les grandes parties
+
+Deux causes, toutes deux invisibles sans la simulation :
+
+- **Des packs naissaient DANS l'anneau d'assaut.** `spawnSafeRadius` valait 1, l'anneau en fait 2 : à
+  vingt joueurs, neuf packs se matérialisaient au pied des murs au lancement. Un pack qui apparaît là est
+  un pack que personne n'a laissé passer — injouable. Le siège doit ARRIVER, pour qu'on puisse
+  l'intercepter.
+- **Le gisement garanti était un absolu.** Douze tuiles de montagne dans le rayon 8, que la ville abrite
+  trois héros ou soixante : vingt équipes se partageaient la carrière d'un solo. Mesuré à vingt joueurs :
+  banque à ZÉRO pierre, muraille bloquée au niveau 1, chute vague 8 — quand huit joueurs tenaient vingt
+  vagues. Le quota suit désormais la surface (`biomeQuota`), comme la population.
+
+### La carte suit l'expédition
+
+`worldgen.SizeForPlayers` : surface par joueur constante (~900 tuiles, la densité d'une partie à quatre
+sur 60×60), bornée à 140² parce que chaque tuile voyage dans le payload JSON. 1 joueur → 40², 4 → 60²,
+20 → 134². Comme la horde semée croît avec la surface, c'est aussi ce qui fait monter la difficulté avec
+l'effectif, comme demandé.
+
+### Résultat
+
+| joueurs | 1 | 2 | 4 | 8 | 12 | 20 |
+|---|---|---|---|---|---|---|
+| chute médiane | 16 | 16 | 19 | 23 | 24 | **21** |
+| pire graine | 15 | 15 | 16 | 21 | 21 | **19** |
+
+Vingt joueurs vont plus loin qu'un seul, et le plancher de vingt (19) dépasse la médiane du solo (16).
+Un test l'encode (`TestBigExpeditionsGoFurther` : 15,7 vagues en solo contre 21,7 à vingt) — ce n'est
+pas un acquis, c'est un contrat, parce que l'arithmétique par défaut dit l'inverse.
+
+### Fonctionnel (vérifié)
+
+`go -C backend test ./...` vert, `npx tsc -b` et `npm run build` verts, balayage 1→20 joueurs. Front :
+sélecteur « joueurs maximum » jusqu'à 20 à la création d'un salon, salon public ouvert à 20.
+
+### À faire
+
+- Le creux 12 → 20 joueurs (médiane 24 puis 21) tient au plafond de carte à 140² ; à surveiller si tu
+  veux aller au-delà de 20.
+- Les 60 héros d'une grande partie génèrent un payload de carte lourd (140² tuiles) : le brouillard les
+  envoie vierges, mais le tableau reste. À mesurer avant d'ouvrir vraiment des parties à 20.
+
+---
+
 ## 2026-08-09 (94) — Tester une partie automatiquement, et la rendre jouable
 
 Demande : « planifier puis implémenter un moyen de tester automatiquement une partie pour voir si le
