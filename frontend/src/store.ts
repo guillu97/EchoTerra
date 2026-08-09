@@ -814,7 +814,7 @@ export const useStore = create<StoreState>((set, get) => {
 
     fetchLobbies: async () => {
       try {
-        set({ lobbies: await api.listGames("lobby") });
+        set({ lobbies: await api.listGames("open") });
       } catch {
         /* listing is best-effort */
       }
@@ -834,10 +834,15 @@ export const useStore = create<StoreState>((set, get) => {
         const res = await api.joinByCode(code, playerName);
         adoptGame(res.game, res.player.id, "mp");
         pushLog(`🤝 Partie "${res.game.name}" rejointe (${res.game.players.length}/${res.game.maxPlayers} joueurs).`);
-        // Joining a public game as its Nth player can trigger the auto-start:
-        // in that case skip the waiting room entirely.
+        // Deux cas où l'on saute la salle d'attente : on est le joueur qui déclenche
+        // le lancement automatique, ou l'on embarque dans une expédition DÉJÀ en route
+        // (fenêtre d'accueil des parties publiques).
         if (res.game.status !== "lobby") {
-          pushLog("⚔️ La partie démarre !");
+          pushLog(
+            res.game.waveNumber > 0
+              ? `⚔️ Tu rejoins une expédition en route — jour ${res.game.day}, vague ${res.game.waveNumber}.`
+              : "⚔️ La partie démarre !",
+          );
           await enterActiveGame();
         }
       }),

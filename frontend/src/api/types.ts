@@ -225,6 +225,11 @@ export interface GameSummary {
   day: number;
   waveNumber: number;
   createdAt: string;
+  // Fenêtre d'accueil : une expédition publique LANCÉE reste rejoignable quelques
+  // vagues (game.PublicJoinGraceWaves côté serveur). joinWavesLeft ne vaut que pour
+  // une partie déjà en cours — un salon vaut 0 parce qu'il n'a pas encore commencé.
+  joinOpen: boolean;
+  joinWavesLeft: number;
 }
 
 // Nature d'une partie au classement : les trois ne se comparent pas (un run solo

@@ -57,14 +57,30 @@ func TestForceWaveSafeSparesTown(t *testing.T) {
 
 // A NORMAL forced wave on the same weakly-defended town DOES take HP, proving
 // the safe variant is doing something.
+//
+// Il faut un SIÈGE pour que ça saigne : depuis que la puissance de la horde compte les
+// créatures massées aux abords (hordePower / besiegingCreatures), une ville dont les
+// approches sont vides n'encaisse plus que la pression de fond — et c'est le but même
+// de la règle. Ce test doit donc poser des assiégeants, sinon il mesure une ville que
+// personne n'attaque.
 func TestForceWaveNormalDamagesTown(t *testing.T) {
 	g := newSafeWaveTestGame()
-	hpBefore := g.Town.HP
-	// Push a few waves so the horde outgrows whatever defense remains.
-	for i := 0; i < 3; i++ {
-		g.ForceWave(time.Now())
+	for _, d := range [][2]int{{1, 1}, {-1, 1}, {1, -1}} {
+		x, y := g.Town.X+d[0], g.Town.Y+d[1]
+		m := NewMonster("Slime Vorace", x, y)
+		m.Count = 20
+		g.Monsters[m.ID] = m
+		if t := g.TileAt(x, y); t != nil {
+			t.MonsterID = m.ID
+		}
 	}
+	g.Recompute()
+	hpBefore := g.Town.HP
+	g.ForceWave(time.Now())
 	if g.Town.HP >= hpBefore {
-		t.Fatalf("a normal wave on an open-gate town should hurt it: HP stayed %d", g.Town.HP)
+		t.Fatalf("une horde massée contre une ville porte ouverte doit faire mal : PV restés %d", g.Town.HP)
+	}
+	if g.LastWave == nil || g.LastWave.MonstersSpent == 0 {
+		t.Fatal("les packs qui ont porté l'assaut doivent s'y briser (MonstersSpent)")
 	}
 }

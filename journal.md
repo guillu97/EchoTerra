@@ -6,6 +6,61 @@
 
 ---
 
+## 2026-08-09 (96) — La fenêtre d'accueil des expéditions publiques
+
+Demande : qu'une partie publique **se lance** dès le minimum de joueurs atteint, mais qu'elle reste
+**ouverte 1-2 jours** aux suivants — en visant à terme 2 vagues par jour réel.
+
+### La fenêtre se compte en VAGUES, pas en heures
+
+C'est la seule décision qui comptait vraiment. `WaveInterval` vaut dix minutes en développement et six
+heures en cible ; « deux jours » ne veut donc dire la même chose dans les deux cas que compté en vagues.
+`PublicJoinGraceWaves = 4` : quatre vagues, soit deux jours de jeu ET deux jours réels à la cadence
+visée, sans rien à retoucher le jour où l'intervalle change.
+
+`GameState.JoinOpen()` répond à « peut-on encore embarquer ? » : un salon toujours, une expédition
+publique pendant sa fenêtre, une partie privée jamais après son lancement (son hôte choisit qui entre,
+et il la lance délibérément — il n'y a personne à attendre).
+
+### Ce que ça a demandé ailleurs
+
+- **Accueillir vraiment.** Les rations du puits sont calculées au lancement sur l'effectif d'alors ;
+  sans complément, chaque nouveau venu boirait la réserve des autres et accepter du monde se paierait en
+  soif. `AddPlayer` complète le puits et trace l'arrivée au journal de la ville.
+- **Une colonne miroir de plus** (`join_open`). « Ce que je peux rejoindre » n'est plus « statut lobby »,
+  donc filtrer en Go après le `LIMIT` rendrait invisible exactement l'expédition qu'on veut rejoindre —
+  le piège déjà rencontré avec `status` (entrée 2026-08-02). `store.OpenForJoin` répond en SQL, et le
+  backfill couvre les lignes écrites avant la colonne, sans quoi un salon existant deviendrait
+  injoignable.
+- **Un seul point d'accueil à la fois.** Le serveur ouvrait un salon neuf dès l'auto-lancement. Avec la
+  fenêtre, ça séparerait les joueurs entre deux parties — exactement ce que la fenêtre veut éviter. Le
+  salon suivant naît quand les portes de l'expédition en cours se ferment (ou qu'elle est complète).
+- **`?status=open`** à la place de `?status=lobby` côté front : c'est la question que le joueur pose
+  vraiment. La liste affiche « ⚔️ En route — jour 2, vague 3 » avec un badge « 2 VAGUES » de compte à
+  rebours, et rejoindre une partie déjà lancée entre directement en jeu.
+
+### Un test existant a dû être restagé, et c'est instructif
+
+`TestForceWaveNormalDamagesTown` échouait : depuis que la puissance de la horde compte les créatures
+massées aux abords (entrée 95), une ville dont les approches sont vides n'encaisse plus que la pression
+de fond. Le test mesurait donc une ville que personne n'attaquait. Il pose maintenant un siège — et
+vérifie au passage que les packs qui portent l'assaut s'y brisent.
+
+### Fonctionnel (vérifié)
+
+`go -C backend test ./...` vert (4 tests de fenêtre côté game, 2 côté API, 1 côté store),
+`npx tsc -b` et `npm run build` verts.
+
+### À faire
+
+- La fenêtre est la même pour tout le monde ; si tu veux qu'un hôte la règle par partie, elle est déjà
+  isolée dans une constante et un accesseur (`JoinClosesAtWave`).
+- Un joueur qui rejoint à la vague 3 arrive dans une ville déjà bâtie mais face à une horde pondérée par
+  l'effectif d'après son arrivée : à observer en vrai, la simulation d'équilibrage ne modélise pas
+  encore les arrivées échelonnées.
+
+---
+
 ## 2026-08-09 (95) — Tuer compte, et vingt joueurs vont plus loin qu'un
 
 Trois demandes liées : que **tuer des monstres compte pour la survie**, monter à **20 joueurs** avec

@@ -228,7 +228,16 @@ per-building `defense`, per-building `cost`, `bank.capacity = sum(storage qty)`,
 "" = private legacy) : **privée** = créée par un joueur, join par CODE, lancée par l'HÔTE, kick = hôte ;
 **publique** = créée automatiquement par le serveur ("Expédition de <Ville>", `ensurePublicLobby` au boot
 + janitor + après chaque auto-start → il y a toujours un salon public ouvert), listée sans joinCode,
-**démarre seule dès `minPlayers` atteint** (`MaybeAutoStart`), start manuel/bots/pouvoirs d'hôte
+**démarre seule dès `minPlayers` atteint** (`MaybeAutoStart`) puis **reste OUVERTE** pendant sa
+**fenêtre d'accueil** — `game.PublicJoinGraceWaves` = 4 vagues, comptées en VAGUES et non en heures
+parce que `WaveInterval` vaut 10 min en dev et 6 h en cible (2 vagues/jour réel), donc « 2 jours » n'est
+portable qu'ainsi. `GameState.JoinOpen()` est l'unique juge (« peut-on encore embarquer ? ») : salon
+toujours, publique lancée pendant la fenêtre, **privée jamais après son lancement**. Un joueur qui
+rejoint en cours de partie voit ses 3 héros naître en ville et **le puits complété**
+(`WellRationsPerHero × 3` — sinon il boirait la réserve des autres). Le serveur maintient **UN SEUL**
+point d'accueil public à la fois (`joinablePublicCount`) : ouvrir un salon neuf pendant qu'une
+expédition accueille séparerait les joueurs, ce que la fenêtre veut justement éviter ; le salon suivant
+naît quand les portes se ferment. start manuel/bots/pouvoirs d'hôte
 refusés, expulsion par **vote majoritaire** (`VoteKick`, `KickVotes`, majorité stricte des autres
 humains, lobby only, votes purgés aux départs). **Mode solo** : `POST /api/games/solo` = partie privée
 créateur + 4 bots lancée immédiatement (bouton menu "🤖 Solo"), marquée `GameState.Solo` (classement).
@@ -271,8 +280,9 @@ l'anneau, donc dégager les abords retire directement des dégâts (règle chang
 demande de l'utilisateur — auparavant le combat ne servait qu'au butin). ⚠ la récolte reste
 prioritaire sur le sauvetage pour un RÉCOLTEUR : mesuré, inverser les deux fait BAISSER la survie
 (les matériaux font vivre la ville). Tout est persisté en SQLite (le salon survit à un redémarrage ; les
-salons ouverts se listent via `GET /api/games?status=lobby`). ⚠ **toute recherche de salon passe par
-`store.ListByStatus(StatusLobby, n)`, JAMAIS par `List(n)` + filtre en Go** : un salon est écrit une
+salons ouverts se listent via `GET /api/games?status=lobby`). ⚠ **la recherche de partie REJOIGNABLE passe par `store.OpenForJoin(n)`**
+(colonne miroir `join_open`, alimentée par `JoinOpen()`) et toute recherche de salon par
+`store.ListByStatus(StatusLobby, n)` — **JAMAIS par `List(n)` + filtre en Go** : un salon est écrit une
 fois puis plus jamais, alors que chaque partie active est réécrite à chaque vague ET par le battement —
 filtrer après le `LIMIT` rendait la recherche publique, le `joinByCode` et `ensurePublicLobby` aveugles
 dès qu'il y avait `n` parties plus fraîches (bug 2026-08-02, test `TestListByStatusIgnoresFresherGames`).
@@ -563,7 +573,9 @@ POST /api/auth/login                             {email,password} -> {user,token
 POST /api/auth/google                            {credential:id_token GIS} -> {user,token} (501 si non configuré)
 GET  /api/auth/me                                 (Bearer) -> {user}
 GET  /api/auth/me/games                           (Bearer) mes parties + myPlayerId (reprise multi-appareils)
-GET  /api/games?status=lobby                      list game summaries (id,name,joinCode,players,min/max…)
+GET  /api/games?status=open|lobby|active          `open` = ce qu'on peut REJOINDRE (salons + expéditions
+                                                 publiques dans leur fenêtre d'accueil) ; résumés
+                                                 (id,name,players,min/max,joinOpen,joinWavesLeft…)
 POST /api/games                                  {width?,height?,seed?} -> GameState (legacy solo, 3 héros)
 POST /api/games/lobby                            {playerName,name?,minPlayers?,maxPlayers?,…} -> {game,player}
 POST /api/games/solo                             {playerName} -> {game,player} (privée + 4 bots, lancée)

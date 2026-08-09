@@ -211,7 +211,23 @@ func (g *GameState) InitWellRations() {
 	if w == nil {
 		return
 	}
-	w.Capacity = 2 * len(g.Heroes)
+	w.Capacity = WellRationsPerHero * len(g.Heroes)
+	if w.MaxCapacity > 0 && w.Capacity > w.MaxCapacity {
+		w.Capacity = w.MaxCapacity
+	}
+}
+
+// WellRationsPerHero: les 2 jours d'eau par héros du design, posés au lancement et
+// complétés pour chaque joueur qui rejoint en cours de route (cf. AddPlayer).
+const WellRationsPerHero = 2
+
+// addWellRations tops the Well up (never past its capacity).
+func (g *GameState) addWellRations(n int) {
+	w := g.buildingByID("well")
+	if w == nil || n <= 0 {
+		return
+	}
+	w.Capacity += n
 	if w.MaxCapacity > 0 && w.Capacity > w.MaxCapacity {
 		w.Capacity = w.MaxCapacity
 	}

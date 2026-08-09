@@ -355,6 +355,11 @@ type gameSummary struct {
 	Day        int            `json:"day"`
 	WaveNumber int            `json:"waveNumber"`
 	CreatedAt  time.Time      `json:"createdAt"`
+	// Fenêtre d'accueil : une expédition publique déjà LANCÉE reste rejoignable
+	// quelques vagues. Le front en a besoin pour dire « en cours — encore N vagues
+	// pour embarquer » au lieu d'afficher un salon qui n'en est plus un.
+	JoinOpen      bool `json:"joinOpen"`
+	JoinWavesLeft int  `json:"joinWavesLeft"`
 }
 
 // summarize omits the join code on purpose: private lobbies are joined by sharing
@@ -368,10 +373,15 @@ func summarize(gs *game.GameState) gameSummary {
 	if vis == "" {
 		vis = game.VisibilityPrivate
 	}
+	left := 0
+	if gs.Status == game.StatusActive && gs.JoinOpen() {
+		left = gs.JoinClosesAtWave() - gs.WaveNumber
+	}
 	return gameSummary{
 		ID: gs.ID, Name: gs.Name, Status: gs.Status, Visibility: vis,
 		Players: players, MinPlayers: gs.MinPlayers, MaxPlayers: gs.MaxPlayers,
 		Day: gs.Day, WaveNumber: gs.WaveNumber, CreatedAt: gs.CreatedAt,
+		JoinOpen: gs.JoinOpen(), JoinWavesLeft: left,
 	}
 }
 
@@ -394,6 +404,14 @@ func (s *Server) housekeeping() {
 		}
 		if gs.IsPublic() {
 			public = append(public, gs)
+		}
+	}
+	// Une expédition publique LANCÉE mais encore ouverte tient lieu de salon public :
+	// tant qu'elle accueille, on n'en ouvre pas un second à côté (cf.
+	// joinablePublicCount). Les doublons de salons restent purgés ci-dessous.
+	if len(public) == 0 {
+		if n, err := s.joinablePublicCount(); err == nil && n > 0 {
+			return
 		}
 	}
 	// Deux instances froides peuvent créer chacune leur salon public (rien ne les
@@ -439,10 +457,20 @@ func (s *Server) listGames(w http.ResponseWriter, r *http.Request) {
 	if s.stateless {
 		s.housekeeping()
 	}
-	// Le filtre de statut est appliqué EN SQL : filtrer après le LIMIT faisait
-	// disparaître les salons de la liste dès qu'il y avait 50 parties actives plus
-	// fraîches (elles sont réécrites à chaque vague et par le battement).
-	games, err := s.store.ListByStatus(r.URL.Query().Get("status"), 50)
+	// Le filtre est appliqué EN SQL : filtrer après le LIMIT faisait disparaître les
+	// salons de la liste dès qu'il y avait 50 parties actives plus fraîches (elles sont
+	// réécrites à chaque vague et par le battement).
+	//
+	// `status=open` = « ce que je peux rejoindre » : les salons ET les expéditions
+	// publiques encore dans leur fenêtre d'accueil. C'est ce que le front demande —
+	// `status=lobby` reste disponible pour qui veut strictement les salons.
+	var games []*game.GameState
+	var err error
+	if st := r.URL.Query().Get("status"); st == "open" {
+		games, err = s.store.OpenForJoin(50)
+	} else {
+		games, err = s.store.ListByStatus(st, 50)
+	}
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, err.Error())
 		return
@@ -556,16 +584,31 @@ const publicLobbyName = "Expédition de "
 // always a game to join without a code. Called at startup, from the janitor, and
 // after a public game auto-starts.
 func (s *Server) ensurePublicLobby() {
-	games, err := s.store.ListByStatus(game.StatusLobby, 200)
-	if err != nil {
+	if n, err := s.joinablePublicCount(); err != nil || n > 0 {
 		return
 	}
+	s.newPublicLobby()
+}
+
+// joinablePublicCount compte les expéditions publiques qu'un nouveau venu peut encore
+// rejoindre — salons ouverts ET parties lancées encore dans leur fenêtre d'accueil.
+//
+// C'est la nuance qui fait tenir la fenêtre : tant que l'expédition en cours accepte du
+// monde, ouvrir un salon neuf à côté SÉPARERAIT les joueurs entre deux parties, ce qui
+// est exactement ce que la fenêtre est censée éviter. Le salon suivant naît quand les
+// portes de celle-ci se ferment (ou qu'elle est complète).
+func (s *Server) joinablePublicCount() (int, error) {
+	games, err := s.store.OpenForJoin(200)
+	if err != nil {
+		return 0, err
+	}
+	n := 0
 	for _, gs := range games {
-		if gs.IsPublic() {
-			return
+		if gs.IsPublic() && gs.JoinOpen() {
+			n++
 		}
 	}
-	s.newPublicLobby()
+	return n, nil
 }
 
 // joinByCode resolves a join code against open lobbies (newest first) and joins it.
@@ -579,7 +622,9 @@ func (s *Server) joinByCode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	code := strings.ToUpper(strings.TrimSpace(body.Code))
-	games, err := s.store.ListByStatus(game.StatusLobby, 200)
+	// On cherche parmi les parties REJOIGNABLES, pas parmi les salons : une expédition
+	// publique lancée reste ouverte pendant sa fenêtre d'accueil (game.JoinOpen).
+	games, err := s.store.OpenForJoin(200)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, err.Error())
 		return
@@ -646,8 +691,9 @@ func (s *Server) join(w http.ResponseWriter, r *http.Request, gameID, playerName
 	if user != nil {
 		p.UserID = user.ID
 	}
-	// Public games launch on their own the moment MinPlayers is reached — and the
-	// server immediately opens a fresh public lobby to keep one joinable.
+	// Public games launch on their own the moment MinPlayers is reached — but they keep
+	// their doors open for the welcome window (game.PublicJoinGraceWaves), so this call
+	// is normally a no-op: a fresh lobby is only opened once nobody can board this one.
 	if gs.MaybeAutoStart(now) {
 		defer s.ensurePublicLobby()
 	}

@@ -85,8 +85,9 @@ function LobbyForms() {
         <div className="lobby-card">
           <div className="lobby-card-title">🌍 Parties publiques</div>
           <div className="lobby-hint left">
-            Une partie démarre dès son minimum de joueurs atteint. Chaque joueur incarne une équipe
-            de <b>3 héros</b>.
+            Une partie démarre dès son minimum de joueurs atteint, puis reste ouverte quelques
+            vagues : on peut embarquer dans une expédition <b>déjà en route</b>. Chaque joueur
+            incarne une équipe de <b>3 héros</b>.
           </div>
           {publicLobbies.length === 0 && <div className="lobby-hint">Recherche de parties…</div>}
           {publicLobbies.length > 0 && (
@@ -94,6 +95,12 @@ function LobbyForms() {
               {publicLobbies.map((l) => {
                 const full = l.players.length >= l.maxPlayers;
                 const ready = l.players.length >= l.minPlayers;
+                // Une expédition DÉJÀ LANCÉE mais encore ouverte : on rejoint une ville
+                // qui existe, avec un compte à rebours en vagues avant fermeture.
+                const started = l.status === "active";
+                const status = started
+                  ? `En route — jour ${l.day}, vague ${l.waveNumber} · ${l.players.length}/${l.maxPlayers} joueurs`
+                  : `${ready ? "Minimum atteint" : "En attente de joueurs"} · ${l.players.length}/${l.maxPlayers} joueurs`;
                 return (
                   <button
                     key={l.id}
@@ -102,17 +109,20 @@ function LobbyForms() {
                     onClick={() => joinLobby(l.id)}
                   >
                     <span className="lobby-row-main">
-                      <span className="lobby-row-icon">{lobbyIcon(l.name)}</span>
+                      <span className="lobby-row-icon">{started ? "⚔️" : lobbyIcon(l.name)}</span>
                       <span className="lobby-row-text">
                         <span className="lobby-row-name">{l.name}</span>
-                        <span className="lobby-row-status">
-                          {ready ? "Minimum atteint" : "En attente de joueurs"} ·{" "}
-                          {l.players.length}/{l.maxPlayers} joueurs
-                        </span>
+                        <span className="lobby-row-status">{status}</span>
                       </span>
                     </span>
-                    <span className={"lobby-badge" + (ready ? " hot" : "")}>
-                      {full ? "COMPLET" : ready ? "DÉMARRE" : `${l.players.length}/${l.minPlayers}`}
+                    <span className={"lobby-badge" + (ready || started ? " hot" : "")}>
+                      {full
+                        ? "COMPLET"
+                        : started
+                        ? `${l.joinWavesLeft} VAGUE${l.joinWavesLeft > 1 ? "S" : ""}`
+                        : ready
+                        ? "DÉMARRE"
+                        : `${l.players.length}/${l.minPlayers}`}
                     </span>
                   </button>
                 );

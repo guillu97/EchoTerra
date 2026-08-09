@@ -84,7 +84,9 @@ export const api = {
   getGame: (id: string) => req<GameState>("GET", `/api/games/${id}`),
 
   // --- lobby / multiplayer ---
-  listGames: (status?: "lobby" | "active" | "gameover") =>
+  // "open" = ce qu'on peut REJOINDRE : les salons et les expéditions publiques encore
+  // dans leur fenêtre d'accueil. "lobby" ne rend que les salons non lancés.
+  listGames: (status?: "open" | "lobby" | "active" | "gameover") =>
     req<GameSummary[]>("GET", `/api/games${status ? `?status=${status}` : ""}`),
 
   createLobby: (opts: {
