@@ -277,6 +277,7 @@ interface StoreState {
   setTownHero: (id: string) => void;
   townDeposit: () => Promise<void>;
   scoutWave: () => Promise<void>; // monter à la Tour estimer la vague (collectif)
+  setHeroOrder: (heroId: string, order: "" | "shelter" | "return") => Promise<void>;
   craft: (recipeId: string) => Promise<void>;
   evolve: (classId: string) => Promise<void>;
   startAdventure: () => void; // Title "Start the game" -> cinematic
@@ -846,6 +847,22 @@ export const useStore = create<StoreState>((set, get) => {
           );
           await enterActiveGame();
         }
+      }),
+
+    // La CONSIGNE d'un héros : ce qu'il fera seul juste avant la prochaine vague. Un
+    // filet pour les soirées manquées — elle ne dure qu'une vague et ne combat jamais.
+    setHeroOrder: (heroId, order) =>
+      withBusy(async () => {
+        const { game, playerId } = get();
+        if (!game) return;
+        adoptGame(await api.setHeroOrder(game.id, heroId, order, playerId ?? undefined));
+        get().notify(
+          order === "shelter"
+            ? "🫥 Consigne posée : se cacher avant la vague"
+            : order === "return"
+            ? "🏰 Consigne posée : rentrer et déposer"
+            : "Consigne retirée",
+        );
       }),
 
     // Monter à la Tour de guet. C'est une manœuvre COLLECTIVE : chaque joueur qui s'y

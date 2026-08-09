@@ -4069,3 +4069,32 @@ body {
   font-weight: 700;
 }
 .chip.wave.fatal { border-color: var(--red); color: var(--red); }
+
+/* LES CONSIGNES du menu radial (orders_standing.go) — ce qu'un héros fera seul si son
+   joueur ne revient pas avant la vague. Volontairement discrètes : c'est un filet, pas
+   l'action principale, et le jeu doit rester meilleur quand on le joue. */
+.am-orders {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  padding-top: var(--s-2);
+  margin-top: var(--s-1);
+  border-top: 1px solid var(--line);
+}
+.am-orders-t { font-size: var(--t-xs); color: var(--ink-muted); }
+.am-orders-row { display: flex; gap: var(--s-2); }
+.am-orders-row button {
+  flex: 1;
+  min-height: var(--tap);
+  font-size: var(--t-xs);
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line);
+  background: var(--cream);
+  color: var(--ink-2);
+}
+.am-orders-row button.on {
+  border-color: var(--gold);
+  background: var(--parch);
+  color: var(--ink);
+  font-weight: 600;
+}

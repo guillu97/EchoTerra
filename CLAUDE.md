@@ -512,6 +512,25 @@ aléatoire (on annonce « ~34 », pas une promesse) et n'est actionnable que par
 des assiégeants : tuer fait baisser le chiffre sous les yeux du joueur. Réponse aux trous T3/T5 de
 `RETENTION-PLAN.md`. Tests `orders_test.go`.
 
+**Consignes permanentes** (`orders_standing.go`, 2026-08-09) — `Hero.Order` (`shelter` | `return`),
+posée gratuitement, exécutée par `runStandingOrders()` juste AVANT `attackHeroesOutside` puis
+**consommée**. Trois bornes délibérées : une seule vague, jamais de combat ni de fouille, et `return`
+ne se met en marche que si la ville est atteignable (sinon il se cache — brûler ses PA pour finir à
+découvert est le piège que les bots ont connu). Réponse au trou T4 : les PA non dépensés sont PERDUS,
+donc une soirée manquée coûtait une journée de travail. ⚠ c'est un FILET, pas un pilote automatique —
+un joueur présent doit faire strictement mieux. Tests `orders_standing_test.go`.
+
+**Registre de contribution & requêtes** (`contribution.go`, `requests.go`, 2026-08-09) —
+`credit()` sur six actions ; `Ledger()` rend l'ordre d'ARRIVÉE, **jamais trié par mérite** (trier
+installerait une compétition entre coéquipiers). Les requêtes du Panneau (`PostRequest`/`FillRequest`)
+sont la **seule sortie de la Banque** vers un joueur, et elle exige d'être deux — se servir soi-même
+est refusé. Routes `/town/request`, `/town/request/fill`.
+
+**Tour de guet** (`orders.go`) — `Forecast()` rend une FOURCHETTE dont la largeur se mérite : sans Tour
+±50 %, chaque niveau resserre, et chaque JOUEUR monté observer (`ScoutWave`, 2 PA, `/town/scout`)
+resserre encore **pour toute la ville**, une fois par joueur et par vague (remis à zéro à chaque vague).
+⚠ à faible horde (~5) la fourchette entière sature à ±1 : normal, une vague de début est prévisible.
+
 **Journal de la ville** (`town.log`, bâtiment Panel) — `TownLogEntry {at, day, text}`, **serveur-side,
 partagé, plus récent en premier, plafonné à 100** (`logTown`). Recense UNIQUEMENT les actions faites en
 ville : porte OUVERTE/FERMÉE, ration puisée au puits, dépôts à la Banque (par héros), chantiers

@@ -299,6 +299,11 @@ func (g *GameState) processWave(now time.Time, safeTown bool) {
 	}
 	r.TownHPAfter = g.Town.HP
 
+	// LES CONSIGNES, au dernier moment : un joueur absent a laissé une intention, elle
+	// s'exécute juste avant que la horde frappe — donc après que la ville a encaissé,
+	// mais avant que les héros dehors soient pris à partie.
+	g.runStandingOrders()
+
 	// Heroes caught outside the walls are attacked individually.
 	g.attackHeroesOutside(g.WaveNumber, r)
 

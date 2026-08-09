@@ -68,6 +68,12 @@ type Hero struct {
 	// DrewWaterDay is the game.day on which this hero last drew a water ration at the
 	// Well (0 = never). One ration per hero per in-game day (see TownAction "water").
 	DrewWaterDay int `json:"drewWaterDay"`
+	// Order est la CONSIGNE PERMANENTE du héros (orders_standing.go) : ce qu'il fera
+	// tout seul juste avant la prochaine vague si son joueur n'est pas revenu. Ne dure
+	// qu'UNE vague, n'engage jamais de combat — c'est un filet, pas un pilote
+	// automatique.
+	Order     string `json:"order,omitempty"`
+	OrderWave int    `json:"orderWave,omitempty"`
 	// ForageAt est l'échéance de la prochaine FOUILLE AUTOMATIQUE (zéro = le héros
 	// n'est pas installé à récolter). Posée par la première fouille — celle qui
 	// coûte 1 PA — puis replanifiée toute seule par la simulation. Voir forage.go.
