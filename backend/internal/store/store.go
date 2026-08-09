@@ -71,6 +71,9 @@ func Open(dsn string) (*Store, error) {
 	if err := s.migrateAuth(); err != nil {
 		return nil, err
 	}
+	if err := s.migrateChronicle(); err != nil {
+		return nil, err
+	}
 	if err := s.migrateGameColumns(); err != nil {
 		return nil, err
 	}
@@ -303,7 +306,8 @@ func (s *Store) Save(gs *game.GameState) error {
 			join_open=excluded.join_open`),
 		gs.ID, string(blob), time.Now().Unix(), gs.Status, unixOrZero(gs.NextWaveAt), boolToInt(gs.JoinOpen()))
 	if err == nil {
-		_ = s.saveScore(gs) // instantané best-effort : la partie reste la source de vérité
+		_ = s.saveScore(gs)     // instantané best-effort : la partie reste la source de vérité
+		_ = s.saveChronicle(gs) // …et la mémoire des comptes qui l'ont vécue (P7)
 	}
 	return err
 }
@@ -328,8 +332,10 @@ func (s *Store) SaveIfUnchanged(gs *game.GameState) error {
 		return ErrConflict
 	}
 	// Le battement fait avancer les vagues sans joueur connecté : sans ça, une ville
-	// qui survit toute seule ne monterait jamais au classement.
+	// qui survit toute seule ne monterait jamais au classement — ni dans la chronique
+	// des comptes qui l'ont fondée.
 	_ = s.saveScore(gs)
+	_ = s.saveChronicle(gs)
 	return nil
 }
 

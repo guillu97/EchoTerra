@@ -107,3 +107,37 @@ func TestAGathererHeadsHomeWithABlueprintTheTownLacks(t *testing.T) {
 		t.Fatal("le plan déjà en Banque, un second ne justifie plus le trajet")
 	}
 }
+
+// UN BÂTIMENT QUI GARDE UN MATÉRIAU DE DÉFENSE EST UN BÂTIMENT DE DÉFENSE.
+//
+// Les bots n'amélioraient que la muraille, le portail et la tour. Or le dernier niveau
+// du portail (+16 au lieu de +12) réclame de l'ACIER, l'acier réclame un Atelier de
+// niveau 2, et l'Atelier n'était sur la liste de personne : mesuré, atelier bloqué au
+// niveau 1 et portail plafonné au niveau 2 sur CHAQUE partie simulée, pendant que le
+// bois du chantier dormait à la Banque.
+func TestBotsUpgradeTheForgeWhenTheWallsNeedWhatItCannotYetMake(t *testing.T) {
+	g, _ := botGame(t)
+	gate, shop := g.buildingByID("gate"), g.buildingByID("workshop")
+	gate.Built, gate.Level = true, 2 // le niveau 3 réclame de l'Acier
+	shop.Built, shop.Level = true, 1 // …que la forge ne sait pas encore faire
+	g.Recompute()
+
+	// Sans de quoi monter la forge, on ne promet rien.
+	if b := g.botCraftUnlockNeeded(); b != nil {
+		t.Fatalf("Banque vide : aucun chantier ne doit être proposé, obtenu %q", b.ID)
+	}
+	// Avec les matériaux de la forge en Banque, c'est ELLE qu'il faut monter.
+	for _, m := range g.buildingCost(shop).Materials {
+		g.addStorage(Item{Type: m.Type, Name: m.Name, Qty: m.Qty})
+	}
+	b := g.botCraftUnlockNeeded()
+	if b == nil || b.ID != "workshop" {
+		t.Fatalf("il faut monter l'Atelier pour débloquer l'Acier, obtenu %v", b)
+	}
+	// …et une fois la forge au niveau requis, plus rien à débloquer de ce côté.
+	shop.Level = 2
+	g.Recompute()
+	if b := g.botCraftUnlockNeeded(); b != nil && b.ID == "workshop" {
+		t.Fatal("la forge sait désormais faire l'Acier : ne pas la remonter pour rien")
+	}
+}

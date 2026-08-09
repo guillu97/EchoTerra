@@ -823,6 +823,18 @@ func (g *GameState) botBuild(h *Hero) bool {
 			return true
 		}
 	}
+	// 3b. DÉBLOQUER LA FORGE. Les bots n'amélioraient que les bâtiments de botDefensiveOrder
+	// — or la défense ne s'arrête pas aux murs : le dernier niveau du portail (+16 contre
+	// +12) réclame de l'ACIER, l'acier réclame un Atelier de niveau 2, et l'Atelier n'était
+	// dans la liste de personne. Mesuré : atelier bloqué au niveau 1 toute la partie, donc
+	// portail plafonné au niveau 2 sur chaque partie simulée, alors que le bois du chantier
+	// dormait à la Banque. Un bâtiment qui GARDE un matériau de défense est un bâtiment de
+	// défense, à un cran de distance.
+	if b := g.botCraftUnlockNeeded(); b != nil {
+		if err := g.TownAction(b.ID, "build", 1, h.ID); err == nil {
+			return true
+		}
+	}
 	// 4. Sites whose blueprint we found — but only when the Bank can actually FEED the
 	// chantier. Opening one on a promise burns the (lootable, scarce) plan and parks a
 	// site that refuses every point of labour until the missing material shows up: measured,
@@ -869,6 +881,38 @@ func (g *GameState) botBuild(h *Hero) bool {
 		}
 	}
 	return false
+}
+
+// botCraftUnlockNeeded rend le bâtiment d'artisanat qu'il faut monter d'un niveau pour
+// que la ville puisse FABRIQUER un matériau que sa défense réclame — l'Atelier niveau 2
+// pour l'Acier du portail, typiquement. nil quand la forge sait déjà tout faire, quand
+// le matériau se ramasse plutôt qu'il ne se fabrique, ou quand la Banque ne couvre pas
+// le chantier d'amélioration lui-même.
+func (g *GameState) botCraftUnlockNeeded() *TownBuilding {
+	for _, id := range botDefensiveOrder {
+		b := g.buildingByID(id)
+		if b == nil || !b.Built || b.Level >= MaxBuildingLevel {
+			continue
+		}
+		for _, m := range g.buildingCost(b).Materials {
+			if g.storageQty(m.Name) >= m.Qty || terrainDroppable(m.Name) {
+				continue // déjà en Banque, ou ça se ramasse
+			}
+			r := recipeFor(m.Name)
+			if r == nil || r.Building == "" {
+				continue
+			}
+			shop := g.buildingByID(r.Building)
+			if shop == nil || !shop.Built || shop.Level >= r.BuildingLevel || shop.Level >= MaxBuildingLevel {
+				continue // la forge sait déjà le faire (ou ne pourra jamais)
+			}
+			if !g.bankCovers(g.buildingCost(shop).Materials) {
+				continue // pas de quoi monter la forge : ce sera pour plus tard
+			}
+			return shop
+		}
+	}
+	return nil
 }
 
 // townRepairUrgentPct: below this share of its hit points the town stops saving

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { ChronicleCard } from "../components/ChronicleCard";
 import { useStore } from "../store";
 import { api } from "../api/client";
 import { loadGoogleIdentity } from "../googleAuth";
@@ -204,6 +205,8 @@ function Profile() {
           </div>
         )}
       </div>
+
+      <ChronicleCard />
 
       {error && <div className="lobby-error">⚠️ {error}</div>}
       <button className="pill ghost" onClick={() => setScreen("title")}>

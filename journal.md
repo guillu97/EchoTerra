@@ -6,6 +6,69 @@
 
 ---
 
+## 2026-08-09 (99) — La chronique de compte, et la forge que personne ne montait
+
+Suite du plan de rétention (`RETENTION-PLAN.md`). Deux choses : le dernier gros point encore ouvert
+côté joueur (P7), et une conséquence de l'entrée 98 restée en suspens.
+
+### La forge : un bâtiment qui garde un matériau de défense EST un bâtiment de défense
+
+Les bots n'amélioraient que la muraille, le portail et la tour. Or le **niveau 3 du portail** (+16 au
+lieu de +12) réclame de l'**Acier**, l'acier réclame un **Atelier de niveau 2**, et l'Atelier n'était
+sur la liste de personne : mesuré, atelier bloqué au niveau 1 et portail plafonné au niveau 2 sur
+*chaque* partie simulée, pendant que le bois du chantier dormait à la Banque.
+
+`botCraftUnlockNeeded` remonte la chaîne : pour chaque matériau de défense qui se FABRIQUE (et ne se
+ramasse pas), si la forge ne sait pas encore le faire, c'est ELLE qu'on monte. Médianes après :
+**15 · 16 · 19 · 22 · 23 · 21** vagues pour 1 · 2 · 4 · 8 · 12 · 20 joueurs.
+
+### P7 — la chronique de compte
+
+Le problème : une expédition finit **toujours** par tomber, et jusqu'ici tout mourait avec elle.
+Tenir vingt vagues, bâtir une tour, rapporter six cents objets — et n'en garder rien.
+
+Table `chronicle`, une ligne par (compte, partie), écrite avec la ligne de classement — donc aussi
+par le **battement**, sinon une ville qui ne survit que par le cron n'entrerait dans la chronique de
+personne — et qui **survit à la suppression de la partie**. C'est précisément quand la ville n'est
+plus là qu'on veut se souvenir d'elle. On y garde ce que le registre de contribution (P3) savait
+déjà : PA de chantier, objets rapportés, créatures abattues, PV rendus aux remparts, objets
+fabriqués, requêtes honorées.
+
+Les **titres sont dérivés à la lecture** — douze paliers sur six domaines, deux par domaine : un
+qu'on atteint en une bonne expédition, un qui demande d'y revenir. Au-delà on tomberait dans le
+grind, et le jeu se joue deux fois cinq minutes par jour. Rien de plus à stocker, rien à maintenir
+en cohérence, et changer un seuil corrige rétroactivement tout le monde.
+
+⚠ **Cosmétique, jamais de la puissance** — même règle que les mémoriaux. Un vétéran et un débutant
+qui rejoignent la même ville y arrivent strictement égaux ; c'est cette égalité qui fait tenir une
+survie de groupe. Test dédié. Et **pas de chronique publique** : la route est réservée à son
+titulaire, parce qu'exposer celle des autres transformerait un souvenir en palmarès.
+
+### Un test qui parie
+
+`TestBotEngagesAndAutoResolvesCombat` échouait une fois sur six. Son commentaire disait « stack the
+odds so the win is deterministic » — c'était faux : mesuré sur deux cents parties, trois héros à 20
+de force et 60 PV perdent contre DEUX slimes **5 % du temps**. Un upset à 5 % est un choix de game
+design défendable ; en faire dépendre une suite de tests ne l'est pas. `seedForTest` sème le hasard
+du jeu le temps du test (possible seulement depuis l'entrée 98) puis le rend à l'horloge.
+
+### Fonctionnel (vérifié)
+
+- `go test ./... -count=3` vert, cinq exécutions de suite ; `go vet` propre ; `npx tsc -b` et
+  `npm run build` verts.
+- La chronique testée de bout en bout : route authentifiée (401 sans jeton), totaux, titres, et
+  **survie à la purge de la partie**.
+- Carte « 📜 Ma chronique » sur l'écran de compte : totaux, titres gagnés, trois prochains paliers
+  avec barre de progression, et le repli de la liste des expéditions.
+
+### À faire
+
+- P8 (saisons) — le dernier point du plan de rétention.
+- L'ergonomie n'a toujours pas été vue en vrai par l'utilisateur (ordre du jour, bouton de la Tour,
+  chronique).
+
+---
+
 ## 2026-08-09 (98) — Ce que la simulation ne voyait pas : la garnison, l'horloge, et une forêt à dix-huit cases
 
 Suite directe de l'entrée 94 (l'instrument d'équilibrage). Cette fois l'instrument a servi à

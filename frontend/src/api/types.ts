@@ -282,6 +282,56 @@ export interface MyGameSummary extends GameSummary {
   myPlayerId: string;
 }
 
+// LA CHRONIQUE DE COMPTE (GET /api/auth/me/chronicle, backend api/chronicle.go) — ce
+// qu'un compte garde des villes qu'il a vues tomber. ⚠ COSMÉTIQUE : un titre n'a jamais
+// d'effet en jeu. Deux joueurs qui rejoignent la même expédition y arrivent égaux.
+export interface ChronicleRun {
+  gameId: string;
+  townName: string;
+  mode: "solo" | "public" | "private";
+  playerName: string;
+  days: number;
+  waves: number;
+  monstersKilled: number; // de la VILLE (score partagé)
+  gameOver: boolean;
+  // ce que CE joueur y a apporté
+  buildPa: number;
+  deposited: number;
+  slain: number;
+  repaired: number;
+  crafted: number;
+  filled: number;
+  updatedAt: string;
+}
+
+export interface ChronicleTotals {
+  runs: number;
+  bestWave: number;
+  days: number;
+  buildPa: number;
+  deposited: number;
+  slain: number;
+  repaired: number;
+  crafted: number;
+  filled: number;
+}
+
+export interface Title {
+  id: string;
+  name: string;
+  icon: string;
+  desc: string;
+  value: number; // où en est le joueur
+  need: number; // le seuil
+  got: boolean;
+}
+
+export interface Chronicle {
+  runs: ChronicleRun[];
+  totals: ChronicleTotals;
+  titles: Title[];
+}
+
 // Lightweight game listing DTO returned by GET /api/games. Join codes are never
 // listed (private lobbies are joined by sharing their code out-of-band).
 export interface GameSummary {

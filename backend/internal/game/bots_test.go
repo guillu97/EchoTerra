@@ -225,9 +225,16 @@ func TestHumansAreNeverBotDriven(t *testing.T) {
 }
 
 func TestBotEngagesAndAutoResolvesCombat(t *testing.T) {
+	// UN COMBAT SE JOUE AUX DÉS — ce test doit donc poser la même question à chaque fois.
+	// Mesuré sans graine : trois héros à 20 de force et 60 PV perdent contre DEUX slimes
+	// une fois sur vingt, et le test échouait au hasard (« stack the odds so the win is
+	// deterministic » était faux — empiler les statistiques rend une victoire probable,
+	// pas certaine). Un 5 % d'upset est un choix de game design défendable ; en faire
+	// dépendre une suite de tests ne l'est pas.
+	seedForTest(t, 1)
 	g, bot := botGame(t)
 	parkTeam(g, bot, 3, 3, 6)
-	for _, id := range bot.HeroIDs { // stack the odds so the win is deterministic
+	for _, id := range bot.HeroIDs {
 		hh := g.HeroByID(id)
 		hh.Stats.Force = 20
 		hh.HP, hh.MaxHP = 60, 60
@@ -529,4 +536,14 @@ func TestBotsRallyToAPinnedComrade(t *testing.T) {
 	if after := absI(rescuer.X-pinned.X) + absI(rescuer.Y-pinned.Y); after >= before {
 		t.Fatalf("le coéquipier doit marcher vers le camarade cloué : %d -> %d", before, after)
 	}
+}
+
+// seedForTest rend le hasard du jeu REPRODUCTIBLE le temps d'un test, puis le rend à
+// l'horloge. À utiliser dès qu'un test affirme quelque chose sur une issue tirée aux dés
+// (combat, butin, apparition) : sans graine il pose une question différente à chaque
+// exécution, et un échec ne veut plus rien dire.
+func seedForTest(t *testing.T, seed int64) {
+	t.Helper()
+	SeedRNG(seed)
+	t.Cleanup(func() { SeedRNG(time.Now().UnixNano()) })
 }

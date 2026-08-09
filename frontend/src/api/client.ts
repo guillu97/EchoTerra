@@ -1,5 +1,6 @@
 import type {
   ChatMessage,
+  Chronicle,
   ClassDef,
   CombatResponse,
   GameState,
@@ -174,6 +175,9 @@ export const api = {
     }),
 
   myGames: () => req<MyGameSummary[]>("GET", "/api/auth/me/games"),
+
+  // Ma chronique : mes expéditions, mes totaux, mes titres (cosmétiques).
+  myChronicle: () => req<Chronicle>("GET", "/api/auth/me/chronicle"),
 
   // Hero actions carry the acting player's id: multiplayer games enforce server-side
   // that a player only controls their OWN hero (legacy solo games ignore it).

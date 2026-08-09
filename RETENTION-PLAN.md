@@ -168,11 +168,28 @@ Un joueur affiche un besoin (« il me faut 3 Corde »), n'importe qui le sert de
 journal note qui l'a fait. La réciprocité est la colle sociale la plus solide qui existe, et
 l'infrastructure (journal + messagerie) est déjà là.
 
-### P7 · Chronique de compte et titres
+### P7 · Chronique de compte et titres — ✅ **LIVRÉ** (2026-08-09)
 
-Une page par compte : mes expéditions, la vague atteinte, le rôle le plus joué, des titres gagnés
-(« Gardien de la porte », « Celui qui a relevé les remparts quarante fois »). De l'identité qui
-traverse les parties — cosmétique, jamais de la puissance (cf. P5).
+Une page par compte : mes expéditions, la vague atteinte, ce que j'y ai apporté, et des titres
+gagnés. De l'identité qui traverse les parties — **cosmétique, jamais de la puissance** (cf. P5).
+
+- **Table `chronicle`** (`store/chronicle.go`), une ligne par (compte, partie), upsertée en même
+  temps que la ligne de classement — donc aussi par le BATTEMENT, sinon une ville qui ne survit que
+  par le cron n'entrerait dans la chronique de personne. Elle **survit à la suppression de la
+  partie**, et c'est tout l'intérêt : c'est justement quand la ville n'est plus là qu'on veut se
+  souvenir d'elle. Les anonymes (pas de `Player.UserID`) et les joueurs-IA n'y figurent pas.
+- **Ce qu'on garde par expédition** : la ville, le mode, la vague atteinte, et les six colonnes du
+  registre de contribution (P3) — PA de chantier, objets rapportés, créatures abattues, PV rendus
+  aux remparts, objets fabriqués, requêtes honorées.
+- **Titres DÉRIVÉS à la lecture** (`api/chronicle.go`), rien de plus à stocker : douze paliers sur
+  six domaines, deux par domaine (un qu'on atteint en une bonne expédition, un qui demande d'y
+  revenir — au-delà on tomberait dans le grind, et le jeu se joue deux fois cinq minutes par jour).
+  Changer un seuil corrige rétroactivement tout le monde. `GET /api/auth/me/chronicle`, réservé au
+  titulaire : **il n'y a pas de chronique publique**, exposer celle des autres transformerait un
+  souvenir en palmarès.
+- ⚠ **Un titre n'accorde ni PA, ni défense, ni objet** — test dédié (`TestATitleCarriesNoPower`).
+  Un vétéran et un débutant qui rejoignent la même ville y arrivent strictement égaux ; c'est cette
+  égalité qui fait tenir une survie de groupe.
 
 ### P8 · Saisons
 

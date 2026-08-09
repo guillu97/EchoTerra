@@ -272,7 +272,11 @@ par la rareté, et on explore quand aucune tuile connue ne fournit un matériau)
 annexes) ; **CRAFT** (`botCraft` : les niveaux 2-3 du design réclament TOUS un matériau crafté —
 Planche/Corde/Brique/Acier — donc une ville qui ne va jamais à l'atelier reste bloquée à sa défense de
 départ ; recycle aussi les Débris en Bois/Pierre dès que la Recyclerie est debout, la réponse du design
-à une carte qui se vide). ⚠ **trois RÔLES par équipe**, par rang (`heroRole`) : bâtisseur (reste en ville), **défenseur** (dégage l'anneau d'assaut — c'est de la défense depuis que `hordePower` en dépend — avec une LAISSE `botDefenderLeash` 10, sans quoi les défenseurs d'une carte 120² partent au bout du monde) et récolteur. Le rang, PAS un hash d'id : « environ un sur trois » ne garantit rien pour UNE équipe, et un bot dont
+à une carte qui se vide) ; **débloquer la FORGE** (`botCraftUnlockNeeded` : les
+bots n'amélioraient que muraille/portail/tour, or le niveau 3 du portail réclame de l'ACIER, l'acier
+un Atelier niveau 2, et l'Atelier n'était sur la liste de personne — mesuré, portail plafonné au
+niveau 2 sur CHAQUE partie simulée ; un bâtiment qui garde un matériau de défense EST un bâtiment de
+défense, à un cran de distance). ⚠ **trois RÔLES par équipe**, par rang (`heroRole`) : bâtisseur (reste en ville), **défenseur** (dégage l'anneau d'assaut — c'est de la défense depuis que `hordePower` en dépend — avec une LAISSE `botDefenderLeash` 10, sans quoi les défenseurs d'une carte 120² partent au bout du monde) et récolteur. Le rang, PAS un hash d'id : « environ un sur trois » ne garantit rien pour UNE équipe, et un bot dont
 les trois héros tombaient récolteurs ne construisait jamais rien. **Combat** : `botShouldEngage` juge sur
 la PUISSANCE et non l'effectif (un combat n'oppose jamais plus de 4 unités quelle que soit la taille du
 pack, et la victoire supprime le pack ENTIER — exiger un héros par unité revenait à ne jamais combattre) ;
@@ -316,6 +320,22 @@ aussi les combats auto-résolus des bots). Front : bouton « 🏆 Classement » 
 4 onglets **Toutes · Solo · Publiques · Privées**, chacun refaisant la requête avec son mode ; le
 badge de mode par ligne n'apparaît que dans « Toutes ». Tests : `achievements_test.go`,
 `store_test.go` (`TestLeaderboardSavesAndRanks`, `TestLeaderboardFiltersByMode`).
+
+**Chronique de compte & titres** (`store/chronicle.go`, `api/chronicle.go`,
+`components/ChronicleCard.tsx`, 2026-08-09) — ce qu'un compte garde des villes qu'il a vues tomber
+(P7 de `RETENTION-PLAN.md`). Table `chronicle`, **une ligne par (compte, partie)**, upsertée avec la
+ligne de classement — donc aussi par `SaveIfUnchanged`, sinon une ville qui ne survit que par le
+BATTEMENT n'entrerait dans la chronique de personne — et qui **survit à la suppression de la
+partie** (c'est quand la ville n'est plus là qu'on veut s'en souvenir). Anonymes (`Player.UserID`
+vide) et joueurs-IA exclus. On y garde la ville, le mode, la vague atteinte et les six colonnes du
+registre de contribution. **Titres DÉRIVÉS à la lecture** (`titleDefs`, 12 paliers sur 6 domaines,
+deux par domaine) : rien de plus à stocker, et changer un seuil corrige rétroactivement tout le
+monde. `GET /api/auth/me/chronicle` (Bearer) → `{runs, totals, titles}`, **réservé au titulaire** :
+pas de chronique publique — exposer celle des autres transformerait un souvenir en palmarès.
+⚠ **COSMÉTIQUE, JAMAIS DE LA PUISSANCE** (même règle que les mémoriaux) : aucun titre n'accorde de
+PA, de défense ni d'objet — un vétéran et un débutant rejoignent une ville strictement égaux, et
+c'est cette égalité qui fait tenir une survie de groupe. Tests : `store/chronicle_test.go`
+(dont la survie à la purge), `api/chronicle_test.go` (dont `TestATitleCarriesNoPower`).
 
 **Comptes utilisateur** (`store/users.go`, `api/auth.go`, `api/google.go`, `AccountScreen.tsx`,
 `googleAuth.ts`) — email+mot de passe (bcrypt, gratuit) **et Google Sign-In**, sessions Bearer 30 j,
@@ -598,6 +618,9 @@ pour 1 · 4 · 12 · 20 joueurs.** Historique complet : `journal.md` (entrées 9
   amputé de son économie de campement. `GameState.clock()` rend l'instant REJOUÉ pendant un rattrapage
   (`simNow`, posé par `AdvanceTo`, non sérialisé) et l'heure réelle sinon. **Toute échéance qu'une
   action pose dans le futur doit partir de `g.clock()`**, jamais de `time.Now()`.
+- **Un test qui affirme quelque chose sur une issue tirée aux dés doit SEMER** (`seedForTest` dans
+  `bots_test.go`) : empiler les statistiques rend une victoire probable, pas certaine — mesuré, trois
+  héros à 20 de force perdaient contre deux slimes une fois sur vingt, et le test échouait au hasard.
 
 **Comportement des bots — deux règles trouvées à la mesure** (entrée 98) : un récolteur **se fixe un
 cap et s'y tient** (`Hero.GoalX/GoalY/HasGoal`, `botGoalWorthKeeping`) — rechoisir sa destination à
@@ -644,6 +667,8 @@ POST /api/auth/login                             {email,password} -> {user,token
 POST /api/auth/google                            {credential:id_token GIS} -> {user,token} (501 si non configuré)
 GET  /api/auth/me                                 (Bearer) -> {user}
 GET  /api/auth/me/games                           (Bearer) mes parties + myPlayerId (reprise multi-appareils)
+GET  /api/auth/me/chronicle                       (Bearer) ma chronique -> {runs,totals,titles}
+                                                 (cosmétique ; réservé au titulaire, pas de vue publique)
 GET  /api/games?status=open|lobby|active          `open` = ce qu'on peut REJOINDRE (salons + expéditions
                                                  publiques dans leur fenêtre d'accueil) ; résumés
                                                  (id,name,players,min/max,joinOpen,joinWavesLeft…)
