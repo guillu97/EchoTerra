@@ -271,7 +271,7 @@ interface StoreState {
   startSoloBots: () => Promise<void>; // menu: private game with me + 4 bots, launched
   townAction: (
     buildingId: string,
-    action: "build" | "restore" | "use" | "water" | "toggle" | "revive",
+    action: "build" | "restore" | "repair" | "use" | "water" | "toggle" | "revive",
     points?: number,
   ) => Promise<void>;
   setTownHero: (id: string) => void;

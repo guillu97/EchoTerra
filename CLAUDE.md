@@ -57,7 +57,7 @@ fixed seed (`--seed N`, e.g. 42) is used for cohesion across the library.
 |---|---|
 | Backend | **Go** (`chi` router), REST, state serialized as JSON in **SQLite** (`modernc.org/sqlite`, pure-Go, no CGo) |
 | Frontend | **React + Vite + TypeScript**, **Three.js** (moteur voxel : carte, combat, ville), **Zustand** store |
-| Map gen | Perlin (`aquilax/go-perlin`) → heightmap **lissée (maxStep 1)** → biomes par niveau ; **60×60 par défaut** (`worldgen.DefaultSize`) |
+| Map gen | Perlin (`aquilax/go-perlin`) → heightmap **lissée (maxStep 1)** → biomes par niveau ; **60×60 par défaut** (`worldgen.DefaultSize`) ; `ensureNearbyBiomes` garantit un **gisement** de forêt ET de montagne près de la ville (`minBiomeTiles` 12 dans le rayon 8 — l'ancienne garantie « au moins UNE tuile » laissait des cartes à 21 montagnes sur 3600, donc sans pierre exploitable) |
 
 ```bash
 # Backend (:8080). Env: ECHOTERRA_ADDR (:8080), ECHOTERRA_DB (echoterra.db),
@@ -71,6 +71,8 @@ npm --prefix frontend run dev
 ```
 
 Verify: `go -C backend test ./...` · `npx tsc -b` (in frontend) · `npm run build` (in frontend) ·
+`go -C backend run ./cmd/balance` (**simule des parties entières** et dit si le jeu est jouable — voir §5
+« Équilibrage ») ·
 `npm run test:perf` (in frontend — budgets de chargement de l'onglet Map, voir §7; réutilise les dev
 servers s'ils tournent, sinon les démarre; Chromium requis: `PERF_BROWSER` ou Chrome installé).
 
@@ -131,6 +133,9 @@ backend/
     monsters.go                 NewMonster, MonsterSpecies
     townnames.go                NewTownName: noms de ville générés (Town.Name, posé au worldgen)
     *_test.go                   worldgen, combat, tetanise, build (TestBuildConsumesBankMaterials), evolve
+  internal/balance/balance.go   SIMULATION DE PARTIE headless (Run/Report/Table) — l'instrument
+                                d'équilibrage ; balance_test.go = garde-fou SurvivalFloor
+  cmd/balance/main.go           CLI d'exploration : tables vague par vague, balayage 1→6 joueurs
   internal/store/store.go       SQLite OU Postgres (DSN postgres://): one row per game, state as JSON blob
                                 + table leaderboard (ScoreEntry, saveScore/Leaderboard — voir §5)
   internal/store/users.go       comptes (email unique, bcrypt ou Google) + sessions (token TTL 30j)
@@ -240,7 +245,20 @@ leur case si l'équipe 100% bot fait le poids (`botShouldEngage`, IA héros = `h
 l'IA monstre, bataille entière résolue sous le verrou du tick), sinon boule de feu ; retraite/cachette
 avant la vague, eau/dépôt/chantier/réparation en ville, fouille et exploration sinon, évolution de
 classe auto aux paliers jour 2/4 selon les stats (`botEvolve`) — via les actions publiques validées ;
-pas encore de craft [aucune mécanique de consommation d'objets]). Tout est persisté en SQLite (le salon survit à un redémarrage ; les
+pas encore de craft [aucune mécanique de consommation d'objets]). **Refonte 2026-08-09, guidée par la
+simulation** (§ Équilibrage) : **rôles** (`heroIsBuilder`, 1 héros sur 3 reste en ville — sans ça les
+réparations, toujours disponibles après une vague, absorbaient l'action de TOUT le monde et personne
+n'atteignait le code qui rouvre la porte) ; **couvre-feu** en deux temps (`curfewPhase` : on rentre à
+la moitié de l'intervalle, on VERROUILLE au dernier sixième) et **politique de porte** collective
+(`botGateWork` : ouverte le jour, fermée au crépuscule — l'attendre pour tout le monde revient à ne
+jamais fermer) ; **réserve de dissimulation** (le dernier PA d'un héros dehors ne sert QU'à se cacher :
+sans elle tous les récolteurs mouraient avant la vague 9) ; **campement** (on ne rentre que pour un
+sac plein [`heroLoad`, en OBJETS et non en piles] ou une blessure — la fouille auto récolte toute
+seule) ; **Escape quand Tétanisé** (seule issue : un tétanisé ne peut ni bouger ni fouiller ni se
+cacher) ; **liste de courses** (`botShoppingList`/`botCriticalList` : on récolte ce qui MANQUE, pondéré
+par la rareté, et on explore quand aucune tuile connue ne fournit un matériau) ; **priorité défense**
+(`reservedForDefense` : la pierre des murs n'est pas dépensée en rapiéçage de PV ni en chantiers
+annexes). Tout est persisté en SQLite (le salon survit à un redémarrage ; les
 salons ouverts se listent via `GET /api/games?status=lobby`). ⚠ **toute recherche de salon passe par
 `store.ListByStatus(StatusLobby, n)`, JAMAIS par `List(n)` + filtre en Go** : un salon est écrit une
 fois puis plus jamais, alors que chaque partie active est réécrite à chaque vague ET par le battement —
@@ -362,7 +380,7 @@ legacy = pas de limite. Front : `useTurnRemaining` → badge « ⏱ Ns » dans `
 
 **Waves / horde (Hordes-like)** — `nextWaveAt` is **server-driven**; the client only shows the countdown
 (`useWaveRemaining`). Resolved lazily on access (`tick`) AND by a 15s scheduler goroutine.
-`ProcessWave`: `hordePower = 12 + 6*waveNumber`; **defense** = sum of wall/gate/tower contributions scaled by
+`ProcessWave`: **`hordePower = (8 + 3*waveNumber) * hordeScale()`** (2026-08-09 — l'ancienne `12 + 6*vague` dépassait dès la vague 6 le total qu'une ville PARFAITE peut opposer [20+16+12 = 48], donc AUCUNE partie n'était gagnable ; `hordeScale = (6+équipes)/10` pondère DOUCEMENT par la taille de l'expédition, car des joueurs en plus n'apportent pas de défense en plus — une pondération plus raide faisait tomber les grandes tables AVANT les solos) ; les packs arrivés au pied des murs s'y **brisent** (`spendAssaultingPacks`, `WaveReport.MonstersSpent`) — sans cette usure la horde silte le pourtour de la ville (mesuré : 130 packs / 660 créatures à la vague 12, ville encerclée, héros incapables de rentrer) ; **defense** = sum of wall/gate/tower contributions scaled by
 durability (**an open Gate = 0**, a construction site = 0); `overflow = horde - defense` → town HP loss +
 random building durability damage; defensive buildings also wear. Heroes **outside** town are hit individually
 (`Blessé`); **hidden** heroes skipped; **in-town** heroes safe. PA regen each wave; the **Well refills +10**;
@@ -417,6 +435,8 @@ ajouté après coup n'atteindrait aucune partie en cours.
   est en Banque* (sinon l'action échoue en silence), déposent les plans qu'ils trouvent, et rejoignent les
   améliorations ouvertes par les humains. Tests in `build_test.go`.
 - `restore` → +5 durability per PA (built only).
+- `repair` (Wall) → **relève les PV de la VILLE** : 1 PA + 1 Pierre → +`TownRepairHP` (5) PV, borné
+  aux PV manquants. Voir §5 « Réparer la VILLE » — la seule source de PV de ville du jeu.
 - `revive` (Townhall) → **ressuscite le premier héros mort** : PV = max/2, replacé en ville, états purgés.
   Quota quotidien = niveau du Townhall (1/jour niv.1, 2/jour niv.2) ; **niv.3 = illimité ET gratuit** (sinon
   2 PA). Suivi `Town.ReviveDay/RevivesToday`. Bouton « 🛏️ Ressusciter <héros> » dans le modal Home.
@@ -471,6 +491,26 @@ bouton ✉️ de la TopBar (pastille `chatCount − chatSeen`, lu localStorage p
 `store.chatOpen`, bulle du DERNIER message sur l'écran Ville, panneau verrouillé explicatif hors de
 portée. Tests `chat_test.go`, `moderation_test.go`.
 
+**Équilibrage & simulation de partie** (`internal/balance`, `cmd/balance`, 2026-08-09) — une partie
+ENTIÈRE jouée en tête, sans mock : vrai worldgen, vrais joueurs-IA, vraie horloge (`game.AdvanceTo`,
+le chemin du battement en production) — donc un verdict de la simulation est un verdict sur le JEU.
+`balance.Run(Config{Seed,Players,Waves})` → `Report{Snapshots[]}` (par vague : horde/défense/dégâts/
+PV, héros vivants·en ville·cachés·tétanisés, bâtiments/niveaux/usure, banque + bois + pierre, sacs,
+packs/unités, ressources restantes). CLI : `go -C backend run ./cmd/balance [-seeds N] [-players N]
+[-waves N] [-detail] [-sweep] [-json]`. **`SurvivalFloor = 10`** (`balance_test.go`) est le contrat :
+une ville laissée aux seuls bots doit tenir 10 vagues sur toute graine et à 1·2·4·6 joueurs ; un
+`TestTownActuallyProgresses` exige en plus qu'elle CONSTRUISE, récolte, tue et évolue (survivre sans
+rien faire n'est pas un jeu). Écrire cet instrument a révélé que **toutes les graines mouraient à la
+vague 5** — invisible pour la suite de tests, qui n'avait jamais joué une partie. Historique complet
+des causes et des correctifs : `journal.md` (entrée 94).
+
+**Réparer la VILLE** (`TownAction("wall","repair")`, `TownRepairHP` 5 PV par PA, `TownRepairMaterial`
+« Pierre », 1 par PA ; bouton « 🧱 Relever les remparts » du modal Mur) — **rien ne rendait de PV à
+`Town.HP`** : les bâtiments se restauraient, la ville non, donc toute partie était un compte à rebours
+indépendant des joueurs. C'est cette action qui fait de l'ÉPUISEMENT DE LA CARTE, et non de
+l'arithmétique de la horde, la vraie limite d'une longue partie. Bornée aux PV manquants (ne gaspille
+ni PA ni pierre) et refusée sur une ville intacte. Tests `townrepair_test.go`.
+
 **Crafting** (`craft.go`, `CraftTab.tsx`) — **town mode** (≥1 hero in town): full recipes, ingredients from the
 Bank, paid by the chosen *town worker*, output to the Bank. **Field mode** (no hero in town): only `field`
 recipes (kitchen/campfire), ingredients from the **selected hero's bag**, paid by that hero, output to the bag.
@@ -515,7 +555,8 @@ POST /api/games/{id}/bots                        {playerId} -> {game,player} (h�
 GET  /api/games/{id}                              (runs wave catch-up)
 GET  /api/games/{id}/world
 POST /api/games/{id}/advance                      force a wave (dev)
-POST /api/games/{id}/town/action                  {buildingId, action: build|restore|use|water|toggle|revive, points?, heroId?}
+POST /api/games/{id}/town/action                  {buildingId, action: build|restore|repair|use|water|toggle|revive, points?, heroId?}
+                                                  (repair = mur : PA + Pierre -> PV de la ville)
 POST /api/games/{id}/town/deposit                 deposit in-town heroes' loot into the Bank
 POST /api/games/{id}/town/craft                   {recipeId, heroId}
 GET  /api/games/{id}/town/chat?playerId=…         messagerie de la ville (gatée : héros en ville OU Poste
@@ -662,7 +703,9 @@ bâtiments s'affichent via `buildingName(id)` (`data/buildings.ts`), pas via `b.
   vertical 1/10) plutôt qu'en cubes d'une tuile ; props, personnages et monstres en modèles voxel
   animés (§7a-bis). **Fog of war — appliqué dans le payload HTTP** : `Tile.Discovered` est
   server-authoritative & partagé (`fog.go`: `RevealVision` dans `Recompute`, anneau Chebyshev autour
-  de la ville et de chaque héros vivant). `GameState.ClientView()` est appliqué à TOUTE réponse par
+  de la ville [rayon 3] et de chaque héros vivant [**rayon 1**, Éclaireur 2 — le rayon 0 « au contact »
+  d'origine rendait la prospection impossible : mesuré, 2 tuiles de montagne découvertes sur 31 en douze
+  vagues, donc zéro pierre et défaite arithmétique]). `GameState.ClientView()` est appliqué à TOUTE réponse par
   l'interception centrale `clientView` dans `api.writeJSON` : les tuiles non découvertes partent
   **vierges**, les monstres sur tuiles cachées sont **omis**, et la **seed est masquée** (seed +
   générateur = toute la carte). Tests : `fog_test.go` (`TestClientViewRedactsUndiscovered`).

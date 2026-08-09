@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useStore } from "../store";
 import { Overlay } from "../ui/Overlay";
-import { TOWN_BUILDINGS, type BuildingLayout } from "../data/buildings";
+import { TOWN_BUILDINGS, TOWN_REPAIR_HP, type BuildingLayout } from "../data/buildings";
 import { VoxelTownView } from "../voxel/VoxelTownView";
 import type { TownBuilding } from "../api/types";
 import { HeroChips } from "../components/HeroChips";
@@ -38,6 +38,10 @@ function BuildingMenu({ layout, b, onClose }: { layout: BuildingLayout; b: TownB
   const noPa = pa < 1 || busy;
   const durFull = b.durability >= b.maxDurability;
   const isDefensive = b.id === "wall" || b.id === "gate" || b.id === "tower";
+  // Remparts : PV de la VILLE (distincts de la durabilité du bâtiment), et la pierre
+  // qui les paie (game.TownRepairMaterial côté serveur).
+  const townFull = !!game && game.town.hp >= game.town.maxHp;
+  const townStone = (game?.town.storage.find((it) => it.name === "Pierre")?.qty ?? 0) > 0;
 
   // Well: the daily ration is per-hero (the selected town worker). Figure out whether
   // that worker has already drunk today so we can label/disable the button.
@@ -122,6 +126,26 @@ function BuildingMenu({ layout, b, onClose }: { layout: BuildingLayout; b: TownB
             <button className="primary" disabled={noPa} onClick={() => townAction("gate", "toggle")}>
               <span>🚪 {b.open ? "Fermer la porte" : "Ouvrir la porte"}</span>
               <span className="c">-1</span>
+            </button>
+          )}
+          {/* Relever les remparts : la SEULE façon de rendre des PV à la ville. Sans
+              elle, Town.HP ne faisait que descendre et toute partie était un compte à
+              rebours — c'est ce qui rend l'épuisement de la carte, et non l'arithmétique
+              de la horde, la vraie limite d'une longue partie. Payée en PA ET en pierre. */}
+          {b.id === "wall" && (
+            <button
+              className="primary"
+              disabled={noPa || townFull || !townStone}
+              onClick={() => townAction("wall", "repair", 1)}
+            >
+              <span>
+                🧱 {townFull
+                  ? "La ville est intacte"
+                  : townStone
+                  ? `Relever les remparts (+${TOWN_REPAIR_HP} PV)`
+                  : "Il faut de la Pierre à la Banque"}
+              </span>
+              <span className="c">-1 PA · -1 Pierre</span>
             </button>
           )}
           {flavor && (

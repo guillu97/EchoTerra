@@ -78,7 +78,7 @@ func TestBotSearchesInTheField(t *testing.T) {
 	tile := g.TileAt(g.Town.X+2, g.Town.Y)
 	tile.Resources = 9
 	tile.MonsterID = ""
-	if !g.BotAct() {
+	if !g.BotAct(time.Now()) {
 		t.Fatal("bot should act")
 	}
 	if tile.Resources != 6 { // the whole team of 3 searched once each
@@ -94,7 +94,7 @@ func TestBotDepositsAndDrawsWaterInTown(t *testing.T) {
 	parkTeam(g, bot, g.Town.X, g.Town.Y, 2) // low PA so nobody heads back out
 	h := g.HeroByID(bot.HeroIDs[0])
 	h.AddLoot(Item{Type: "objet", Name: "Bois", Qty: 2})
-	if !g.BotAct() {
+	if !g.BotAct(time.Now()) {
 		t.Fatal("bot should act")
 	}
 	if len(h.Inventory) != 0 || g.storageQty("Bois") != 2 {
@@ -103,7 +103,7 @@ func TestBotDepositsAndDrawsWaterInTown(t *testing.T) {
 
 	// Thirsty in town: next action is the daily ration.
 	h.AddState(StateSoif)
-	if !g.BotAct() {
+	if !g.BotAct(time.Now()) {
 		t.Fatal("bot should act on thirst")
 	}
 	if h.HasState(StateSoif) {
@@ -111,30 +111,68 @@ func TestBotDepositsAndDrawsWaterInTown(t *testing.T) {
 	}
 }
 
-func TestBotHeadsHomeWhenPARunsOut(t *testing.T) {
+// Un sac PLEIN ramène le héros à la ville — c'est la seule raison de rentrer avec la
+// fouille automatique : le butin ne vaut rien tant qu'il n'est pas en Banque. Manquer
+// de PA, lui, n'est PAS une raison (le héros posté continue de récolter tout seul).
+func TestBotHaulsFullBagHome(t *testing.T) {
 	g, bot := botGame(t)
-	parkTeam(g, bot, g.Town.X+3, g.Town.Y, 3) // 3 steps from town, exactly the walk home
+	parkTeam(g, bot, g.Town.X+3, g.Town.Y, 3)
 	h := g.HeroByID(bot.HeroIDs[0])
-	g.TileAt(h.X, h.Y).Resources = 5 // tempting, but time's up
+	h.Inventory = []Item{{Type: "objet", Name: "Bois", Qty: botHaulSize}}
 	distBefore := absI(g.Town.X-h.X) + absI(g.Town.Y-h.Y)
-	if !g.BotAct() {
+	if !g.BotAct(time.Now()) {
 		t.Fatal("bot should act")
 	}
-	distAfter := absI(g.Town.X-h.X) + absI(g.Town.Y-h.Y)
-	if distAfter != distBefore-1 {
-		t.Fatalf("bot should walk home when PA == distance, dist %d->%d", distBefore, distAfter)
+	if distAfter := absI(g.Town.X-h.X) + absI(g.Town.Y-h.Y); distAfter != distBefore-1 {
+		t.Fatalf("a loaded bot must walk its haul home, dist %d->%d", distBefore, distAfter)
 	}
 }
 
-func TestBotHidesAtLastPA(t *testing.T) {
+// Le DERNIER PA d'un héros dehors est son PA de dissimulation : il ne sert à rien
+// d'autre. Sans cette réserve les récolteurs mouraient tous avant la vague 9 (voir
+// bots.go) — mais il n'est dépensé qu'au couvre-feu, pour récolter jusqu'au bout.
+func TestBotKeepsLastPAForHiding(t *testing.T) {
 	g, bot := botGame(t)
 	parkTeam(g, bot, g.Town.X+4, g.Town.Y, 1)
 	h := g.HeroByID(bot.HeroIDs[0])
-	if !g.BotAct() {
-		t.Fatal("bot should act")
+	g.TileAt(h.X, h.Y).Resources = 5 // tempting: without the reserve it would search
+
+	// Loin de la vague : le point est GARDÉ, pas brûlé.
+	g.NextWaveAt = time.Now().Add(WaveInterval)
+	g.BotAct(time.Now())
+	if h.PA != 1 || h.HasState(StateCache) {
+		t.Fatalf("hors couvre-feu le dernier PA doit être gardé intact, PA=%d caché=%v", h.PA, h.HasState(StateCache))
+	}
+	// La horde arrive : c'est le moment de le dépenser.
+	g.NextWaveAt = time.Now().Add(WaveInterval / 12)
+	if !g.BotAct(time.Now()) {
+		t.Fatal("bot should act at curfew")
 	}
 	if !h.HasState(StateCache) {
-		t.Fatal("with 1 PA far from town, the bot should hide before the wave")
+		t.Fatal("au couvre-feu, le dernier PA paie la dissimulation")
+	}
+}
+
+// Tétanisé, un héros ne peut ni bouger, ni fouiller, ni se cacher : rester sur place
+// c'est mourir sous la vague suivante. Il doit tenter de s'échapper.
+func TestBotEscapesWhenPinned(t *testing.T) {
+	g, bot := botGame(t)
+	parkTeam(g, bot, g.Town.X+3, g.Town.Y, 6)
+	h := g.HeroByID(bot.HeroIDs[0])
+	// Un pack assez gros pour tétaniser un héros seul, mais que sa compétence ne
+	// dissipera pas d'un souffle.
+	m := NewMonster("Slime Vorace", h.X, h.Y)
+	m.Count = 40
+	g.Monsters[m.ID] = m
+	g.TileAt(h.X, h.Y).MonsterID = m.ID
+	g.Recompute()
+	if !h.HasState(StateTetanise) {
+		t.Fatal("staging: the hero should be pinned by the pack")
+	}
+	before := h.PA
+	g.BotAct(time.Now())
+	if h.PA == before {
+		t.Fatal("a pinned bot must try something (escape), not stand still and die")
 	}
 }
 
@@ -145,7 +183,7 @@ func TestBotFireballsAPackTooBigToEngage(t *testing.T) {
 	m.Count = 9 // 4 combat units vs 3 heroes: no engage — thin it with Fire ball
 	g.Monsters[m.ID] = m
 	g.TileAt(3, 3).MonsterID = m.ID
-	if !g.BotAct() {
+	if !g.BotAct(time.Now()) {
 		t.Fatal("bot should act")
 	}
 	if len(g.Combats) != 0 {
@@ -163,7 +201,7 @@ func TestHumansAreNeverBotDriven(t *testing.T) {
 	g.TileAt(3, 3).Resources = 3
 	h := g.HeroByID(human.HeroIDs[0])
 	pa := h.PA
-	g.BotAct()
+	g.BotAct(time.Now())
 	if h.PA != pa {
 		t.Fatal("BotAct must not spend a human hero's PA")
 	}
@@ -182,7 +220,7 @@ func TestBotEngagesAndAutoResolvesCombat(t *testing.T) {
 	g.Monsters[m.ID] = m
 	g.TileAt(3, 3).MonsterID = m.ID
 
-	if !g.BotAct() {
+	if !g.BotAct(time.Now()) {
 		t.Fatal("bot should act")
 	}
 	if g.ActiveCombat != "" {
@@ -211,7 +249,7 @@ func TestBotDoesNotEngageOutnumberedNorWithHumans(t *testing.T) {
 	m.Count = 9 // 4 combat units vs 3 heroes -> too risky, fireball instead
 	g.Monsters[m.ID] = m
 	g.TileAt(3, 3).MonsterID = m.ID
-	g.BotAct()
+	g.BotAct(time.Now())
 	if len(g.Combats) != 0 {
 		t.Fatal("an outnumbered bot party must not open a combat")
 	}
@@ -225,7 +263,7 @@ func TestBotDoesNotEngageOutnumberedNorWithHumans(t *testing.T) {
 	m2.Count = 1
 	g2.Monsters[m2.ID] = m2
 	g2.TileAt(3, 3).MonsterID = m2.ID
-	g2.BotAct()
+	g2.BotAct(time.Now())
 	if len(g2.Combats) != 0 {
 		t.Fatal("bots must never drag a human hero into an auto-resolved combat")
 	}
@@ -235,7 +273,7 @@ func TestBotEvolvesAtDayGates(t *testing.T) {
 	g, bot := botGame(t)
 	parkTeam(g, bot, g.Town.X, g.Town.Y, 2)
 	g.Day = EvolveDayIntermediate
-	if !g.BotAct() {
+	if !g.BotAct(time.Now()) {
 		t.Fatal("bots should evolve when the gate opens")
 	}
 	for _, id := range bot.HeroIDs {
@@ -244,7 +282,7 @@ func TestBotEvolvesAtDayGates(t *testing.T) {
 		}
 	}
 	g.Day = EvolveDayAdvanced
-	if !g.BotAct() {
+	if !g.BotAct(time.Now()) {
 		t.Fatal("bots should evolve to advanced when the gate opens")
 	}
 	for _, id := range bot.HeroIDs {
@@ -257,6 +295,12 @@ func TestBotEvolvesAtDayGates(t *testing.T) {
 // Bots spread out: a tile a teammate already works on is never picked as a target.
 func TestBotAvoidsTilesOccupiedByTeammates(t *testing.T) {
 	g, bot := botGame(t)
+	// The town wants for nothing, so the choice is purely about spreading out — with a
+	// shopping list the bots would (rightly) rank a barren quarry above a rich meadow.
+	g.Town.HP = g.Town.MaxHP
+	for _, name := range []string{"Bois", "Pierre", "Minerai de fer", "Fibre végétale"} {
+		g.addStorage(Item{Type: "objet", Name: name, Qty: 999})
+	}
 	// Every tile barren except two: R1 (occupied by a teammate) and R2 (free).
 	for i := range g.Tiles {
 		g.Tiles[i].Resources = 0
@@ -308,7 +352,7 @@ func TestBotExploresFrontierWhenNothingToGather(t *testing.T) {
 	if _, _, ok := g.pickFrontierTile(h); !ok {
 		t.Fatal("staging: the fog frontier should exist around the revealed start")
 	}
-	if !g.BotAct() {
+	if !g.BotAct(time.Now()) {
 		t.Fatal("bot should act")
 	}
 	moved := false

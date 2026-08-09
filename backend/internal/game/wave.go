@@ -33,6 +33,7 @@ type WaveReport struct {
 	BuildingsHit    []WaveHit `json:"buildingsHit"`
 	HeroesHit       []WaveHit `json:"heroesHit"`
 	MonstersSpawned int       `json:"monstersSpawned"`
+	MonstersSpent   int       `json:"monstersSpent"` // creatures broken on the walls during the assault
 	At              time.Time `json:"at"`
 	GameOver        bool      `json:"gameOver"`
 }
@@ -161,8 +162,50 @@ func (g *GameState) recomputeTetanise() {
 	}
 }
 
-func hordePower(waveNumber int) int {
-	return 12 + waveNumber*6 + rand.Intn(6)
+// La PUISSANCE DE LA HORDE, et pourquoi cette courbe-là.
+//
+// L'ancienne (12 + 6×vague) dépassait à la vague 6 le total qu'une ville PARFAITE
+// peut opposer (muraille 20 + portail 16 + tour 12 = 48) : aucune partie, si bien
+// jouée soit-elle, ne pouvait passer la vague 8 — la simulation le montrait,
+// systématiquement morte à la vague 5. Elle ignorait aussi le nombre de joueurs : une
+// expédition de 18 héros et un solo de 3 recevaient exactement la même horde.
+//
+// La courbe actuelle vise l'arc décrit par le design : les dix premières vagues
+// s'absorbent avec les murs, ensuite le débordement se paie en PIERRE (réparation des
+// remparts, cf. TownRepairHP) — donc la vraie limite devient l'épuisement de la carte
+// et non l'arithmétique de la horde. La croissance reste LINÉAIRE et sans plafond :
+// la ville finit toujours par tomber, plus tard et pour une raison jouable.
+const (
+	hordeBase   = 8 // puissance de départ
+	hordeGrowth = 3 // par vague, sans plafond
+)
+
+// hordeScale pondère la horde par la taille de l'expédition (équipes de 3 héros) :
+// quatre joueurs = valeur nominale, un solo nettement moins, une pleine table un peu
+// plus. On compte les héros TOTAUX (morts inclus) — sinon perdre des héros allégerait
+// la horde.
+//
+// La pondération reste DOUCE, et c'est mesuré : des joueurs en plus n'apportent PAS
+// de défense en plus. Le plafond (muraille + portail + tour) est le même à trois héros
+// qu'à dix-huit ; ce que l'effectif apporte, c'est de la main-d'œuvre et de la récolte,
+// donc la vitesse à laquelle on atteint ce plafond — et, revers, plus de monstres semés
+// au lancement (SeedStartingMonsters) et plus de héros exposés dehors. Une première
+// version en (2+équipes)/6 (soit ×1,33 à six joueurs) inversait carrément la courbe :
+// les grandes expéditions tombaient AVANT les petites, une graine dès la vague 9.
+func (g *GameState) hordeScale() float64 {
+	teams := len(g.Heroes) / HeroesPerPlayer
+	if teams < 1 {
+		teams = 1
+	}
+	return float64(6+teams) / 10.0
+}
+
+func hordePower(waveNumber int, scale float64) int {
+	p := int(float64(hordeBase+waveNumber*hordeGrowth)*scale) + rand.Intn(4)
+	if p < 1 {
+		p = 1
+	}
+	return p
 }
 
 // ProcessWave resolves a single horde assault on the town. It does NOT schedule the
@@ -186,7 +229,7 @@ func (g *GameState) processWave(now time.Time, safeTown bool) {
 		g.Day++
 	}
 
-	power := hordePower(g.WaveNumber)
+	power := hordePower(g.WaveNumber, g.hordeScale())
 	defense := g.TownDefense()
 
 	// Slices INITIALISÉES : nil se sérialise en `null`, pas en `[]`, et le client
@@ -241,6 +284,15 @@ func (g *GameState) processWave(now time.Time, safeTown bool) {
 			w.Capacity = w.MaxCapacity
 		}
 	}
+
+	// The packs that reached the walls THROW THEMSELVES AT THEM and are spent: that is
+	// what the assault this report describes actually is. Without it nothing ever
+	// removed a pack that finished its migration, so the ring around the town silted up
+	// wave after wave — measured: 130 packs and 660 creatures by wave 12, the town
+	// completely encircled, heroes unable to walk home with their load and the horde
+	// growing whether or not anyone fought it. The wave's damage is hordePower either
+	// way; this only stops the map from turning to concrete.
+	r.MonstersSpent = g.spendAssaultingPacks()
 
 	// Surviving packs close in on the town by one step before the fresh horde spawns.
 	g.migrateMonstersTowardTown()
@@ -381,6 +433,38 @@ func (g *GameState) spawnWaveMonsters(waveNumber int) int {
 		}
 	}
 	return spawned
+}
+
+// spendAssaultingPacks removes the packs standing ON the town's doorstep (the eight
+// tiles around it): they are the ones that just charged the walls, and the assault
+// consumes them. Packs held in an active combat are left alone — they belong to that
+// fight. Returns how many creatures were spent.
+//
+// This is the horde's only natural attrition. It bounds the standing population near
+// the town (each wave clears at most the ring) without touching the growth of the
+// horde further out, so the pressure keeps rising while the approaches stay walkable.
+func (g *GameState) spendAssaultingPacks() int {
+	busy := map[[2]int]bool{}
+	for _, c := range g.Combats {
+		if c.Status == "active" {
+			busy[[2]int{c.TileX, c.TileY}] = true
+		}
+	}
+	spent := 0
+	for id, m := range g.Monsters {
+		if m == nil || busy[[2]int{m.X, m.Y}] {
+			continue
+		}
+		if absI(m.X-g.Town.X) > 1 || absI(m.Y-g.Town.Y) > 1 {
+			continue // not at the walls yet
+		}
+		if t := g.TileAt(m.X, m.Y); t != nil && t.MonsterID == id {
+			t.MonsterID = ""
+		}
+		spent += m.Count
+		delete(g.Monsters, id)
+	}
+	return spent
 }
 
 // migrateMonstersTowardTown fait AVANCER chaque pack survivant d'un pas vers la

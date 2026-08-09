@@ -2,6 +2,10 @@
 // capacity, build progress) come from the backend (game.town.buildings, matched by id).
 import type { AssetKey } from "../assets";
 
+// PV de ville rendus par point d'action à l'action « repair » des remparts. Miroir de
+// game.TownRepairHP (backend/internal/game/town.go) — garder les deux d'accord.
+export const TOWN_REPAIR_HP = 5;
+
 export interface BuildingLayout {
   id: string;
   name: string;

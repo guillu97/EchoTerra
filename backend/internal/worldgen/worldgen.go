@@ -157,20 +157,40 @@ func findTown(tiles []game.Tile, width, height int) (int, int) {
 // reachable within radius R of the town. When a biome is missing, it carves a small
 // 2×2 patch on the nearest land ring — biome + matching richness only, the height is
 // left untouched so the relief stays coherent.
+// Le VIVIER minimal de matériaux autour de la ville.
+//
+// Un seul carré de montagne à dix cases ne suffit pas : le bois et surtout la PIERRE
+// sont ce dont la ville est faite (murs, remparts, réparations), et les cases
+// s'épuisent. L'ancienne garantie ("au moins UNE tuile du biome dans le rayon 10")
+// était satisfaite par n'importe quel caillou perdu — mesuré sur une carte 60×60
+// lissée : 21 tuiles de montagne sur 3600, une seule à portée, épuisée en deux vagues,
+// et donc ZÉRO pierre en banque sur toute la partie. Sans pierre : pas d'amélioration
+// de muraille, pas de réparation de la ville, défaite arithmétique garantie.
+//
+// On garantit donc un GISEMENT : au moins minBiomeTiles tuiles de chaque biome-clé
+// dans le rayon nearBiomeR. La carte générée est laissée telle quelle quand elle en
+// fournit déjà assez — on ne creuse que le manque.
+const (
+	nearBiomeR     = 8  // rayon dans lequel la ville doit trouver de quoi bâtir
+	minBiomeTiles  = 12 // tuiles minimum par biome-clé dans ce rayon
+	blobHalfSpread = 2  // demi-largeur du gisement creusé
+)
+
 func ensureNearbyBiomes(gs *game.GameState) {
-	const R = 10
+	const R = nearBiomeR
 	w, h := gs.Width, gs.Height
 	tx, ty := gs.Town.X, gs.Town.Y
-	within := func(b game.Biome) bool {
+	count := func(b game.Biome) int {
+		n := 0
 		for dy := -R; dy <= R; dy++ {
 			for dx := -R; dx <= R; dx++ {
 				nx, ny := tx+dx, ty+dy
 				if nx >= 0 && ny >= 0 && nx < w && ny < h && gs.Tiles[ny*w+nx].Biome == b {
-					return true
+					n++
 				}
 			}
 		}
-		return false
+		return n
 	}
 	res := func(b game.Biome) int {
 		if td, ok := game.Terrains[b]; ok && td.ResourcesMax > 0 {
@@ -178,42 +198,49 @@ func ensureNearbyBiomes(gs *game.GameState) {
 		}
 		return 0
 	}
-	carve := func(b game.Biome) {
-		for r := 4; r <= R; r++ {
-			for dy := -r; dy <= r; dy++ {
-				for dx := -r; dx <= r; dx++ {
+	// carve grows a deposit of `b` around the first dry anchor found on a ring, until
+	// `missing` tiles have been converted. Water is never overwritten (it would break
+	// the coastline and the walkability the rest of the generator assumes), and neither
+	// is the town tile itself.
+	carve := func(b game.Biome, missing int) {
+		for r := 3; r <= R && missing > 0; r++ {
+			for dy := -r; dy <= r && missing > 0; dy++ {
+				for dx := -r; dx <= r && missing > 0; dx++ {
 					if absW(dx)+absW(dy) != r {
 						continue
 					}
-					nx, ny := tx+dx, ty+dy
-					if nx < 1 || ny < 1 || nx >= w-1 || ny >= h-1 {
+					ax, ay := tx+dx, ty+dy
+					if ax < 1 || ay < 1 || ax >= w-1 || ay >= h-1 || gs.Tiles[ay*w+ax].Biome == game.BiomeWater {
 						continue
 					}
-					if gs.Tiles[ny*w+nx].Biome == game.BiomeWater {
-						continue
-					}
-					for _, o := range [][2]int{{0, 0}, {1, 0}, {0, 1}, {1, 1}} {
-						px, py := nx+o[0], ny+o[1]
-						if px == tx && py == ty {
-							continue
+					for oy := -blobHalfSpread; oy <= blobHalfSpread && missing > 0; oy++ {
+						for ox := -blobHalfSpread; ox <= blobHalfSpread && missing > 0; ox++ {
+							px, py := ax+ox, ay+oy
+							if px < 1 || py < 1 || px >= w-1 || py >= h-1 {
+								continue
+							}
+							if px == tx && py == ty {
+								continue
+							}
+							t := &gs.Tiles[py*w+px]
+							if t.Biome == game.BiomeWater || t.Biome == b {
+								continue
+							}
+							t.Biome = b
+							t.Resources = res(b)
+							missing--
 						}
-						t := &gs.Tiles[py*w+px]
-						if t.Biome == game.BiomeWater {
-							continue
-						}
-						t.Biome = b
-						t.Resources = res(b)
 					}
-					return
 				}
 			}
 		}
 	}
-	if !within(game.BiomeForest) {
-		carve(game.BiomeForest)
+	// Mountains first: stone is the scarcer of the two and the one the walls eat.
+	if n := count(game.BiomeMountain) + count(game.BiomeSnow); n < minBiomeTiles {
+		carve(game.BiomeMountain, minBiomeTiles-n)
 	}
-	if !within(game.BiomeMountain) {
-		carve(game.BiomeMountain)
+	if n := count(game.BiomeForest); n < minBiomeTiles {
+		carve(game.BiomeForest, minBiomeTiles-n)
 	}
 }
 

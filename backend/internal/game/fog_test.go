@@ -76,11 +76,12 @@ func TestRevealAllShowsWholeMapWithoutMutating(t *testing.T) {
 	}
 }
 
-// Exploration au contact (2026-07-19) : un héros normal ne révèle que SA case ;
-// seul l'Éclaireur voit une case à l'avance.
+// Vision : un héros révèle sa case ET ses voisines (rayon 1) ; l'Éclaireur voit une
+// case plus loin (rayon 2). Le rayon 0 d'origine rendait la prospection impossible —
+// une expédition ne trouvait jamais le biome dont elle avait besoin (cf. fog.go).
 func TestContactExplorationVision(t *testing.T) {
-	g := &GameState{Width: 7, Height: 7, Monsters: map[string]*Monster{}}
-	g.Tiles = make([]Tile, 49)
+	g := &GameState{Width: 9, Height: 9, Monsters: map[string]*Monster{}}
+	g.Tiles = make([]Tile, 81)
 	for i := range g.Tiles {
 		g.Tiles[i] = Tile{Biome: 2}
 	}
@@ -91,16 +92,19 @@ func TestContactExplorationVision(t *testing.T) {
 	if !g.TileAt(5, 5).Discovered {
 		t.Fatal("la case du héros doit être révélée")
 	}
-	if g.TileAt(6, 5).Discovered || g.TileAt(5, 6).Discovered || g.TileAt(6, 6).Discovered {
-		t.Fatal("un héros normal ne doit PAS voir les cases voisines")
+	if !g.TileAt(6, 5).Discovered || !g.TileAt(5, 6).Discovered || !g.TileAt(6, 6).Discovered {
+		t.Fatal("un héros doit révéler ses voisines immédiates (rayon 1)")
+	}
+	if g.TileAt(7, 5).Discovered || g.TileAt(5, 7).Discovered {
+		t.Fatal("un héros normal ne voit PAS à deux cases — le brouillard reste serré")
 	}
 	h.ClassID = "eclaireur"
 	g.RevealVision()
-	if !g.TileAt(6, 5).Discovered || !g.TileAt(6, 6).Discovered {
-		t.Fatal("l'Éclaireur doit voir une case à l'avance (rayon 1)")
+	if !g.TileAt(7, 5).Discovered || !g.TileAt(7, 7).Discovered {
+		t.Fatal("l'Éclaireur doit voir une case PLUS LOIN que les autres (rayon 2)")
 	}
-	if g.TileAt(3, 5).Discovered {
-		t.Fatal("l'Éclaireur ne voit pas à 2 cases")
+	if g.TileAt(2, 5).Discovered {
+		t.Fatal("l'Éclaireur ne voit pas à 3 cases — sa vision reste un bonus, pas une carte")
 	}
 }
 

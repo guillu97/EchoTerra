@@ -82,6 +82,16 @@ var buildPA = map[string]int{
 // planPACost is the price of laying down the plan that opens a chantier.
 const planPACost = 1
 
+// Repairing the TOWN itself (action "repair" on the wall). Before this existed,
+// Town.HP only ever went down: buildings could be restored, the town could not, so
+// every game was a countdown whatever the players did. Now the town is rebuilt with
+// labour AND stone — which is what turns "the tiles run dry" into the real long-game
+// constraint instead of the horde's arithmetic.
+const (
+	TownRepairHP       = 5        // town HP restored per action point
+	TownRepairMaterial = "Pierre" // one unit consumed per action point
+)
+
 // buildingCost returns the FULL requirement of the current (or next) chantier:
 //   - site / under construction -> total labour + level-1 materials
 //   - built                     -> the NEXT level's requirement (per-level materials
@@ -485,6 +495,40 @@ func (g *GameState) TownAction(buildingID, action string, points int, heroID str
 		if lv := buildingLevelDef(b.ID, b.Level); lv != nil && lv.Capacity > 0 {
 			b.MaxCapacity = lv.Capacity
 		}
+		return nil
+
+	case "repair": // Wall: rebuild the TOWN's own hit points, paid in labour and stone.
+		if b.ID != "wall" {
+			return ActionError{"action réservée aux remparts"}
+		}
+		if !b.Built {
+			return ActionError{b.Name + " n'est pas encore construit"}
+		}
+		if g.Town.HP >= g.Town.MaxHP {
+			return ActionError{"la ville est intacte"}
+		}
+		// One point of labour + one stone per repair step. Materials are what makes this
+		// the long game's real constraint: the map runs dry before the horde does.
+		stock := g.storageQty(TownRepairMaterial)
+		if stock < 1 {
+			return ActionError{"il faut de la " + TownRepairMaterial + " à la Banque pour relever les remparts"}
+		}
+		if points > stock {
+			points = stock
+		}
+		if missing := g.Town.MaxHP - g.Town.HP; points*TownRepairHP > missing {
+			points = (missing + TownRepairHP - 1) / TownRepairHP
+		}
+		if points <= 0 || !g.spendFor(heroID, points) {
+			return ActionError{"PA insuffisants"}
+		}
+		g.removeStorage(TownRepairMaterial, points)
+		healed := points * TownRepairHP
+		if g.Town.HP+healed > g.Town.MaxHP {
+			healed = g.Town.MaxHP - g.Town.HP
+		}
+		g.Town.HP += healed
+		g.logTown(fmt.Sprintf("🧱 %s a relevé les remparts (+%d PV, %d %s)", worker, healed, points, TownRepairMaterial))
 		return nil
 
 	case "restore":

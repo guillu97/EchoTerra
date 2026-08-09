@@ -139,7 +139,7 @@ func (g *GameState) AdvanceTo(now time.Time, b SimBudget) SimResult {
 			break
 		}
 		g.LastBotAt = botAt
-		if g.BotAct() {
+		if g.BotAct(botAt) {
 			res.Changed = true
 		}
 		g.EnforceCombatTimers(botAt)

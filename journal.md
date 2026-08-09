@@ -6,6 +6,103 @@
 
 ---
 
+## 2026-08-09 (94) — Tester une partie automatiquement, et la rendre jouable
+
+Demande : « planifier puis implémenter un moyen de tester automatiquement une partie pour voir si le
+jeu est jouable et équilibrer + améliorer le comportement des bots. Il ne faut pas que le jeu soit
+perdu au bout de 10 vagues. »
+
+### D'abord l'instrument, ensuite les réglages
+
+`backend/internal/balance` joue une partie ENTIÈRE en tête, sans mock : vrai worldgen, vrais
+joueurs-IA, vraie horloge de simulation (`game.AdvanceTo` — le chemin exact du battement en
+production). Un verdict de la simulation est donc un verdict sur le jeu. Deux consommateurs :
+`go -C backend run ./cmd/balance` (tables vague par vague, balayage 1→6 joueurs, `-json`) et
+`balance_test.go`, le garde-fou de non-régression.
+
+Le premier verdict est tombé en une commande : **les cinq graines mouraient à la vague 5**, défense 9
+contre une horde de 45. Aucun test ne l'avait jamais vu, parce qu'aucun test n'avait jamais JOUÉ.
+
+### Ce que la mesure a trouvé (dans l'ordre où elle l'a trouvé)
+
+Chaque point ci-dessous a été diagnostiqué sur des chiffres, pas sur une intuition — et plusieurs
+étaient invisibles à la lecture du code.
+
+- **La porte ne se fermait jamais.** Seul « je veux sortir » y touchait. −12 à −16 de défense à
+  chaque vague. Elle a maintenant un RYTHME collectif (`botGateWork`) : ouverte le jour, verrouillée
+  au couvre-feu, un bâtisseur reste en ville pour la manœuvrer.
+- **Les réparations affamaient la récolte.** Il y a toujours un mur à rafistoler après une vague,
+  donc `botBuild` répondait « oui » à tout le monde, tous les tours : personne n'atteignait jamais le
+  code qui rouvre la porte. Ville close dès le jour 1, douze héros à trois cases de la ville à la
+  vague 8 avec une montagne découverte à quatre cases. D'où la RÉPARTITION DES RÔLES (un héros sur
+  trois est bâtisseur et ne sort pas ; les autres récoltent).
+- **Le sac se comptait en PILES, pas en objets** (`len(h.Inventory)`) : les récolteurs campaient
+  indéfiniment avec deux cents objets et une Banque vide.
+- **Le dernier PA d'un héros dehors est son PA de dissimulation.** Sans cette réserve, tous les
+  récolteurs étaient morts avant la vague 9 (3 + numéro de vague de dégâts par vague à découvert).
+- **Un héros Tétanisé attendait la mort** : il ne peut ni bouger, ni fouiller, ni se cacher — les
+  bots n'utilisaient jamais Escape, la seule porte que les règles laissent ouverte.
+- **La horde ne s'usait jamais.** 130 packs et 660 créatures à la vague 12, ville encerclée, héros
+  incapables de rentrer. Les packs arrivés au pied des murs s'y BRISENT désormais
+  (`spendAssaultingPacks`) — c'est ce que l'assaut raconte de toute façon.
+- **Zéro pierre en banque, sur toute la partie.** Trois causes empilées : la carte n'avait que 21
+  tuiles de montagne sur 3600 et la garantie « au moins UNE dans le rayon 10 » se contentait d'un
+  caillou perdu ; `heroSightRadius` valait 0, donc on ne trouve jamais un biome qu'on ne longe pas ;
+  et la montagne était le biome le plus PAUVRE alors qu'elle porte la matière dont la ville est
+  faite. Corrigés : gisement garanti (12 tuiles dans le rayon 8), vision 1 (Éclaireur 2), carrière
+  aussi riche que la prairie.
+- **La pierre récoltée était brûlée dans la seconde** en rafistolage de PV. Un niveau de muraille
+  vaut +5 de défense sur TOUTES les vagues suivantes ; cinq PV valent une vague. Les bots réservent
+  maintenant les matériaux de la défense (`reservedForDefense`) et ne rapiècent la ville qu'avec le
+  surplus — ou en urgence sous 50 % de PV.
+- **« On a besoin de bois ET de pierre » n'est pas un plan** quand la forêt est à côté et la
+  montagne cinq cases plus loin : à score de distance égal on récolte du bois pour toujours. Le
+  barème pèse désormais la RARETÉ (`botCriticalList`).
+
+### Deux mécaniques ajoutées, pas seulement des réglages
+
+- **Relever les remparts** (`TownAction("wall","repair")`, 1 PA + 1 Pierre → +5 PV, bouton dans le
+  modal du mur). Rien dans le jeu ne rendait de PV à la ville : `Town.HP` ne faisait que descendre,
+  donc toute partie était un compte à rebours quoi que fassent les joueurs. C'est cette action qui
+  fait de l'ÉPUISEMENT DE LA CARTE — et non de l'arithmétique de la horde — la vraie limite d'une
+  longue partie, comme le demandait le brief.
+- **Courbe de horde revue.** L'ancienne (`12 + 6×vague`) dépassait dès la vague 6 le total qu'une
+  ville PARFAITE peut opposer (20+16+12 = 48) : aucune partie n'était gagnable, jamais. Désormais
+  `8 + 3×vague`, pondérée DOUCEMENT par la taille de l'expédition (`hordeScale`). La pondération est
+  douce parce que c'est mesuré : des joueurs en plus n'apportent pas de défense en plus (le plafond
+  est le même à 3 héros qu'à 18) — une première version en ×1,33 à six joueurs inversait la courbe,
+  les grandes tables tombaient AVANT les solos.
+
+### Résultat
+
+| | avant | après |
+|---|---|---|
+| chute médiane (4 joueurs) | vague **5** | vague **15** |
+| pire graine, toutes tailles | vague 5 | vague **12** |
+| défense atteinte | 9 (mur seul, porte ouverte) | 20-26 |
+| pierre en banque | 0 | flux réel |
+
+`SurvivalFloor = 10` est encodé dans `balance_test.go` et couvre 1, 2, 4 et 6 joueurs ; un
+`TestTownActuallyProgresses` vérifie en plus que la ville CONSTRUIT, récolte, tue et évolue — parce
+qu'une ville peut survivre en ne faisant rien si la horde est assez faible, et ce n'est pas un jeu.
+
+### Fonctionnel (vérifié)
+
+`go -C backend test ./...` vert (5 tests existants mis à jour pour dire le NOUVEAU comportement
+voulu, pas pour repasser au vert), `npx tsc -b` vert, `go run ./cmd/balance -sweep` sur 1→6 joueurs.
+
+### À faire
+
+- **Les récolteurs meurent encore en fin de partie** (une graine perd 5 héros sur 7 avant la
+  vague 7) : la horde qui converge les tétanise loin de la ville. Piste : se regrouper pour combattre
+  (`botShouldEngage` exige des héros sur LA MÊME case, ce qui n'arrive jamais).
+- **La défense plafonne à ~24 alors que 48 est atteignable** : les niveaux 2-3 réclament des
+  matériaux CRAFTÉS (Planche, Corde, Brique, Acier) et les bots ne craftent pas. C'est aussi la
+  réponse du design à l'épuisement (Recyclerie : Débris → matériaux).
+- Faire tourner le balayage sur plus de graines et brancher `cmd/balance` en CI.
+
+---
+
 ## 2026-08-02 (93) — Le moment de la vague
 
 Retour : « ça va lagguer un peu côté client au moment de la vague, il faudrait faire quelque chose de
