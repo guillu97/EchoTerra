@@ -158,7 +158,7 @@ func (g *GameState) Craft(recipeID, heroID string) (*Item, error) {
 			lvl = 1
 		}
 		if b.Level < lvl {
-			return nil, ActionError{fmt.Sprintf("%s nécessite %s niveau %d", r.Name, b.Name, lvl)}
+			return nil, ActionError{fmt.Sprintf("%s nécessite %s niveau %d", r.Name, b.Label(), lvl)}
 		}
 	}
 

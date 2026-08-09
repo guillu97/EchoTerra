@@ -102,7 +102,8 @@ export function ChronicleCard() {
       )}
 
       <button className="pill ghost" onClick={() => setOpenRuns((v) => !v)} aria-expanded={openRuns}>
-        {openRuns ? "Masquer" : "Voir"} mes {runs.length} expédition{runs.length > 1 ? "s" : ""}
+        {openRuns ? "Masquer" : "Voir"}{" "}
+        {runs.length === 1 ? "mon expédition" : `mes ${runs.length} expéditions`}
       </button>
       {openRuns && (
         <div className="lobby-list">

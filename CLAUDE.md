@@ -739,7 +739,12 @@ passent **obligatoirement** par `ui/Overlay.tsx` (ne pas recopier le couple
 `.settings` + `stopPropagation`) ; les retours d'action passent par `store.notify()` → `ui/Toasts.tsx`.
 L'app est **en français** : les chaînes anglaises restantes sont des bugs — SAUF celles qui portent
 de la logique de jeu (`"Ration d'eau"`, `"Plan "`, `"Tétanisé"`), à ne jamais traduire. Les noms de
-bâtiments s'affichent via `buildingName(id)` (`data/buildings.ts`), pas via `b.name` du serveur.
+bâtiments s'affichent via `buildingName(id)` (`data/buildings.ts`), pas via `b.name` du serveur —
+⚠ et côté SERVEUR, toute phrase française composée en Go (journal de la ville, ordre du jour,
+messages d'erreur) doit passer par **`buildingLabel(id, fallback)` / `b.Label()`** (`town.go`) : une
+phrase fabriquée côté serveur ne peut pas être traduite côté client, et le joueur lisait « Wall
+niveau 2 : il manque 6 Pierre » ou « Gui a achevé la construction de Kitchen » (corrigé 2026-08-09,
+test `TestServerWrittenSentencesUseFrenchBuildingNames`).
 
 - **App shell**: **full-bleed à toutes les tailles** — `.device` est simplement le conteneur plein
   viewport (100dvh) ; le cadre téléphone/tablette centré sur desktop a été SUPPRIMÉ (2026-07-13). Le

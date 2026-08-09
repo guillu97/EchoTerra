@@ -243,9 +243,9 @@ func (g *GameState) BuildOrders() []TownOrder {
 			continue
 		}
 		if miss := g.missingFor(b.Cost.Materials); miss != "" {
-			add("chantier", "⏸", fmt.Sprintf("Chantier de %s en pause — il manque %s", b.Name, miss), false)
+			add("chantier", "⏸", fmt.Sprintf("Chantier de %s en pause — il manque %s", b.Label(), miss), false)
 		} else {
-			add("chantier", "🏗️", fmt.Sprintf("Chantier de %s : %d/%d PA investis", b.Name, b.PaInvested, b.Cost.PA), false)
+			add("chantier", "🏗️", fmt.Sprintf("Chantier de %s : %d/%d PA investis", b.Label(), b.PaInvested, b.Cost.PA), false)
 		}
 		break // un seul rappel de chantier : l'ordre du jour n'est pas un inventaire
 	}
@@ -257,7 +257,7 @@ func (g *GameState) BuildOrders() []TownOrder {
 			continue
 		}
 		if miss := g.missingFor(b.Cost.Materials); miss != "" {
-			add("material", "⛏️", fmt.Sprintf("%s niveau %d : il manque %s", b.Name, b.Level+1, miss), false)
+			add("material", "⛏️", fmt.Sprintf("%s niveau %d : il manque %s", b.Label(), b.Level+1, miss), false)
 			break
 		}
 	}
@@ -272,7 +272,7 @@ func (g *GameState) BuildOrders() []TownOrder {
 			continue
 		}
 		if g.storageQty(plan) > 0 {
-			add("plan", "📐", fmt.Sprintf("« %s » est en Banque — le chantier de %s peut s'ouvrir", plan, b.Name), false)
+			add("plan", "📐", fmt.Sprintf("« %s » est en Banque — le chantier de %s peut s'ouvrir", plan, b.Label()), false)
 			break
 		}
 	}
@@ -283,7 +283,7 @@ func (g *GameState) BuildOrders() []TownOrder {
 		b := g.buildingByID(id)
 		if b != nil && b.Built && b.MaxDurability > 0 && b.Durability*10 < b.MaxDurability*7 {
 			add("wear", "🔧", fmt.Sprintf("%s à %d%% — chaque PA de réparation rend de la défense",
-				b.Name, 100*b.Durability/b.MaxDurability), false)
+				b.Label(), 100*b.Durability/b.MaxDurability), false)
 			break
 		}
 	}

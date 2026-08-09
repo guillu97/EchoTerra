@@ -6,6 +6,56 @@
 
 ---
 
+## 2026-08-09 (101) — Le jeu tourné pour de vrai, et les noms anglais qu'on y a vus
+
+Premier lancement RÉEL de tout ce qui a été livré ces dernières entrées : serveur + Vite + Chromium
+headless, pas seulement des tests. Trois entrées de suite se terminaient par « rien de tout cela n'a
+été vu tourner » ; c'est corrigé.
+
+### Ce qui marchait
+
+Garnison, ordre du jour, prévision, chronique, titres, sélecteur de saison : tout répond et tout
+s'affiche, zéro erreur de page. Vérifié en direct : une ville neuve a 20 de défense (10 de murs + 10
+de garnison, plafonnée par les murs) ; fermer le portail la fait passer à **37** sous les yeux du
+joueur, ce qui est exactement l'effet recherché quand on a rendu ce terme actionnable.
+
+### Ce qui ne marchait pas : l'app parlait anglais
+
+`TownBuilding.Name` est anglais (« Wall », « Kitchen ») et le client le traduit à l'affichage via
+`buildingName(id)`. Mais le SERVEUR compose lui-même des phrases françaises — journal de la ville,
+ordre du jour, messages d'erreur — et y interpolait le nom brut. Le joueur lisait :
+
+- « ⛏️ **Wall** niveau 2 : il manque 6 Pierre » (ordre du jour) ;
+- « 🏗️ Gui a achevé la construction de **Kitchen** » (journal) ;
+- « **Wall** est déjà au niveau maximum » (erreur).
+
+Une phrase composée côté serveur ne peut pas être traduite côté client : il faut le nom là où la
+phrase se fabrique. `buildingLabel(id, fallback)` (Go), utilisé aux 23 sites concernés. Et
+`TownStatus` affichait encore `h.name` brut pour les bâtiments touchés par la vague, là où
+`WaveCinematic` traduisait déjà — corrigé aussi.
+
+C'est typiquement ce que les tests ne trouvent pas et qu'un lancement trouve en trente secondes.
+
+### Aussi
+
+- Le registre de contribution n'était couvert qu'indirectement, alors qu'il est le SOCLE de la
+  chronique et des titres (ce qu'il ne compte pas, un compte ne le gardera jamais) : test dédié, y
+  compris « le travail d'Ana ne tombe jamais au crédit de Bo ».
+- « Voir mes 1 expédition » → « Voir mon expédition ».
+
+### Fonctionnel (vérifié)
+
+- Lancé pour de bon : `go run ./cmd/server` + `npm run dev` + Chromium headless, captures à l'appui
+  (classement avec sélecteur de saison, écran de compte, chronique peuplée avec deux titres gagnés).
+- `go test ./... -count=2` vert, `go vet` propre, `npx tsc -b` et `npm run build` verts.
+
+### À faire
+
+- Le reste du jeu n'a pas été joué à la main : carte, combat, ville. Seuls les écrans touchés ces
+  jours-ci ont été ouverts.
+
+---
+
 ## 2026-08-09 (100) — Les saisons : un classement qui ne se fige pas
 
 Dernier point du plan de rétention (P8). `RETENTION-PLAN.md` est désormais livré en totalité.
