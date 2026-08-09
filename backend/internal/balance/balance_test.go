@@ -59,6 +59,37 @@ func TestBigExpeditionsGoFurther(t *testing.T) {
 	}
 }
 
+// Un salon PUBLIC est créé pour vingt joueurs — donc sur une grande carte — mais démarre
+// dès son minimum atteint. Une expédition sous-remplie ne doit pas devenir la partie la
+// plus facile du jeu.
+//
+// Elle l'était, et de loin : deux joueurs sur la carte d'un salon à vingt tenaient
+// TRENTE vagues quand deux joueurs sur leur propre carte tombaient à la seizième. Rien
+// à voir avec les monstres semés — les packs naissaient jusqu'à soixante-dix cases de
+// la ville et migrent d'une case par vague, donc la horde n'arrivait jamais. D'où le
+// front à rayon fixe (hordeFrontRadius) et une menace qui suit l'expédition et non la
+// surface. Ce test garde les deux.
+func TestUnderfilledPublicLobbyIsNotEasyMode(t *testing.T) {
+	const publicSide = 134 // la carte d'un salon prévu pour 20 (worldgen.SizeForPlayers)
+	reach := func(players, side int) float64 {
+		total := 0
+		seeds := []int64{21, 22, 23}
+		for _, seed := range seeds {
+			total += Run(Config{Seed: seed, Players: players, Width: side, Height: side, Waves: 30}).Last().Wave
+		}
+		return float64(total) / float64(len(seeds))
+	}
+	sized := reach(2, 0)                // deux joueurs sur leur propre carte
+	underfilled := reach(2, publicSide) // les deux mêmes dans un salon prévu pour vingt
+	t.Logf("2 joueurs : carte à leur taille %.1f vagues · carte de salon public %.1f vagues", sized, underfilled)
+	// Une grande carte reste un peu plus clémente (plus de place, plus de ressources) ;
+	// ce qui est interdit, c'est qu'elle double la durée de vie.
+	if underfilled > sized*1.5 {
+		t.Errorf("une expédition sous-remplie ne doit pas être le mode facile : %.1f vs %.1f vagues",
+			underfilled, sized)
+	}
+}
+
 // TestEveryExpeditionSizeIsPlayable holds the floor across the whole lobby range.
 // Difficulty must not depend on how many people showed up: the horde is weighted by
 // expedition size (game.hordeScale) precisely because the town's defense ceiling —

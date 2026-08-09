@@ -416,7 +416,7 @@ passer. Les packs qui ont porté l'assaut s'y **brisent** (`spendAssaultingPacks
 durability (**an open Gate = 0**, a construction site = 0); `overflow = horde - defense` → town HP loss +
 random building durability damage; defensive buildings also wear. Heroes **outside** town are hit individually
 (`Blessé`); **hidden** heroes skipped; **in-town** heroes safe. PA regen each wave; the **Well refills +10**;
-new monsters spawn **selon les biomes d'apparition des espèces** — **scaling INFINI par vague (2026-07-22)** :
+new monsters spawn **selon les biomes d'apparition des espèces** — ⚠ les renforts de vague naissent dans un **FRONT de rayon FIXE** (`hordeFrontRadius` 14, indépendant de la taille de carte) : les packs migrent d'une case par vague, donc les tirer uniformément sur une carte de 134² faisait que la horde n'arrivait JAMAIS — mesuré, deux joueurs dans un salon prévu pour vingt tenaient 30 vagues contre 16 sur leur propre carte, le mode facile du jeu. Le semis initial (`SeedStartingMonsters`, `4 + 3×joueurs + surface/1200`) reste réparti partout : c'est du peuplement, pas de la pression, et il suit l'EXPÉDITION et non la surface. **scaling INFINI par vague (2026-07-22)** :
 le nombre de packs posés (`spawnWaveMonsters` : `4+waveNumber`, PLUS de plafond — borné en pratique par la
 saturation des tuiles) ET la taille des packs croissent sans borne (`spawnWeightedPack` : la croissance de
 vague `waveNumber/2` s'empile SANS clamp au PackMax — le PackMax ne borne plus que la taille de départ). Les

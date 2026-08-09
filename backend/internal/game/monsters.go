@@ -99,12 +99,40 @@ func (g *GameState) spawnChance(x, y, waveNumber int) float64 {
 	return w
 }
 
+// hordeFrontRadius borne la distance à laquelle NAISSENT les renforts de chaque vague.
+//
+// Les packs migrent d'une case par vague vers la ville : sur une carte de 134² (vingt
+// joueurs), un pack né dans un coin met soixante-dix vagues à arriver. Tirer les
+// renforts uniformément sur la carte rendait donc une grande carte intrinsèquement plus
+// facile — mesuré, deux joueurs dans un salon prévu pour vingt tenaient TRENTE vagues
+// quand deux joueurs sur leur propre carte tombaient à la seizième, uniquement parce
+// que la horde n'arrivait jamais.
+//
+// Le FRONT a donc un rayon fixe : la horde qui assiège cette ville vient de ses
+// environs, pas des antipodes. Le délai d'arrivée devient le même à toutes les tailles,
+// et la difficulté ne dépend plus que de qui défend. Le semis INITIAL, lui, reste
+// réparti sur toute la carte — c'est du peuplement de monde, pas de la pression.
+const hordeFrontRadius = 14
+
 // spawnWeightedPack tente de poser UN pack sur une tuile praticable libre, tirée
 // avec une probabilité proportionnelle à spawnChance (échantillonnage par rejet).
-// Renvoie true si un pack a été posé.
+// `radius` borne le tirage autour de la ville (0 = toute la carte).
 func (g *GameState) spawnWeightedPack(waveNumber int, includeBosses bool) bool {
+	return g.spawnWeightedPackWithin(waveNumber, includeBosses, 0)
+}
+
+func (g *GameState) spawnWeightedPackWithin(waveNumber int, includeBosses bool, radius int) bool {
 	for tries := 0; tries < 80; tries++ {
-		x, y := rand.Intn(g.Width), rand.Intn(g.Height)
+		var x, y int
+		if radius > 0 {
+			x = g.Town.X + rand.Intn(2*radius+1) - radius
+			y = g.Town.Y + rand.Intn(2*radius+1) - radius
+			if x < 0 || y < 0 || x >= g.Width || y >= g.Height {
+				continue
+			}
+		} else {
+			x, y = rand.Intn(g.Width), rand.Intn(g.Height)
+		}
 		t := g.TileAt(x, y)
 		if t == nil || !t.Biome.Walkable() || t.MonsterID != "" {
 			continue
@@ -169,14 +197,19 @@ func (g *GameState) SeedStartingMonsters(players int) int {
 	if players < 1 {
 		players = 1
 	}
-	// La croissance par joueur est VOLONTAIREMENT plate (les packs sont surtout fonction
-	// de la taille de carte). Elle valait 2 packs par joueur en plus, et près de la ville
-	// un de plus par joueur : une table de six ouvrait donc sur 3,5× plus de packs qu'un
-	// solo, pour EXACTEMENT le même plafond de défense (muraille + portail + tour). Comme
-	// hordePower pondère déjà la horde par l'effectif (hordeScale), l'effet se cumulait et
-	// s'inversait — mesuré : les grandes expéditions tombaient à la vague 11 quand les
-	// solos tenaient jusqu'à 17.
-	target := 6 + (g.Width*g.Height)/280 + (players-1)/2
+	// LA HORDE SUIT L'EXPÉDITION, PAS LA SURFACE.
+	//
+	// Elle était surtout fonction de la taille de carte, ce qui paraît naturel (« un
+	// grand monde, beaucoup de monstres ») et produit une aberration dès qu'on découple
+	// la taille du salon de l'effectif réel : un salon public est créé pour vingt joueurs
+	// — donc sur une carte de 134² — mais démarre dès deux. Mesuré, ces deux joueurs
+	// tenaient TRENTE vagues là où deux joueurs sur leur propre carte tombaient à la
+	// seizième : les packs naissaient loin et mettaient des dizaines de vagues à
+	// atteindre les murs. Une partie sous-remplie devenait la plus facile du jeu.
+	//
+	// La menace vient donc de qui défend la ville ; la surface ne garde qu'un terme
+	// d'ambiance (un grand monde n'est pas vide, mais il n'est pas plus dangereux).
+	target := 4 + 3*players + (g.Width*g.Height)/1200
 	near := 3 + (players-1)/3 // visibles dès le départ (dans le rayon de vision de la ville)
 	placed := 0
 	for i := 0; i < near; i++ {

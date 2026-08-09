@@ -51,6 +51,41 @@ vérifie au passage que les packs qui portent l'assaut s'y brisent.
 `go -C backend test ./...` vert (4 tests de fenêtre côté game, 2 côté API, 1 côté store),
 `npx tsc -b` et `npm run build` verts.
 
+### Question posée juste après : « est-ce que le niveau s'ajuste avec l'arrivée du joueur ? »
+
+En partie seulement — et la mesure a montré bien pire que ce que la question visait.
+
+`hordeScale` compte les héros, donc une arrivée fait monter la **pression** d'environ un point dès la
+vague suivante, et le puits est complété. Mais le semis initial ne tourne qu'au lancement, et le renfort
+par vague ne dépendait pas de l'effectif. Surtout, la difficulté suivait la **carte**, or la carte d'un
+salon public est taillée pour `maxPlayers` alors que la partie démarre à `minPlayers`. Résultat mesuré :
+
+| | chutes |
+|---|---|
+| 2 joueurs, carte à leur taille (42²) | 15-17 |
+| **2 joueurs, carte de salon public (134²)** | **29-30** |
+| 20 joueurs, même carte | 21-23 |
+
+Une expédition sous-remplie était donc **le mode facile du jeu**. Et la cause n'était pas le nombre de
+monstres : les packs naissaient jusqu'à soixante-dix cases de la ville et migrent d'une case par vague —
+**la horde n'arrivait jamais**.
+
+Deux corrections :
+
+- **Le front a un rayon fixe** (`hordeFrontRadius` 14) : la horde qui assiège cette ville vient de ses
+  environs, pas des antipodes. Le délai d'arrivée devient le même à toutes les tailles. Le semis
+  INITIAL reste réparti sur toute la carte — c'est du peuplement de monde, pas de la pression.
+- **La menace suit l'expédition, pas la surface** (`SeedStartingMonsters` : `4 + 3×joueurs + surface/1200`).
+
+Une troisième piste a été essayée puis **retirée** : faire dépendre aussi le renfort par vague de
+l'effectif. L'expédition pesait alors sur la horde à trois endroits et la courbe de survie devenait
+plate de 1 à 20 joueurs. Et sur un jeu coopératif, accueillir quelqu'un ne doit pas empirer la situation
+de ceux qui sont déjà là : une arrivée apporte trois héros contre un point de pression — elle AIDE, et
+c'est le seul réglage acceptable pour une fenêtre d'accueil.
+
+Après : sweep 14 · 14 · 15 · 17 · 18 · 18 (1 → 20 joueurs, croissance monotone), et le salon
+sous-rempli passe de 30 à 17 vagues. `TestUnderfilledPublicLobbyIsNotEasyMode` garde le résultat.
+
 ### À faire
 
 - La fenêtre est la même pour tout le monde ; si tu veux qu'un hôte la règle par partie, elle est déjà

@@ -221,9 +221,11 @@ func TestStartingMonstersScaleWithPlayers(t *testing.T) {
 	if err := solo.StartGame(p.ID, now); err != nil {
 		t.Fatal(err)
 	}
-	// La carte est PEUPLÉE au lancement (densité ∝ surface : 15×15 → ~6 packs) et
-	// AUCUN pack dans l'anneau immédiat de la ville.
-	soloTarget := 6 + (solo.Width*solo.Height)/280
+	// La carte est PEUPLÉE au lancement, mais la horde suit L'EXPÉDITION et non la
+	// surface : un salon prévu pour vingt joueurs mais démarré à deux ne doit pas
+	// déverser le monde de vingt sur les deux (cf. SeedStartingMonsters). La surface ne
+	// garde qu'un terme d'ambiance. Et aucun pack dans l'anneau d'assaut.
+	soloTarget := 4 + 3*1 + (solo.Width*solo.Height)/1200
 	if n := len(solo.Monsters); n < soloTarget-2 || n > soloTarget {
 		t.Fatalf("solo launch should seed ~%d packs, got %d", soloTarget, n)
 	}
@@ -243,11 +245,11 @@ func TestStartingMonstersScaleWithPlayers(t *testing.T) {
 	if err := quad.StartGame(host.ID, now); err != nil {
 		t.Fatal(err)
 	}
-	// Plus de joueurs = un peu plus de packs. La pente est VOLONTAIREMENT plate
-	// ((players-1)/2) : la horde est déjà pondérée par l'effectif dans hordePower, et
-	// cumuler les deux inversait la difficulté — les grandes tables tombaient avant les
-	// solos (cf. SeedStartingMonsters).
-	quadTarget := 6 + (quad.Width*quad.Height)/280 + 3/2
+	// Plus de joueurs = plus de packs, et c'est la MENACE qui suit l'effectif. La
+	// pression (hordeScale) le fait déjà de son côté : les deux ensemble suffisent, une
+	// troisième pente (le renfort par vague) aplatissait entièrement l'avantage du
+	// nombre — mesuré, survie identique de 1 à 20 joueurs.
+	quadTarget := 4 + 3*4 + (quad.Width*quad.Height)/1200
 	if n := len(quad.Monsters); n < quadTarget-2 || n > quadTarget {
 		t.Fatalf("4-player launch should seed ~%d packs (>solo), got %d", quadTarget, n)
 	}

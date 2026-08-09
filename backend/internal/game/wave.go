@@ -210,12 +210,19 @@ func (g *GameState) besiegingCreatures() int {
 // de packs semés sur une carte plus grande, donc de l'assaut — que les joueurs peuvent
 // combattre. On compte les héros TOTAUX (morts inclus), sinon perdre des héros
 // allégerait la horde.
-func (g *GameState) hordeScale() float64 {
+// expeditionTeams: le nombre d'équipes de l'expédition, morts inclus — sinon perdre
+// des héros allégerait la horde. Un joueur qui rejoint en cours de partie (fenêtre
+// d'accueil des parties publiques) le fait monter, et le niveau avec.
+func (g *GameState) expeditionTeams() int {
 	teams := len(g.Heroes) / HeroesPerPlayer
 	if teams < 1 {
 		teams = 1
 	}
-	return float64(6+teams) / 10.0
+	return teams
+}
+
+func (g *GameState) hordeScale() float64 {
+	return float64(6+g.expeditionTeams()) / 10.0
 }
 
 // hordePower assemble les deux termes pour la vague qui frappe maintenant.
@@ -442,6 +449,14 @@ func (g *GameState) spawnWaveMonsters(waveNumber int) int {
 	// doit scaler à l'infini). En pratique la saturation des tuiles praticables borne
 	// naturellement le nombre de packs ; la taille des packs, elle, grandit sans borne
 	// (spawnWeightedPack) — c'est ce qui rend l'intensification réellement infinie.
+	// Le renfort par vague ne dépend PAS de l'effectif, et c'est délibéré. L'expédition
+	// pèse déjà sur la horde à deux endroits (la pression via hordeScale, le semis
+	// initial via SeedStartingMonsters) ; l'y faire peser une troisième fois aplatissait
+	// entièrement l'avantage du nombre — mesuré, la courbe de survie devenait plate de 1
+	// à 20 joueurs. Et sur un jeu coopératif, accueillir quelqu'un ne doit pas empirer la
+	// situation de ceux qui sont déjà là : une arrivée apporte trois héros contre environ
+	// un point de pression, donc elle AIDE, ce qui est le seul réglage acceptable pour
+	// une fenêtre d'accueil.
 	count := 4 + waveNumber
 	includeBosses := waveNumber >= bossWaveThreshold
 	// Apparition PONDÉRÉE (loin de la ville / près des ruines / croissant par vague) —
@@ -449,7 +464,7 @@ func (g *GameState) spawnWaveMonsters(waveNumber int) int {
 	// se rapprochent vague après vague (migrateMonstersTowardTown).
 	spawned := 0
 	for i := 0; i < count; i++ {
-		if g.spawnWeightedPack(waveNumber, includeBosses) {
+		if g.spawnWeightedPackWithin(waveNumber, includeBosses, hordeFrontRadius) {
 			spawned++
 		}
 	}
