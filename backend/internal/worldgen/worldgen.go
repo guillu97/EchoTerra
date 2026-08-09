@@ -116,6 +116,11 @@ func GenerateTiles(width, height int, seed int64) ([]game.Tile, []float64) {
 		n     = 3
 	)
 	p := perlin.NewPerlin(alpha, beta, n, seed)
+	// Un générateur LOCAL semé par la graine — surtout pas le hasard global : depuis
+	// Go 1.24 `rand.Seed` est un no-op, si bien que deux parties de même graine ne
+	// donnaient PAS la même carte. Le champ Seed du GameState mentait, et personne ne
+	// s'en apercevait parce que rien n'échouait.
+	rng := rand.New(rand.NewSource(seed))
 	tiles := make([]game.Tile, width*height)
 	hm := make([]float64, width*height)
 	levels := make([]int, width*height)
@@ -146,7 +151,7 @@ func GenerateTiles(width, height int, seed int64) ([]game.Tile, []float64) {
 		// tab: plains/forest 3–6, mountain/snow 1–3, water none.
 		res := 0
 		if td, ok := game.Terrains[b]; ok && td.Searchable {
-			res = td.ResourcesMin + rand.Intn(td.ResourcesMax-td.ResourcesMin+1)
+			res = td.ResourcesMin + rng.Intn(td.ResourcesMax-td.ResourcesMin+1)
 		}
 		tiles[i] = game.Tile{Biome: b, Height: lvl, Resources: res}
 	}
@@ -215,19 +220,33 @@ const (
 // vague 8, quand huit joueurs tenaient vingt vagues. La densité de matériaux par héros
 // doit être la même à toutes les tailles ; la surface l'est déjà (SizeForPlayers).
 func biomeQuota(side int) (radius, tiles int) {
+	// ⚠ LE RAYON NE SUIT PAS LA CARTE. Il suivait la taille du monde, ce qui satisfait
+	// la garantie sur le papier et affame la ville en pratique : sur la carte d'une
+	// expédition de vingt (134²) le « gisement proche » pouvait s'étaler jusqu'à DIX-HUIT
+	// cases du bourg, alors qu'un héros a six PA par vague et doit rentrer. Mesuré sur
+	// une partie de vingt joueurs : ZÉRO tuile de forêt découverte pendant trois vagues,
+	// quatre en douze vagues contre cinquante de montagne — bois en banque = 0 du début
+	// à la fin, donc ni tour, ni portail niveau 3, ni aucun des sites, pendant que 143
+	// pierres dormaient à la Banque.
+	//
+	// La portée d'un héros est fixe ; c'est le monde qui grandit. Même erreur, même
+	// correctif que hordeFrontRadius (wave.go).
+	radius = nearBiomeR
 	f := float64(side) / float64(DefaultSize)
-	radius = int(math.Round(float64(nearBiomeR) * f))
-	if radius < nearBiomeR {
-		radius = nearBiomeR
-	}
 	tiles = int(math.Round(float64(minBiomeTiles) * f * f)) // ∝ surface, comme la population
 	if tiles < minBiomeTiles {
 		tiles = minBiomeTiles
+	}
+	// …mais deux gisements ne peuvent pas dévorer tout le voisinage : un quart chacun
+	// au plus, sinon la ville naît entre une falaise et une futaie, sans rien d'autre.
+	if maxTiles := (2*radius + 1) * (2*radius + 1) / 4; tiles > maxTiles {
+		tiles = maxTiles
 	}
 	return radius, tiles
 }
 
 func ensureNearbyBiomes(gs *game.GameState) {
+	rng := rand.New(rand.NewSource(gs.Seed ^ 0x42696f6d)) // "Biom"
 	side := gs.Width
 	if gs.Height > side {
 		side = gs.Height
@@ -249,7 +268,7 @@ func ensureNearbyBiomes(gs *game.GameState) {
 	}
 	res := func(b game.Biome) int {
 		if td, ok := game.Terrains[b]; ok && td.ResourcesMax > 0 {
-			return td.ResourcesMin + rand.Intn(td.ResourcesMax-td.ResourcesMin+1)
+			return td.ResourcesMin + rng.Intn(td.ResourcesMax-td.ResourcesMin+1)
 		}
 		return 0
 	}
@@ -309,7 +328,9 @@ func absW(v int) int {
 // newWorld builds the shared skeleton of a game: generated world, town at the center
 // plain, default buildings, seeded monsters — but no heroes, players, or status yet.
 func newWorld(width, height int, seed int64) *game.GameState {
-	rand.Seed(seed)
+	// (Pas de rand.Seed : c'est un no-op depuis Go 1.24. Chaque étape qui tire au sort
+	// reçoit un générateur semé par la graine — c'est ce qui rend enfin vraie la
+	// promesse « même graine, même monde ».)
 	tiles, _ := GenerateTiles(width, height, seed)
 	tx, ty := findTown(tiles, width, height)
 

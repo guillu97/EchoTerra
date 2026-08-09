@@ -150,6 +150,10 @@ export interface Hero {
   inventory: Item[];
   bars: Record<string, number>;
   drewWaterDay: number;
+  // CONSIGNE PERMANENTE : ce que le héros fera tout seul juste avant la prochaine
+  // vague si son joueur n'est pas revenu. Ne dure qu'UNE vague, n'engage jamais de
+  // combat — un filet, pas un pilote automatique (backend orders_standing.go).
+  order?: "" | "shelter" | "return";
   // Échéance de la prochaine FOUILLE AUTOMATIQUE (absent = le héros n'est pas
   // installé à récolter). La première fouille, payée 1 PA, l'installe ; la suite
   // est jouée par la simulation serveur, même sans personne connecté.
@@ -348,7 +352,13 @@ export interface GameState {
     y: number;
     hp: number;
     maxHp: number;
-    defense: number;
+    defense: number; // bâtiments + garnison
+    // LA GARNISON : les héros présents dans les murs défendent (backend wave.go).
+    // `garrison` = têtes aux remparts, `garrisonValue` = ce qu'elles ajoutent, plafonné
+    // à ce que les bâtiments tiennent déjà — on ne défend que le rempart qu'on a bâti.
+    // C'est le seul terme de la défense qu'un joueur change en une action : sortir.
+    garrison?: number;
+    garrisonValue?: number;
     buildings: TownBuilding[];
     storage: Item[];
     waterDrawnToday: string[];

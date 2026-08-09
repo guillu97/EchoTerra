@@ -57,7 +57,7 @@ fixed seed (`--seed N`, e.g. 42) is used for cohesion across the library.
 |---|---|
 | Backend | **Go** (`chi` router), REST, state serialized as JSON in **SQLite** (`modernc.org/sqlite`, pure-Go, no CGo) |
 | Frontend | **React + Vite + TypeScript**, **Three.js** (moteur voxel : carte, combat, ville), **Zustand** store |
-| Map gen | Perlin (`aquilax/go-perlin`) → heightmap **lissée (maxStep 1)** → biomes par niveau ; **taille suivant l'expédition** (`worldgen.SizeForPlayers` : surface par joueur constante ~900 tuiles, bornée `MinMapSize` 40 → `MaxMapSize` 140 ; 1 joueur 40², 4 joueurs 60² = `DefaultSize`, 20 joueurs 134²) ; **jusqu'à `MaxPlayersPerGame` = 20 joueurs** (60 héros) ; `ensureNearbyBiomes` garantit un **gisement** de forêt ET de montagne près de la ville (`biomeQuota` : ∝ surface, 12 tuiles dans le rayon 8 pour une carte de référence 60² — un quota ABSOLU faisait partager la carrière d'un solo à vingt équipes, d'où l'effondrement des grandes parties — l'ancienne garantie « au moins UNE tuile » laissait des cartes à 21 montagnes sur 3600, donc sans pierre exploitable) |
+| Map gen | Perlin (`aquilax/go-perlin`) → heightmap **lissée (maxStep 1)** → biomes par niveau ; **taille suivant l'expédition** (`worldgen.SizeForPlayers` : surface par joueur constante ~900 tuiles, bornée `MinMapSize` 40 → `MaxMapSize` 140 ; 1 joueur 40², 4 joueurs 60² = `DefaultSize`, 20 joueurs 134²) ; **jusqu'à `MaxPlayersPerGame` = 20 joueurs** (60 héros) ; `ensureNearbyBiomes` garantit un **gisement** de forêt ET de montagne près de la ville (`biomeQuota` : quota ∝ surface [12 tuiles pour une carte de référence 60²] mais **RAYON FIGÉ à `nearBiomeR` 8** — le faire suivre la carte satisfaisait la garantie sur le papier en étalant le gisement jusqu'à 18 cases du bourg, hors de portée d'un héros à 6 PA/vague : mesuré sur une expédition de vingt, ZÉRO forêt découverte pendant trois vagues et bois en Banque nul toute la partie, donc aucune tour ni aucun site ; la portée d'un héros est FIXE, c'est le monde qui grandit — même erreur et même correctif que `hordeFrontRadius` — un quota ABSOLU faisait partager la carrière d'un solo à vingt équipes, d'où l'effondrement des grandes parties — l'ancienne garantie « au moins UNE tuile » laissait des cartes à 21 montagnes sur 3600, donc sans pierre exploitable) |
 
 ```bash
 # Backend (:8080). Env: ECHOTERRA_ADDR (:8080), ECHOTERRA_DB (echoterra.db),
@@ -404,6 +404,18 @@ legacy = pas de limite. Front : `useTurnRemaining` → badge « ⏱ Ns » dans `
 
 **Waves / horde (Hordes-like)** — `nextWaveAt` is **server-driven**; the client only shows the countdown
 (`useWaveRemaining`). Resolved lazily on access (`tick`) AND by a 15s scheduler goroutine.
+**LA GARNISON** (2026-08-09) — `TownDefense() = buildingsDefense() + GarrisonDefense()` : **un héros
+présent dans les murs à l'heure de la vague DÉFEND** (poids 1, 2 pour une classe évoluée, 3 pour un
+Gardien), exposé par `Town.Garrison`/`GarrisonValue`. ⚠ **PLAFONNÉ PAR LA PIERRE** : jamais plus que ce
+que les bâtiments tiennent déjà — sans ce plafond, masser du monde en ville rendrait la construction,
+donc le jeu, inutile ; et un portail OUVERT (défense 0) abaisse aussi le plafond. Pourquoi : la défense
+ne dépendait que des bâtiments, plafonnés aux mêmes trois niveaux qu'on soit trois héros ou soixante,
+pendant que la pression suivait l'expédition — d'où une survie NON MONOTONE (15·14·14·16·17·19 vagues
+pour 1·2·4·8·12·20 joueurs : deux et quatre joueurs allaient MOINS loin qu'un solo). C'est aussi le
+dilemme de Hordes sous sa forme la plus simple : rentré je défends, sorti je récolte. Tests
+`garrison_test.go`. Complément : un **genou** sur `hordeScale` (`hordeKnee` 8 équipes, taux réduit
+au-delà) parce que la capacité d'une ville sature là où la pression ne saturait pas.
+
 `ProcessWave`: **`hordePower = pression(vague) + créatures massées dans le rayon d'assaut`**
 (2026-08-09). Deux termes, et la distinction est tout le design : la **pression**
 (`hordeBase 6 + 2*vague`, × `hordeScale`) est un plancher qui monte quoi qu'on fasse ; l'**assaut**
@@ -514,6 +526,25 @@ aléatoire (on annonce « ~34 », pas une promesse) et n'est actionnable que par
 des assiégeants : tuer fait baisser le chiffre sous les yeux du joueur. Réponse aux trous T3/T5 de
 `RETENTION-PLAN.md`. Tests `orders_test.go`.
 
+**Consignes permanentes** (`orders_standing.go`, 2026-08-09) — `Hero.Order` (`shelter` | `return`),
+posée gratuitement, exécutée par `runStandingOrders()` juste AVANT `attackHeroesOutside` puis
+**consommée**. Trois bornes délibérées : une seule vague, jamais de combat ni de fouille, et `return`
+ne se met en marche que si la ville est atteignable (sinon il se cache — brûler ses PA pour finir à
+découvert est le piège que les bots ont connu). Réponse au trou T4 : les PA non dépensés sont PERDUS,
+donc une soirée manquée coûtait une journée de travail. ⚠ c'est un FILET, pas un pilote automatique —
+un joueur présent doit faire strictement mieux. Tests `orders_standing_test.go`.
+
+**Registre de contribution & requêtes** (`contribution.go`, `requests.go`, 2026-08-09) —
+`credit()` sur six actions ; `Ledger()` rend l'ordre d'ARRIVÉE, **jamais trié par mérite** (trier
+installerait une compétition entre coéquipiers). Les requêtes du Panneau (`PostRequest`/`FillRequest`)
+sont la **seule sortie de la Banque** vers un joueur, et elle exige d'être deux — se servir soi-même
+est refusé. Routes `/town/request`, `/town/request/fill`.
+
+**Tour de guet** (`orders.go`) — `Forecast()` rend une FOURCHETTE dont la largeur se mérite : sans Tour
+±50 %, chaque niveau resserre, et chaque JOUEUR monté observer (`ScoutWave`, 2 PA, `/town/scout`)
+resserre encore **pour toute la ville**, une fois par joueur et par vague (remis à zéro à chaque vague).
+⚠ à faible horde (~5) la fourchette entière sature à ±1 : normal, une vague de début est prévisible.
+
 **Journal de la ville** (`town.log`, bâtiment Panel) — `TownLogEntry {at, day, text}`, **serveur-side,
 partagé, plus récent en premier, plafonné à 100** (`logTown`). Recense UNIQUEMENT les actions faites en
 ville : porte OUVERTE/FERMÉE, ration puisée au puits, dépôts à la Banque (par héros), chantiers
@@ -546,12 +577,35 @@ le chemin du battement en production) — donc un verdict de la simulation est u
 `balance.Run(Config{Seed,Players,Waves})` → `Report{Snapshots[]}` (par vague : horde/défense/dégâts/
 PV, héros vivants·en ville·cachés·tétanisés, bâtiments/niveaux/usure, banque + bois + pierre, sacs,
 packs/unités, ressources restantes). CLI : `go -C backend run ./cmd/balance [-seeds N] [-players N]
-[-waves N] [-detail] [-sweep] [-json]`. **`SurvivalFloor = 10`** (`balance_test.go`) est le contrat :
-une ville laissée aux seuls bots doit tenir 10 vagues sur toute graine et à 1·2·4·6 joueurs ; un
+[-waves N] [-detail] [-sweep] [-json]`. **`SurvivalFloor = 12`** (`balance_test.go`) est le contrat :
+une ville laissée aux seuls bots doit tenir 12 vagues sur toute graine et à 1·2·4·8·12·20 joueurs ; un
 `TestTownActuallyProgresses` exige en plus qu'elle CONSTRUISE, récolte, tue et évolue (survivre sans
-rien faire n'est pas un jeu). Écrire cet instrument a révélé que **toutes les graines mouraient à la
-vague 5** — invisible pour la suite de tests, qui n'avait jamais joué une partie. Historique complet
-des causes et des correctifs : `journal.md` (entrée 94).
+rien faire n'est pas un jeu), et `TestBigExpeditionsGoFurther` est une **ÉCHELLE** (1 < 4 < 20) et non
+deux points — « 20 > 1 » se satisfaisait d'une courbe qui plongeait au milieu, ce qui était le cas.
+Écrire cet instrument a révélé que **toutes les graines mouraient à la vague 5** — invisible pour la
+suite de tests, qui n'avait jamais joué une partie. **Médianes actuelles : 15 · 18 · 22 · 22 vagues
+pour 1 · 4 · 12 · 20 joueurs.** Historique complet : `journal.md` (entrées 94 et 98).
+
+⚠ **DEUX PIÈGES QUI ONT FAIT MENTIR L'INSTRUMENT** (2026-08-09, entrée 98) — les deux invisibles :
+- `rand.Seed` est un **NO-OP depuis Go 1.24**. Le worldgen ET la simulation comptaient dessus : deux
+  parties de même graine n'avaient pas la même carte, et l'instrument ne répondait pas deux fois pareil
+  à la même question. Tout le paquet `game` passe désormais par `game/rng.go` (`SeedRNG`, `randIntn`,
+  `randFloat64`, verrouillés) et worldgen par un `*rand.Rand` local. Gardes : `determinism_test.go`.
+  ⚠ une sonde qui fait avancer deux rejeux TOUR À TOUR partage leur flux de hasard : elle se mesure
+  elle-même. Rejouer A EN ENTIER, puis resemer et rejouer B.
+- **L'horloge.** `SearchTile` planifiait la fouille automatique sur `time.Now()` alors que la simulation
+  tourne sur une horloge synthétique → **zéro récolte automatique sur une partie entière**, donc un jeu
+  amputé de son économie de campement. `GameState.clock()` rend l'instant REJOUÉ pendant un rattrapage
+  (`simNow`, posé par `AdvanceTo`, non sérialisé) et l'heure réelle sinon. **Toute échéance qu'une
+  action pose dans le futur doit partir de `g.clock()`**, jamais de `time.Now()`.
+
+**Comportement des bots — deux règles trouvées à la mesure** (entrée 98) : un récolteur **se fixe un
+cap et s'y tient** (`Hero.GoalX/GoalY/HasGoal`, `botGoalWorthKeeping`) — rechoisir sa destination à
+chaque round le faisait osciller (mesuré : 7 pas par récolte, une case à dix pas jamais atteinte avec
+6 PA/vague) ; et il **rentre ce dont la Banque est à ZÉRO** quelle que soit la taille de son sac
+(`botCarryingWanted`) — le seuil de portage est un critère de rendement, muet sur l'urgence, et à
+soixante héros portant huit objets chacun personne ne l'atteignait (mesuré : 56 Pierre et 39 plans
+dormant dans les sacs, dont dix « Plan de la Tour » jamais bâtie).
 
 **Réparer la VILLE** (`TownAction("wall","repair")`, `TownRepairHP` 5 PV par PA, `TownRepairMaterial`
 « Pierre », 1 par PA ; bouton « 🧱 Relever les remparts » du modal Mur) — **rien ne rendait de PV à

@@ -13,7 +13,7 @@ import { formatHMS, useForageRemaining, useTurnRemaining } from "../useWave";
 
 // Radial action menu (Hordes-style) that pops at the selected hero when tapped on the map.
 function ActionMenu() {
-  const { game, selectedHeroId, mapSkills, search, startCombat, hide, escape, castSkill, drinkRation, ruinClear, ruinExplore, busy } = useStore();
+  const { game, selectedHeroId, mapSkills, search, startCombat, hide, escape, castSkill, drinkRation, ruinClear, ruinExplore, setHeroOrder, busy } = useStore();
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
 
   useEffect(() => bus.on(EV.MapHeroMenu, ({ sx, sy }: { sx: number; sy: number }) => setPos({ x: sx, y: sy })), []);
@@ -116,6 +116,30 @@ function ActionMenu() {
           >
             🏛️ Explorer {ruin.icon} <i>-2 · {ruin.charges} 💎</i>
           </button>
+        )}
+        {/* LES CONSIGNES : ce que ce héros fera tout seul juste avant la prochaine
+            vague si je ne reviens pas. Un filet pour les soirées manquées — elle ne
+            dure qu'UNE vague et n'engage jamais de combat (orders_standing.go). */}
+        {!onTown && (
+          <div className="am-orders">
+            <span className="am-orders-t">Si je ne reviens pas :</span>
+            <div className="am-orders-row">
+              <button
+                className={hero.order === "shelter" ? "on" : ""}
+                disabled={busy}
+                onClick={() => setHeroOrder(hero.id, hero.order === "shelter" ? "" : "shelter")}
+              >
+                🫥 Se cacher
+              </button>
+              <button
+                className={hero.order === "return" ? "on" : ""}
+                disabled={busy}
+                onClick={() => setHeroOrder(hero.id, hero.order === "return" ? "" : "return")}
+              >
+                🏰 Rentrer
+              </button>
+            </div>
+          </div>
         )}
         {onTown && <div className="am-note">🏰 En ville — fouille et cachette inutiles ici</div>}
         {/* Pas de fouille ni de cachette sur la case ville (la ville protège déjà et n'a

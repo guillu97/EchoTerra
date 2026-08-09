@@ -79,7 +79,6 @@ func TestCombatHeroCanWin(t *testing.T) {
 	}
 }
 
-
 func TestFinishCombatRemovesMonster(t *testing.T) {
 	gs := &GameState{ID: "g1", Width: 8, Height: 8, Monsters: map[string]*Monster{}, Combats: map[string]*Combat{}}
 	gs.Tiles = make([]Tile, 64)

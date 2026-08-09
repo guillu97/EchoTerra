@@ -55,19 +55,19 @@ func TestModerateMasksInsults(t *testing.T) {
 // on any of them makes the chat feel broken and arbitrary.
 func TestModerateLeavesOrdinaryFrenchAlone(t *testing.T) {
 	ok := []string{
-		"je suis en retard, la vague arrive",          // "retard" ≠ the English slur
-		"je crève de soif, il me faut une ration",     // "crever" is a game state, not an insult
-		"ce plan est unique, garde-le",                // contains "nique"
-		"la clinique est au nord",                     // contains "nique"
-		"j'ai une dispute avec le gardien",            // contains "pute"
-		"il est réputé pour sa défense",               // contains "pute"
-		"passe-moi le fromage râpé",                   // "rape"
-		"le cône de la tour est cassé",                // "cone", ex-"conne"
-		"ramasse les ordures près de l'épave",         // "ordure" is scavenging vocabulary
-		"concours de construction demain",             // contains "con"
-		"on a besoin de bois et de pierre",            //
-		"Scunthorpe",                                  // the canonical false positive
-		"la porte est ouverte, fermez-la !",           //
+		"je suis en retard, la vague arrive",      // "retard" ≠ the English slur
+		"je crève de soif, il me faut une ration", // "crever" is a game state, not an insult
+		"ce plan est unique, garde-le",            // contains "nique"
+		"la clinique est au nord",                 // contains "nique"
+		"j'ai une dispute avec le gardien",        // contains "pute"
+		"il est réputé pour sa défense",           // contains "pute"
+		"passe-moi le fromage râpé",               // "rape"
+		"le cône de la tour est cassé",            // "cone", ex-"conne"
+		"ramasse les ordures près de l'épave",     // "ordure" is scavenging vocabulary
+		"concours de construction demain",         // contains "con"
+		"on a besoin de bois et de pierre",        //
+		"Scunthorpe",                              // the canonical false positive
+		"la porte est ouverte, fermez-la !",       //
 	}
 	for _, in := range ok {
 		got, filtered := Moderate(in)

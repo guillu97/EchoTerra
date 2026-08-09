@@ -153,6 +153,10 @@ export const api = {
 
   // Monter à la Tour estimer la vague : chaque JOUEUR qui le fait resserre la
   // fourchette pour toute la ville (backend orders.go ScoutWave).
+  // Poser la consigne permanente d'un héros (orders_standing.go).
+  setHeroOrder: (gameId: string, heroId: string, order: string, playerId?: string) =>
+    req<GameState>("POST", `/api/games/${gameId}/heroes/${heroId}/order`, { order, playerId }),
+
   scoutWave: (gameId: string, heroId: string, playerId?: string) =>
     req<{ forecast: WaveForecast; game: GameState }>("POST", `/api/games/${gameId}/town/scout`, {
       heroId,

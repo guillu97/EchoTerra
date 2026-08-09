@@ -1,7 +1,6 @@
 package game
 
 import (
-	"math/rand"
 	"sort"
 	"time"
 )
@@ -170,7 +169,7 @@ func (g *GameState) botHeroAct(h *Hero, curfew int) bool {
 		// the action points ran out. Running out of PA far from town is the normal state
 		// of a posted gatherer, and that is fine: the tile keeps foraging itself
 		// (forage.go) as long as the hero stays put.
-		if lowHP || heroLoad(h) >= botHaulSize {
+		if lowHP || heroLoad(h) >= botHaulSize || g.botCarryingWanted(h) {
 			if curfew > curfewNone && h.PA < distTown && !hidden {
 				return g.HideHero(h.ID) == nil // can't make it — vanish for this wave
 			}
@@ -548,6 +547,43 @@ func heroLoad(h *Hero) int {
 	return n
 }
 
+// botCarryingWanted : ce héros porte-t-il quelque chose que la ville RÉCLAME et n'a
+// pas ? Un matériau dont la Banque est à zéro, ou un plan de bâtiment qui débloque un
+// chantier. Dans ce cas il rentre, quelle que soit la taille de son sac.
+//
+// Le seuil de portage (botHaulSize) est un critère de RENDEMENT : ne pas faire l'aller-
+// retour pour trois fleurs. Mais il ne dit rien de l'URGENCE, et à soixante héros qui
+// portent chacun huit objets, personne n'atteint jamais le seuil : mesuré, 56 Pierre et
+// 39 plans dormaient dans les sacs pendant que la Banque en tenait ZÉRO — dont dix
+// « Plan de la Tour » alors que la tour n'a jamais été bâtie de la partie. Une ville ne
+// meurt pas de manquer de pierre, elle meurt de la manquer LÀ OÙ ELLE SERT.
+//
+// Auto-limitant par construction : dès que la Banque en tient un, la chose sort de la
+// liste critique et le héros se remet à récolter.
+func (g *GameState) botCarryingWanted(h *Hero) bool {
+	crit := g.botCriticalList(g.botShoppingList())
+	for _, it := range h.Inventory {
+		if crit[it.Name] {
+			return true
+		}
+	}
+	for _, b := range g.Town.Buildings {
+		if b.Built {
+			continue
+		}
+		plan := buildingPlanItem(b.ID)
+		if plan == "" || g.storageQty(plan) > 0 {
+			continue
+		}
+		for _, it := range h.Inventory {
+			if it.Name == plan {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // botShoppingList is what the town is SHORT of right now: the stone its walls are
 // repaired with, plus every material missing for the next level of every building.
 // This is what turns bots from "harvest the nearest tile" into "go get what we need" —
@@ -653,6 +689,41 @@ func (g *GameState) botSupplyKnown(want map[string]bool) bool {
 // botGatherTarget picks where a gatherer goes: a known tile that supplies the town, or
 // — when nothing known does — the edge of the fog, to go and find one.
 func (g *GameState) botGatherTarget(h *Hero) (int, int, bool) {
+	// ON S'EN TIENT À SON CAP.
+	//
+	// La destination était rechoisie À CHAQUE ROUND, au hasard parmi les trois
+	// meilleures cases — or leurs scores dépendent de la position du héros et de celle
+	// de ses coéquipiers, donc le classement basculait à chaque pas. Résultat mesuré :
+	// 2651 déplacements pour 389 fouilles chez vingt joueurs, soit sept pas par récolte.
+	// Les récolteurs ne voyageaient pas, ils oscillaient — et comme un héros n'a que six
+	// PA par vague, une case à dix pas n'était JAMAIS atteinte. La Banque restait vide
+	// de bois et de pierre pendant que la carte en gardait quatre cents.
+	//
+	// Un joueur choisit où il va, puis il y va. Le cap n'est reconsidéré qu'à
+	// l'arrivée, ou s'il cesse de valoir le voyage.
+	if h.HasGoal && g.botGoalWorthKeeping(h) {
+		return h.GoalX, h.GoalY, true
+	}
+	x, y, ok := g.botPickGatherTarget(h)
+	h.GoalX, h.GoalY, h.HasGoal = x, y, ok
+	return x, y, ok
+}
+
+// botGoalWorthKeeping : le cap tient tant que le héros n'y est pas arrivé et que la
+// case vaut encore le déplacement (découverte, praticable, libre de pack, et fournissant
+// soit des ressources, soit ce que la ville attend).
+func (g *GameState) botGoalWorthKeeping(h *Hero) bool {
+	if h.X == h.GoalX && h.Y == h.GoalY {
+		return false // arrivé : on rouvre la question
+	}
+	t := g.TileAt(h.GoalX, h.GoalY)
+	if t == nil || !t.Discovered || !t.Biome.Walkable() || t.MonsterID != "" {
+		return false
+	}
+	return t.Resources > 0 || biomeSupplies(t.Biome, g.botShoppingList())
+}
+
+func (g *GameState) botPickGatherTarget(h *Hero) (int, int, bool) {
 	if g.botSupplyKnown(g.botShoppingList()) {
 		if x, y, ok := g.pickResourceTile(h); ok {
 			return x, y, ok
@@ -917,27 +988,34 @@ func (g *GameState) bankCoversBeyondDefense(mats []Item) bool {
 	return true
 }
 
-// heroBias derives a stable per-hero "personality" from its id: a preferred compass
-// direction for gathering/exploring, and a caution margin for the walk home. This is
-// what keeps bot teammates from all marching single-file to the same tile — each
-// hero leans toward its own sector of the map, like humans splitting up.
-func heroBias(id string) (dirX, dirY, caution int) {
-	hsh := heroHash(id)
+// heroBias donne à chaque héros sa « personnalité » de récolte : une direction de
+// prédilection et une marge de prudence pour le retour. C'est ce qui empêche les
+// coéquipiers de marcher en file indienne vers la même case — chacun penche vers son
+// secteur, comme des gens qui se répartissent le terrain.
+//
+// Le repère est le RANG du héros dans la partie, PAS un hachage de son identifiant.
+// Les identifiants sont des UUID tirés au hasard à chaque partie : un secteur qui en
+// dérive change d'un rejeu à l'autre, ce qui rendait la simulation d'équilibrage
+// irreproductible — c'est ce qui a fait échouer une garde de non-régression au hasard
+// et coûté deux faux positifs. Le rang, lui, répartit VRAIMENT les héros sur les quatre
+// directions au lieu de l'espérer d'un hachage.
+func (g *GameState) heroBias(heroID string) (dirX, dirY, caution int) {
+	rank := g.heroRank(heroID)
 	dirs := [4][2]int{{1, 0}, {-1, 0}, {0, 1}, {0, -1}}
-	d := dirs[hsh%4]
-	return d[0], d[1], (hsh / 4) % 2
+	d := dirs[rank%4]
+	return d[0], d[1], (rank / 4) % 2
 }
 
-// heroHash is the stable per-hero seed behind every "personality" derived from an id.
-func heroHash(id string) int {
-	h := 0
-	for _, c := range id {
-		h = h*31 + int(c)
+// heroRank est l'index du héros dans l'ordre de naissance de la partie — stable,
+// déterministe, et déjà porteur de la structure des équipes (trois héros consécutifs
+// appartiennent au même joueur).
+func (g *GameState) heroRank(heroID string) int {
+	for i, h := range g.Heroes {
+		if h.ID == heroID {
+			return i
+		}
 	}
-	if h < 0 {
-		h = -h
-	}
-	return h
+	return 0
 }
 
 // LES TROIS RÔLES D'UNE ÉQUIPE. Un joueur aligne trois héros (HeroesPerPlayer), et le
@@ -976,7 +1054,7 @@ func (g *GameState) heroRole(heroID string) int {
 // at random. Tiles another living hero already stands on are skipped (spread out
 // instead of queueing behind a teammate).
 func (g *GameState) pickResourceTile(h *Hero) (int, int, bool) {
-	dirX, dirY, _ := heroBias(h.ID)
+	dirX, dirY, _ := g.heroBias(h.ID)
 	want := g.botShoppingList()
 	crit := g.botCriticalList(want)
 	occupied := map[[2]int]bool{}
@@ -1032,7 +1110,7 @@ func (g *GameState) pickResourceTile(h *Hero) (int, int, bool) {
 	if len(cands) < k {
 		k = len(cands)
 	}
-	c := cands[rand.Intn(k)]
+	c := cands[randIntn(k)]
 	return c.x, c.y, true
 }
 
@@ -1040,7 +1118,7 @@ func (g *GameState) pickResourceTile(h *Hero) (int, int, bool) {
 // in the hero's preferred sector — when there is nothing left to gather, a human
 // goes exploring, so the bots do too.
 func (g *GameState) pickFrontierTile(h *Hero) (int, int, bool) {
-	dirX, dirY, _ := heroBias(h.ID)
+	dirX, dirY, _ := g.heroBias(h.ID)
 	bestX, bestY, bestScore := 0, 0, 1<<30
 	for y := 0; y < g.Height; y++ {
 		for x := 0; x < g.Width; x++ {

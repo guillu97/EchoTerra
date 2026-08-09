@@ -6,7 +6,6 @@ package game
 // combinations — collisions across games are harmless (the game id stays the key).
 
 import (
-	"math/rand"
 	"strings"
 )
 
@@ -28,14 +27,14 @@ var townEpithets = []string{
 
 // NewTownName returns a fresh town name like "Clairmont" or "Valbourg-sur-Brume".
 func NewTownName() string {
-	root := townRoots[rand.Intn(len(townRoots))]
-	ending := townEndings[rand.Intn(len(townEndings))]
+	root := townRoots[randIntn(len(townRoots))]
+	ending := townEndings[randIntn(len(townEndings))]
 	for strings.EqualFold(root, ending) { // avoid "Montmont" / "Valval"
-		ending = townEndings[rand.Intn(len(townEndings))]
+		ending = townEndings[randIntn(len(townEndings))]
 	}
 	name := root + ending
-	if rand.Intn(3) == 0 { // one town in three gets an epithet
-		name += townEpithets[rand.Intn(len(townEpithets))]
+	if randIntn(3) == 0 { // one town in three gets an epithet
+		name += townEpithets[randIntn(len(townEpithets))]
 	}
 	return name
 }

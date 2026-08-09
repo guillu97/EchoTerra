@@ -111,7 +111,14 @@ de scores entre coéquipiers y installerait une compétition qui n'a rien à y f
 
 Réponse à T2. Coût moyen : une map sur `GameState` et des incréments à six endroits.
 
-### P4 · Les consignes permanentes — *rendre l'absence survivable*
+### P4 · Les consignes permanentes — ✅ **LIVRÉ** (2026-08-09)
+
+> `game/orders_standing.go` : `SetHeroOrder` (gratuit — c'est une intention) et
+> `runStandingOrders`, exécutées juste avant `attackHeroesOutside`. Route
+> `/heroes/{id}/order`, boutons dans le menu radial hors de la ville.
+> Les trois bornes du plan sont TENUES et testées : une seule vague, jamais de combat
+> ni de fouille, et « rentrer » ne part que s'il peut arriver — sinon il se cache, parce
+> que brûler ses PA pour finir à découvert est exactement le piège que les bots ont connu.
 
 La fouille automatique (`forage.go`) prouve déjà que le concept marche : un héros posté récolte tout
 seul. Il faut la généraliser en **ordre permanent** choisi avant de fermer l'app :

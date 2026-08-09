@@ -15,7 +15,6 @@ package balance
 
 import (
 	"fmt"
-	"math/rand"
 	"sort"
 	"strings"
 	"time"
@@ -126,7 +125,10 @@ func Run(cfg Config) Report {
 // what an investigation needs (town journal, bank, hero positions) when a number in the
 // report looks wrong.
 func run(cfg Config) (*game.GameState, Report) {
-	rand.Seed(cfg.Seed) // determinism: same seed ⇒ same run
+	// Semer le générateur DU JEU, pas celui de math/rand : depuis Go 1.24 `rand.Seed`
+	// est un no-op, si bien que ce harnais n'a jamais été reproductible — il donnait des
+	// verdicts différents à la même question, ce qui a coûté deux faux positifs.
+	game.SeedRNG(cfg.Seed)
 
 	g := worldgen.NewLobby(cfg.Width, cfg.Height, cfg.Seed, "Simulation", 1, cfg.Players)
 	now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)

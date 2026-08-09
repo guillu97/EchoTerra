@@ -2,7 +2,6 @@ package game
 
 import (
 	"fmt"
-	"math/rand"
 	"sort"
 	"time"
 
@@ -287,7 +286,7 @@ func buildArena(biome Biome, gw, gh int) []CombatCell {
 	// hauteurs par biome
 	for y := 0; y < gh; y++ {
 		for x := 0; x < gw; x++ {
-			r := rand.Intn(10)
+			r := randIntn(10)
 			h := 0
 			switch biome {
 			case 3: // forêt vallonnée
@@ -298,7 +297,7 @@ func buildArena(biome Biome, gw, gh int) []CombatCell {
 					h = 2
 				}
 			case 4: // montagne : terrasses diagonales marquées
-				h = (x + y + rand.Intn(2)) / 4
+				h = (x + y + randIntn(2)) / 4
 				if h > 3 {
 					h = 3
 				}
@@ -324,25 +323,25 @@ func buildArena(biome Biome, gw, gh int) []CombatCell {
 	// dangers par biome
 	switch biome {
 	case 1: // langues d'eau dans un coin
-		cx, cy := 0, 2+rand.Intn(gh-4)
-		if rand.Intn(2) == 0 {
+		cx, cy := 0, 2+randIntn(gh-4)
+		if randIntn(2) == 0 {
 			cx = gw - 1
 		}
-		for i := 0; i < 3+rand.Intn(2); i++ {
-			x, y := cx, cy+rand.Intn(2)-i%2
+		for i := 0; i < 3+randIntn(2); i++ {
+			x, y := cx, cy+randIntn(2)-i%2
 			if x >= 0 && x < gw && y >= 1 && y < gh-1 {
 				at(x, y).Hazard = "water"
 				at(x, y).Height = 0
 			}
 		}
 	case 5: // plaques de glace
-		for i := 0; i < 4+rand.Intn(3); i++ {
-			x, y := rand.Intn(gw), 1+rand.Intn(gh-2)
+		for i := 0; i < 4+randIntn(3); i++ {
+			x, y := randIntn(gw), 1+randIntn(gh-2)
 			at(x, y).Hazard = "ice"
 		}
 	case 2, 3: // ronces
 		for i := 0; i < 2; i++ {
-			x, y := rand.Intn(gw), 2+rand.Intn(gh-4)
+			x, y := randIntn(gw), 2+randIntn(gh-4)
 			at(x, y).Hazard = "brambles"
 		}
 	}
@@ -355,7 +354,7 @@ func buildArena(biome Biome, gw, gh int) []CombatCell {
 	}
 	placed := [][2]int{}
 	for tries := 0; tries < 40 && len(placed) < nObs; tries++ {
-		x, y := rand.Intn(gw), 1+rand.Intn(gh-2)
+		x, y := randIntn(gw), 1+randIntn(gh-2)
 		if at(x, y).Hazard != "" || at(x, y).Blocked {
 			continue
 		}
@@ -536,7 +535,7 @@ func NewCombat(gs *GameState, heroes []*Hero, monster *Monster, starterID string
 // computeOrder sorts units by initiative (agility, +small roll) descending.
 func (c *Combat) computeOrder() {
 	for _, u := range c.Units {
-		u.Initiative = u.Stats.Agilite*10 + rand.Intn(10)
+		u.Initiative = u.Stats.Agilite*10 + randIntn(10)
 	}
 	units := append([]*CombatUnit(nil), c.Units...)
 	sort.SliceStable(units, func(i, j int) bool {
@@ -889,7 +888,7 @@ func (c *Combat) damageWith(att, def *CombatUnit, atk *AttackDef) int {
 		stat /= atk.DmgDiv
 	}
 	hd, num, den := c.dmgMods(att, def)
-	d := stat + atk.Bonus + hd + rand.Intn(3) - def.Stats.Endurance/2
+	d := stat + atk.Bonus + hd + randIntn(3) - def.Stats.Endurance/2
 	if d < 1 {
 		d = 1
 	}
@@ -907,7 +906,7 @@ func (c *Combat) damageWith(att, def *CombatUnit, atk *AttackDef) int {
 }
 
 // EstimateDamage renvoie la fourchette [min,max] des dégâts de atk sur def —
-// le miroir EXACT de damageWith sans le tirage aléatoire (rand.Intn(3) ∈ 0..2).
+// le miroir EXACT de damageWith sans le tirage aléatoire (randIntn(3) ∈ 0..2).
 // Servie par combatResponse pour la prévisualisation d'attaque (lot C2) : le
 // serveur calcule, le client ne fait qu'afficher.
 func (c *Combat) EstimateDamage(att, def *CombatUnit, atk *AttackDef) (int, int) {
@@ -1037,7 +1036,7 @@ func (c *Combat) performAttack(att *CombatUnit, atk *AttackDef, tx, ty int) {
 			c.logf("%s utilise %s sur %s.", att.Name, atk.Name, def.Name)
 		}
 		if def.Alive() {
-			if atk.StunPct > 0 && rand.Intn(100) < atk.StunPct {
+			if atk.StunPct > 0 && randIntn(100) < atk.StunPct {
 				def.addState("Stun")
 				c.logf("%s est étourdi (Stun).", def.Name)
 			}
@@ -1465,8 +1464,8 @@ func (c *Combat) monsterTurn(u *CombatUnit) {
 			isBuffer = true
 		}
 	}
-	if len(specials) > 0 && rand.Intn(100) < 35 {
-		pick := specials[rand.Intn(len(specials))]
+	if len(specials) > 0 && randIntn(100) < 35 {
+		pick := specials[randIntn(len(specials))]
 		// Don't re-shield while already shielded; self abilities fire immediately.
 		if !pick.SelfShield || !u.hasState("Bouclier") {
 			atk = pick
@@ -1528,7 +1527,7 @@ func (c *Combat) bossTurn(u *CombatUnit) {
 			break
 		}
 	}
-	if zone != nil && rand.Intn(100) < 40 && c.canTarget(u, zone, target) {
+	if zone != nil && randIntn(100) < 40 && c.canTarget(u, zone, target) {
 		c.performAttack(u, zone, target.X, target.Y)
 		return
 	}
@@ -1612,7 +1611,7 @@ func (c *Combat) spawnReinforcements() {
 	if tpl == nil {
 		return
 	}
-	n := 1 + rand.Intn(2)
+	n := 1 + randIntn(2)
 	spawned := 0
 	for x := 0; x < c.GridW && spawned < n; x++ {
 		cell := c.cellAt(x, 0)

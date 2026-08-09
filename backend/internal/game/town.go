@@ -196,7 +196,7 @@ const townLogCap = 100
 
 // logTown prepends an entry to the town journal.
 func (g *GameState) logTown(text string) {
-	e := TownLogEntry{At: time.Now(), Day: g.Day, Text: text}
+	e := TownLogEntry{At: g.clock(), Day: g.Day, Text: text}
 	g.Town.Log = append([]TownLogEntry{e}, g.Town.Log...)
 	if len(g.Town.Log) > townLogCap {
 		g.Town.Log = g.Town.Log[:townLogCap]

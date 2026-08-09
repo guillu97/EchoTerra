@@ -56,7 +56,20 @@ export function TownStatus() {
               </div>
             );
           })}
-          <div className="ts-defnote">La défense absorbe la horde ; une durabilité basse ou une porte ouverte la réduit.</div>
+          {/* LA GARNISON — le seul terme de la défense qu'on change en marchant. */}
+          <div className="ts-defrow">
+            <span className="ts-dn">🧍 Garnison ({t.garrison ?? 0} aux remparts)</span>
+            <span className={`ts-dval ${(t.garrisonValue ?? 0) > 0 ? "" : "muted"}`}>
+              {(t.garrisonValue ?? 0) > 0 ? `+${t.garrisonValue}` : "personne"}
+            </span>
+            <span className="ts-dur muted">—</span>
+          </div>
+          <div className="ts-defnote">
+            La défense absorbe la horde ; une durabilité basse ou une porte ouverte la réduit.
+            Un héros présent dans les murs à l'heure de la vague DÉFEND — sans pouvoir récolter
+            ce tour-là. La garnison ne dépasse jamais ce que les bâtiments tiennent : on ne
+            défend que le rempart qu'on a bâti.
+          </div>
         </div>
 
         <h4>Tous les bâtiments</h4>

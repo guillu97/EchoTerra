@@ -71,6 +71,16 @@ func (g *GameState) AdvanceTo(now time.Time, b SimBudget) SimResult {
 	if g == nil {
 		return res
 	}
+	// L'HORLOGE DE LA SIMULATION. Un rattrapage rejoue des instants PASSÉS : ce qu'une
+	// action y planifie (la fouille automatique) doit partir de l'instant rejoué, pas de
+	// l'heure qu'il est. Sans cela un round de bots joué à T-3 h posait sa prochaine
+	// récolte à « maintenant + un sixième de vague », donc trois heures trop tard.
+	//
+	// C'est aussi ce qui rendait la fouille automatique INVISIBLE à la simulation
+	// d'équilibrage, dont l'horloge est synthétique : mesuré, ZÉRO récolte automatique
+	// sur une partie entière — l'instrument mesurait un jeu amputé de son économie de
+	// campement, et concluait que les bots ne récoltaient rien.
+	defer func() { g.simNow = time.Time{} }()
 	// Les combats en cours sont minutés en temps réel : un tour AFK se résout même si
 	// rien d'autre n'est dû (et même en dehors du statut "active", par prudence).
 	if g.EnforceCombatTimers(now) {
@@ -114,6 +124,7 @@ func (g *GameState) AdvanceTo(now time.Time, b SimBudget) SimResult {
 				res.Done = false
 				break
 			}
+			g.simNow = forageAt
 			g.forageOnce(forager)
 			res.Forages++
 			res.Changed = true
@@ -127,6 +138,7 @@ func (g *GameState) AdvanceTo(now time.Time, b SimBudget) SimResult {
 				break
 			}
 			at := g.NextWaveAt
+			g.simNow = at
 			g.ProcessWave(at)
 			g.NextWaveAt = at.Add(WaveInterval)
 			g.EnforceCombatTimers(at)
@@ -139,6 +151,7 @@ func (g *GameState) AdvanceTo(now time.Time, b SimBudget) SimResult {
 			break
 		}
 		g.LastBotAt = botAt
+		g.simNow = botAt
 		if g.BotAct(botAt) {
 			res.Changed = true
 		}

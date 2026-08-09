@@ -6,7 +6,6 @@ package game
 
 import (
 	"fmt"
-	"math/rand"
 	"time"
 
 	"github.com/google/uuid"
@@ -471,7 +470,7 @@ const joinCodeAlphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
 func NewJoinCode() string {
 	b := make([]byte, 5)
 	for i := range b {
-		b[i] = joinCodeAlphabet[rand.Intn(len(joinCodeAlphabet))]
+		b[i] = joinCodeAlphabet[randIntn(len(joinCodeAlphabet))]
 	}
 	return string(b)
 }

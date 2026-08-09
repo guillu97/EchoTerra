@@ -249,6 +249,7 @@ func (s *Server) Router() http.Handler {
 			r.Post("/heroes/{heroID}/escape", s.escapeHero)
 			r.Post("/heroes/{heroID}/skill", s.castMapSkill)
 			r.Post("/heroes/{heroID}/drink", s.drinkRation)
+			r.Post("/heroes/{heroID}/order", s.heroOrder) // consigne permanente
 			r.Post("/heroes/{heroID}/ruin/clear", s.ruinClear)
 			r.Post("/heroes/{heroID}/ruin/explore", s.ruinExplore)
 			r.Post("/heroes/{heroID}/evolve", s.evolveHero)
@@ -816,6 +817,34 @@ func (s *Server) townRequestFill(w http.ResponseWriter, r *http.Request) {
 	}
 	s.persist(gs)
 	writeJSON(w, http.StatusOK, map[string]any{"request": req, "game": gs})
+}
+
+// heroOrder pose la CONSIGNE PERMANENTE d'un héros : ce qu'il fera tout seul juste
+// avant la prochaine vague si son joueur n'est pas revenu (orders_standing.go).
+func (s *Server) heroOrder(w http.ResponseWriter, r *http.Request) {
+	gs := s.mustGame(w, r)
+	if gs == nil {
+		return
+	}
+	var body struct {
+		Order    string `json:"order"`
+		PlayerID string `json:"playerId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeErr(w, http.StatusBadRequest, "corps invalide")
+		return
+	}
+	heroID := chi.URLParam(r, "heroID")
+	if err := gs.CheckHeroOwnership(body.PlayerID, heroID); err != nil {
+		writeActionErr(w, err)
+		return
+	}
+	if err := gs.SetHeroOrder(heroID, body.Order); err != nil {
+		writeActionErr(w, err)
+		return
+	}
+	s.persist(gs)
+	writeJSON(w, http.StatusOK, gs)
 }
 
 // leaveGame removes the calling player (and their hero) from a lobby. An emptied

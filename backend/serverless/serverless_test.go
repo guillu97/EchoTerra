@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -15,6 +16,12 @@ import (
 func TestHandlerServesAPI(t *testing.T) {
 	os.Setenv("ECHOTERRA_DB", filepath.Join(t.TempDir(), "serverless.db"))
 	defer os.Unsetenv("ECHOTERRA_DB")
+	// Le handler s'initialise UNE fois par instance de fonction (sync.Once) : c'est le
+	// comportement voulu en production, mais sous `go test -count=N` le second passage
+	// réutiliserait le store du premier, dont le TempDir vient d'être effacé — donc un
+	// 404 qui ne dit rien du code. On repart à neuf. (Et `-count` est exactement l'outil
+	// qui sert à débusquer une instabilité : il ne doit pas en fabriquer une.)
+	once, router, initErr = sync.Once{}, nil, nil
 
 	do := func(method, path, body string) *httptest.ResponseRecorder {
 		t.Helper()
