@@ -1,7 +1,5 @@
 package game
 
-import "math/rand"
-
 // design.go — the game-design data authored in the Studio de données (🧬) and handed
 // back as JSON (echoterra-design-20260714). Terrains (search tables), monster species
 // (stats, packs, spawn biomes, GDD attack grids, loot), building levels (materials,
@@ -30,7 +28,7 @@ func weightedDrop(drops []DropDef) *DropDef {
 	if total == 0 {
 		return nil
 	}
-	roll := rand.Intn(total)
+	roll := randIntn(total)
 	for i := range drops {
 		if drops[i].Weight <= 0 {
 			continue

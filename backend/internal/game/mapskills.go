@@ -1,7 +1,5 @@
 package game
 
-import "math/rand"
-
 // Map skills (2026-07-20) — remplacent la boule de feu UNIVERSELLE par des
 // compétences PAR CLASSE utilisables sur la carte. Chaque classe a une (ou
 // deux) capacité(s) offensive(s) de carte ; le héros sans classe garde un
@@ -161,7 +159,7 @@ func (g *GameState) castBlast(h *Hero, sk *MapSkillDef, rep *MapSkillReport) err
 	default:
 		stat = h.Stats.Precision
 	}
-	dmg := sk.Base + stat + h.Stats.Dexterite/2 + rand.Intn(4)
+	dmg := sk.Base + stat + h.Stats.Dexterite/2 + randIntn(4)
 	rep.MonsterID, rep.Species, rep.Damage, rep.X, rep.Y = m.ID, m.Species, dmg, m.X, m.Y
 
 	m.HP -= dmg

@@ -1,7 +1,6 @@
 package game
 
 import (
-	"math/rand"
 	"sort"
 	"time"
 )
@@ -917,27 +916,34 @@ func (g *GameState) bankCoversBeyondDefense(mats []Item) bool {
 	return true
 }
 
-// heroBias derives a stable per-hero "personality" from its id: a preferred compass
-// direction for gathering/exploring, and a caution margin for the walk home. This is
-// what keeps bot teammates from all marching single-file to the same tile — each
-// hero leans toward its own sector of the map, like humans splitting up.
-func heroBias(id string) (dirX, dirY, caution int) {
-	hsh := heroHash(id)
+// heroBias donne à chaque héros sa « personnalité » de récolte : une direction de
+// prédilection et une marge de prudence pour le retour. C'est ce qui empêche les
+// coéquipiers de marcher en file indienne vers la même case — chacun penche vers son
+// secteur, comme des gens qui se répartissent le terrain.
+//
+// Le repère est le RANG du héros dans la partie, PAS un hachage de son identifiant.
+// Les identifiants sont des UUID tirés au hasard à chaque partie : un secteur qui en
+// dérive change d'un rejeu à l'autre, ce qui rendait la simulation d'équilibrage
+// irreproductible — c'est ce qui a fait échouer une garde de non-régression au hasard
+// et coûté deux faux positifs. Le rang, lui, répartit VRAIMENT les héros sur les quatre
+// directions au lieu de l'espérer d'un hachage.
+func (g *GameState) heroBias(heroID string) (dirX, dirY, caution int) {
+	rank := g.heroRank(heroID)
 	dirs := [4][2]int{{1, 0}, {-1, 0}, {0, 1}, {0, -1}}
-	d := dirs[hsh%4]
-	return d[0], d[1], (hsh / 4) % 2
+	d := dirs[rank%4]
+	return d[0], d[1], (rank / 4) % 2
 }
 
-// heroHash is the stable per-hero seed behind every "personality" derived from an id.
-func heroHash(id string) int {
-	h := 0
-	for _, c := range id {
-		h = h*31 + int(c)
+// heroRank est l'index du héros dans l'ordre de naissance de la partie — stable,
+// déterministe, et déjà porteur de la structure des équipes (trois héros consécutifs
+// appartiennent au même joueur).
+func (g *GameState) heroRank(heroID string) int {
+	for i, h := range g.Heroes {
+		if h.ID == heroID {
+			return i
+		}
 	}
-	if h < 0 {
-		h = -h
-	}
-	return h
+	return 0
 }
 
 // LES TROIS RÔLES D'UNE ÉQUIPE. Un joueur aligne trois héros (HeroesPerPlayer), et le
@@ -976,7 +982,7 @@ func (g *GameState) heroRole(heroID string) int {
 // at random. Tiles another living hero already stands on are skipped (spread out
 // instead of queueing behind a teammate).
 func (g *GameState) pickResourceTile(h *Hero) (int, int, bool) {
-	dirX, dirY, _ := heroBias(h.ID)
+	dirX, dirY, _ := g.heroBias(h.ID)
 	want := g.botShoppingList()
 	crit := g.botCriticalList(want)
 	occupied := map[[2]int]bool{}
@@ -1032,7 +1038,7 @@ func (g *GameState) pickResourceTile(h *Hero) (int, int, bool) {
 	if len(cands) < k {
 		k = len(cands)
 	}
-	c := cands[rand.Intn(k)]
+	c := cands[randIntn(k)]
 	return c.x, c.y, true
 }
 
@@ -1040,7 +1046,7 @@ func (g *GameState) pickResourceTile(h *Hero) (int, int, bool) {
 // in the hero's preferred sector — when there is nothing left to gather, a human
 // goes exploring, so the bots do too.
 func (g *GameState) pickFrontierTile(h *Hero) (int, int, bool) {
-	dirX, dirY, _ := heroBias(h.ID)
+	dirX, dirY, _ := g.heroBias(h.ID)
 	bestX, bestY, bestScore := 0, 0, 1<<30
 	for y := 0; y < g.Height; y++ {
 		for x := 0; x < g.Width; x++ {

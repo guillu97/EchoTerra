@@ -1,7 +1,6 @@
 package game
 
 import (
-	"math/rand"
 	"time"
 )
 
@@ -166,7 +165,7 @@ func (g *GameState) EscapeHero(heroID string) error {
 	// héros a lâché sa fouille dans les deux cas. (Placé AVANT le tirage : le
 	// mettre après le pas laissait la récolte tourner une fois sur quatre.)
 	h.StopForaging()
-	if rand.Intn(100) < 25 {
+	if randIntn(100) < 25 {
 		h.AddState("Blessé") // stumbled
 		return nil
 	}
@@ -258,7 +257,7 @@ func (g *GameState) searchLoot(h *Hero, t *Tile, td TerrainDef) *Item {
 	// rend plus grand chose — le plus souvent des débris, et seulement de temps en
 	// temps une vraie ressource — ce qui pousse à explorer des cases fraîches.
 	if t.Resources <= 0 {
-		if rand.Intn(100) >= depletedFindPct {
+		if randIntn(100) >= depletedFindPct {
 			it := Item{Type: "objet", Name: "Débris", Qty: 1}
 			h.AddLoot(it)
 			return &it

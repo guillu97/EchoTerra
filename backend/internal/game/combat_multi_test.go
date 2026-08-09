@@ -234,8 +234,16 @@ func TestConcurrentCombats(t *testing.T) {
 	}
 	mk("m1", 2, 2)
 	mk("m2", 7, 7)
-	a := testHero("Alice", 6); a.X, a.Y = 2, 2; a.PA = 6; a.Stats.Endurance = 12; a.HP, a.MaxHP = 60, 60
-	b := testHero("Bob", 6); b.X, b.Y = 7, 7; b.PA = 6; b.Stats.Endurance = 12; b.HP, b.MaxHP = 60, 60
+	a := testHero("Alice", 6)
+	a.X, a.Y = 2, 2
+	a.PA = 6
+	a.Stats.Endurance = 12
+	a.HP, a.MaxHP = 60, 60
+	b := testHero("Bob", 6)
+	b.X, b.Y = 7, 7
+	b.PA = 6
+	b.Stats.Endurance = 12
+	b.HP, b.MaxHP = 60, 60
 	gs.Heroes = []*Hero{a, b}
 	gs.Players = []*Player{
 		{ID: "pA", HeroIDs: []string{a.ID}, Host: true},

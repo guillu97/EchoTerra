@@ -1,7 +1,6 @@
 package game
 
 import (
-	"math/rand"
 	"sort"
 	"time"
 )
@@ -234,7 +233,7 @@ func (g *GameState) hordeScale() float64 {
 // hordePower assemble les deux termes pour la vague qui frappe maintenant.
 func hordePower(waveNumber int, scale float64, besieging int) int {
 	pressure := float64(hordeBase+waveNumber*hordeGrowth) * scale
-	p := int(pressure) + besieging*assaultPerAttack + rand.Intn(4)
+	p := int(pressure) + besieging*assaultPerAttack + randIntn(4)
 	if p < 1 {
 		p = 1
 	}
@@ -420,9 +419,9 @@ func (g *GameState) damageRandomBuildings(overflow int, r *WaveReport) {
 	}
 	hits := 1 + overflow/15
 	for i := 0; i < hits; i++ {
-		b := others[rand.Intn(len(others))]
+		b := others[randIntn(len(others))]
 		before := b.Durability
-		b.Durability -= 5 + rand.Intn(10)
+		b.Durability -= 5 + randIntn(10)
 		if b.Durability < 0 {
 			b.Durability = 0
 		}
@@ -441,7 +440,7 @@ func (g *GameState) attackHeroesOutside(waveNumber int, r *WaveReport) {
 			h.RemoveState("Caché") // concealment saves them this wave, then fades
 			continue
 		}
-		dmg := 3 + waveNumber + rand.Intn(4)
+		dmg := 3 + waveNumber + randIntn(4)
 		if t := g.TileAt(h.X, h.Y); t != nil && t.MonsterID != "" {
 			dmg += 4 // monsters already on the hero's tile pile on
 		}

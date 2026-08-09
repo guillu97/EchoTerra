@@ -153,8 +153,8 @@ type GameState struct {
 	Wave     int                 `json:"wave"`
 	// Lobby / multiplayer (see lobby.go). A game is created in status "lobby" and only
 	// becomes "active" once the host launches it with at least MinPlayers players.
-	JoinCode   string    `json:"joinCode,omitempty"`   // short shareable code to join the lobby
-	Visibility string    `json:"visibility,omitempty"` // "private" (default) | "public" (see lobby.go)
+	JoinCode   string `json:"joinCode,omitempty"`   // short shareable code to join the lobby
+	Visibility string `json:"visibility,omitempty"` // "private" (default) | "public" (see lobby.go)
 	// Solo marks a game created by POST /api/games/solo (one human + bots). It is
 	// private like any other coded lobby, so visibility alone can't tell them apart —
 	// the leaderboard ranks solo towns separately (see LeaderboardMode).
@@ -168,14 +168,14 @@ type GameState struct {
 	// player ids. A strict majority of the other human players removes the target.
 	KickVotes map[string][]string `json:"kickVotes,omitempty"`
 	// Horde / wave scheduling (server-authoritative).
-	WaveNumber int         `json:"waveNumber"`         // total waves resolved so far
-	NextWaveAt time.Time   `json:"nextWaveAt"`         // when the next wave hits the town
-	LastBotAt  time.Time   `json:"lastBotAt,omitzero"` // last lazy bot round (serverless catch-up, see bots.go)
-	Status     string      `json:"status"`             // "lobby" | "active" | "gameover"
+	WaveNumber int       `json:"waveNumber"`         // total waves resolved so far
+	NextWaveAt time.Time `json:"nextWaveAt"`         // when the next wave hits the town
+	LastBotAt  time.Time `json:"lastBotAt,omitzero"` // last lazy bot round (serverless catch-up, see bots.go)
+	Status     string    `json:"status"`             // "lobby" | "active" | "gameover"
 	// Rev is the store revision this state was loaded at — persistence bookkeeping,
 	// never serialized into the blob nor sent to clients (see store.SaveIfUnchanged).
-	Rev int64 `json:"-"`
-	LastWave   *WaveReport `json:"lastWave,omitempty"`
+	Rev      int64       `json:"-"`
+	LastWave *WaveReport `json:"lastWave,omitempty"`
 	// MonstersKilled counts every creature slain in this game (iso combat wins, map
 	// skills, bot auto-resolves) — the leaderboard's "monstres tués par ville".
 	MonstersKilled int `json:"monstersKilled"`
@@ -183,7 +183,7 @@ type GameState struct {
 	// Clé = playerID. Rendre la contribution visible est la récompense principale d'un
 	// jeu coopératif ; le registre est volontairement NON trié par mérite.
 	Contributions map[string]*Contribution `json:"contributions,omitempty"`
-	Town           struct {
+	Town          struct {
 		Name      string          `json:"name"` // generated town name (see townnames.go)
 		X         int             `json:"x"`
 		Y         int             `json:"y"`

@@ -66,7 +66,7 @@ func TestMigrationMovesMonstersTowardTown(t *testing.T) {
 }
 
 func TestMigrationNeverEntersTownTile(t *testing.T) {
-	g := grassWorld(11, 11) // ville (5,5)
+	g := grassWorld(11, 11)               // ville (5,5)
 	m := NewMonster("Slime Vorace", 6, 5) // juste à l'est de la ville
 	g.Monsters[m.ID] = m
 	g.TileAt(6, 5).MonsterID = m.ID

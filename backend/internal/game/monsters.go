@@ -1,8 +1,6 @@
 package game
 
 import (
-	"math/rand"
-
 	"github.com/google/uuid"
 )
 
@@ -32,7 +30,7 @@ func packSize(sp *SpeciesDef) int {
 	if span <= 0 {
 		return sp.PackMin
 	}
-	return sp.PackMin + rand.Intn(span+1)
+	return sp.PackMin + randIntn(span+1)
 }
 
 // spawnableSpeciesAt returns a species allowed on the tile's biome (bosses only
@@ -46,7 +44,7 @@ func (g *GameState) spawnableSpeciesAt(x, y int, includeBosses bool) *SpeciesDef
 	if len(pool) == 0 {
 		return nil
 	}
-	return pool[rand.Intn(len(pool))]
+	return pool[randIntn(len(pool))]
 }
 
 // Réglages de l'apparition pondérée (2026-07-20, densité relevée 2026-07-21).
@@ -125,19 +123,19 @@ func (g *GameState) spawnWeightedPackWithin(waveNumber int, includeBosses bool, 
 	for tries := 0; tries < 80; tries++ {
 		var x, y int
 		if radius > 0 {
-			x = g.Town.X + rand.Intn(2*radius+1) - radius
-			y = g.Town.Y + rand.Intn(2*radius+1) - radius
+			x = g.Town.X + randIntn(2*radius+1) - radius
+			y = g.Town.Y + randIntn(2*radius+1) - radius
 			if x < 0 || y < 0 || x >= g.Width || y >= g.Height {
 				continue
 			}
 		} else {
-			x, y = rand.Intn(g.Width), rand.Intn(g.Height)
+			x, y = randIntn(g.Width), randIntn(g.Height)
 		}
 		t := g.TileAt(x, y)
 		if t == nil || !t.Biome.Walkable() || t.MonsterID != "" {
 			continue
 		}
-		if rand.Float64() >= g.spawnChance(x, y, waveNumber) {
+		if randFloat64() >= g.spawnChance(x, y, waveNumber) {
 			continue
 		}
 		sp := g.spawnableSpeciesAt(x, y, includeBosses)
@@ -163,14 +161,14 @@ func (g *GameState) spawnWeightedPackWithin(waveNumber int, includeBosses bool, 
 // découvert autour de la ville dès le lancement — le fog cache le reste).
 func (g *GameState) spawnPackInBand(lo, hi int, includeBosses bool) bool {
 	for tries := 0; tries < 120; tries++ {
-		r := lo + rand.Intn(hi-lo+1)
+		r := lo + randIntn(hi-lo+1)
 		x, y := g.Town.X, g.Town.Y
-		if rand.Intn(2) == 0 { // bord haut/bas de l'anneau
-			x += rand.Intn(2*r+1) - r
-			y += r * (2*rand.Intn(2) - 1)
+		if randIntn(2) == 0 { // bord haut/bas de l'anneau
+			x += randIntn(2*r+1) - r
+			y += r * (2*randIntn(2) - 1)
 		} else { // bord gauche/droite
-			x += r * (2*rand.Intn(2) - 1)
-			y += rand.Intn(2*r+1) - r
+			x += r * (2*randIntn(2) - 1)
+			y += randIntn(2*r+1) - r
 		}
 		t := g.TileAt(x, y)
 		if t == nil || !t.Biome.Walkable() || t.MonsterID != "" || (x == g.Town.X && y == g.Town.Y) {

@@ -58,7 +58,7 @@ func contains(s, sub string) bool {
 func TestPushMovesTarget(t *testing.T) {
 	_, c, hu, mu := c3Combat(t)
 	hu.X, hu.Y = 3, 3
-	mu.X, mu.Y = 4, 3 // à l'est, case 5,3 libre et plate
+	mu.X, mu.Y = 4, 3        // à l'est, case 5,3 libre et plate
 	c.pushUnit(hu, mu, 1, 0) // mécanique pure (PlayerAction enchaîne les tours IA)
 	if mu.X != 5 || mu.Y != 3 {
 		t.Fatalf("target should be pushed east to (5,3), got (%d,%d)", mu.X, mu.Y)
