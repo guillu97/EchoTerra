@@ -139,6 +139,12 @@ export interface Settings {
   voxelSignac: boolean;
   /** Dosage de la passe Signac, 0..1. */
   signacStrength: number;
+  /** Cadence de l'animation « au repos » des personnages et des monstres, en
+   *  images/s (0 = figés tant que rien ne bouge — mode batterie). Le rendu
+   *  voxel est ON-DEMAND : la respiration d'un monstre coûte un redraw complet
+   *  de la scène, donc c'est bien une fréquence d'affichage qu'on règle ici.
+   *  Ne borne QUE l'idle : un pas, une attaque, une mort gardent le plein rAF. */
+  idleAnimFps: 0 | 8 | 15 | 30;
   renderPreset?: number; // marqueur de migration des défauts de rendu (voir RENDER_PRESET)
 }
 
@@ -157,6 +163,8 @@ const DEFAULT_SETTINGS: Settings = {
   voxelBeauty: true, // mode CINÉMATIQUE (bloom + ACES) activé par défaut — décision utilisateur 2026-07-22
   voxelSignac: false, // opt-in : c'est un parti pris pictural fort, pas un défaut
   signacStrength: 0.6,
+  idleAnimFps: 15, // les monstres respirent sur la carte, sans y brûler la batterie
+
   renderPreset: RENDER_PRESET,
 };
 

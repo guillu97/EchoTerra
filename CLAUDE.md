@@ -913,14 +913,21 @@ du portail) ; les sans-membres (slime/mushroom=squash, ghost=flottement, windele
 le corps entier. `applyAnim(rig,state,…)` : idle respiration / **walk** foulée+saut / **attack** lunge+piqué
 / **skill** accroupi→jaillit+pulse / **hit** recul. `UnitAnimator` = registre par id survivant aux redraws,
 détecte les déplacements (lerp de pose + arc → walk), joue les one-shots. **QUI PILOTE LES FRAMES
-(2026-08-02)** : la boucle réarmait « tant qu'il reste une unité » — or l'idle (respiration) ne s'arrête
-jamais, donc la CARTE rendait ~35 fps en continu dès qu'un héros existait, c'est-à-dire toujours (batterie
-sur téléphone, et contrat « carte 100 % on-demand » rompu ; les nuages en avaient déjà été retirés pour ça).
-Deux rôles, choisis à la construction : **producteur** (`idleDrivesFrames: true`, défaut — combat, ville :
-l'idle vit en permanence) et **CONSOMMATEUR** (`false` — la carte : la boucle ne tourne que tant qu'il se
-PASSE quelque chose, un pas / un one-shot / une mort, et les poses sont rafraîchies par `pose()` branché sur
-`engine.onBeforeFrame`, donc sur les frames que d'AUTRES demandent). `setActive(false)` coupe tout quand
-l'onglet Map est quitté. ⚠ le budget de perf compte `engine.frames` (un par REDRAW) et non
+(2026-08-02, cadencé le 2026-08-09)** : la boucle réarmait « tant qu'il reste une unité » — or l'idle
+(respiration) ne s'arrête jamais, donc la CARTE rendait ~35 fps en continu dès qu'un héros existait,
+c'est-à-dire toujours (batterie sur téléphone, et contrat « carte 100 % on-demand » rompu ; les nuages en
+avaient déjà été retirés pour ça). La réponse d'alors — la carte en pur CONSOMMATEUR de frames — a
+**figé les monstres** : sur une carte au repos, plus rien ne remuait. D'où un **CADENCEUR D'IDLE**
+(`UnitAnimator({idleFps})` + `setIdleFps`, réglage `settings.idleAnimFps` — Paramètres → « Animation des
+personnages » : Figée 0 / Éco 8 / Fluide 15 [défaut] / Max 30, appliqué aux TROIS vues) : à **0** la
+boucle ne tourne que tant qu'il se PASSE quelque chose (un pas / un one-shot / une mort) et les poses
+sont rafraîchies par `pose()` branché sur `engine.onBeforeFrame`, donc sur les frames que d'AUTRES
+demandent ; **au-dessus**, l'idle réarme la boucle mais au rythme demandé (`setTimeout` entre deux rAF),
+pas à la fréquence de l'écran — un rendu on-demand qui reste on-demand, où l'on choisit combien de
+redraws/s la respiration a le droit de coûter. ⚠ le cadenceur ne borne QUE l'idle : un pas, une attaque,
+une mort gardent le plein rAF (`ensureLoop(urgent)` coupe court à l'attente). `setActive(false)` coupe
+tout quand l'onglet Map est quitté. Vérifié par `npm run test:perf` (« Figée » = 0 redraw en 3 s ;
+cadence tenue sous son plafond ; 0 redraw hors de l'onglet même animation active). ⚠ le budget de perf compte `engine.frames` (un par REDRAW) et non
 `renderer.info.render.frame` (un par appel GL) : depuis que le mode beauté est le défaut, la passe bloom
 fait ~17 appels pour un seul redraw. `CharLibrary.makeRig(key)` (géométries découpées en cache) +
 `setRigOpacity` (héros des autres, translucides). Carte : rigs face caméra (idle + marche au pas) ; Combat :

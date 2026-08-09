@@ -71,11 +71,34 @@ check("aucun .vox téléchargé deux fois", payload.dupes === 0, `${payload.dupe
 // redraw fait ~17 appels de rendu — la passe bloom en enchaîne plusieurs. Le
 // contrat qu'on veut tenir est « combien de fois redessine-t-on », pas
 // « combien coûte un redessin ».
+//
+// L'animation au repos est CADENCÉE par un réglage (Paramètres → « Animation des
+// personnages », cf. voxel/unitAnim.ts) : on mesure les deux bouts du contrat —
+// « Figée » (0) doit rendre la carte 100 % on-demand, et une cadence choisie doit
+// être TENUE (ni ignorée, ni dépassée jusqu'à la fréquence de l'écran).
+await page.evaluate(() => window.__eg.store.getState().updateSettings({ idleAnimFps: 0 }));
+await wait(400);
 const f0 = await page.evaluate(() => window.__vm.engine.frames);
 await wait(3000);
 const f1 = await page.evaluate(() => window.__vm.engine.frames);
 // ≤2 : le cycle solaire tique toutes les 5 s et redessine — 0 ou 1 sur 3 s.
-check("carte on-demand (pas de boucle continue)", f1 - f0 <= 2, `${f1 - f0} redraws en 3s au repos`);
+check("carte on-demand en animation Figée", f1 - f0 <= 2, `${f1 - f0} redraws en 3s au repos`);
+
+await page.evaluate(() => window.__eg.store.getState().updateSettings({ idleAnimFps: 15 }));
+await wait(400);
+const a0 = await page.evaluate(() => window.__vm.engine.frames);
+await wait(2000);
+const a1 = await page.evaluate(() => window.__vm.engine.frames);
+const fps = (a1 - a0) / 2;
+// ⚠ pas de plancher serré : en GL LOGICIEL une frame de la carte coûte des
+// centaines de ms, donc la boucle est affamée bien avant d'atteindre sa cadence
+// (mesuré ~2,5/s ici pour 15 demandées). Ce qui est vérifiable et qui compte :
+// ça ANIME au repos (« Figée » mesure 0 juste au-dessus) et ça ne part JAMAIS à
+// la fréquence de l'écran — c'est le plafond qui protège la batterie.
+check("animation au repos cadencée (≤15 fps demandés)", fps > 0.5 && fps <= 22, `${fps.toFixed(1)} redraws/s`);
+// on la LAISSE tourner : le test « hors de l'onglet Map » plus bas doit prouver
+// que quitter l'onglet coupe l'animation même quand elle est active.
+
 check("pas de nuages sur la carte (retour perf mobile)", await page.evaluate(() => !window.__vm.world.clouds), "clouds absent");
 
 // --- pas de fuite : géométries stables à travers les redraws -----------------
@@ -99,6 +122,8 @@ await wait(2000);
 const fB = await page.evaluate(() => window.__vm.engine.frames);
 // 0 attendu : hors de l'onglet Map, l'animator est coupé ET le cycle solaire
 // est en pause (la vue reste MONTÉE, masquée en CSS — c'est à elle de se taire).
+// ⚠ mesuré avec l'animation au repos ACTIVE (15 fps ci-dessus) : c'est le cas
+// qui compte, le cadenceur ne doit pas survivre au départ de l'onglet.
 check("rendu STOPPÉ hors de l'onglet Map (batterie)", fB - fA === 0, `${fB - fA} redraws en 2s`);
 await page.evaluate(() => window.__eg.store.setState({ tab: "map" }));
 await wait(800);

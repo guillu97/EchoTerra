@@ -167,11 +167,15 @@ class MapWorld {
 
   constructor(readonly engine: VoxelEngine) {
     engine.enableLighting({ shadowSpan: 45 }); // passe beauté : lumière pastel + ombres
-    // CONSOMMATEUR de frames, pas producteur : sur la carte, l'idle ne doit pas
-    // réarmer la boucle (cf. l'en-tête de unitAnim.ts — la respiration des héros
-    // faisait rendre la carte à ~35 fps en permanence). Les poses sont
-    // rafraîchies par `onBeforeFrame`, sur les frames que d'autres demandent.
-    this.animator = new UnitAnimator(engine, undefined, { idleDrivesFrames: false });
+    // L'idle est CADENCÉ par le réglage « Animation des personnages » (cf.
+    // l'en-tête de unitAnim.ts) : à 0 la carte redevient 100 % on-demand et les
+    // monstres se figent tant que rien ne bouge ; au-dessus, ils respirent au
+    // rythme choisi — c'est bien un redraw complet de la scène par image, d'où
+    // le réglage. Les poses restent aussi rafraîchies par `onBeforeFrame`, sur
+    // les frames que d'autres demandent (rotation, redraw).
+    this.animator = new UnitAnimator(engine, undefined, {
+      idleFps: useStore.getState().settings.idleAnimFps,
+    });
     engine.scene.add(this.overlays);
     engine.scene.add(this.sprites);
     void this.lib
@@ -781,6 +785,8 @@ export function VoxelMapView({ active = true }: { active?: boolean }) {
         s.settings.signacStrength !== prev.settings.signacStrength
       )
         engine.setSignac(s.settings.voxelSignac, s.settings.signacStrength);
+      if (s.settings.idleAnimFps !== prev.settings.idleAnimFps)
+        world.animator.setIdleFps(s.settings.idleAnimFps);
     });
 
     const off = bus.on(

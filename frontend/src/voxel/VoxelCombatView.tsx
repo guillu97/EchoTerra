@@ -85,7 +85,11 @@ class CombatWorld {
   private unsubBeauty: () => void;
 
   constructor(readonly engine: VoxelEngine) {
-    this.animator = new UnitAnimator(engine);
+    // idle cadencé par le réglage « Animation des personnages » (batterie) —
+    // les actions (attaque, compétence, mort) restent au plein rAF.
+    this.animator = new UnitAnimator(engine, undefined, {
+      idleFps: useStore.getState().settings.idleAnimFps,
+    });
     engine.enableLighting({ shadowSpan: 12 }); // arène + socle : ombres serrées
     // fond : dégradé crépusculaire (indigo profond → mauve chaud) au lieu du à-plat
     // → profondeur atmosphérique, l'arène-diorama ne flotte plus dans un vide plat.
@@ -108,6 +112,8 @@ class CombatWorld {
         s.settings.signacStrength !== prev.settings.signacStrength
       )
         engine.setSignac(s.settings.voxelSignac, s.settings.signacStrength);
+      if (s.settings.idleAnimFps !== prev.settings.idleAnimFps)
+        this.animator.setIdleFps(s.settings.idleAnimFps);
     });
     void this.propsLib
       .load(["rock", "tree-green", "ice-spike", "brambles", "flowers", "daisy",

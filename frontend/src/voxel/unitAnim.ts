@@ -11,15 +11,23 @@
 // qu'on ne regarde pas, et ça contredisait le contrat « la carte est 100 %
 // on-demand » (les nuages en avaient déjà été retirés pour la même raison).
 //
-// Deux rôles, donc, choisis par la vue à la construction :
-//   - PRODUCTEUR de frames (`idleDrivesFrames: true`, défaut — combat, ville) :
-//     la boucle tourne tant qu'il reste une unité, l'idle vit en permanence ;
-//   - CONSOMMATEUR (`idleDrivesFrames: false` — la carte) : la boucle ne tourne
-//     que tant qu'il se PASSE quelque chose (un pas, un one-shot, une mort) et
-//     s'arrête ensuite. Les poses sont alors rafraîchies par `pose()`, que la
-//     vue branche sur `engine.onBeforeFrame` : à chaque frame que QUELQU'UN
-//     D'AUTRE demande (rotation de caméra, redraw, déplacement), les rigs sont
-//     posés — mais aucune frame n'est demandée pour eux seuls.
+// D'où un CADENCEUR D'IDLE (`idleFps`, réglable — Paramètres → « Animation des
+// personnages »), qui choisit ce que l'idle a le droit de demander :
+//   - `idleFps = 0` — CONSOMMATEUR : la boucle ne tourne que tant qu'il se PASSE
+//     quelque chose (un pas, un one-shot, une mort) et s'arrête ensuite. Les
+//     poses sont alors rafraîchies par `pose()`, que la vue branche sur
+//     `engine.onBeforeFrame` : à chaque frame que QUELQU'UN D'AUTRE demande
+//     (rotation de caméra, redraw, déplacement), les rigs sont posés — mais
+//     aucune frame n'est demandée pour eux seuls. C'est le mode « batterie » :
+//     sur la carte, monstres et héros restent figés tant que rien ne bouge.
+//   - `idleFps > 0` — PRODUCTEUR CADENCÉ : l'idle réarme la boucle, mais au
+//     rythme demandé (setTimeout entre deux rAF) et pas à la fréquence de
+//     l'écran. C'est un rendu ON-DEMAND qui reste on-demand : on choisit
+//     combien de redraws par seconde la respiration a le droit de coûter.
+//
+// ⚠ le cadenceur ne borne QUE l'idle. Un pas, une attaque, une mort gardent le
+// plein rAF : ce sont des mouvements courts, qu'on regarde, et les hacher pour
+// économiser trois frames ne se justifie pas.
 //
 // `setActive(false)` coupe tout : la carte reste MONTÉE quand on change d'onglet
 // (elle est seulement masquée en CSS), sans ça elle continuait d'animer derrière
@@ -48,22 +56,40 @@ const HOP = 0.12;
 const DEATH_MS = 850;
 const easeInOut = (t: number) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2);
 
+/** Cadence d'idle par défaut quand la vue n'en impose pas (combat, ville, banc,
+ *  tests) — les vues du jeu passent le réglage de l'utilisateur. */
+const DEFAULT_IDLE_FPS = 15;
+const MAX_IDLE_FPS = 60;
+const clampFps = (n: number) => (Number.isFinite(n) ? Math.max(0, Math.min(MAX_IDLE_FPS, Math.round(n))) : 0);
+
 export class UnitAnimator {
   private units = new Map<string, Unit>();
   private dying: Dying[] = [];
   private seen = new Set<string>();
   private raf = 0;
+  private timer: ReturnType<typeof setTimeout> | 0 = 0; // attente entre deux frames d'idle
   private clockHash = 0;
 
   private active = true;
-  private idleDrivesFrames: boolean;
+  private idleFps: number;
 
   constructor(
     private engine: { invalidate(): void; azimuthNow: number },
     private now: () => number = () => performance.now(),
-    opts: { idleDrivesFrames?: boolean } = {},
+    opts: { idleFps?: number } = {},
   ) {
-    this.idleDrivesFrames = opts.idleDrivesFrames ?? true;
+    this.idleFps = clampFps(opts.idleFps ?? DEFAULT_IDLE_FPS);
+  }
+
+  /** Cadence de l'idle, en images/s (0 = idle figé, cf. l'en-tête). Réglable à
+   *  chaud : les vues la branchent sur les Paramètres. */
+  setIdleFps(fps: number) {
+    const v = clampFps(fps);
+    if (v === this.idleFps) return;
+    this.idleFps = v;
+    if (v > 0) this.ensureLoop();
+    // v === 0 : on laisse la boucle s'éteindre d'elle-même au prochain tour
+    // (elle ne se réarmera plus pour l'idle).
   }
 
   /** Coupe ou relance l'animation (onglet applicatif quitté : la vue reste
@@ -71,10 +97,8 @@ export class UnitAnimator {
   setActive(on: boolean) {
     if (this.active === on) return;
     this.active = on;
-    if (!on) {
-      if (this.raf) cancelAnimationFrame(this.raf);
-      this.raf = 0;
-    } else this.ensureLoop();
+    if (!on) this.stopLoop();
+    else this.ensureLoop();
   }
 
   /** Y a-t-il quelque chose de TRANSITOIRE en cours ? (un pas, un one-shot, une
@@ -114,6 +138,9 @@ export class UnitAnimator {
         u.pby = prev.pby + (prev.baseY - prev.pby) * k;
       }
       this.units.set(id, u);
+      // un PAS reprend la main tout de suite : il ne doit pas attendre le
+      // prochain créneau du cadenceur d'idle.
+      if (u.moveStart) { this.ensureLoop(true); return; }
     } else {
       // nouvelle unité : horloge décalée par hachage d'id (idle désynchronisé)
       let h = 0; for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
@@ -129,7 +156,7 @@ export class UnitAnimator {
   /** Fin de passe : oublie les unités disparues de la scène. */
   endFrame() {
     for (const id of [...this.units.keys()]) if (!this.seen.has(id)) this.units.delete(id);
-    if (!this.units.size && !this.dying.length && this.raf) { cancelAnimationFrame(this.raf); this.raf = 0; }
+    if (!this.units.size && !this.dying.length) this.stopLoop();
   }
 
   /** Déclenche une animation ponctuelle (attaque/compétence/touché). */
@@ -137,7 +164,7 @@ export class UnitAnimator {
     const u = this.units.get(id);
     if (!u) return;
     u.state = state; u.stateStart = this.now();
-    this.ensureLoop();
+    this.ensureLoop(true);
   }
 
   private stateDur(s: AnimState) { return s === "attack" ? 450 : s === "skill" ? 700 : s === "hit" ? 300 : 0; }
@@ -159,10 +186,25 @@ export class UnitAnimator {
       }
     });
     this.dying.push({ rig, start: this.now(), mats, y: baseY });
-    this.ensureLoop();
+    this.ensureLoop(true);
   }
 
-  private ensureLoop() { if (!this.raf && this.active) this.raf = requestAnimationFrame(this.tick); }
+  /** Arme la boucle si elle dort. `urgent` (un pas, un one-shot, une mort) coupe
+   *  court à l'attente du cadenceur d'idle : le mouvement part à la frame
+   *  suivante, pas au prochain créneau. */
+  private ensureLoop(urgent = false) {
+    if (!this.active) return;
+    if (urgent && this.timer) { clearTimeout(this.timer); this.timer = 0; }
+    if (this.raf || this.timer) return;
+    this.raf = requestAnimationFrame(this.tick);
+  }
+
+  private stopLoop() {
+    if (this.raf) cancelAnimationFrame(this.raf);
+    if (this.timer) clearTimeout(this.timer);
+    this.raf = 0;
+    this.timer = 0;
+  }
 
   private tick = () => {
     this.raf = 0;
@@ -174,12 +216,16 @@ export class UnitAnimator {
     const t = this.now();
     this.pose(t);
     this.engine.invalidate();
-    // On ne DEMANDE des frames que tant qu'il se passe quelque chose. En mode
-    // consommateur, l'idle seul ne réarme pas : la respiration continue de vivre
-    // sur les frames demandées par d'autres (rotation, redraw), pas sur les
-    // siennes.
-    const keep = this.busy(t) || (this.idleDrivesFrames && this.units.size > 0);
-    this.raf = keep ? requestAnimationFrame(this.tick) : 0;
+    // Réarmement : plein rAF tant qu'il se PASSE quelque chose ; sinon au rythme
+    // du cadenceur d'idle, et pas du tout s'il est à zéro (la respiration
+    // continue alors de vivre sur les frames demandées par d'autres — rotation,
+    // redraw — via `pose()` branché sur `onBeforeFrame`).
+    if (this.busy(t)) { this.raf = requestAnimationFrame(this.tick); return; }
+    if (!this.idleFps || !this.units.size) return;
+    this.timer = setTimeout(() => {
+      this.timer = 0;
+      this.raf = requestAnimationFrame(this.tick);
+    }, 1000 / this.idleFps);
   };
 
   /** Pose toutes les unités pour l'instant `t`. N'invalide RIEN et ne réarme
@@ -234,8 +280,7 @@ export class UnitAnimator {
   }
 
   dispose() {
-    if (this.raf) cancelAnimationFrame(this.raf);
-    this.raf = 0;
+    this.stopLoop();
     this.units.clear();
     for (const d of this.dying) { d.rig.root.parent?.remove(d.rig.root); for (const m of d.mats) m.dispose(); }
     this.dying = [];

@@ -5,6 +5,15 @@ import type { Settings } from "../store";
 const LANGUAGES = ["English", "Deutsch", "Italian", "Portugues", "Chinese", "Français", "Spanish", "Japanese"];
 const FPS_OPTS: Settings["fps"][] = [30, 60, 120];
 const QUALITY_OPTS: Settings["quality"][] = ["Normal", "Medium", "High", "Very high"];
+// Cadence de l'animation au repos (respiration des héros, monstres qui remuent).
+// 0 = figés tant que rien ne bouge : c'est le mode le plus économe, mais la
+// carte paraît morte. Voir voxel/unitAnim.ts.
+const IDLE_ANIM_OPTS: { v: Settings["idleAnimFps"]; label: string }[] = [
+  { v: 0, label: "Figée" },
+  { v: 8, label: "Éco" },
+  { v: 15, label: "Fluide" },
+  { v: 30, label: "Max" },
+];
 
 function Banner({ title }: { title: string }) {
   return (
@@ -81,6 +90,26 @@ export function SettingsOverlay() {
         </div>
         <span className="hint">
           Réduire le taux de rafraîchissement économise la batterie et évite la surchauffe, mais peut affecter la fluidité.
+        </span>
+      </div>
+      <div className="row">
+        <span className="lbl">Animation des personnages</span>
+        <div className="seg">
+          {IDLE_ANIM_OPTS.map((o) => (
+            <button
+              key={o.v}
+              className={settings.idleAnimFps === o.v ? "on" : ""}
+              onClick={() => updateSettings({ idleAnimFps: o.v })}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+        <span className="hint">
+          Cadence de l'animation au repos : héros qui respirent, monstres qui remuent sur la carte.
+          « Figée » les immobilise tant que rien ne bouge — la carte ne se redessine plus du tout au
+          repos, c'est le réglage le plus économe en batterie. Les déplacements, attaques et morts
+          restent toujours pleinement animés.
         </span>
       </div>
       <div className="row">

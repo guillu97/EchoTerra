@@ -6,6 +6,57 @@
 
 ---
 
+## 2026-08-09 (99) — Les monstres respiraient plus : un cadenceur d'idle, réglable
+
+**Le symptôme** (signalé par Guillaume) : sur la carte, les monstres sont figés tant que rien ne bouge.
+
+**La cause** est une décision assumée de l'entrée du 2026-08-02. `UnitAnimator` réarmait sa boucle
+« tant qu'il reste une unité » ; comme l'idle (respiration, battements d'ailes) ne finit jamais, la
+carte rendait ~35 fps **en permanence** dès qu'un héros existait — batterie sur téléphone, et le
+contrat « la carte est 100 % on-demand » rompu. Le correctif d'alors était binaire : la carte est
+passée **consommateur** de frames (`idleDrivesFrames: false`), c'est-à-dire que l'idle n'a plus le
+droit de demander la moindre frame. Ça règle la batterie et ça tue l'animation : les poses ne sont
+plus rafraîchies que sur les frames que quelqu'un d'autre demande (rotation de caméra, redraw,
+déplacement). Au repos, personne n'en demande. Monstres figés.
+
+**Le correctif** n'est pas de revenir en arrière — les deux besoins sont réels et opposés, donc c'est
+un RÉGLAGE, pas un défaut à trouver. `UnitAnimator` prend un **cadenceur d'idle** (`idleFps`,
+`setIdleFps` à chaud) :
+
+- `idleFps = 0` — l'ancien mode consommateur, inchangé : rien ne bouge au repos, zéro redraw ;
+- `idleFps > 0` — la boucle se réarme pour l'idle, mais par `setTimeout(1000/fps)` avant le rAF : on
+  choisit **combien de redraws par seconde la respiration a le droit de coûter**. Ça reste un rendu
+  on-demand, simplement avec une demande cadencée plutôt qu'absente ou effrénée.
+
+⚠ Le cadenceur ne borne **que l'idle**. Un pas, une attaque, une mort gardent le plein rAF —
+`ensureLoop(urgent)` annule l'attente en cours pour que le mouvement parte à la frame suivante et non
+au prochain créneau. Hacher un déplacement de 320 ms pour économiser trois frames n'a pas de sens.
+
+Réglage exposé dans Paramètres → Jeu → **« Animation des personnages »** : Figée (0) / Éco (8) /
+Fluide (15, défaut) / Max (30), appliqué aux **trois** vues voxel (carte, ville, combat) — la ville et
+le combat tournaient jusqu'ici à la fréquence de l'écran, ils profitent du plafond.
+
+### Fonctionnel (vérifié)
+
+- `npx tsc -b` propre.
+- `npm run test:perf` — 13/13. Les budgets on-demand ont été rendus explicites plutôt que contournés :
+  « carte on-demand en animation **Figée** » (0 redraw en 3 s), « animation au repos cadencée » (elle
+  anime, sans jamais partir à la fréquence de l'écran), et « rendu STOPPÉ hors de l'onglet Map »
+  mesuré désormais **avec l'animation active** — c'est le cas qui compte.
+- Sonde Playwright dédiée sur les rigs de monstres (empreinte de pose échantillonnée 12× sur 3 s) :
+  **Figée → 1 pose distincte** (figé pour de bon), **Éco/Fluide → 8** (ça remue en continu).
+- ⚠ note de mesure : en GL logiciel headless une frame de carte coûte des centaines de ms, donc la
+  boucle est affamée bien avant d'atteindre sa cadence (~2,5/s pour 15 demandées). Le test ne pose
+  donc qu'un **plafond** ; le plancher vérifié est « ça bouge », pas « ça atteint 15 ».
+
+### À faire
+
+- Le réglage `settings.fps` (30/60/120, « Fréquence d'affichage ») est toujours **purement
+  décoratif** : personne ne le lit. Soit le brancher (plafond global de rAF du moteur), soit le
+  retirer — un réglage qui ne fait rien est un piège.
+
+---
+
 ## 2026-08-09 (98) — Ce que la simulation ne voyait pas : la garnison, l'horloge, et une forêt à dix-huit cases
 
 Suite directe de l'entrée 94 (l'instrument d'équilibrage). Cette fois l'instrument a servi à

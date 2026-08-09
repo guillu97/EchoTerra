@@ -105,7 +105,13 @@ export function VoxelTownView({
     const controls = new VoxelControls(engine);
     // héros voxel ANIMÉS (respiration à l'arrêt) — remplacent les billboards
     const chars = new CharLibrary();
-    const animator = new UnitAnimator(engine);
+    // idle cadencé par le réglage « Animation des personnages » (batterie)
+    const animator = new UnitAnimator(engine, undefined, {
+      idleFps: useStore.getState().settings.idleAnimFps,
+    });
+    const unsubAnim = useStore.subscribe((s, prev) => {
+      if (s.settings.idleAnimFps !== prev.settings.idleAnimFps) animator.setIdleFps(s.settings.idleAnimFps);
+    });
     // LOD 16³ aussi pour la ville : 575 cellules × 32³ pesaient 6,1 M tris —
     // en 16³ le style voxel reste lisible de près et le budget retombe ~4×.
     const lib = new BlockLibrary("/voxels/16");
@@ -442,6 +448,7 @@ export function VoxelTownView({
     return () => {
       unsub();
       unsubBeauty();
+      unsubAnim();
       cancelAnimationFrame(raf);
       animator.dispose();
       chars.dispose();
