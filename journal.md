@@ -127,8 +127,40 @@ Enfin la MARGE : sur 20 graines, une tombait pile à la vague 10 — le seuil qu
 
 Le garde-fou couvre maintenant 1→6 joueurs × 3 graines, vérifié stable sur quatre exécutions.
 
+### Troisième passe : pourquoi les bots ne se battaient pas — et une trouvaille de design
+
+`botShouldEngage` exigeait « au moins autant de héros que le pack aligne d'unités ». Ça sonne prudent,
+c'est en fait un refus de combattre : **`NewCombat` plafonne le pack à QUATRE unités quelle que soit sa
+taille**, donc la règle voulait dire « quatre héros sur la même case » — alors que toute la logique de
+récolte les écarte délibérément les uns des autres. Le critère est désormais la PUISSANCE, et le lot est
+énorme : gagner supprime le pack ENTIER, pas les quatre qui se sont battues. S'y ajoutent le renfort
+(`botRallyTile` : un camarade tétanisé à moins de 4 cases passe avant la liste de courses — c'est LA
+façon documentée de briser Tétanisé, aucun bot n'y allait) et le fait de tenir bon quand l'aide est à un
+pas, plutôt que de tenter une fuite qui échoue une fois sur quatre.
+
+**Mesuré : 11 combats gagnés pour 2 perdus.** Le critère n'était donc pas trop laxiste — les combats
+n'avaient simplement jamais lieu (1 à 6 par partie).
+
+Mais la mesure a surtout dit autre chose, et c'est un point de DESIGN à trancher :
+
+> **Tuer des packs ne change rien à la survie de la ville.** `hordePower` est une pure fonction du
+> numéro de vague : nettoyer les abords ne réduit pas les dégâts d'un seul point. Le combat ne sert
+> qu'au butin, au classement et à libérer un héros cloué.
+
+Une tentative de faire passer le sauvetage AVANT le retour du butin l'a confirmé par l'absurde : la
+survie a BAISSÉ (une graine de 19 à 15). Les matériaux font vivre la ville, pas les cadavres. La priorité
+a donc été remise dans l'autre sens. Si tu veux que défendre le terrain compte, il faut que la horde
+tire sa puissance des packs réellement présents aux abords — c'est une règle à changer ensemble, je ne
+l'ai pas décidée seul.
+
+Médiane après cette passe : 15 à 18 vagues selon la taille de l'expédition (plancher 11 à six joueurs,
+le cas le plus serré ; 13 et plus partout ailleurs).
+
 ### À faire
 
+- **Six joueurs reste le cas le plus tendu** (plancher 11 contre 16-18 en solo) : plus de héros = plus de
+  monstres semés et plus d'exposés dehors, pour un plafond de défense identique.
+- **Décider si tuer des monstres doit compter** (voir ci-dessus) — aujourd'hui, non.
 - **Les récolteurs meurent encore en fin de partie** (une graine perd 5 héros sur 7 avant la
   vague 7) : la horde qui converge les tétanise loin de la ville. Piste : se regrouper pour combattre
   (`botShouldEngage` exige des héros sur LA MÊME case, ce qui n'arrive jamais).

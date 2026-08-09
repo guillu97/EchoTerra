@@ -163,10 +163,17 @@ func TestBotEscapesWhenPinned(t *testing.T) {
 	g, bot := botGame(t)
 	parkTeam(g, bot, g.Town.X+3, g.Town.Y, 6)
 	h := g.HeroByID(bot.HeroIDs[0])
-	// Un pack assez gros pour tétaniser un héros seul, mais que sa compétence ne
-	// dissipera pas d'un souffle.
+	// Les coéquipiers sont ailleurs : personne à un pas, donc aucun renfort à attendre.
+	for _, id := range bot.HeroIDs[1:] {
+		o := g.HeroByID(id)
+		o.X, o.Y, o.PA = g.Town.X, g.Town.Y, 0
+	}
+	// Un pack qui tétanise ET que l'équipe ne peut pas battre : c'est la PUISSANCE qui
+	// décide d'engager (botShouldEngage), pas le nombre — d'où des monstres costauds.
 	m := NewMonster("Slime Vorace", h.X, h.Y)
 	m.Count = 40
+	m.HP, m.MaxHP = 400, 400
+	m.Stats.Force = 60
 	g.Monsters[m.ID] = m
 	g.TileAt(h.X, h.Y).MonsterID = m.ID
 	g.Recompute()
@@ -180,11 +187,17 @@ func TestBotEscapesWhenPinned(t *testing.T) {
 	}
 }
 
+// Un pack hors de portée de l'équipe n'est pas attaqué en mêlée : on le grignote à
+// la compétence de carte. « Hors de portée » se mesure en PUISSANCE, pas en effectif —
+// un combat n'oppose jamais plus de 4 unités, alors exiger un héros par unité revenait
+// à ne jamais combattre du tout (cf. botShouldEngage).
 func TestBotFireballsAPackTooBigToEngage(t *testing.T) {
 	g, bot := botGame(t)
 	parkTeam(g, bot, 3, 3, 6)
 	m := NewMonster("Slime Vorace", 3, 3)
-	m.Count = 9 // 4 combat units vs 3 heroes: no engage — thin it with Fire ball
+	m.Count = 9
+	m.HP, m.MaxHP = 400, 400
+	m.Stats.Force = 60
 	g.Monsters[m.ID] = m
 	g.TileAt(3, 3).MonsterID = m.ID
 	if !g.BotAct(time.Now()) {
@@ -484,5 +497,36 @@ func TestBotRecyclesDebrisWhenRecyclerieStands(t *testing.T) {
 	}
 	if g.storageQty("Pierre") <= before {
 		t.Fatal("les bots doivent recycler les Débris en Pierre quand la Recyclerie est debout")
+	}
+}
+
+// Un renfort qui arrive sur la case est LA façon documentée de briser Tétanisé, et
+// aucun bot n'y allait : les coéquipiers passaient à côté d'un camarade cloué. Le
+// pinné, lui, tient bon quand l'aide est à un pas plutôt que de tenter une fuite qui
+// échoue une fois sur quatre.
+func TestBotsRallyToAPinnedComrade(t *testing.T) {
+	g, bot := botGame(t)
+	pinned := g.HeroByID(bot.HeroIDs[0])
+	rescuer := g.HeroByID(bot.HeroIDs[1])
+	parkTeam(g, bot, g.Town.X+3, g.Town.Y, 6)
+	// Le sauveteur est à deux pas ; le troisième héros est rangé en ville.
+	rescuer.X, rescuer.Y = pinned.X+2, pinned.Y
+	third := g.HeroByID(bot.HeroIDs[2])
+	third.X, third.Y, third.PA = g.Town.X, g.Town.Y, 0
+
+	m := NewMonster("Slime Vorace", pinned.X, pinned.Y)
+	m.Count, m.HP, m.MaxHP = 40, 400, 400
+	m.Stats.Force = 60
+	g.Monsters[m.ID] = m
+	g.TileAt(pinned.X, pinned.Y).MonsterID = m.ID
+	g.Recompute()
+	if !pinned.HasState(StateTetanise) {
+		t.Fatal("staging: le héros doit être tétanisé")
+	}
+
+	before := absI(rescuer.X-pinned.X) + absI(rescuer.Y-pinned.Y)
+	g.BotAct(time.Now())
+	if after := absI(rescuer.X-pinned.X) + absI(rescuer.Y-pinned.Y); after >= before {
+		t.Fatalf("le coéquipier doit marcher vers le camarade cloué : %d -> %d", before, after)
 	}
 }

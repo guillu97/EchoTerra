@@ -126,6 +126,13 @@ func (g *GameState) botHeroAct(h *Hero, curfew int) bool {
 	// the rules leave open, and the bots never used it. Measured before: the entire
 	// gathering half of the expedition was dead by wave 7, bags full, Bank empty.
 	if h.HasState(StateTetanise) {
+		// HOLD if help is one step away: a reinforcement arriving on the tile is the
+		// documented way out of Tétanisé, and it turns the trap into a fight the party
+		// can win. Bolting the moment we are pinned throws that away — and Escape has a
+		// one-in-four chance of stumbling, so it is not a free move either.
+		if g.friendOneStepAway(h) {
+			return false
+		}
 		return g.EscapeHero(h.ID) == nil
 	}
 
@@ -238,6 +245,10 @@ func (g *GameState) botHeroAct(h *Hero, curfew int) bool {
 		if curfew > curfewNone {
 			return g.botBuild(h) // stuck at home anyway — lend a hand
 		}
+		// A comrade pinned nearby comes before the shopping list.
+		if tx, ty, ok := g.botRallyTile(h); ok && h.PA >= 2 && g.botStepToward(h, tx, ty) {
+			return true
+		}
 		// Fresh legs: go gather, or push the fog back when nothing known supplies what
 		// the town is waiting for.
 		if h.PA >= 3 {
@@ -252,6 +263,9 @@ func (g *GameState) botHeroAct(h *Hero, curfew int) bool {
 	// fog back (each hero leaning toward its own sector).
 	//
 	// (The concealment reserve is enforced above, before any of this can run.)
+	if tx, ty, ok := g.botRallyTile(h); ok && g.botStepToward(h, tx, ty) {
+		return true
+	}
 	if t := g.TileAt(h.X, h.Y); t != nil && t.Resources > 0 {
 		if _, err := g.SearchTile(h.ID); err == nil {
 			return true
@@ -270,10 +284,18 @@ func (g *GameState) botHeroAct(h *Hero, curfew int) bool {
 
 // botShouldEngage decides whether a bot hero opens a full (auto-resolved) combat on
 // the pack sharing its tile: every living hero on the tile must be bot-owned (never
-// drag a human into a fight the server plays for them), the party must at least
-// match the pack's combat units (capped at 4 like NewCombat), the rough power
-// estimate (HP + 3×force per fighter) must favour the heroes, and a BOSS is only
-// challenged by a full three-hero team.
+// drag a human into a fight the server plays for them), the rough power estimate
+// (HP + 3×force per fighter) must favour the heroes, and a BOSS is only challenged by
+// a full three-hero team.
+//
+// The criterion is POWER, not headcount. It used to also demand at least as many
+// heroes as the pack fields combat units, which sounds prudent and is in fact a
+// refusal to ever fight: NewCombat caps the pack at FOUR units however big it is, so
+// the old rule meant "four heroes standing on one tile" — and the gathering logic
+// deliberately spreads heroes out, so that never happened. The bots killed essentially
+// nothing all game while the horde grew without bound. Two strong heroes beating four
+// slimes is a fight worth taking, and the prize is the WHOLE pack: winning removes
+// every creature on the tile, not just the four that fought.
 func (g *GameState) botShouldEngage(h *Hero, m *Monster) bool {
 	units := m.Count
 	if units < 1 {
@@ -291,11 +313,11 @@ func (g *GameState) botShouldEngage(h *Hero, m *Monster) bool {
 			party = append(party, hh)
 		}
 	}
-	if len(party) < units {
+	if len(party) == 0 {
 		return false
 	}
 	if sp := SpeciesByName(m.Species); sp != nil && sp.Boss && len(party) < 3 {
-		return false // a boss deserves respect — full team or Fire balls
+		return false // a boss deserves respect — full team or map skills
 	}
 	partyPower := 0
 	for _, hh := range party {
@@ -303,6 +325,48 @@ func (g *GameState) botShouldEngage(h *Hero, m *Monster) bool {
 	}
 	packPower := units * (m.MaxHP + 3*m.Stats.Force)
 	return partyPower >= packPower
+}
+
+// friendOneStepAway reports whether a bot-owned comrade stands orthogonally adjacent —
+// close enough to join this tile on its next action.
+func (g *GameState) friendOneStepAway(h *Hero) bool {
+	for _, o := range g.Heroes {
+		if o.HP <= 0 || o.ID == h.ID || !g.botOwnsHero(o.ID) {
+			continue
+		}
+		if absI(o.X-h.X)+absI(o.Y-h.Y) == 1 && o.PA > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// botRallyTile finds a comrade pinned by a pack within botRallyRadius: the documented
+// way out of Tétanisé is "un renfort arrive sur la case", and no bot ever went. Walking
+// over both frees the pinned hero and assembles the party that can take the fight —
+// which is the only attrition the horde ever suffers.
+const botRallyRadius = 4
+
+func (g *GameState) botRallyTile(h *Hero) (int, int, bool) {
+	bestX, bestY, best := 0, 0, 1<<30
+	for _, o := range g.Heroes {
+		if o.HP <= 0 || o.ID == h.ID || !o.HasState(StateTetanise) {
+			continue
+		}
+		if !g.botOwnsHero(o.ID) {
+			continue // another player's problem to solve
+		}
+		d := absI(o.X-h.X) + absI(o.Y-h.Y)
+		if d == 0 || d > botRallyRadius {
+			continue
+		}
+		// Stable tie-break on position: hero iteration order is a slice, but two
+		// comrades at equal distance must not depend on it.
+		if d < best || (d == best && (o.Y < bestY || (o.Y == bestY && o.X < bestX))) {
+			bestX, bestY, best = o.X, o.Y, d
+		}
+	}
+	return bestX, bestY, best < 1<<30
 }
 
 // botOwnsHero reports whether the hero belongs to a bot player.

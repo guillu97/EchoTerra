@@ -263,7 +263,13 @@ Planche/Corde/Brique/Acier — donc une ville qui ne va jamais à l'atelier rest
 départ ; recycle aussi les Débris en Bois/Pierre dès que la Recyclerie est debout, la réponse du design
 à une carte qui se vide). ⚠ le rôle de bâtisseur vient du RANG dans l'équipe (`heroIsBuilder`, 1er
 héros), PAS d'un hash d'id : « environ un sur trois » ne garantit rien pour UNE équipe, et un bot dont
-les trois héros tombaient récolteurs ne construisait jamais rien. Tout est persisté en SQLite (le salon survit à un redémarrage ; les
+les trois héros tombaient récolteurs ne construisait jamais rien. **Combat** : `botShouldEngage` juge sur
+la PUISSANCE et non l'effectif (un combat n'oppose jamais plus de 4 unités quelle que soit la taille du
+pack, et la victoire supprime le pack ENTIER — exiger un héros par unité revenait à ne jamais combattre) ;
+`botRallyTile` envoie un renfort à un camarade Tétanisé (la façon documentée de le libérer) et un pinné
+TIENT quand l'aide est à un pas. ⚠ **tuer des packs ne réduit PAS `hordePower`**, qui ne dépend que du
+numéro de vague : le combat ne sert qu'au butin, au classement et à libérer un héros — mesuré, prioriser
+le sauvetage sur le retour du butin FAIT BAISSER la survie. Tout est persisté en SQLite (le salon survit à un redémarrage ; les
 salons ouverts se listent via `GET /api/games?status=lobby`). ⚠ **toute recherche de salon passe par
 `store.ListByStatus(StatusLobby, n)`, JAMAIS par `List(n)` + filtre en Go** : un salon est écrit une
 fois puis plus jamais, alors que chaque partie active est réécrite à chaque vague ET par le battement —
