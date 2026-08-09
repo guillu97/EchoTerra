@@ -439,12 +439,34 @@ func (s *Server) housekeeping() {
 	}
 }
 
+// seedMemorials sème sur une carte NEUVE les ruines des dernières villes tombées —
+// nom, dernière vague, défenseurs (cf. game.SeedMemorialRuins). Best-effort : une base
+// vide, ou en erreur, donne simplement une carte sans mémorial.
+//
+// C'est ici que le méta-jeu se referme : une expédition qui meurt le mardi devient un
+// lieu sur la carte de quelqu'un d'autre le mercredi.
+func (s *Server) seedMemorials(gs *game.GameState) {
+	fallen, err := s.store.FallenTowns(12)
+	if err != nil || len(fallen) == 0 {
+		return
+	}
+	mem := make([]game.Memorial, 0, len(fallen))
+	for _, f := range fallen {
+		if f.GameID == gs.ID || f.TownName == "" {
+			continue
+		}
+		mem = append(mem, game.Memorial{TownName: f.TownName, Wave: f.Waves, Defenders: f.Players})
+	}
+	gs.SeedMemorialRuins(mem)
+}
+
 // newPublicLobby crée et persiste un salon public ouvert (celui qu'on rejoint sans code).
 func (s *Server) newPublicLobby() *game.GameState {
 	// Un salon public accueille large : 2 minimum, jusqu'à MaxPlayersPerGame, et la
 	// carte suit (taille 0 = worldgen.SizeForPlayers).
 	gs := worldgen.NewLobby(0, 0, time.Now().UnixNano(), "", 2, worldgen.MaxPlayersPerGame)
 	gs.Visibility = game.VisibilityPublic
+	s.seedMemorials(gs)
 	// Nommée d'après sa ville ("Expédition de Clairmont") : deux salons publics
 	// successifs se distinguent, et le classement lit le même nom.
 	gs.Name = publicLobbyName + gs.Town.Name
@@ -517,6 +539,7 @@ func (s *Server) createLobby(w http.ResponseWriter, r *http.Request) {
 	}
 	gs := worldgen.NewLobby(body.Width, body.Height, body.Seed, body.Name, body.MinPlayers, body.MaxPlayers)
 	gs.Visibility = game.VisibilityPrivate
+	s.seedMemorials(gs)
 	p, err := gs.AddPlayer(body.PlayerName, time.Now())
 	if err != nil {
 		writeActionErr(w, err)
@@ -553,6 +576,7 @@ func (s *Server) soloGame(w http.ResponseWriter, r *http.Request) {
 	now := time.Now()
 	gs := worldgen.NewLobby(body.Width, body.Height, body.Seed, name, 1, 5)
 	gs.Visibility = game.VisibilityPrivate
+	s.seedMemorials(gs)
 	gs.Solo = true // classement : les runs solo se comparent entre eux
 	p, err := gs.AddPlayer(body.PlayerName, now)
 	if err != nil {

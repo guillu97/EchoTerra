@@ -3982,3 +3982,21 @@ body {
   70% { transform: translate3d(-2px, 2px, 0); }
   85% { transform: translate3d(2px, -1px, 0); }
 }
+
+/* Mémorial : les ruines d'une VRAIE ville tombée avant la nôtre (game/ruins.go).
+   L'épitaphe se lit comme une inscription gravée — encre estompée, filet doré, et
+   surtout pas un bouton : c'est ce qui reste de neuf jours de jeu de quelqu'un. */
+.am-memorial {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  padding: var(--s-2) var(--s-3);
+  margin-bottom: var(--s-2);
+  border-left: 3px solid var(--gold);
+  border-radius: var(--r-sm);
+  background: var(--parch-0);
+  font-size: var(--t-xs);
+  line-height: var(--lh-tight);
+  color: var(--ink-soft);
+}
+.am-memorial b { color: var(--ink); font-size: var(--t-sm); }

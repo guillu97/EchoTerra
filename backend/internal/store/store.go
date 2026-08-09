@@ -130,6 +130,25 @@ func (s *Store) saveScore(gs *game.GameState) error {
 // clock), monsters slain as the tie-breaker. An empty mode ranks every run
 // together; "solo" / "public" / "private" restrict it to one kind of game, which is
 // how the ranking screen's tabs read it — the three are not comparable.
+// FallenTowns returns the towns that FELL, most recent first. Elles servent de
+// mémoire du monde : chaque carte neuve sème les ruines de quelques-unes d'entre elles
+// (game.SeedMemorialRuins). Aucune table de plus n'est nécessaire — le classement
+// conserve déjà le nom de la ville, ses défenseurs et la vague qui l'a emportée, et il
+// survit à la suppression de la partie.
+func (s *Store) FallenTowns(limit int) ([]ScoreEntry, error) {
+	if limit <= 0 {
+		limit = 10
+	}
+	rows, err := s.db.Query(s.rebind(`SELECT game_id, town_name, game_name, mode, players,
+		days, waves, monsters_killed, game_over, updated_at
+		FROM leaderboard WHERE game_over = 1 ORDER BY updated_at DESC LIMIT ?`), limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanScores(rows)
+}
+
 func (s *Store) Leaderboard(mode string, limit int) ([]ScoreEntry, error) {
 	if limit <= 0 {
 		limit = 50
@@ -150,6 +169,11 @@ func (s *Store) Leaderboard(mode string, limit int) ([]ScoreEntry, error) {
 		return nil, err
 	}
 	defer rows.Close()
+	return scanScores(rows)
+}
+
+// scanScores decodes a leaderboard result set (same column order everywhere).
+func scanScores(rows *sql.Rows) ([]ScoreEntry, error) {
 	out := []ScoreEntry{}
 	for rows.Next() {
 		var e ScoreEntry

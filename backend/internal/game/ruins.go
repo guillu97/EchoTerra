@@ -15,6 +15,7 @@ package game
 import (
 	"fmt"
 	"math/rand"
+	"strings"
 )
 
 const (
@@ -25,7 +26,7 @@ const (
 // Ruin is one ruined building on a tile — a shared clearing site, then a dungeon.
 type Ruin struct {
 	ID         string `json:"id"`
-	Type       string `json:"type"` // ferme | epave | sanctuaire | mine | tour
+	Type       string `json:"type"` // ferme | epave | sanctuaire | mine | tour | memorial
 	Name       string `json:"name"`
 	Icon       string `json:"icon"`
 	X          int    `json:"x"`
@@ -34,7 +35,142 @@ type Ruin struct {
 	PaInvested int    `json:"paInvested"` // progression partagée
 	Cleared    bool   `json:"cleared"`
 	Charges    int    `json:"charges"` // fouilles restantes une fois déblayée
+	// MÉMORIAL : une ruine qui fut la ville de quelqu'un d'autre (voir Memorial et
+	// SeedMemorialRuins). Vides pour les ruines ordinaires.
+	FellAtWave int      `json:"fellAtWave,omitempty"`
+	Defenders  []string `json:"defenders,omitempty"`
 }
+
+// Memorial est le souvenir d'une ville TOMBÉE, tel qu'il voyage jusqu'aux cartes
+// suivantes. Il vient du classement, qui conserve déjà tout ce qu'il faut et survit à
+// la suppression de la partie (store.FallenTowns).
+type Memorial struct {
+	TownName  string   `json:"townName"`
+	Wave      int      `json:"wave"`
+	Defenders []string `json:"defenders"`
+}
+
+// memorialRuin décrit ce qu'on trouve dans les décombres d'une ville : ce qu'elle
+// avait accumulé et n'a pas eu le temps de dépenser. La table est délibérément faite
+// de MATÉRIAUX DE CONSTRUCTION — c'est un legs utile, pas un trésor magique : une
+// expédition récupère les pierres d'une autre.
+var memorialLoot = []DropDef{
+	{"minerai", "Pierre", 3, 3},
+	{"objet", "Bois", 3, 3},
+	{"objet", "Planche", 2, 2},
+	{"minerai", "Brique", 1, 2},
+	{"objet", "Corde", 1, 2},
+	{"minerai", "Acier", 1, 1},
+	{"objet", "Relique sculptée", 1, 1},
+}
+
+const (
+	memorialClearPA = 10 // déblayer les décombres d'une ville : plus lourd qu'une ferme
+	memorialCharges = 5
+)
+
+// Epitaph rend l'inscription d'un mémorial (vide pour une ruine ordinaire).
+func (r *Ruin) Epitaph() string {
+	if r.FellAtWave <= 0 {
+		return ""
+	}
+	if len(r.Defenders) == 0 {
+		return fmt.Sprintf("Tombée à la vague %d. Nul ne se souvient de ses défenseurs.", r.FellAtWave)
+	}
+	return fmt.Sprintf("Tombée à la vague %d, défendue par %s.", r.FellAtWave, joinNames(r.Defenders))
+}
+
+// joinNames écrit « Ana, Bo et Zoé ».
+func joinNames(names []string) string {
+	switch len(names) {
+	case 0:
+		return ""
+	case 1:
+		return names[0]
+	}
+	return strings.Join(names[:len(names)-1], ", ") + " et " + names[len(names)-1]
+}
+
+// SeedMemorialRuins sème sur la carte les ruines de villes RÉELLEMENT tombées avant
+// celle-ci — nom, dernière vague, défenseurs, et de quoi bâtir dans les décombres.
+//
+// C'est la réponse au trou de rétention principal (RETENTION-PLAN.md, T1) : une partie
+// dure sept à neuf jours réels puis se termine par une défaite, et jusqu'ici elle ne
+// laissait qu'une ligne de classement. Ici, la ville que vous avez tenue neuf jours
+// devient un lieu sur la carte de quelqu'un d'autre. Le monde finit construit par les
+// échecs de la communauté, ce qui est précisément le thème du jeu.
+//
+// ⚠ Aucun transfert de PUISSANCE entre parties : ce qu'on récupère, ce sont des
+// matériaux ordinaires, accessibles à n'importe qui passant par là. Une progression qui
+// rendrait les vétérans plus forts casserait l'égalité qui fait tenir une survie de
+// groupe, et ferait des nouveaux venus des joueurs de seconde classe.
+//
+// Déterministe pour une graine donnée, et appelée APRÈS SeedRuins (elle ne pose rien
+// sur une tuile déjà occupée).
+func (g *GameState) SeedMemorialRuins(fallen []Memorial) int {
+	if len(fallen) == 0 {
+		return 0
+	}
+	if g.Ruins == nil {
+		g.Ruins = map[string]*Ruin{}
+	}
+	want := memorialCount(g.Width * g.Height)
+	if want > len(fallen) {
+		want = len(fallen)
+	}
+	rng := rand.New(rand.NewSource(g.Seed ^ 0x4d656d6f)) // "Memo"
+
+	// Candidates : terre ferme, loin de la ville (on ne bute pas dessus au réveil),
+	// libre de monstre et de ruine. Balayage en ordre de tuile = déterministe.
+	var cand []int
+	for i, t := range g.Tiles {
+		if !t.Biome.Walkable() || t.MonsterID != "" || t.RuinID != "" {
+			continue
+		}
+		x, y := i%g.Width, i/g.Width
+		if cheb(x-g.Town.X, y-g.Town.Y) < memorialMinDistance {
+			continue
+		}
+		cand = append(cand, i)
+	}
+	placed := 0
+	for _, m := range fallen {
+		if placed >= want || len(cand) == 0 {
+			break
+		}
+		k := rng.Intn(len(cand))
+		i := cand[k]
+		cand = append(cand[:k], cand[k+1:]...) // une ville par case
+		id := fmt.Sprintf("ruin-memorial-%d", placed)
+		g.Ruins[id] = &Ruin{
+			ID: id, Type: "memorial", Icon: "🏚️",
+			Name:       "Ruines de " + m.TownName,
+			X:          i % g.Width,
+			Y:          i / g.Width,
+			ClearPA:    memorialClearPA,
+			Charges:    memorialCharges,
+			FellAtWave: m.Wave,
+			Defenders:  append([]string(nil), m.Defenders...),
+		}
+		g.Tiles[i].RuinID = id
+		placed++
+	}
+	return placed
+}
+
+// memorialCount : combien de villes mortes hantent une carte de cette taille. Une
+// grande carte (vingt joueurs) en porte plusieurs, une petite une seule — la densité
+// de souvenirs suit la densité de tout le reste.
+func memorialCount(area int) int {
+	n := 1 + area/6000
+	if n > 4 {
+		n = 4
+	}
+	return n
+}
+
+// memorialMinDistance : un mémorial est un VOYAGE, pas un décor de banlieue.
+const memorialMinDistance = 6
 
 // ruinDef describes one biome-specific ruin type and its dungeon loot table.
 type ruinDef struct {
@@ -207,16 +343,23 @@ func (g *GameState) ExploreRuin(heroID string) (*Item, error) {
 	if h.PA < ruinExplorePA {
 		return nil, ActionError{fmt.Sprintf("explorer coûte %d PA", ruinExplorePA)}
 	}
-	def, ok := ruinDefs[g.TileAt(h.X, h.Y).Biome]
-	if !ok {
-		return nil, ActionError{"donjon corrompu"}
+	// La table de butin vient du TYPE de ruine, pas du biome : un mémorial peut se
+	// dresser sur n'importe quelle terre, et ce qu'on y trouve sont les matériaux d'une
+	// ville morte, pas les curiosités du terrain qui l'entoure.
+	loot := memorialLoot
+	if ru.Type != "memorial" {
+		def, ok := ruinDefs[g.TileAt(h.X, h.Y).Biome]
+		if !ok {
+			return nil, ActionError{"donjon corrompu"}
+		}
+		loot = def.Loot
 	}
 	h.PA -= ruinExplorePA
 	if h.PA == 0 {
 		h.AddState(StateFatigue)
 	}
 	ru.Charges--
-	d := weightedDrop(def.Loot)
+	d := weightedDrop(loot)
 	if d == nil {
 		return nil, ActionError{"rien trouvé"}
 	}

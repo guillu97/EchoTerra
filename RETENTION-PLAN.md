@@ -111,7 +111,12 @@ rétention en supprimant le jeu. Ce n'est pas un pilote automatique : c'est un f
 
 Réponse à T4.
 
-### P5 · Les ruines de vos villes — *ce qui reste quand on a perdu*
+### P5 · Les ruines de vos villes — ✅ **LIVRÉ** (2026-08-09)
+
+> `game/ruins.go` : `Memorial`, `SeedMemorialRuins`, `Ruin.Epitaph()` · `store.FallenTowns`
+> (aucune table de plus : le classement conservait déjà nom, défenseurs et dernière vague) ·
+> `api.seedMemorials` à chaque création de monde · épitaphe affichée dans le menu radial.
+> Tests : `memorial_test.go`, `TestAFallenTownReappearsAsARuinInTheNextWorld`.
 
 **La proposition dont je suis le plus convaincu.** Une ville tombée devient une **ruine dans les
 cartes des parties suivantes** : son nom, la vague où elle est tombée, les noms de ceux qui l'ont

@@ -493,7 +493,13 @@ ajouté après coup n'atteindrait aucune partie en cours.
 + `Tile.RuinID`, caviardés par le fog comme les monstres. **Déblayage COLLECTIF** (`ClearRuin`,
 PA partagés comme les chantiers, refus Tétanisé/combat) puis **donjon** (`ExploreRuin`, 2 PA,
 4 charges) : tirage pondéré par type — matériaux rares (Acier, Cœur de chêne ancien), items
-rares, « plans anciens » ; Récupérateur +1. Front : menu radial ⛏️ Déblayer / 🏛️ Explorer ;
+rares, « plans anciens » ; Récupérateur +1. **MÉMORIAUX (2026-08-09)** : chaque carte neuve sème aussi les ruines de villes RÉELLEMENT
+tombées avant elle (`Memorial`, `SeedMemorialRuins`, `api.seedMemorials`) — nom, dernière vague,
+défenseurs (`Ruin.Epitaph()`), butin = les MATÉRIAUX de la ville morte. La source est
+`store.FallenTowns` : le classement conservait déjà tout et survit à la suppression de la partie,
+donc aucune table de plus. ⚠ **jamais de transfert de puissance entre parties** (pas de plan de
+bâtiment dans la table, test dédié) : ça casserait l'égalité qui fait tenir une survie de groupe.
+C'est la réponse au trou de rétention n°1 (`RETENTION-PLAN.md`). Front : menu radial ⛏️ Déblayer / 🏛️ Explorer ;
 voxel `site-*` v0 enseveli / v1 déblayé (variante par ÉTAT serveur), socle doré. Tests
 `ruins_test.go`. (Les bots ignorent les ruines.)
 

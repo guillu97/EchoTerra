@@ -120,3 +120,48 @@ func TestClosedExpeditionMakesRoomForANewLobby(t *testing.T) {
 		t.Fatalf("un salon public neuf doit prendre le relais, got %d: %+v", fresh, open)
 	}
 }
+
+// LE MÉTA-JEU SE REFERME : une expédition qui meurt devient un lieu sur la carte de
+// quelqu'un d'autre. C'est la réponse au trou de rétention principal — une partie dure
+// sept à neuf jours réels et se termine par une défaite ; jusqu'ici elle ne laissait
+// qu'une ligne de classement.
+func TestAFallenTownReappearsAsARuinInTheNextWorld(t *testing.T) {
+	s := newTestServer(t)
+
+	// Une ville vit, puis tombe. Le classement en garde la trace (il survit même à la
+	// suppression de la partie), et c'est de là que vient le souvenir.
+	fallen := worldgen.NewLobby(0, 0, 5, "Partie finie", 1, 4)
+	fallen.Town.Name = "Clairmont"
+	now := time.Now()
+	if _, err := fallen.AddPlayer("Ana", now); err != nil {
+		t.Fatal(err)
+	}
+	fallen.MaybeAutoStart(now)
+	fallen.Status = game.StatusGameOver
+	fallen.WaveNumber = 19
+	s.persist(fallen)
+
+	// Un monde neuf, créé après.
+	fresh := worldgen.NewLobby(0, 0, 99, "Monde neuf", 1, 4)
+	s.seedMemorials(fresh)
+
+	var memorial *game.Ruin
+	for _, r := range fresh.Ruins {
+		if r.Type == "memorial" {
+			memorial = r
+		}
+	}
+	if memorial == nil {
+		t.Fatal("la carte neuve doit porter les ruines de la ville tombée")
+	}
+	if memorial.Name != "Ruines de Clairmont" {
+		t.Fatalf("le mémorial doit porter le nom de la ville morte, got %q", memorial.Name)
+	}
+	if memorial.FellAtWave != 19 {
+		t.Fatalf("il doit retenir la vague qui l'a emportée : %d", memorial.FellAtWave)
+	}
+	if len(memorial.Defenders) == 0 || memorial.Defenders[0] != "Ana" {
+		t.Fatalf("il doit nommer ceux qui l'ont défendue, got %v", memorial.Defenders)
+	}
+	t.Logf("épitaphe : %s — %s", memorial.Name, memorial.Epitaph())
+}

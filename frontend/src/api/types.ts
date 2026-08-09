@@ -58,7 +58,7 @@ export interface Tile {
 // (PA partagés) puis donjon à charges au butin rare.
 export interface Ruin {
   id: string;
-  type: string; // ferme | epave | sanctuaire | mine | tour
+  type: string; // ferme | epave | sanctuaire | mine | tour | memorial
   name: string;
   icon: string;
   x: number;
@@ -67,6 +67,20 @@ export interface Ruin {
   paInvested: number;
   cleared: boolean;
   charges: number;
+  // MÉMORIAL : une ruine qui fut la ville d'une VRAIE expédition précédente. Elle porte
+  // son nom, la vague qui l'a emportée et ceux qui l'ont défendue (game/ruins.go).
+  fellAtWave?: number;
+  defenders?: string[];
+}
+
+// L'épitaphe d'un mémorial — « Tombée à la vague 19, défendue par Ana, Bo et Zoé ».
+// Vide pour une ruine ordinaire. Miroir de Ruin.Epitaph() côté serveur.
+export function ruinEpitaph(r: Ruin): string {
+  if (!r.fellAtWave) return "";
+  const d = r.defenders ?? [];
+  if (d.length === 0) return `Tombée à la vague ${r.fellAtWave}. Nul ne se souvient de ses défenseurs.`;
+  const names = d.length === 1 ? d[0] : `${d.slice(0, -1).join(", ")} et ${d[d.length - 1]}`;
+  return `Tombée à la vague ${r.fellAtWave}, défendue par ${names}.`;
 }
 
 export interface Hero {
