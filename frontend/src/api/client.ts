@@ -4,6 +4,7 @@ import type {
   CombatResponse,
   GameState,
   GameSummary,
+  WaveForecast,
   Item,
   LeaderboardMode,
   MapSkillDef,
@@ -84,7 +85,9 @@ export const api = {
   getGame: (id: string) => req<GameState>("GET", `/api/games/${id}`),
 
   // --- lobby / multiplayer ---
-  listGames: (status?: "lobby" | "active" | "gameover") =>
+  // "open" = ce qu'on peut REJOINDRE : les salons et les expéditions publiques encore
+  // dans leur fenêtre d'accueil. "lobby" ne rend que les salons non lancés.
+  listGames: (status?: "open" | "lobby" | "active" | "gameover") =>
     req<GameSummary[]>("GET", `/api/games${status ? `?status=${status}` : ""}`),
 
   createLobby: (opts: {
@@ -147,6 +150,24 @@ export const api = {
   logout: () => req<{ ok: boolean }>("POST", "/api/auth/logout", {}),
 
   me: () => req<{ user: User }>("GET", "/api/auth/me"),
+
+  // Monter à la Tour estimer la vague : chaque JOUEUR qui le fait resserre la
+  // fourchette pour toute la ville (backend orders.go ScoutWave).
+  scoutWave: (gameId: string, heroId: string, playerId?: string) =>
+    req<{ forecast: WaveForecast; game: GameState }>("POST", `/api/games/${gameId}/town/scout`, {
+      heroId,
+      playerId,
+    }),
+  postRequest: (gameId: string, playerId: string, item: string, qty: number) =>
+    req<{ game: GameState }>("POST", `/api/games/${gameId}/town/request`, { playerId, item, qty }),
+  cancelRequest: (gameId: string, playerId: string, cancel: string) =>
+    req<{ game: GameState }>("POST", `/api/games/${gameId}/town/request`, { playerId, cancel }),
+  fillRequest: (gameId: string, requestId: string, heroId: string, playerId?: string) =>
+    req<{ game: GameState }>("POST", `/api/games/${gameId}/town/request/fill`, {
+      requestId,
+      heroId,
+      playerId,
+    }),
 
   myGames: () => req<MyGameSummary[]>("GET", "/api/auth/me/games"),
 
@@ -217,7 +238,7 @@ export const api = {
     gameId: string,
     payload: {
       buildingId: string;
-      action: "build" | "restore" | "use" | "water" | "toggle" | "revive";
+      action: "build" | "restore" | "repair" | "use" | "water" | "toggle" | "revive";
       points?: number;
       heroId?: string;
       playerId?: string;

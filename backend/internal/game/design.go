@@ -80,13 +80,20 @@ var Terrains = map[Biome]TerrainDef{
 		{"plante", "Champignon", 1, 2}, {"plante", "Baie sauvage", 1, 1},
 		{"objet", "Plan de la Mairie", 1, 1},
 	}},
-	BiomeMountain: {Searchable: true, ResourcesMin: 2, ResourcesMax: 4, Drops: []DropDef{
-		{"minerai", "Pierre", 1, 3}, {"minerai", "Minerai de fer", 1, 2}, {"minerai", "Charbon", 1, 2},
+	// La montagne était le biome le plus PAUVRE (2-4 ressources) alors qu'elle porte
+	// la matière dont la ville est faite : la pierre bâtit les murs ET répare les
+	// remparts (TownRepairMaterial), et c'est déjà le biome le plus rare et le plus
+	// loin. Ce double malus rendait la progression défensive impossible — mesuré : 4
+	// pierres en banque à la vague 9, muraille bloquée au niveau 1, ville morte à la
+	// vague 12. La carrière est donc aussi riche que la prairie, et la pierre pèse plus
+	// lourd que les minerais rares dans son tirage.
+	BiomeMountain: {Searchable: true, ResourcesMin: 3, ResourcesMax: 6, Drops: []DropDef{
+		{"minerai", "Pierre", 2, 6}, {"minerai", "Minerai de fer", 1, 2}, {"minerai", "Charbon", 1, 2},
 		{"minerai", "Minerai d'argent", 1, 1}, {"minerai", "Minerai d'or", 1, 1},
 		{"objet", "Plan de la Tour", 1, 1},
 	}},
-	BiomeSnow: {Searchable: true, ResourcesMin: 2, ResourcesMax: 4, Drops: []DropDef{
-		{"minerai", "Pierre", 1, 3}, {"minerai", "Minerai de fer", 1, 2},
+	BiomeSnow: {Searchable: true, ResourcesMin: 3, ResourcesMax: 6, Drops: []DropDef{
+		{"minerai", "Pierre", 2, 6}, {"minerai", "Minerai de fer", 1, 2},
 		{"minerai", "Minerai d'argent", 1, 1}, {"minerai", "Givre éternel", 1, 1},
 	}},
 }

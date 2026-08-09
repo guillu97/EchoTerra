@@ -273,3 +273,51 @@ func TestActiveGamesOrdersByOldestWave(t *testing.T) {
 		t.Fatal("la révision doit être chargée (base de la sauvegarde conditionnelle)")
 	}
 }
+
+// OpenForJoin doit trouver une expédition publique DÉJÀ LANCÉE mais encore dans sa
+// fenêtre d'accueil, même noyée sous des parties actives plus fraîches.
+//
+// C'est le même piège que TestListByStatusIgnoresFresherGames, une marche plus haut :
+// « ce que je peux rejoindre » n'est plus « statut lobby », donc filtrer en Go après le
+// LIMIT rendrait invisible l'expédition qu'on veut justement pouvoir rejoindre. D'où la
+// colonne miroir join_open.
+func TestOpenForJoinFindsLaunchedPublicGamesInTheirWindow(t *testing.T) {
+	st, err := Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+
+	welcoming := &game.GameState{
+		ID: "public-launched", Status: game.StatusActive, Visibility: game.VisibilityPublic,
+		MaxPlayers: 20, WaveNumber: 1, CreatedAt: time.Now(),
+		Players: []*game.Player{{ID: "p1"}, {ID: "p2"}},
+	}
+	closed := &game.GameState{
+		ID: "public-closed", Status: game.StatusActive, Visibility: game.VisibilityPublic,
+		MaxPlayers: 20, WaveNumber: game.PublicJoinGraceWaves, CreatedAt: time.Now(),
+	}
+	for _, gs := range []*game.GameState{welcoming, closed} {
+		if err := st.Save(gs); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// 60 parties actives écrites APRÈS : elles saturent la fenêtre récente.
+	for i := 0; i < 60; i++ {
+		if err := st.Save(&game.GameState{ID: "active-" + strconv.Itoa(i), Status: game.StatusActive}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	open, err := st.OpenForJoin(50)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ids []string
+	for _, gs := range open {
+		ids = append(ids, gs.ID)
+	}
+	if len(ids) != 1 || ids[0] != "public-launched" {
+		t.Fatalf("OpenForJoin doit rendre exactement l'expédition qui accueille encore, got %v", ids)
+	}
+}

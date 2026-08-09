@@ -58,7 +58,7 @@ export interface Tile {
 // (PA partagés) puis donjon à charges au butin rare.
 export interface Ruin {
   id: string;
-  type: string; // ferme | epave | sanctuaire | mine | tour
+  type: string; // ferme | epave | sanctuaire | mine | tour | memorial
   name: string;
   icon: string;
   x: number;
@@ -67,6 +67,72 @@ export interface Ruin {
   paInvested: number;
   cleared: boolean;
   charges: number;
+  // MÉMORIAL : une ruine qui fut la ville d'une VRAIE expédition précédente. Elle porte
+  // son nom, la vague qui l'a emportée et ceux qui l'ont défendue (game/ruins.go).
+  fellAtWave?: number;
+  defenders?: string[];
+}
+
+// L'épitaphe d'un mémorial — « Tombée à la vague 19, défendue par Ana, Bo et Zoé ».
+// Vide pour une ruine ordinaire. Miroir de Ruin.Epitaph() côté serveur.
+export function ruinEpitaph(r: Ruin): string {
+  if (!r.fellAtWave) return "";
+  const d = r.defenders ?? [];
+  if (d.length === 0) return `Tombée à la vague ${r.fellAtWave}. Nul ne se souvient de ses défenseurs.`;
+  const names = d.length === 1 ? d[0] : `${d.slice(0, -1).join(", ")} et ${d[d.length - 1]}`;
+  return `Tombée à la vague ${r.fellAtWave}, défendue par ${names}.`;
+}
+
+// Une ligne de l'ordre du jour : ce que la ville demande, maintenant.
+export interface TownOrder {
+  kind: "threat" | "gate" | "repair" | "material" | "plan" | "chantier" | "wear";
+  icon: string;
+  text: string;
+  urgent: boolean; // coûte des PV à la PROCHAINE vague, par opposition aux suivantes
+}
+
+// Ce que la prochaine vague fera si personne ne bouge. `besieging` est le levier : ces
+// créatures-là entrent dans la puissance de la horde, donc les tuer fait baisser
+// `horde` sous les yeux du joueur.
+export interface WaveForecast {
+  // La horde s'annonce en FOURCHETTE : on l'estime, on ne la lit pas. Sa largeur est
+  // ce que la ville a gagné — sa Tour de guet, et les joueurs montés observer.
+  min: number;
+  max: number;
+  defense: number;
+  besieging: number;
+  damageMin: number;
+  damageMax: number;
+  fatal: boolean; // même au mieux, la ville n'y survit pas
+  atRisk: boolean; // au pire, elle n'y survit pas
+  precision: number; // 0-100
+  tower: number; // niveau de la Tour (0 = pas de tour)
+  scouts: number; // joueurs ayant estimé cette vague
+}
+
+// Un besoin affiché au Panneau. La seule sortie de la Banque vers un joueur — et elle
+// exige d'être deux : un qui demande, un qui sert.
+export interface TownRequest {
+  id: string;
+  playerId: string;
+  author: string;
+  item: string;
+  qty: number;
+  wave: number;
+  at: string;
+  filledBy?: string; // "" / absent = encore ouverte
+}
+
+// Ce qu'un joueur a apporté à cette ville. JAMAIS trié par mérite (voir contribution.go).
+export interface Contribution {
+  playerId: string;
+  name: string;
+  buildPa: number;
+  deposited: number;
+  slain: number;
+  repaired: number;
+  crafted: number;
+  filled: number;
 }
 
 export interface Hero {
@@ -225,6 +291,11 @@ export interface GameSummary {
   day: number;
   waveNumber: number;
   createdAt: string;
+  // Fenêtre d'accueil : une expédition publique LANCÉE reste rejoignable quelques
+  // vagues (game.PublicJoinGraceWaves côté serveur). joinWavesLeft ne vaut que pour
+  // une partie déjà en cours — un salon vaut 0 parce qu'il n'a pas encore commencé.
+  joinOpen: boolean;
+  joinWavesLeft: number;
 }
 
 // Nature d'une partie au classement : les trois ne se comparent pas (un run solo
@@ -286,12 +357,19 @@ export interface GameState {
     // How many messages the board holds. The messages THEMSELVES never ride this
     // payload (see ChatMessage) — this count only feeds the ✉️ unread pip.
     chatCount?: number;
+    // L'ORDRE DU JOUR et la PRÉVISION de vague (backend orders.go) — entièrement
+    // dérivés de l'état. C'est ce qui donne un énoncé à une session de cinq minutes.
+    orders?: TownOrder[];
+    forecast?: WaveForecast;
+    requests?: TownRequest[];
+    scouts?: string[];
     reviveDay?: number; // Townhall resurrections performed today (allowance = level)
     revivesToday?: number;
   };
   activeCombat?: string;
   combats?: Record<string, Combat>;
   ruins?: Record<string, Ruin>;
+  contributions?: Record<string, Contribution>;
 }
 
 export interface CombatUnit {

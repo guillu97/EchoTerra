@@ -3982,3 +3982,90 @@ body {
   70% { transform: translate3d(-2px, 2px, 0); }
   85% { transform: translate3d(2px, -1px, 0); }
 }
+
+/* Mémorial : les ruines d'une VRAIE ville tombée avant la nôtre (game/ruins.go).
+   L'épitaphe se lit comme une inscription gravée — encre estompée, filet doré, et
+   surtout pas un bouton : c'est ce qui reste de neuf jours de jeu de quelqu'un. */
+.am-memorial {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  padding: var(--s-2) var(--s-3);
+  margin-bottom: var(--s-2);
+  border-left: 3px solid var(--gold);
+  border-radius: var(--r-sm);
+  background: var(--parch-0);
+  font-size: var(--t-xs);
+  line-height: var(--lh-tight);
+  color: var(--ink-soft);
+}
+.am-memorial b { color: var(--ink); font-size: var(--t-sm); }
+
+/* L'ORDRE DU JOUR (components/TownOrders.tsx) — le panneau d'affichage de la ville.
+   Posé en haut de l'écran du bourg, replié à sa ligne la plus urgente : une session de
+   cinq minutes doit pouvoir le lire d'un coup d'œil sans qu'il mange le tertre. */
+.orders {
+  position: absolute;
+  top: var(--s-2);
+  left: var(--s-2);
+  right: var(--s-2);
+  z-index: var(--z-float);
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  background: var(--parch-0);
+  box-shadow: var(--sh-card);
+  overflow: hidden;
+}
+.orders.urgent { border-color: var(--red); }
+.orders-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  width: 100%;
+  padding: var(--s-2) var(--s-3);
+  background: none;
+  border: 0;
+  text-align: left;
+  font: inherit;
+  font-size: var(--t-xs);
+  line-height: var(--lh-tight);
+  color: var(--ink-2);
+  min-height: var(--tap);
+}
+.orders.urgent .orders-head { color: var(--ink); font-weight: 600; }
+.orders-icon { flex: 0 0 auto; font-size: var(--t-sm); }
+.orders-text { flex: 1; }
+.orders-more {
+  flex: 0 0 auto;
+  font-size: var(--t-xs);
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+.orders-list {
+  margin: 0;
+  padding: 0 var(--s-3) var(--s-2);
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  border-top: 1px solid var(--line);
+  padding-top: var(--s-2);
+}
+.orders-list li {
+  display: flex;
+  gap: var(--s-2);
+  font-size: var(--t-xs);
+  line-height: var(--lh-tight);
+  color: var(--ink-soft);
+}
+.orders-list li.urgent { color: var(--ink); font-weight: 600; }
+
+/* Les dégâts attendus, collés au compte à rebours de la TopBar. */
+.chip.wave .wave-dmg {
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+  margin-left: 4px;
+  color: var(--red);
+  font-weight: 700;
+}
+.chip.wave.fatal { border-color: var(--red); color: var(--red); }

@@ -6,6 +6,337 @@
 
 ---
 
+## 2026-08-09 (96) — La fenêtre d'accueil des expéditions publiques
+
+Demande : qu'une partie publique **se lance** dès le minimum de joueurs atteint, mais qu'elle reste
+**ouverte 1-2 jours** aux suivants — en visant à terme 2 vagues par jour réel.
+
+### La fenêtre se compte en VAGUES, pas en heures
+
+C'est la seule décision qui comptait vraiment. `WaveInterval` vaut dix minutes en développement et six
+heures en cible ; « deux jours » ne veut donc dire la même chose dans les deux cas que compté en vagues.
+`PublicJoinGraceWaves = 4` : quatre vagues, soit deux jours de jeu ET deux jours réels à la cadence
+visée, sans rien à retoucher le jour où l'intervalle change.
+
+`GameState.JoinOpen()` répond à « peut-on encore embarquer ? » : un salon toujours, une expédition
+publique pendant sa fenêtre, une partie privée jamais après son lancement (son hôte choisit qui entre,
+et il la lance délibérément — il n'y a personne à attendre).
+
+### Ce que ça a demandé ailleurs
+
+- **Accueillir vraiment.** Les rations du puits sont calculées au lancement sur l'effectif d'alors ;
+  sans complément, chaque nouveau venu boirait la réserve des autres et accepter du monde se paierait en
+  soif. `AddPlayer` complète le puits et trace l'arrivée au journal de la ville.
+- **Une colonne miroir de plus** (`join_open`). « Ce que je peux rejoindre » n'est plus « statut lobby »,
+  donc filtrer en Go après le `LIMIT` rendrait invisible exactement l'expédition qu'on veut rejoindre —
+  le piège déjà rencontré avec `status` (entrée 2026-08-02). `store.OpenForJoin` répond en SQL, et le
+  backfill couvre les lignes écrites avant la colonne, sans quoi un salon existant deviendrait
+  injoignable.
+- **Un seul point d'accueil à la fois.** Le serveur ouvrait un salon neuf dès l'auto-lancement. Avec la
+  fenêtre, ça séparerait les joueurs entre deux parties — exactement ce que la fenêtre veut éviter. Le
+  salon suivant naît quand les portes de l'expédition en cours se ferment (ou qu'elle est complète).
+- **`?status=open`** à la place de `?status=lobby` côté front : c'est la question que le joueur pose
+  vraiment. La liste affiche « ⚔️ En route — jour 2, vague 3 » avec un badge « 2 VAGUES » de compte à
+  rebours, et rejoindre une partie déjà lancée entre directement en jeu.
+
+### Un test existant a dû être restagé, et c'est instructif
+
+`TestForceWaveNormalDamagesTown` échouait : depuis que la puissance de la horde compte les créatures
+massées aux abords (entrée 95), une ville dont les approches sont vides n'encaisse plus que la pression
+de fond. Le test mesurait donc une ville que personne n'attaquait. Il pose maintenant un siège — et
+vérifie au passage que les packs qui portent l'assaut s'y brisent.
+
+### Fonctionnel (vérifié)
+
+`go -C backend test ./...` vert (4 tests de fenêtre côté game, 2 côté API, 1 côté store),
+`npx tsc -b` et `npm run build` verts.
+
+### Question posée juste après : « est-ce que le niveau s'ajuste avec l'arrivée du joueur ? »
+
+En partie seulement — et la mesure a montré bien pire que ce que la question visait.
+
+`hordeScale` compte les héros, donc une arrivée fait monter la **pression** d'environ un point dès la
+vague suivante, et le puits est complété. Mais le semis initial ne tourne qu'au lancement, et le renfort
+par vague ne dépendait pas de l'effectif. Surtout, la difficulté suivait la **carte**, or la carte d'un
+salon public est taillée pour `maxPlayers` alors que la partie démarre à `minPlayers`. Résultat mesuré :
+
+| | chutes |
+|---|---|
+| 2 joueurs, carte à leur taille (42²) | 15-17 |
+| **2 joueurs, carte de salon public (134²)** | **29-30** |
+| 20 joueurs, même carte | 21-23 |
+
+Une expédition sous-remplie était donc **le mode facile du jeu**. Et la cause n'était pas le nombre de
+monstres : les packs naissaient jusqu'à soixante-dix cases de la ville et migrent d'une case par vague —
+**la horde n'arrivait jamais**.
+
+Deux corrections :
+
+- **Le front a un rayon fixe** (`hordeFrontRadius` 14) : la horde qui assiège cette ville vient de ses
+  environs, pas des antipodes. Le délai d'arrivée devient le même à toutes les tailles. Le semis
+  INITIAL reste réparti sur toute la carte — c'est du peuplement de monde, pas de la pression.
+- **La menace suit l'expédition, pas la surface** (`SeedStartingMonsters` : `4 + 3×joueurs + surface/1200`).
+
+Une troisième piste a été essayée puis **retirée** : faire dépendre aussi le renfort par vague de
+l'effectif. L'expédition pesait alors sur la horde à trois endroits et la courbe de survie devenait
+plate de 1 à 20 joueurs. Et sur un jeu coopératif, accueillir quelqu'un ne doit pas empirer la situation
+de ceux qui sont déjà là : une arrivée apporte trois héros contre un point de pression — elle AIDE, et
+c'est le seul réglage acceptable pour une fenêtre d'accueil.
+
+Après : sweep 14 · 14 · 15 · 17 · 18 · 18 (1 → 20 joueurs, croissance monotone), et le salon
+sous-rempli passe de 30 à 17 vagues. `TestUnderfilledPublicLobbyIsNotEasyMode` garde le résultat.
+
+### À faire
+
+- La fenêtre est la même pour tout le monde ; si tu veux qu'un hôte la règle par partie, elle est déjà
+  isolée dans une constante et un accesseur (`JoinClosesAtWave`).
+- Un joueur qui rejoint à la vague 3 arrive dans une ville déjà bâtie mais face à une horde pondérée par
+  l'effectif d'après son arrivée : à observer en vrai, la simulation d'équilibrage ne modélise pas
+  encore les arrivées échelonnées.
+
+---
+
+## 2026-08-09 (95) — Tuer compte, et vingt joueurs vont plus loin qu'un
+
+Trois demandes liées : que **tuer des monstres compte pour la survie**, monter à **20 joueurs** avec
+une **carte qui grandit**, et que la difficulté monte avec l'effectif *mais* qu'une grande expédition
+aille **plus loin** qu'un solo.
+
+La troisième était mathématiquement impossible avant : le plafond de défense d'une ville (muraille 20 +
+portail 16 + tour 12 = 48) ne dépend pas du nombre de joueurs, alors que la horde, elle, montait avec.
+Des joueurs en plus n'apportaient donc que des monstres en plus. Les trois demandes se règlent en fait
+avec la même pièce.
+
+### La puissance de la horde a maintenant deux termes
+
+```
+puissance = pression(vague) + créatures massées dans le rayon d'assaut
+```
+
+La **pression** est un plancher qui monte quoi qu'on fasse (le monde se dégrade, on ne gagne pas). L'**assaut**
+est la horde réellement présente aux abords au moment où elle frappe — et ce terme-là, on le fait baisser
+en tuant. Les packs qui ont porté l'assaut s'y brisent, le calcul se faisant avant qu'ils ne soient retirés.
+
+Conséquence immédiate mesurée : les vagues 1 à 7 deviennent quasi gratuites tant que l'anneau est tenu
+(PV 100/100 à la vague 12 contre une ville morte avant), et les kills passent de 12 à 42 par partie.
+
+### Les bots ont un troisième rôle
+
+Bâtisseur / **défenseur** / récolteur, par rang dans l'équipe. Le défenseur dégage l'anneau — depuis que
+la puissance en dépend, c'est de la défense, pas du sport — et porte une **laisse** : sur une carte de
+120², les défenseurs partaient au bout du monde et personne ne tenait l'anneau. Premier essai sans
+laisse : 21 créatures tuées en huit vagues pendant que le siège montait à 57 points de dégâts.
+
+### Ce qui faisait s'effondrer les grandes parties
+
+Deux causes, toutes deux invisibles sans la simulation :
+
+- **Des packs naissaient DANS l'anneau d'assaut.** `spawnSafeRadius` valait 1, l'anneau en fait 2 : à
+  vingt joueurs, neuf packs se matérialisaient au pied des murs au lancement. Un pack qui apparaît là est
+  un pack que personne n'a laissé passer — injouable. Le siège doit ARRIVER, pour qu'on puisse
+  l'intercepter.
+- **Le gisement garanti était un absolu.** Douze tuiles de montagne dans le rayon 8, que la ville abrite
+  trois héros ou soixante : vingt équipes se partageaient la carrière d'un solo. Mesuré à vingt joueurs :
+  banque à ZÉRO pierre, muraille bloquée au niveau 1, chute vague 8 — quand huit joueurs tenaient vingt
+  vagues. Le quota suit désormais la surface (`biomeQuota`), comme la population.
+
+### La carte suit l'expédition
+
+`worldgen.SizeForPlayers` : surface par joueur constante (~900 tuiles, la densité d'une partie à quatre
+sur 60×60), bornée à 140² parce que chaque tuile voyage dans le payload JSON. 1 joueur → 40², 4 → 60²,
+20 → 134². Comme la horde semée croît avec la surface, c'est aussi ce qui fait monter la difficulté avec
+l'effectif, comme demandé.
+
+### Résultat
+
+| joueurs | 1 | 2 | 4 | 8 | 12 | 20 |
+|---|---|---|---|---|---|---|
+| chute médiane | 16 | 16 | 19 | 23 | 24 | **21** |
+| pire graine | 15 | 15 | 16 | 21 | 21 | **19** |
+
+Vingt joueurs vont plus loin qu'un seul, et le plancher de vingt (19) dépasse la médiane du solo (16).
+Un test l'encode (`TestBigExpeditionsGoFurther` : 15,7 vagues en solo contre 21,7 à vingt) — ce n'est
+pas un acquis, c'est un contrat, parce que l'arithmétique par défaut dit l'inverse.
+
+### Fonctionnel (vérifié)
+
+`go -C backend test ./...` vert, `npx tsc -b` et `npm run build` verts, balayage 1→20 joueurs. Front :
+sélecteur « joueurs maximum » jusqu'à 20 à la création d'un salon, salon public ouvert à 20.
+
+### À faire
+
+- Le creux 12 → 20 joueurs (médiane 24 puis 21) tient au plafond de carte à 140² ; à surveiller si tu
+  veux aller au-delà de 20.
+- Les 60 héros d'une grande partie génèrent un payload de carte lourd (140² tuiles) : le brouillard les
+  envoie vierges, mais le tableau reste. À mesurer avant d'ouvrir vraiment des parties à 20.
+
+---
+
+## 2026-08-09 (94) — Tester une partie automatiquement, et la rendre jouable
+
+Demande : « planifier puis implémenter un moyen de tester automatiquement une partie pour voir si le
+jeu est jouable et équilibrer + améliorer le comportement des bots. Il ne faut pas que le jeu soit
+perdu au bout de 10 vagues. »
+
+### D'abord l'instrument, ensuite les réglages
+
+`backend/internal/balance` joue une partie ENTIÈRE en tête, sans mock : vrai worldgen, vrais
+joueurs-IA, vraie horloge de simulation (`game.AdvanceTo` — le chemin exact du battement en
+production). Un verdict de la simulation est donc un verdict sur le jeu. Deux consommateurs :
+`go -C backend run ./cmd/balance` (tables vague par vague, balayage 1→6 joueurs, `-json`) et
+`balance_test.go`, le garde-fou de non-régression.
+
+Le premier verdict est tombé en une commande : **les cinq graines mouraient à la vague 5**, défense 9
+contre une horde de 45. Aucun test ne l'avait jamais vu, parce qu'aucun test n'avait jamais JOUÉ.
+
+### Ce que la mesure a trouvé (dans l'ordre où elle l'a trouvé)
+
+Chaque point ci-dessous a été diagnostiqué sur des chiffres, pas sur une intuition — et plusieurs
+étaient invisibles à la lecture du code.
+
+- **La porte ne se fermait jamais.** Seul « je veux sortir » y touchait. −12 à −16 de défense à
+  chaque vague. Elle a maintenant un RYTHME collectif (`botGateWork`) : ouverte le jour, verrouillée
+  au couvre-feu, un bâtisseur reste en ville pour la manœuvrer.
+- **Les réparations affamaient la récolte.** Il y a toujours un mur à rafistoler après une vague,
+  donc `botBuild` répondait « oui » à tout le monde, tous les tours : personne n'atteignait jamais le
+  code qui rouvre la porte. Ville close dès le jour 1, douze héros à trois cases de la ville à la
+  vague 8 avec une montagne découverte à quatre cases. D'où la RÉPARTITION DES RÔLES (un héros sur
+  trois est bâtisseur et ne sort pas ; les autres récoltent).
+- **Le sac se comptait en PILES, pas en objets** (`len(h.Inventory)`) : les récolteurs campaient
+  indéfiniment avec deux cents objets et une Banque vide.
+- **Le dernier PA d'un héros dehors est son PA de dissimulation.** Sans cette réserve, tous les
+  récolteurs étaient morts avant la vague 9 (3 + numéro de vague de dégâts par vague à découvert).
+- **Un héros Tétanisé attendait la mort** : il ne peut ni bouger, ni fouiller, ni se cacher — les
+  bots n'utilisaient jamais Escape, la seule porte que les règles laissent ouverte.
+- **La horde ne s'usait jamais.** 130 packs et 660 créatures à la vague 12, ville encerclée, héros
+  incapables de rentrer. Les packs arrivés au pied des murs s'y BRISENT désormais
+  (`spendAssaultingPacks`) — c'est ce que l'assaut raconte de toute façon.
+- **Zéro pierre en banque, sur toute la partie.** Trois causes empilées : la carte n'avait que 21
+  tuiles de montagne sur 3600 et la garantie « au moins UNE dans le rayon 10 » se contentait d'un
+  caillou perdu ; `heroSightRadius` valait 0, donc on ne trouve jamais un biome qu'on ne longe pas ;
+  et la montagne était le biome le plus PAUVRE alors qu'elle porte la matière dont la ville est
+  faite. Corrigés : gisement garanti (12 tuiles dans le rayon 8), vision 1 (Éclaireur 2), carrière
+  aussi riche que la prairie.
+- **La pierre récoltée était brûlée dans la seconde** en rafistolage de PV. Un niveau de muraille
+  vaut +5 de défense sur TOUTES les vagues suivantes ; cinq PV valent une vague. Les bots réservent
+  maintenant les matériaux de la défense (`reservedForDefense`) et ne rapiècent la ville qu'avec le
+  surplus — ou en urgence sous 50 % de PV.
+- **« On a besoin de bois ET de pierre » n'est pas un plan** quand la forêt est à côté et la
+  montagne cinq cases plus loin : à score de distance égal on récolte du bois pour toujours. Le
+  barème pèse désormais la RARETÉ (`botCriticalList`).
+
+### Deux mécaniques ajoutées, pas seulement des réglages
+
+- **Relever les remparts** (`TownAction("wall","repair")`, 1 PA + 1 Pierre → +5 PV, bouton dans le
+  modal du mur). Rien dans le jeu ne rendait de PV à la ville : `Town.HP` ne faisait que descendre,
+  donc toute partie était un compte à rebours quoi que fassent les joueurs. C'est cette action qui
+  fait de l'ÉPUISEMENT DE LA CARTE — et non de l'arithmétique de la horde — la vraie limite d'une
+  longue partie, comme le demandait le brief.
+- **Courbe de horde revue.** L'ancienne (`12 + 6×vague`) dépassait dès la vague 6 le total qu'une
+  ville PARFAITE peut opposer (20+16+12 = 48) : aucune partie n'était gagnable, jamais. Désormais
+  `8 + 3×vague`, pondérée DOUCEMENT par la taille de l'expédition (`hordeScale`). La pondération est
+  douce parce que c'est mesuré : des joueurs en plus n'apportent pas de défense en plus (le plafond
+  est le même à 3 héros qu'à 18) — une première version en ×1,33 à six joueurs inversait la courbe,
+  les grandes tables tombaient AVANT les solos.
+
+### Résultat
+
+| | avant | après |
+|---|---|---|
+| chute médiane (4 joueurs) | vague **5** | vague **15** |
+| pire graine, toutes tailles | vague 5 | vague **12** |
+| défense atteinte | 9 (mur seul, porte ouverte) | 20-26 |
+| pierre en banque | 0 | flux réel |
+
+`SurvivalFloor = 10` est encodé dans `balance_test.go` et couvre 1, 2, 4 et 6 joueurs ; un
+`TestTownActuallyProgresses` vérifie en plus que la ville CONSTRUIT, récolte, tue et évolue — parce
+qu'une ville peut survivre en ne faisant rien si la horde est assez faible, et ce n'est pas un jeu.
+
+### Fonctionnel (vérifié)
+
+`go -C backend test ./...` vert (5 tests existants mis à jour pour dire le NOUVEAU comportement
+voulu, pas pour repasser au vert), `npx tsc -b` vert, `go run ./cmd/balance -sweep` sur 1→6 joueurs.
+
+### Deuxième passe : le plafond, et la marge
+
+La première passe laissait la défense bloquée vers 24 alors que 48 est atteignable. La cause tenait en
+une phrase : **tous les niveaux 2-3 du design réclament un matériau CRAFTÉ** (Planche, Corde, Brique,
+Acier) et les bots n'allaient jamais à l'atelier. `botCraft` fabrique désormais ce qui manque, et
+**recycle les Débris** en Bois/Pierre quand la Recyclerie est debout — la réponse du design à une carte
+qui se vide, donc exactement ce qui doit porter la fin d'une longue partie. Effet immédiat : défense
+39, et la ville se SOIGNE (PV 39 → 95 entre les vagues 10 et 12 sur la graine 1).
+
+Trois autres choses trouvées en mesurant :
+
+- **Le rôle de bâtisseur tenait à un hash d'identifiant.** « Environ un sur trois » ne dit rien d'une
+  ÉQUIPE donnée : un bot dont les trois héros tombaient tous en récolteurs n'avait personne pour la
+  porte, les chantiers ni l'atelier — la ville ne construisait jamais rien. Le rôle vient maintenant du
+  RANG dans l'équipe (le 1er héros reste), donc exactement un bâtisseur pour trois.
+- **La simulation ne répondait pas deux fois pareil à la même graine** (chute vague 13 ou 19). Deux
+  itérations de map fuyaient dans l'état : la fusion des packs en migration et le forçage des tours de
+  combat. Triées par POSITION désormais (les id sont des UUID, les trier ne fixe rien). C'est un vrai
+  défaut au-delà de l'outil : toute l'architecture repose sur « rejouer le temps écoulé », donc deux
+  instances rejouant la même période doivent aboutir au même monde.
+- **Les grandes tables étaient punies deux fois.** `SeedStartingMonsters` ajoutait 2 packs par joueur
+  ET `hordePower` pondérait déjà par l'effectif : une table de six ouvrait sur 3,5× plus de packs qu'un
+  solo pour le même plafond de défense. Pente aplatie.
+
+Enfin la MARGE : sur 20 graines, une tombait pile à la vague 10 — le seuil que le jeu doit garantir.
+`hordeBase` passe de 8 à 6 (la base fait le démarrage, la pente fait la fin de partie).
+
+| | avant | 1re passe | après |
+|---|---|---|---|
+| chute médiane (4 joueurs) | 5 | 15 | **16** |
+| pire graine, toutes tailles | 5 | 11 | **12-13** |
+| défense atteinte | 9 | 20-26 | **jusqu'à 39** |
+| PV de ville | jamais rendus | réparables | réellement regagnés en jeu |
+
+Le garde-fou couvre maintenant 1→6 joueurs × 3 graines, vérifié stable sur quatre exécutions.
+
+### Troisième passe : pourquoi les bots ne se battaient pas — et une trouvaille de design
+
+`botShouldEngage` exigeait « au moins autant de héros que le pack aligne d'unités ». Ça sonne prudent,
+c'est en fait un refus de combattre : **`NewCombat` plafonne le pack à QUATRE unités quelle que soit sa
+taille**, donc la règle voulait dire « quatre héros sur la même case » — alors que toute la logique de
+récolte les écarte délibérément les uns des autres. Le critère est désormais la PUISSANCE, et le lot est
+énorme : gagner supprime le pack ENTIER, pas les quatre qui se sont battues. S'y ajoutent le renfort
+(`botRallyTile` : un camarade tétanisé à moins de 4 cases passe avant la liste de courses — c'est LA
+façon documentée de briser Tétanisé, aucun bot n'y allait) et le fait de tenir bon quand l'aide est à un
+pas, plutôt que de tenter une fuite qui échoue une fois sur quatre.
+
+**Mesuré : 11 combats gagnés pour 2 perdus.** Le critère n'était donc pas trop laxiste — les combats
+n'avaient simplement jamais lieu (1 à 6 par partie).
+
+Mais la mesure a surtout dit autre chose, et c'est un point de DESIGN à trancher :
+
+> **Tuer des packs ne change rien à la survie de la ville.** `hordePower` est une pure fonction du
+> numéro de vague : nettoyer les abords ne réduit pas les dégâts d'un seul point. Le combat ne sert
+> qu'au butin, au classement et à libérer un héros cloué.
+
+Une tentative de faire passer le sauvetage AVANT le retour du butin l'a confirmé par l'absurde : la
+survie a BAISSÉ (une graine de 19 à 15). Les matériaux font vivre la ville, pas les cadavres. La priorité
+a donc été remise dans l'autre sens. Si tu veux que défendre le terrain compte, il faut que la horde
+tire sa puissance des packs réellement présents aux abords — c'est une règle à changer ensemble, je ne
+l'ai pas décidée seul.
+
+Médiane après cette passe : 15 à 18 vagues selon la taille de l'expédition (plancher 11 à six joueurs,
+le cas le plus serré ; 13 et plus partout ailleurs).
+
+### À faire
+
+- **Six joueurs reste le cas le plus tendu** (plancher 11 contre 16-18 en solo) : plus de héros = plus de
+  monstres semés et plus d'exposés dehors, pour un plafond de défense identique.
+- **Décider si tuer des monstres doit compter** (voir ci-dessus) — aujourd'hui, non.
+- **Les récolteurs meurent encore en fin de partie** (une graine perd 5 héros sur 7 avant la
+  vague 7) : la horde qui converge les tétanise loin de la ville. Piste : se regrouper pour combattre
+  (`botShouldEngage` exige des héros sur LA MÊME case, ce qui n'arrive jamais).
+- **Déterminisme incomplet** : les deux fuites trouvées sont bouchées, mais la même graine peut encore
+  varier de quelques vagues — il reste des consommations de hasard dépendantes d'un ordre de map à
+  débusquer. Le garde-fou est stable, l'outil d'exploration reste à lire avec cette réserve.
+- Faire tourner le balayage sur plus de graines et brancher `cmd/balance` en CI.
+
+---
+
 ## 2026-08-02 (93) — Le moment de la vague
 
 Retour : « ça va lagguer un peu côté client au moment de la vague, il faudrait faire quelque chose de

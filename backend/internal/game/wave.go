@@ -2,6 +2,7 @@ package game
 
 import (
 	"math/rand"
+	"sort"
 	"time"
 )
 
@@ -33,6 +34,7 @@ type WaveReport struct {
 	BuildingsHit    []WaveHit `json:"buildingsHit"`
 	HeroesHit       []WaveHit `json:"heroesHit"`
 	MonstersSpawned int       `json:"monstersSpawned"`
+	MonstersSpent   int       `json:"monstersSpent"` // creatures broken on the walls during the assault
 	At              time.Time `json:"at"`
 	GameOver        bool      `json:"gameOver"`
 }
@@ -98,6 +100,12 @@ func (g *GameState) Recompute() {
 			b.Capacity = total // the Bank's "contents" = the town storage
 		}
 	}
+	// EN DERNIER : l'ordre du jour lit les coûts qu'on vient de recalculer (matériaux
+	// manquants, plans, chantiers). Le placer plus haut le ferait travailler sur les
+	// coûts de la vague précédente.
+	g.trimRequests()
+	g.Town.Forecast = g.Forecast()
+	g.Town.Orders = g.BuildOrders()
 }
 
 // backfillBuildings adds any building the catalog gained since a game was created.
@@ -161,8 +169,76 @@ func (g *GameState) recomputeTetanise() {
 	}
 }
 
-func hordePower(waveNumber int) int {
-	return 12 + waveNumber*6 + rand.Intn(6)
+// LA PUISSANCE DE LA HORDE — ce que les joueurs peuvent y changer.
+//
+// Elle a deux termes, et la distinction est TOUT le design :
+//
+//	pression  — un plancher qui monte avec les vagues, quoi qu'on fasse. Le monde se
+//	            dégrade ; on ne gagne pas, on tient plus ou moins longtemps.
+//	assaut    — les créatures RÉELLEMENT massées aux abords de la ville au moment où
+//	            la horde frappe. Ce terme-là, on le fait baisser en tuant.
+//
+// Avant, la puissance était une pure fonction du numéro de vague : nettoyer les
+// approches ne retirait pas un seul point de dégâts, donc le combat ne servait qu'au
+// butin. Une expédition de vingt joueurs ne pouvait pas non plus aller plus loin qu'un
+// solo — le plafond de défense (muraille + portail + tour) est le même à trois héros
+// qu'à soixante, donc l'arithmétique garantissait l'inverse de ce qu'on veut. En liant
+// l'assaut aux packs présents, l'effectif se convertit enfin en survie : plus de héros,
+// plus de packs abattus avant qu'ils n'atteignent les murs, moins de dégâts.
+//
+// Les packs qui ont porté l'assaut s'y brisent (spendAssaultingPacks) : ils frappent
+// une fois, et le calcul se fait AVANT qu'ils ne soient retirés.
+const (
+	hordeBase        = 6 // pression de départ
+	hordeGrowth      = 2 // pression ajoutée par vague (plancher incompressible)
+	assaultRadius    = 2 // rayon de Chebyshev où un pack « touche » la ville
+	assaultPerAttack = 1 // dégâts apportés par créature massée aux abords
+)
+
+// besiegingCreatures compte les créatures massées dans le rayon d'assaut de la ville.
+// C'est la partie de la horde que les joueurs contrôlent : chacune abattue (combat,
+// compétence de carte) est un point de puissance en moins à la prochaine vague.
+func (g *GameState) besiegingCreatures() int {
+	n := 0
+	for _, m := range g.Monsters {
+		if m == nil {
+			continue
+		}
+		if absI(m.X-g.Town.X) <= assaultRadius && absI(m.Y-g.Town.Y) <= assaultRadius {
+			n += m.Count
+		}
+	}
+	return n
+}
+
+// hordeScale pondère la PRESSION (pas l'assaut) par la taille de l'expédition. Elle
+// reste douce : le gros de la difficulté d'une grande partie vient désormais du nombre
+// de packs semés sur une carte plus grande, donc de l'assaut — que les joueurs peuvent
+// combattre. On compte les héros TOTAUX (morts inclus), sinon perdre des héros
+// allégerait la horde.
+// expeditionTeams: le nombre d'équipes de l'expédition, morts inclus — sinon perdre
+// des héros allégerait la horde. Un joueur qui rejoint en cours de partie (fenêtre
+// d'accueil des parties publiques) le fait monter, et le niveau avec.
+func (g *GameState) expeditionTeams() int {
+	teams := len(g.Heroes) / HeroesPerPlayer
+	if teams < 1 {
+		teams = 1
+	}
+	return teams
+}
+
+func (g *GameState) hordeScale() float64 {
+	return float64(6+g.expeditionTeams()) / 10.0
+}
+
+// hordePower assemble les deux termes pour la vague qui frappe maintenant.
+func hordePower(waveNumber int, scale float64, besieging int) int {
+	pressure := float64(hordeBase+waveNumber*hordeGrowth) * scale
+	p := int(pressure) + besieging*assaultPerAttack + rand.Intn(4)
+	if p < 1 {
+		p = 1
+	}
+	return p
 }
 
 // ProcessWave resolves a single horde assault on the town. It does NOT schedule the
@@ -186,7 +262,8 @@ func (g *GameState) processWave(now time.Time, safeTown bool) {
 		g.Day++
 	}
 
-	power := hordePower(g.WaveNumber)
+	besieging := g.besiegingCreatures()
+	power := hordePower(g.WaveNumber, g.hordeScale(), besieging)
 	defense := g.TownDefense()
 
 	// Slices INITIALISÉES : nil se sérialise en `null`, pas en `[]`, et le client
@@ -234,6 +311,10 @@ func (g *GameState) processWave(now time.Time, safeTown bool) {
 		}
 	}
 
+	// Les observateurs de la tour valaient pour LA vague qui vient de frapper : la
+	// suivante est une autre horde, et il faudra remonter voir.
+	g.Town.Scouts = nil
+
 	// The Well slowly refills between waves.
 	if w := g.buildingByID("well"); w != nil && w.Built && w.Capacity < w.MaxCapacity {
 		w.Capacity += 10
@@ -241,6 +322,15 @@ func (g *GameState) processWave(now time.Time, safeTown bool) {
 			w.Capacity = w.MaxCapacity
 		}
 	}
+
+	// The packs that reached the walls THROW THEMSELVES AT THEM and are spent: that is
+	// what the assault this report describes actually is. Without it nothing ever
+	// removed a pack that finished its migration, so the ring around the town silted up
+	// wave after wave — measured: 130 packs and 660 creatures by wave 12, the town
+	// completely encircled, heroes unable to walk home with their load and the horde
+	// growing whether or not anyone fought it. The wave's damage is hordePower either
+	// way; this only stops the map from turning to concrete.
+	r.MonstersSpent = g.spendAssaultingPacks()
 
 	// Surviving packs close in on the town by one step before the fresh horde spawns.
 	g.migrateMonstersTowardTown()
@@ -369,6 +459,14 @@ func (g *GameState) spawnWaveMonsters(waveNumber int) int {
 	// doit scaler à l'infini). En pratique la saturation des tuiles praticables borne
 	// naturellement le nombre de packs ; la taille des packs, elle, grandit sans borne
 	// (spawnWeightedPack) — c'est ce qui rend l'intensification réellement infinie.
+	// Le renfort par vague ne dépend PAS de l'effectif, et c'est délibéré. L'expédition
+	// pèse déjà sur la horde à deux endroits (la pression via hordeScale, le semis
+	// initial via SeedStartingMonsters) ; l'y faire peser une troisième fois aplatissait
+	// entièrement l'avantage du nombre — mesuré, la courbe de survie devenait plate de 1
+	// à 20 joueurs. Et sur un jeu coopératif, accueillir quelqu'un ne doit pas empirer la
+	// situation de ceux qui sont déjà là : une arrivée apporte trois héros contre environ
+	// un point de pression, donc elle AIDE, ce qui est le seul réglage acceptable pour
+	// une fenêtre d'accueil.
 	count := 4 + waveNumber
 	includeBosses := waveNumber >= bossWaveThreshold
 	// Apparition PONDÉRÉE (loin de la ville / près des ruines / croissant par vague) —
@@ -376,11 +474,43 @@ func (g *GameState) spawnWaveMonsters(waveNumber int) int {
 	// se rapprochent vague après vague (migrateMonstersTowardTown).
 	spawned := 0
 	for i := 0; i < count; i++ {
-		if g.spawnWeightedPack(waveNumber, includeBosses) {
+		if g.spawnWeightedPackWithin(waveNumber, includeBosses, hordeFrontRadius) {
 			spawned++
 		}
 	}
 	return spawned
+}
+
+// spendAssaultingPacks removes the packs standing ON the town's doorstep (the eight
+// tiles around it): they are the ones that just charged the walls, and the assault
+// consumes them. Packs held in an active combat are left alone — they belong to that
+// fight. Returns how many creatures were spent.
+//
+// This is the horde's only natural attrition. It bounds the standing population near
+// the town (each wave clears at most the ring) without touching the growth of the
+// horde further out, so the pressure keeps rising while the approaches stay walkable.
+func (g *GameState) spendAssaultingPacks() int {
+	busy := map[[2]int]bool{}
+	for _, c := range g.Combats {
+		if c.Status == "active" {
+			busy[[2]int{c.TileX, c.TileY}] = true
+		}
+	}
+	spent := 0
+	for id, m := range g.Monsters {
+		if m == nil || busy[[2]int{m.X, m.Y}] {
+			continue
+		}
+		if absI(m.X-g.Town.X) > assaultRadius || absI(m.Y-g.Town.Y) > assaultRadius {
+			continue // not at the walls yet
+		}
+		if t := g.TileAt(m.X, m.Y); t != nil && t.MonsterID == id {
+			t.MonsterID = ""
+		}
+		spent += m.Count
+		delete(g.Monsters, id)
+	}
+	return spent
 }
 
 // migrateMonstersTowardTown fait AVANCER chaque pack survivant d'un pas vers la
@@ -399,10 +529,28 @@ func (g *GameState) migrateMonstersTowardTown() {
 	}
 	// Snapshot des IDs : on supprime des packs (fusion) en cours de route, et chaque
 	// pack ne joue qu'UNE fois par vague (acted) — un survivant de fusion ne rebouge pas.
+	//
+	// L'ordre est TRIÉ, pas celui de la map : deux packs qui se disputent la même case
+	// fusionnent différemment selon qui avance en premier, donc l'ordre d'itération
+	// aléatoire de Go rendait une vague non reproductible. C'est faux pour un jeu dont
+	// toute l'architecture est « rejouer le temps écoulé » (sim.go) — deux instances
+	// rejouant la même période doivent aboutir au même monde — et ça rendait la
+	// simulation d'équilibrage incapable de répondre deux fois pareil à la même graine
+	// (mesuré : même seed, chute vague 13 ou vague 19 selon le tirage).
+	// Trié par POSITION, pas par identifiant : les id sont des UUID tirés au hasard, donc
+	// les trier ne fixe rien. Une case ne porte qu'un pack (Tile.MonsterID), donc (Y,X)
+	// est un ordre total et stable d'une exécution à l'autre.
 	ids := make([]string, 0, len(g.Monsters))
 	for id := range g.Monsters {
 		ids = append(ids, id)
 	}
+	sort.Slice(ids, func(i, j int) bool {
+		a, b := g.Monsters[ids[i]], g.Monsters[ids[j]]
+		if a.Y != b.Y {
+			return a.Y < b.Y
+		}
+		return a.X < b.X
+	})
 	acted := map[string]bool{}
 	for _, id := range ids {
 		m := g.Monsters[id]

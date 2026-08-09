@@ -19,9 +19,9 @@ var TurnLimit = 60 * time.Second
 type CombatUnit struct {
 	ID         string   `json:"id"`
 	Name       string   `json:"name"`
-	Side       string   `json:"side"`  // "hero" | "monster"
-	RefID      string   `json:"refId"` // source hero/monster id on the map
-	Kind       string   `json:"kind"`  // species (monster) or class (hero), for art
+	Side       string   `json:"side"`                 // "hero" | "monster"
+	RefID      string   `json:"refId"`                // source hero/monster id on the map
+	Kind       string   `json:"kind"`                 // species (monster) or class (hero), for art
 	ClassID    string   `json:"classId,omitempty"`    // hero class id (skill selection)
 	Appearance string   `json:"appearance,omitempty"` // asset file for the client
 	X          int      `json:"x"`
@@ -1415,8 +1415,23 @@ func (c *Combat) EnforceTurnTimer(now time.Time) bool {
 // changé → l'appelant doit persister.
 func (gs *GameState) EnforceCombatTimers(now time.Time) bool {
 	changed := false
-	for _, c := range gs.Combats {
-		if c != nil && c.EnforceTurnTimer(now) {
+	// Ordre STABLE (par case) et non celui de la map : forcer un tour fait jouer l'IA,
+	// donc consomme du hasard — l'ordre d'itération aléatoire de Go rendait deux rejeux
+	// de la même période divergents, ce qui contredit le principe de sim.go (le monde
+	// est une fonction du temps écoulé, rejouable par n'importe quelle instance).
+	ids := make([]string, 0, len(gs.Combats))
+	for id := range gs.Combats {
+		ids = append(ids, id)
+	}
+	sort.Slice(ids, func(i, j int) bool {
+		a, b := gs.Combats[ids[i]], gs.Combats[ids[j]]
+		if a.TileY != b.TileY {
+			return a.TileY < b.TileY
+		}
+		return a.TileX < b.TileX
+	})
+	for _, id := range ids {
+		if c := gs.Combats[id]; c != nil && c.EnforceTurnTimer(now) {
 			changed = true
 		}
 	}

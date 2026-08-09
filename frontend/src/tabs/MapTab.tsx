@@ -3,6 +3,7 @@ import { useStore } from "../store";
 import { VoxelMapView } from "../voxel/VoxelMapView";
 import { VoxelCombatView } from "../voxel/VoxelCombatView";
 import { bus, EV } from "../eventBus";
+import { ruinEpitaph } from "../api/types";
 import { heroTexKey, libUrl, monsterTexKey } from "../assets";
 import { MapHeroBar } from "../components/MapHeroBar";
 import { CombatHeroBar } from "../components/CombatHeroBar";
@@ -87,6 +88,15 @@ function ActionMenu() {
             💧 Boire une ration <i>+6 PA · {rations}</i>
           </button>
         )}
+        {/* MÉMORIAL : la ruine fut la ville d'une vraie expédition. L'épitaphe passe
+            AVANT les boutons — c'est elle qui porte le sens, le butin n'est que la
+            raison d'être venu. */}
+        {ruin && ruin.fellAtWave ? (
+          <div className="am-memorial">
+            <b>🏚️ {ruin.name}</b>
+            <span>{ruinEpitaph(ruin)}</span>
+          </div>
+        ) : null}
         {/* Ruine-donjon sous le héros : déblayage collectif puis exploration. */}
         {ruin && !ruin.cleared && (
           <button

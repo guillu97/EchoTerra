@@ -75,8 +75,8 @@ type Player struct {
 	ID       string    `json:"id"`
 	Name     string    `json:"name"`
 	HeroIDs  []string  `json:"heroIds"`
-	Host     bool      `json:"host"`   // the creator; only the host can launch the game
-	Bot      bool      `json:"bot"`    // computer-controlled player (added by the host)
+	Host     bool      `json:"host"`             // the creator; only the host can launch the game
+	Bot      bool      `json:"bot"`              // computer-controlled player (added by the host)
 	UserID   string    `json:"userId,omitempty"` // linked account (multi-device reconnect)
 	JoinedAt time.Time `json:"joinedAt"`
 }
@@ -155,12 +155,54 @@ var companionNames = []string{
 // AddPlayer joins a player to the lobby, spawning their team of HeroesPerPlayer
 // heroes in town (the first hero is named after the player). The first player to
 // join becomes the host. Fails once the game has started or is full.
-func (g *GameState) AddPlayer(name string, now time.Time) (*Player, error) {
-	if g.Status != StatusLobby {
-		return nil, ActionError{"la partie a déjà commencé"}
+// LA FENÊTRE D'ACCUEIL D'UNE PARTIE PUBLIQUE.
+//
+// Une expédition publique démarre dès MinPlayers atteint — sinon les premiers arrivés
+// attendent devant une porte close — mais elle reste OUVERTE quelques vagues pour que
+// les suivants puissent embarquer. Sur un jeu qui se joue en plusieurs jours réels,
+// exiger d'être là à la minute du lancement reviendrait à réserver le multijoueur aux
+// gens présents au bon moment.
+//
+// La fenêtre se compte en VAGUES, pas en heures, et c'est délibéré : WaveInterval vaut
+// dix minutes en développement et six heures en cible (2 vagues par jour réel). « Deux
+// jours » n'a donc de sens portable que compté en vagues — quatre vagues, soit deux
+// jours de jeu ET deux jours réels à la cadence visée.
+const PublicJoinGraceWaves = 4
+
+// JoinOpen reports whether a newcomer may still join. A lobby always accepts; a public
+// expedition keeps accepting during its grace window. Private games close at launch —
+// their host controls who comes in, and they are launched deliberately.
+func (g *GameState) JoinOpen() bool {
+	if len(g.Players) >= g.MaxPlayers {
+		return false
 	}
+	switch g.Status {
+	case StatusLobby:
+		return true
+	case StatusActive:
+		return g.IsPublic() && g.WaveNumber < PublicJoinGraceWaves
+	}
+	return false
+}
+
+// JoinClosesAtWave is the first wave at which the doors shut (0 when they never opened
+// this way). The UI counts down with it.
+func (g *GameState) JoinClosesAtWave() int {
+	if !g.IsPublic() {
+		return 0
+	}
+	return PublicJoinGraceWaves
+}
+
+func (g *GameState) AddPlayer(name string, now time.Time) (*Player, error) {
 	if len(g.Players) >= g.MaxPlayers {
 		return nil, ActionError{fmt.Sprintf("partie complète (%d/%d joueurs)", len(g.Players), g.MaxPlayers)}
+	}
+	if !g.JoinOpen() {
+		if g.Status == StatusActive && g.IsPublic() {
+			return nil, ActionError{"les portes de cette expédition sont fermées (accueil terminé)"}
+		}
+		return nil, ActionError{"la partie a déjà commencé"}
 	}
 	if name == "" {
 		name = fmt.Sprintf("Aventurier %d", len(g.Players)+1)
@@ -181,6 +223,14 @@ func (g *GameState) AddPlayer(name string, now time.Time) (*Player, error) {
 		p.HeroIDs = append(p.HeroIDs, h.ID)
 	}
 	g.Players = append(g.Players, p)
+	// Arrivée EN COURS DE PARTIE : la ville doit pouvoir accueillir la recrue. Les
+	// rations du puits ont été calculées au lancement sur l'effectif d'alors
+	// (InitWellRations) — sans ce complément, chaque nouveau venu boirait la réserve
+	// des autres, et accepter du monde se paierait en soif.
+	if g.Status == StatusActive {
+		g.addWellRations(WellRationsPerHero * HeroesPerPlayer)
+		g.logTown(fmt.Sprintf("🤝 %s rejoint l'expédition avec %d héros", p.Name, HeroesPerPlayer))
+	}
 	return p, nil
 }
 

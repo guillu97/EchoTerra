@@ -238,6 +238,9 @@ func (s *Server) Router() http.Handler {
 			r.Post("/town/action", s.townAction)
 			r.Post("/town/deposit", s.townDeposit)
 			r.Post("/town/craft", s.townCraft)
+			r.Post("/town/scout", s.townScout)     // monter à la Tour estimer la vague
+			r.Post("/town/request", s.townRequest) // afficher / retirer un besoin
+			r.Post("/town/request/fill", s.townRequestFill)
 			r.Get("/town/chat", s.townChatList)
 			r.Post("/town/chat", s.townChatPost)
 			r.Post("/heroes/{heroID}/move", s.moveHero)
@@ -355,6 +358,11 @@ type gameSummary struct {
 	Day        int            `json:"day"`
 	WaveNumber int            `json:"waveNumber"`
 	CreatedAt  time.Time      `json:"createdAt"`
+	// Fenêtre d'accueil : une expédition publique déjà LANCÉE reste rejoignable
+	// quelques vagues. Le front en a besoin pour dire « en cours — encore N vagues
+	// pour embarquer » au lieu d'afficher un salon qui n'en est plus un.
+	JoinOpen      bool `json:"joinOpen"`
+	JoinWavesLeft int  `json:"joinWavesLeft"`
 }
 
 // summarize omits the join code on purpose: private lobbies are joined by sharing
@@ -368,10 +376,15 @@ func summarize(gs *game.GameState) gameSummary {
 	if vis == "" {
 		vis = game.VisibilityPrivate
 	}
+	left := 0
+	if gs.Status == game.StatusActive && gs.JoinOpen() {
+		left = gs.JoinClosesAtWave() - gs.WaveNumber
+	}
 	return gameSummary{
 		ID: gs.ID, Name: gs.Name, Status: gs.Status, Visibility: vis,
 		Players: players, MinPlayers: gs.MinPlayers, MaxPlayers: gs.MaxPlayers,
 		Day: gs.Day, WaveNumber: gs.WaveNumber, CreatedAt: gs.CreatedAt,
+		JoinOpen: gs.JoinOpen(), JoinWavesLeft: left,
 	}
 }
 
@@ -394,6 +407,14 @@ func (s *Server) housekeeping() {
 		}
 		if gs.IsPublic() {
 			public = append(public, gs)
+		}
+	}
+	// Une expédition publique LANCÉE mais encore ouverte tient lieu de salon public :
+	// tant qu'elle accueille, on n'en ouvre pas un second à côté (cf.
+	// joinablePublicCount). Les doublons de salons restent purgés ci-dessous.
+	if len(public) == 0 {
+		if n, err := s.joinablePublicCount(); err == nil && n > 0 {
+			return
 		}
 	}
 	// Deux instances froides peuvent créer chacune leur salon public (rien ne les
@@ -421,10 +442,34 @@ func (s *Server) housekeeping() {
 	}
 }
 
+// seedMemorials sème sur une carte NEUVE les ruines des dernières villes tombées —
+// nom, dernière vague, défenseurs (cf. game.SeedMemorialRuins). Best-effort : une base
+// vide, ou en erreur, donne simplement une carte sans mémorial.
+//
+// C'est ici que le méta-jeu se referme : une expédition qui meurt le mardi devient un
+// lieu sur la carte de quelqu'un d'autre le mercredi.
+func (s *Server) seedMemorials(gs *game.GameState) {
+	fallen, err := s.store.FallenTowns(12)
+	if err != nil || len(fallen) == 0 {
+		return
+	}
+	mem := make([]game.Memorial, 0, len(fallen))
+	for _, f := range fallen {
+		if f.GameID == gs.ID || f.TownName == "" {
+			continue
+		}
+		mem = append(mem, game.Memorial{TownName: f.TownName, Wave: f.Waves, Defenders: f.Players})
+	}
+	gs.SeedMemorialRuins(mem)
+}
+
 // newPublicLobby crée et persiste un salon public ouvert (celui qu'on rejoint sans code).
 func (s *Server) newPublicLobby() *game.GameState {
-	gs := worldgen.NewLobby(22, 22, time.Now().UnixNano(), "", 2, 4)
+	// Un salon public accueille large : 2 minimum, jusqu'à MaxPlayersPerGame, et la
+	// carte suit (taille 0 = worldgen.SizeForPlayers).
+	gs := worldgen.NewLobby(0, 0, time.Now().UnixNano(), "", 2, worldgen.MaxPlayersPerGame)
 	gs.Visibility = game.VisibilityPublic
+	s.seedMemorials(gs)
 	// Nommée d'après sa ville ("Expédition de Clairmont") : deux salons publics
 	// successifs se distinguent, et le classement lit le même nom.
 	gs.Name = publicLobbyName + gs.Town.Name
@@ -437,10 +482,20 @@ func (s *Server) listGames(w http.ResponseWriter, r *http.Request) {
 	if s.stateless {
 		s.housekeeping()
 	}
-	// Le filtre de statut est appliqué EN SQL : filtrer après le LIMIT faisait
-	// disparaître les salons de la liste dès qu'il y avait 50 parties actives plus
-	// fraîches (elles sont réécrites à chaque vague et par le battement).
-	games, err := s.store.ListByStatus(r.URL.Query().Get("status"), 50)
+	// Le filtre est appliqué EN SQL : filtrer après le LIMIT faisait disparaître les
+	// salons de la liste dès qu'il y avait 50 parties actives plus fraîches (elles sont
+	// réécrites à chaque vague et par le battement).
+	//
+	// `status=open` = « ce que je peux rejoindre » : les salons ET les expéditions
+	// publiques encore dans leur fenêtre d'accueil. C'est ce que le front demande —
+	// `status=lobby` reste disponible pour qui veut strictement les salons.
+	var games []*game.GameState
+	var err error
+	if st := r.URL.Query().Get("status"); st == "open" {
+		games, err = s.store.OpenForJoin(50)
+	} else {
+		games, err = s.store.ListByStatus(st, 50)
+	}
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, err.Error())
 		return
@@ -464,12 +519,9 @@ func (s *Server) createLobby(w http.ResponseWriter, r *http.Request) {
 		Seed       int64  `json:"seed"`
 	}
 	_ = json.NewDecoder(r.Body).Decode(&body)
-	if body.Width == 0 {
-		body.Width = worldgen.DefaultSize
-	}
-	if body.Height == 0 {
-		body.Height = worldgen.DefaultSize
-	}
+	// Width/Height à 0 = « la taille qui va avec ce lobby » (worldgen.SizeForPlayers) :
+	// une carte fixe voudrait dire vingt équipes sur les mêmes gisements, ou un solo
+	// perdu dans un monde vide.
 	if body.Seed == 0 {
 		body.Seed = time.Now().UnixNano()
 	}
@@ -490,6 +542,7 @@ func (s *Server) createLobby(w http.ResponseWriter, r *http.Request) {
 	}
 	gs := worldgen.NewLobby(body.Width, body.Height, body.Seed, body.Name, body.MinPlayers, body.MaxPlayers)
 	gs.Visibility = game.VisibilityPrivate
+	s.seedMemorials(gs)
 	p, err := gs.AddPlayer(body.PlayerName, time.Now())
 	if err != nil {
 		writeActionErr(w, err)
@@ -512,12 +565,6 @@ func (s *Server) soloGame(w http.ResponseWriter, r *http.Request) {
 		Seed       int64  `json:"seed"`
 	}
 	_ = json.NewDecoder(r.Body).Decode(&body)
-	if body.Width == 0 {
-		body.Width = worldgen.DefaultSize
-	}
-	if body.Height == 0 {
-		body.Height = worldgen.DefaultSize
-	}
 	if body.Seed == 0 {
 		body.Seed = time.Now().UnixNano()
 	}
@@ -532,6 +579,7 @@ func (s *Server) soloGame(w http.ResponseWriter, r *http.Request) {
 	now := time.Now()
 	gs := worldgen.NewLobby(body.Width, body.Height, body.Seed, name, 1, 5)
 	gs.Visibility = game.VisibilityPrivate
+	s.seedMemorials(gs)
 	gs.Solo = true // classement : les runs solo se comparent entre eux
 	p, err := gs.AddPlayer(body.PlayerName, now)
 	if err != nil {
@@ -563,16 +611,31 @@ const publicLobbyName = "Expédition de "
 // always a game to join without a code. Called at startup, from the janitor, and
 // after a public game auto-starts.
 func (s *Server) ensurePublicLobby() {
-	games, err := s.store.ListByStatus(game.StatusLobby, 200)
-	if err != nil {
+	if n, err := s.joinablePublicCount(); err != nil || n > 0 {
 		return
 	}
+	s.newPublicLobby()
+}
+
+// joinablePublicCount compte les expéditions publiques qu'un nouveau venu peut encore
+// rejoindre — salons ouverts ET parties lancées encore dans leur fenêtre d'accueil.
+//
+// C'est la nuance qui fait tenir la fenêtre : tant que l'expédition en cours accepte du
+// monde, ouvrir un salon neuf à côté SÉPARERAIT les joueurs entre deux parties, ce qui
+// est exactement ce que la fenêtre est censée éviter. Le salon suivant naît quand les
+// portes de celle-ci se ferment (ou qu'elle est complète).
+func (s *Server) joinablePublicCount() (int, error) {
+	games, err := s.store.OpenForJoin(200)
+	if err != nil {
+		return 0, err
+	}
+	n := 0
 	for _, gs := range games {
-		if gs.IsPublic() {
-			return
+		if gs.IsPublic() && gs.JoinOpen() {
+			n++
 		}
 	}
-	s.newPublicLobby()
+	return n, nil
 }
 
 // joinByCode resolves a join code against open lobbies (newest first) and joins it.
@@ -586,7 +649,9 @@ func (s *Server) joinByCode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	code := strings.ToUpper(strings.TrimSpace(body.Code))
-	games, err := s.store.ListByStatus(game.StatusLobby, 200)
+	// On cherche parmi les parties REJOIGNABLES, pas parmi les salons : une expédition
+	// publique lancée reste ouverte pendant sa fenêtre d'accueil (game.JoinOpen).
+	games, err := s.store.OpenForJoin(200)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, err.Error())
 		return
@@ -653,13 +718,104 @@ func (s *Server) join(w http.ResponseWriter, r *http.Request, gameID, playerName
 	if user != nil {
 		p.UserID = user.ID
 	}
-	// Public games launch on their own the moment MinPlayers is reached — and the
-	// server immediately opens a fresh public lobby to keep one joinable.
+	// Public games launch on their own the moment MinPlayers is reached — but they keep
+	// their doors open for the welcome window (game.PublicJoinGraceWaves), so this call
+	// is normally a no-op: a fresh lobby is only opened once nobody can board this one.
 	if gs.MaybeAutoStart(now) {
 		defer s.ensurePublicLobby()
 	}
 	s.persist(gs)
 	writeJSON(w, http.StatusOK, map[string]any{"game": gs, "player": p})
+}
+
+// townScout : un héros monte à la Tour de guet estimer la horde. Manœuvre COLLECTIVE —
+// chaque joueur qui s'y colle resserre la fourchette pour toute la ville.
+func (s *Server) townScout(w http.ResponseWriter, r *http.Request) {
+	gs := s.mustGame(w, r)
+	if gs == nil {
+		return
+	}
+	var body struct {
+		HeroID   string `json:"heroId"`
+		PlayerID string `json:"playerId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeErr(w, http.StatusBadRequest, "corps invalide")
+		return
+	}
+	if err := gs.CheckHeroOwnership(body.PlayerID, body.HeroID); err != nil {
+		writeActionErr(w, err)
+		return
+	}
+	f, err := gs.ScoutWave(body.HeroID)
+	if err != nil {
+		writeActionErr(w, err)
+		return
+	}
+	s.persist(gs)
+	writeJSON(w, http.StatusOK, map[string]any{"forecast": f, "game": gs})
+}
+
+// townRequest affiche un besoin au Panneau, ou retire le sien (`cancel`).
+func (s *Server) townRequest(w http.ResponseWriter, r *http.Request) {
+	gs := s.mustGame(w, r)
+	if gs == nil {
+		return
+	}
+	var body struct {
+		PlayerID string `json:"playerId"`
+		Item     string `json:"item"`
+		Qty      int    `json:"qty"`
+		Cancel   string `json:"cancel"` // id de la demande à retirer
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeErr(w, http.StatusBadRequest, "corps invalide")
+		return
+	}
+	if body.Cancel != "" {
+		if err := gs.CancelRequest(body.PlayerID, body.Cancel); err != nil {
+			writeActionErr(w, err)
+			return
+		}
+		s.persist(gs)
+		writeJSON(w, http.StatusOK, map[string]any{"game": gs})
+		return
+	}
+	req, err := gs.PostRequest(body.PlayerID, body.Item, body.Qty)
+	if err != nil {
+		writeActionErr(w, err)
+		return
+	}
+	s.persist(gs)
+	writeJSON(w, http.StatusOK, map[string]any{"request": req, "game": gs})
+}
+
+// townRequestFill honore la demande d'un camarade depuis la Banque.
+func (s *Server) townRequestFill(w http.ResponseWriter, r *http.Request) {
+	gs := s.mustGame(w, r)
+	if gs == nil {
+		return
+	}
+	var body struct {
+		RequestID string `json:"requestId"`
+		HeroID    string `json:"heroId"`
+		PlayerID  string `json:"playerId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeErr(w, http.StatusBadRequest, "corps invalide")
+		return
+	}
+	if err := gs.CheckHeroOwnership(body.PlayerID, body.HeroID); err != nil {
+		writeActionErr(w, err)
+		return
+	}
+	req, err := gs.FillRequest(body.RequestID, body.HeroID)
+	if err != nil {
+		writeActionErr(w, err)
+		return
+	}
+	s.persist(gs)
+	writeJSON(w, http.StatusOK, map[string]any{"request": req, "game": gs})
 }
 
 // leaveGame removes the calling player (and their hero) from a lobby. An emptied

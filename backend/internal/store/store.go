@@ -130,6 +130,25 @@ func (s *Store) saveScore(gs *game.GameState) error {
 // clock), monsters slain as the tie-breaker. An empty mode ranks every run
 // together; "solo" / "public" / "private" restrict it to one kind of game, which is
 // how the ranking screen's tabs read it — the three are not comparable.
+// FallenTowns returns the towns that FELL, most recent first. Elles servent de
+// mémoire du monde : chaque carte neuve sème les ruines de quelques-unes d'entre elles
+// (game.SeedMemorialRuins). Aucune table de plus n'est nécessaire — le classement
+// conserve déjà le nom de la ville, ses défenseurs et la vague qui l'a emportée, et il
+// survit à la suppression de la partie.
+func (s *Store) FallenTowns(limit int) ([]ScoreEntry, error) {
+	if limit <= 0 {
+		limit = 10
+	}
+	rows, err := s.db.Query(s.rebind(`SELECT game_id, town_name, game_name, mode, players,
+		days, waves, monsters_killed, game_over, updated_at
+		FROM leaderboard WHERE game_over = 1 ORDER BY updated_at DESC LIMIT ?`), limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanScores(rows)
+}
+
 func (s *Store) Leaderboard(mode string, limit int) ([]ScoreEntry, error) {
 	if limit <= 0 {
 		limit = 50
@@ -150,6 +169,11 @@ func (s *Store) Leaderboard(mode string, limit int) ([]ScoreEntry, error) {
 		return nil, err
 	}
 	defer rows.Close()
+	return scanScores(rows)
+}
+
+// scanScores decodes a leaderboard result set (same column order everywhere).
+func scanScores(rows *sql.Rows) ([]ScoreEntry, error) {
 	out := []ScoreEntry{}
 	for rows.Next() {
 		var e ScoreEntry
@@ -181,6 +205,12 @@ func (s *Store) migrateGameColumns() error {
 		`ALTER TABLE games ADD COLUMN status TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE games ADD COLUMN next_wave_at BIGINT NOT NULL DEFAULT 0`,
 		`ALTER TABLE games ADD COLUMN rev BIGINT NOT NULL DEFAULT 0`,
+		// join_open : « on peut encore embarquer ». Une colonne MIROIR de plus, pour la
+		// même raison que status — une expédition publique reste ouverte quelques vagues
+		// APRÈS son lancement (game.PublicJoinGraceWaves), donc « les parties qu'on peut
+		// rejoindre » n'est plus « les parties en statut lobby » et ne peut pas être
+		// filtrée après un LIMIT sans rater celles qui comptent.
+		`ALTER TABLE games ADD COLUMN join_open INTEGER NOT NULL DEFAULT 0`,
 	} {
 		if _, err := s.db.Exec(stmt); err != nil && !alreadyExists(err) {
 			return fmt.Errorf("migrate games: %w", err)
@@ -189,10 +219,12 @@ func (s *Store) migrateGameColumns() error {
 	return s.backfillGameColumns()
 }
 
-// backfillGameColumns fills status/next_wave_at for rows written before the columns
-// existed (a no-op query once done).
+// backfillGameColumns fills the mirror columns for rows written before they existed
+// (a no-op query once done). The join_open condition matters as much as status: an
+// open lobby saved before the column existed would default to 0 and become invisible
+// to OpenForJoin — i.e. unjoinable — until someone happened to write it again.
 func (s *Store) backfillGameColumns() error {
-	rows, err := s.db.Query(`SELECT id, state FROM games WHERE status = ''`)
+	rows, err := s.db.Query(`SELECT id, state FROM games WHERE status = '' OR (join_open = 0 AND status = 'lobby')`)
 	if err != nil {
 		return nil // pre-migration databases only; never block startup on the backfill
 	}
@@ -212,8 +244,8 @@ func (s *Store) backfillGameColumns() error {
 		if err := json.Unmarshal([]byte(r.blob), &gs); err != nil {
 			continue
 		}
-		_, _ = s.db.Exec(s.rebind(`UPDATE games SET status = ?, next_wave_at = ? WHERE id = ?`),
-			gs.Status, unixOrZero(gs.NextWaveAt), r.id)
+		_, _ = s.db.Exec(s.rebind(`UPDATE games SET status = ?, next_wave_at = ?, join_open = ? WHERE id = ?`),
+			gs.Status, unixOrZero(gs.NextWaveAt), boolToInt(gs.JoinOpen()), r.id)
 	}
 	return nil
 }
@@ -264,11 +296,12 @@ func (s *Store) Save(gs *game.GameState) error {
 	if err != nil {
 		return err
 	}
-	_, err = s.db.Exec(s.rebind(`INSERT INTO games (id, state, updated_at, status, next_wave_at, rev)
-		VALUES (?, ?, ?, ?, ?, 1)
+	_, err = s.db.Exec(s.rebind(`INSERT INTO games (id, state, updated_at, status, next_wave_at, rev, join_open)
+		VALUES (?, ?, ?, ?, ?, 1, ?)
 		ON CONFLICT(id) DO UPDATE SET state=excluded.state, updated_at=excluded.updated_at,
-			status=excluded.status, next_wave_at=excluded.next_wave_at, rev=games.rev+1`),
-		gs.ID, string(blob), time.Now().Unix(), gs.Status, unixOrZero(gs.NextWaveAt))
+			status=excluded.status, next_wave_at=excluded.next_wave_at, rev=games.rev+1,
+			join_open=excluded.join_open`),
+		gs.ID, string(blob), time.Now().Unix(), gs.Status, unixOrZero(gs.NextWaveAt), boolToInt(gs.JoinOpen()))
 	if err == nil {
 		_ = s.saveScore(gs) // instantané best-effort : la partie reste la source de vérité
 	}
@@ -343,6 +376,29 @@ func (s *Store) Delete(id string) error {
 // prototype scale (add real columns/indexes before any public deployment).
 func (s *Store) List(limit int) ([]*game.GameState, error) { return s.list("", limit) }
 
+// OpenForJoin returns the games a newcomer can still enter — open lobbies AND public
+// expeditions still inside their welcome window (game.JoinOpen). Newest first, because
+// what a player wants is the freshest expedition, not the most overdue one.
+func (s *Store) OpenForJoin(limit int) ([]*game.GameState, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	rows, err := s.db.Query(s.rebind(
+		`SELECT state FROM games WHERE join_open = 1 ORDER BY updated_at DESC LIMIT ?`), limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanGames(rows)
+}
+
+func boolToInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
+}
+
 // ListByStatus returns the most recently updated games IN THAT STATUS. Filtrer dans
 // le SQL (sur la colonne miroir `status`) et non après le LIMIT est ce qui garde un
 // salon tranquille VISIBLE : un salon public est écrit une fois puis plus jamais,
@@ -370,6 +426,11 @@ func (s *Store) list(status string, limit int) ([]*game.GameState, error) {
 		return nil, err
 	}
 	defer rows.Close()
+	return scanGames(rows)
+}
+
+// scanGames decodes a `SELECT state FROM games` result set.
+func scanGames(rows *sql.Rows) ([]*game.GameState, error) {
 	var out []*game.GameState
 	for rows.Next() {
 		var blob string

@@ -23,8 +23,39 @@ const (
 	genMaxStep   = 1 // max height difference between two orthogonal neighbours
 )
 
-// DefaultSize is the default map edge from the design's mapgen parameters (60×60).
+// DefaultSize is the default map edge from the design's mapgen parameters (60×60) —
+// la taille d'une expédition de quatre joueurs.
 const DefaultSize = 60
+
+// MaxPlayersPerGame borne la taille d'un lobby. Vingt équipes de trois = soixante
+// héros autour d'une seule ville.
+const MaxPlayersPerGame = 20
+
+// Bornes de la carte. Le maximum n'est pas esthétique : chaque tuile voyage dans le
+// payload JSON de la partie, donc une carte de 200² pèserait sur chaque requête.
+const (
+	MinMapSize = 40
+	MaxMapSize = 140
+)
+
+// SizeForPlayers donne le côté de la carte pour un lobby de cette taille, à surface
+// par joueur À PEU PRÈS CONSTANTE (~900 tuiles, la densité d'une partie à quatre sur
+// 60×60). Sans ça, vingt joueurs se marchent dessus sur les mêmes gisements — et comme
+// la horde semée croît avec la SURFACE (SeedStartingMonsters), c'est aussi ce qui fait
+// monter la difficulté avec l'effectif, comme demandé.
+func SizeForPlayers(players int) int {
+	if players < 1 {
+		players = 1
+	}
+	side := int(math.Round(math.Sqrt(float64(900 * players))))
+	if side < MinMapSize {
+		side = MinMapSize
+	}
+	if side > MaxMapSize {
+		side = MaxMapSize
+	}
+	return side
+}
 
 // biomeFromLevel maps a SMOOTHED height level (0..genMaxHeight) to a biome using the
 // design thresholds applied to level/maxHeight — so biomes follow the smoothed relief
@@ -157,20 +188,64 @@ func findTown(tiles []game.Tile, width, height int) (int, int) {
 // reachable within radius R of the town. When a biome is missing, it carves a small
 // 2×2 patch on the nearest land ring — biome + matching richness only, the height is
 // left untouched so the relief stays coherent.
+// Le VIVIER minimal de matériaux autour de la ville.
+//
+// Un seul carré de montagne à dix cases ne suffit pas : le bois et surtout la PIERRE
+// sont ce dont la ville est faite (murs, remparts, réparations), et les cases
+// s'épuisent. L'ancienne garantie ("au moins UNE tuile du biome dans le rayon 10")
+// était satisfaite par n'importe quel caillou perdu — mesuré sur une carte 60×60
+// lissée : 21 tuiles de montagne sur 3600, une seule à portée, épuisée en deux vagues,
+// et donc ZÉRO pierre en banque sur toute la partie. Sans pierre : pas d'amélioration
+// de muraille, pas de réparation de la ville, défaite arithmétique garantie.
+//
+// On garantit donc un GISEMENT : au moins minBiomeTiles tuiles de chaque biome-clé
+// dans le rayon nearBiomeR. La carte générée est laissée telle quelle quand elle en
+// fournit déjà assez — on ne creuse que le manque.
+const (
+	nearBiomeR     = 8  // rayon de référence (carte 60×60) dans lequel la ville doit trouver de quoi bâtir
+	minBiomeTiles  = 12 // tuiles minimum par biome-clé dans ce rayon, pour une carte de référence
+	blobHalfSpread = 2  // demi-largeur du gisement creusé
+)
+
+// biomeQuota adapte la garantie à la TAILLE de la carte — donc à celle de l'expédition.
+// Le gisement était un absolu : douze tuiles de montagne dans le rayon 8, que la ville
+// abrite trois héros ou soixante. Vingt équipes se partageaient donc la carrière d'un
+// solo, et c'est ce qui faisait s'effondrer les grandes parties — mesuré : à vingt
+// joueurs la banque restait à ZÉRO pierre, la muraille au niveau 1 et la ville tombait
+// vague 8, quand huit joueurs tenaient vingt vagues. La densité de matériaux par héros
+// doit être la même à toutes les tailles ; la surface l'est déjà (SizeForPlayers).
+func biomeQuota(side int) (radius, tiles int) {
+	f := float64(side) / float64(DefaultSize)
+	radius = int(math.Round(float64(nearBiomeR) * f))
+	if radius < nearBiomeR {
+		radius = nearBiomeR
+	}
+	tiles = int(math.Round(float64(minBiomeTiles) * f * f)) // ∝ surface, comme la population
+	if tiles < minBiomeTiles {
+		tiles = minBiomeTiles
+	}
+	return radius, tiles
+}
+
 func ensureNearbyBiomes(gs *game.GameState) {
-	const R = 10
+	side := gs.Width
+	if gs.Height > side {
+		side = gs.Height
+	}
+	R, quota := biomeQuota(side)
 	w, h := gs.Width, gs.Height
 	tx, ty := gs.Town.X, gs.Town.Y
-	within := func(b game.Biome) bool {
+	count := func(b game.Biome) int {
+		n := 0
 		for dy := -R; dy <= R; dy++ {
 			for dx := -R; dx <= R; dx++ {
 				nx, ny := tx+dx, ty+dy
 				if nx >= 0 && ny >= 0 && nx < w && ny < h && gs.Tiles[ny*w+nx].Biome == b {
-					return true
+					n++
 				}
 			}
 		}
-		return false
+		return n
 	}
 	res := func(b game.Biome) int {
 		if td, ok := game.Terrains[b]; ok && td.ResourcesMax > 0 {
@@ -178,42 +253,49 @@ func ensureNearbyBiomes(gs *game.GameState) {
 		}
 		return 0
 	}
-	carve := func(b game.Biome) {
-		for r := 4; r <= R; r++ {
-			for dy := -r; dy <= r; dy++ {
-				for dx := -r; dx <= r; dx++ {
+	// carve grows a deposit of `b` around the first dry anchor found on a ring, until
+	// `missing` tiles have been converted. Water is never overwritten (it would break
+	// the coastline and the walkability the rest of the generator assumes), and neither
+	// is the town tile itself.
+	carve := func(b game.Biome, missing int) {
+		for r := 3; r <= R && missing > 0; r++ {
+			for dy := -r; dy <= r && missing > 0; dy++ {
+				for dx := -r; dx <= r && missing > 0; dx++ {
 					if absW(dx)+absW(dy) != r {
 						continue
 					}
-					nx, ny := tx+dx, ty+dy
-					if nx < 1 || ny < 1 || nx >= w-1 || ny >= h-1 {
+					ax, ay := tx+dx, ty+dy
+					if ax < 1 || ay < 1 || ax >= w-1 || ay >= h-1 || gs.Tiles[ay*w+ax].Biome == game.BiomeWater {
 						continue
 					}
-					if gs.Tiles[ny*w+nx].Biome == game.BiomeWater {
-						continue
-					}
-					for _, o := range [][2]int{{0, 0}, {1, 0}, {0, 1}, {1, 1}} {
-						px, py := nx+o[0], ny+o[1]
-						if px == tx && py == ty {
-							continue
+					for oy := -blobHalfSpread; oy <= blobHalfSpread && missing > 0; oy++ {
+						for ox := -blobHalfSpread; ox <= blobHalfSpread && missing > 0; ox++ {
+							px, py := ax+ox, ay+oy
+							if px < 1 || py < 1 || px >= w-1 || py >= h-1 {
+								continue
+							}
+							if px == tx && py == ty {
+								continue
+							}
+							t := &gs.Tiles[py*w+px]
+							if t.Biome == game.BiomeWater || t.Biome == b {
+								continue
+							}
+							t.Biome = b
+							t.Resources = res(b)
+							missing--
 						}
-						t := &gs.Tiles[py*w+px]
-						if t.Biome == game.BiomeWater {
-							continue
-						}
-						t.Biome = b
-						t.Resources = res(b)
 					}
-					return
 				}
 			}
 		}
 	}
-	if !within(game.BiomeForest) {
-		carve(game.BiomeForest)
+	// Mountains first: stone is the scarcer of the two and the one the walls eat.
+	if n := count(game.BiomeMountain) + count(game.BiomeSnow); n < quota {
+		carve(game.BiomeMountain, quota-n)
 	}
-	if !within(game.BiomeMountain) {
-		carve(game.BiomeMountain)
+	if n := count(game.BiomeForest); n < quota {
+		carve(game.BiomeForest, quota-n)
 	}
 }
 
@@ -269,14 +351,21 @@ func NewLobby(width, height int, seed int64, name string, minPlayers, maxPlayers
 	if maxPlayers < 1 {
 		maxPlayers = 4
 	}
-	if maxPlayers > 8 {
-		maxPlayers = 8
+	if maxPlayers > MaxPlayersPerGame {
+		maxPlayers = MaxPlayersPerGame
 	}
 	if minPlayers < 1 {
 		minPlayers = 1
 	}
 	if minPlayers > maxPlayers {
 		minPlayers = maxPlayers
+	}
+	// La carte suit l'expédition : une taille fixe pour vingt joueurs voudrait dire
+	// vingt équipes qui se disputent les mêmes forêts, et un solo perdu au milieu d'un
+	// monde vide. Un appelant qui ne demande rien reçoit la taille de son lobby.
+	if width <= 0 || height <= 0 {
+		width = SizeForPlayers(maxPlayers)
+		height = width
 	}
 	gs := newWorld(width, height, seed)
 	gs.Name = name

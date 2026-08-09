@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useStore } from "../store";
 import { Logo } from "../components/Logo";
+import { LOBBY_SIZES } from "../data/buildings";
 
 // Multiplayer entry: create a game, join one by code (or from the open-lobby list),
 // then wait in the salon until enough players have joined and the host launches.
@@ -38,6 +39,7 @@ function LobbyForms() {
     setScreen,
   } = useStore();
   const [minPlayers, setMinPlayers] = useState(2);
+  const [maxPlayers, setMaxPlayers] = useState(4);
   const [code, setCode] = useState("");
   const isPublic = lobbyMode === "public";
 
@@ -83,8 +85,9 @@ function LobbyForms() {
         <div className="lobby-card">
           <div className="lobby-card-title">🌍 Parties publiques</div>
           <div className="lobby-hint left">
-            Une partie démarre dès son minimum de joueurs atteint. Chaque joueur incarne une équipe
-            de <b>3 héros</b>.
+            Une partie démarre dès son minimum de joueurs atteint, puis reste ouverte quelques
+            vagues : on peut embarquer dans une expédition <b>déjà en route</b>. Chaque joueur
+            incarne une équipe de <b>3 héros</b>.
           </div>
           {publicLobbies.length === 0 && <div className="lobby-hint">Recherche de parties…</div>}
           {publicLobbies.length > 0 && (
@@ -92,6 +95,12 @@ function LobbyForms() {
               {publicLobbies.map((l) => {
                 const full = l.players.length >= l.maxPlayers;
                 const ready = l.players.length >= l.minPlayers;
+                // Une expédition DÉJÀ LANCÉE mais encore ouverte : on rejoint une ville
+                // qui existe, avec un compte à rebours en vagues avant fermeture.
+                const started = l.status === "active";
+                const status = started
+                  ? `En route — jour ${l.day}, vague ${l.waveNumber} · ${l.players.length}/${l.maxPlayers} joueurs`
+                  : `${ready ? "Minimum atteint" : "En attente de joueurs"} · ${l.players.length}/${l.maxPlayers} joueurs`;
                 return (
                   <button
                     key={l.id}
@@ -100,17 +109,20 @@ function LobbyForms() {
                     onClick={() => joinLobby(l.id)}
                   >
                     <span className="lobby-row-main">
-                      <span className="lobby-row-icon">{lobbyIcon(l.name)}</span>
+                      <span className="lobby-row-icon">{started ? "⚔️" : lobbyIcon(l.name)}</span>
                       <span className="lobby-row-text">
                         <span className="lobby-row-name">{l.name}</span>
-                        <span className="lobby-row-status">
-                          {ready ? "Minimum atteint" : "En attente de joueurs"} ·{" "}
-                          {l.players.length}/{l.maxPlayers} joueurs
-                        </span>
+                        <span className="lobby-row-status">{status}</span>
                       </span>
                     </span>
-                    <span className={"lobby-badge" + (ready ? " hot" : "")}>
-                      {full ? "COMPLET" : ready ? "DÉMARRE" : `${l.players.length}/${l.minPlayers}`}
+                    <span className={"lobby-badge" + (ready || started ? " hot" : "")}>
+                      {full
+                        ? "COMPLET"
+                        : started
+                        ? `${l.joinWavesLeft} VAGUE${l.joinWavesLeft > 1 ? "S" : ""}`
+                        : ready
+                        ? "DÉMARRE"
+                        : `${l.players.length}/${l.minPlayers}`}
                     </span>
                   </button>
                 );
@@ -128,17 +140,40 @@ function LobbyForms() {
             <label className="lobby-field row">
               <span>Joueurs minimum</span>
               <select value={minPlayers} onChange={(e) => setMinPlayers(Number(e.target.value))}>
-                {[1, 2, 3, 4].map((n) => (
+                {LOBBY_SIZES.filter((n) => n <= maxPlayers).map((n) => (
                   <option key={n} value={n}>
                     {n}
                   </option>
                 ))}
               </select>
             </label>
+            <label className="lobby-field row">
+              <span>Joueurs maximum</span>
+              <select
+                value={maxPlayers}
+                onChange={(e) => {
+                  const v = Number(e.target.value);
+                  setMaxPlayers(v);
+                  if (minPlayers > v) setMinPlayers(v);
+                }}
+              >
+                {LOBBY_SIZES.map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {/* La carte est générée à la taille du salon (worldgen.SizeForPlayers) :
+                la surface par joueur reste constante, et les gisements garantis suivent. */}
+            <div className="lobby-hint left">
+              La carte est taillée pour {maxPlayers} joueur{maxPlayers > 1 ? "s" : ""} — plus
+              l'expédition est grande, plus le monde l'est, et plus la horde l'est aussi.
+            </div>
             <button
               className="pill red compact"
               disabled={busy}
-              onClick={() => createLobby({ minPlayers, maxPlayers: 4 })}
+              onClick={() => createLobby({ minPlayers, maxPlayers })}
             >
               Créer le salon
             </button>

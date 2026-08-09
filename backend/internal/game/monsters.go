@@ -51,7 +51,13 @@ func (g *GameState) spawnableSpeciesAt(x, y int, includeBosses bool) *SpeciesDef
 
 // Réglages de l'apparition pondérée (2026-07-20, densité relevée 2026-07-21).
 const (
-	spawnSafeRadius  = 1    // seul l'anneau immédiat de la ville reste vierge
+	// RIEN n'apparaît dans l'anneau d'assaut : depuis que la puissance de la horde
+	// compte les créatures massées là (wave.go), un pack qui s'y matérialise est un
+	// pack que personne n'a laissé passer — et c'est injouable. Le siège doit ARRIVER
+	// (migration), pour que les joueurs puissent l'intercepter. Mesuré avant : à vingt
+	// joueurs, neuf packs naissaient au pied des murs au lancement et la ville tombait
+	// vague 8, alors qu'à huit joueurs elle tenait vingt vagues.
+	spawnSafeRadius  = assaultRadius
 	spawnBaseChance  = 0.45 // densité de FOND partout au-delà de l'anneau (carte peuplée)
 	ruinDangerRadius = 3    // rayon autour d'une ruine qui gonfle l'apparition
 	waveSpawnGrowth  = 0.2  // chaque vague soulève tout le champ de probabilité
@@ -93,12 +99,40 @@ func (g *GameState) spawnChance(x, y, waveNumber int) float64 {
 	return w
 }
 
+// hordeFrontRadius borne la distance à laquelle NAISSENT les renforts de chaque vague.
+//
+// Les packs migrent d'une case par vague vers la ville : sur une carte de 134² (vingt
+// joueurs), un pack né dans un coin met soixante-dix vagues à arriver. Tirer les
+// renforts uniformément sur la carte rendait donc une grande carte intrinsèquement plus
+// facile — mesuré, deux joueurs dans un salon prévu pour vingt tenaient TRENTE vagues
+// quand deux joueurs sur leur propre carte tombaient à la seizième, uniquement parce
+// que la horde n'arrivait jamais.
+//
+// Le FRONT a donc un rayon fixe : la horde qui assiège cette ville vient de ses
+// environs, pas des antipodes. Le délai d'arrivée devient le même à toutes les tailles,
+// et la difficulté ne dépend plus que de qui défend. Le semis INITIAL, lui, reste
+// réparti sur toute la carte — c'est du peuplement de monde, pas de la pression.
+const hordeFrontRadius = 14
+
 // spawnWeightedPack tente de poser UN pack sur une tuile praticable libre, tirée
 // avec une probabilité proportionnelle à spawnChance (échantillonnage par rejet).
-// Renvoie true si un pack a été posé.
+// `radius` borne le tirage autour de la ville (0 = toute la carte).
 func (g *GameState) spawnWeightedPack(waveNumber int, includeBosses bool) bool {
+	return g.spawnWeightedPackWithin(waveNumber, includeBosses, 0)
+}
+
+func (g *GameState) spawnWeightedPackWithin(waveNumber int, includeBosses bool, radius int) bool {
 	for tries := 0; tries < 80; tries++ {
-		x, y := rand.Intn(g.Width), rand.Intn(g.Height)
+		var x, y int
+		if radius > 0 {
+			x = g.Town.X + rand.Intn(2*radius+1) - radius
+			y = g.Town.Y + rand.Intn(2*radius+1) - radius
+			if x < 0 || y < 0 || x >= g.Width || y >= g.Height {
+				continue
+			}
+		} else {
+			x, y = rand.Intn(g.Width), rand.Intn(g.Height)
+		}
 		t := g.TileAt(x, y)
 		if t == nil || !t.Biome.Walkable() || t.MonsterID != "" {
 			continue
@@ -163,11 +197,23 @@ func (g *GameState) SeedStartingMonsters(players int) int {
 	if players < 1 {
 		players = 1
 	}
-	target := 6 + (g.Width*g.Height)/280 + 2*(players-1)
-	near := 3 + (players - 1) // visibles dès le départ (dans le rayon de vision de la ville)
+	// LA HORDE SUIT L'EXPÉDITION, PAS LA SURFACE.
+	//
+	// Elle était surtout fonction de la taille de carte, ce qui paraît naturel (« un
+	// grand monde, beaucoup de monstres ») et produit une aberration dès qu'on découple
+	// la taille du salon de l'effectif réel : un salon public est créé pour vingt joueurs
+	// — donc sur une carte de 134² — mais démarre dès deux. Mesuré, ces deux joueurs
+	// tenaient TRENTE vagues là où deux joueurs sur leur propre carte tombaient à la
+	// seizième : les packs naissaient loin et mettaient des dizaines de vagues à
+	// atteindre les murs. Une partie sous-remplie devenait la plus facile du jeu.
+	//
+	// La menace vient donc de qui défend la ville ; la surface ne garde qu'un terme
+	// d'ambiance (un grand monde n'est pas vide, mais il n'est pas plus dangereux).
+	target := 4 + 3*players + (g.Width*g.Height)/1200
+	near := 3 + (players-1)/3 // visibles dès le départ (dans le rayon de vision de la ville)
 	placed := 0
 	for i := 0; i < near; i++ {
-		if g.spawnPackInBand(spawnSafeRadius+1, townSightRadius, false) {
+		if g.spawnPackInBand(spawnSafeRadius+1, townSightRadius+1, false) {
 			placed++
 		}
 	}

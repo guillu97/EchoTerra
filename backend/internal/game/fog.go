@@ -9,11 +9,16 @@ package game
 // action (move, escape, combat retreat) without each action needing to know about fog.
 
 const (
-	// Exploration AU CONTACT (2026-07-19) : un héros ne révèle que SA case —
-	// il faut marcher sur le brouillard pour savoir ce qu'il cache. Seul
-	// l'Éclaireur garde une case d'avance (son passif de vision).
-	heroSightRadius      = 0 // rayon Chebyshev révélé par un héros normal
-	eclaireurSightRadius = 1 // passif Éclaireur : voit une case à l'avance
+	// Un héros voit la case où il est ET ses voisines. L'exploration AU CONTACT
+	// (rayon 0, 2026-07-19) était trop serrée pour le jeu qu'on veut : avec une case
+	// révélée par pas, une expédition ne trouve JAMAIS le biome dont elle a besoin.
+	// Mesuré en simulation : 31 tuiles de montagne sur la carte, DEUX découvertes en
+	// douze vagues — donc zéro pierre en banque, donc ni muraille améliorée ni ville
+	// réparée, donc défaite garantie quoi que fassent les joueurs. Le rayon 1 garde le
+	// brouillard signifiant (on ne voit pas loin) tout en rendant la prospection
+	// possible ; l'Éclaireur conserve sa case d'avance par-dessus.
+	heroSightRadius      = 1 // rayon Chebyshev révélé par un héros normal
+	eclaireurSightRadius = 2 // passif Éclaireur : voit une case plus loin
 	townSightRadius      = 3 // the town reveals a slightly wider ring at the start
 )
 

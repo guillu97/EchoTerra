@@ -271,11 +271,12 @@ interface StoreState {
   startSoloBots: () => Promise<void>; // menu: private game with me + 4 bots, launched
   townAction: (
     buildingId: string,
-    action: "build" | "restore" | "use" | "water" | "toggle" | "revive",
+    action: "build" | "restore" | "repair" | "use" | "water" | "toggle" | "revive",
     points?: number,
   ) => Promise<void>;
   setTownHero: (id: string) => void;
   townDeposit: () => Promise<void>;
+  scoutWave: () => Promise<void>; // monter à la Tour estimer la vague (collectif)
   craft: (recipeId: string) => Promise<void>;
   evolve: (classId: string) => Promise<void>;
   startAdventure: () => void; // Title "Start the game" -> cinematic
@@ -814,7 +815,7 @@ export const useStore = create<StoreState>((set, get) => {
 
     fetchLobbies: async () => {
       try {
-        set({ lobbies: await api.listGames("lobby") });
+        set({ lobbies: await api.listGames("open") });
       } catch {
         /* listing is best-effort */
       }
@@ -834,12 +835,38 @@ export const useStore = create<StoreState>((set, get) => {
         const res = await api.joinByCode(code, playerName);
         adoptGame(res.game, res.player.id, "mp");
         pushLog(`🤝 Partie "${res.game.name}" rejointe (${res.game.players.length}/${res.game.maxPlayers} joueurs).`);
-        // Joining a public game as its Nth player can trigger the auto-start:
-        // in that case skip the waiting room entirely.
+        // Deux cas où l'on saute la salle d'attente : on est le joueur qui déclenche
+        // le lancement automatique, ou l'on embarque dans une expédition DÉJÀ en route
+        // (fenêtre d'accueil des parties publiques).
         if (res.game.status !== "lobby") {
-          pushLog("⚔️ La partie démarre !");
+          pushLog(
+            res.game.waveNumber > 0
+              ? `⚔️ Tu rejoins une expédition en route — jour ${res.game.day}, vague ${res.game.waveNumber}.`
+              : "⚔️ La partie démarre !",
+          );
           await enterActiveGame();
         }
+      }),
+
+    // Monter à la Tour de guet. C'est une manœuvre COLLECTIVE : chaque joueur qui s'y
+    // colle resserre la fourchette pour toute la ville, et chacun ne compte qu'une fois
+    // par vague (backend orders.go).
+    scoutWave: () =>
+      withBusy(async () => {
+        const { game, playerId, townHeroId } = get();
+        if (!game) return;
+        const heroId = effectiveTownHeroId(game, playerId, townHeroId);
+        if (!heroId) {
+          get().notify("Il faut un de tes héros en ville pour monter à la Tour");
+          return;
+        }
+        const res = await api.scoutWave(game.id, heroId, playerId ?? undefined);
+        adoptGame(res.game);
+        const f = res.forecast;
+        get().notify(
+          `🔭 Horde estimée entre ${f.min} et ${f.max} — fiable à ${f.precision}%` +
+            (f.scouts > 1 ? ` (${f.scouts} observateurs)` : ""),
+        );
       }),
 
     startLobby: () =>

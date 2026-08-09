@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { useStore } from "../store";
 import { Overlay } from "../ui/Overlay";
-import { TOWN_BUILDINGS, type BuildingLayout } from "../data/buildings";
+import { TOWN_BUILDINGS, TOWN_REPAIR_HP, type BuildingLayout } from "../data/buildings";
 import { VoxelTownView } from "../voxel/VoxelTownView";
 import type { TownBuilding } from "../api/types";
 import { HeroChips } from "../components/HeroChips";
+import { TownOrders } from "../components/TownOrders";
 import { TownWorker, useWorkerPA } from "../components/TownWorker";
 import { effectiveTownHeroId } from "../townUtils";
 
@@ -26,6 +27,7 @@ function Bar({ value, max, color }: { value: number; max: number; color: string 
 // done from the Structure tab, so the "Améliorer" entry jumps there.
 function BuildingMenu({ layout, b, onClose }: { layout: BuildingLayout; b: TownBuilding; onClose: () => void }) {
   const townAction = useStore((s) => s.townAction);
+  const scoutWave = useStore((s) => s.scoutWave);
   const setTab = useStore((s) => s.setTab);
   const toggleTownStatus = useStore((s) => s.toggleTownStatus);
   const toggleTownJournal = useStore((s) => s.toggleTownJournal);
@@ -38,6 +40,10 @@ function BuildingMenu({ layout, b, onClose }: { layout: BuildingLayout; b: TownB
   const noPa = pa < 1 || busy;
   const durFull = b.durability >= b.maxDurability;
   const isDefensive = b.id === "wall" || b.id === "gate" || b.id === "tower";
+  // Remparts : PV de la VILLE (distincts de la durabilité du bâtiment), et la pierre
+  // qui les paie (game.TownRepairMaterial côté serveur).
+  const townFull = !!game && game.town.hp >= game.town.maxHp;
+  const townStone = (game?.town.storage.find((it) => it.name === "Pierre")?.qty ?? 0) > 0;
 
   // Well: the daily ration is per-hero (the selected town worker). Figure out whether
   // that worker has already drunk today so we can label/disable the button.
@@ -118,10 +124,48 @@ function BuildingMenu({ layout, b, onClose }: { layout: BuildingLayout; b: TownB
               <span className="c">1/jour</span>
             </button>
           )}
+          {/* LA TOUR DE GUET : monter observer la horde. Ce n'est pas un bonus solo —
+              chaque JOUEUR qui s'y colle resserre la fourchette pour toute la ville, et
+              chacun ne compte qu'une fois par vague. C'est ce qui donne à la Tour un
+              rôle au-delà de ses points de défense. */}
+          {b.id === "tower" && (
+            <button
+              className="primary"
+              disabled={busy || (game?.town.forecast?.precision ?? 0) >= 99}
+              onClick={() => { scoutWave(); }}
+            >
+              <span>
+                🔭 Estimer la vague
+                {game?.town.forecast &&
+                  ` (${game.town.forecast.min}–${game.town.forecast.max}, ${game.town.forecast.precision}%)`}
+              </span>
+              <span className="c">-2</span>
+            </button>
+          )}
           {b.id === "gate" && (
             <button className="primary" disabled={noPa} onClick={() => townAction("gate", "toggle")}>
               <span>🚪 {b.open ? "Fermer la porte" : "Ouvrir la porte"}</span>
               <span className="c">-1</span>
+            </button>
+          )}
+          {/* Relever les remparts : la SEULE façon de rendre des PV à la ville. Sans
+              elle, Town.HP ne faisait que descendre et toute partie était un compte à
+              rebours — c'est ce qui rend l'épuisement de la carte, et non l'arithmétique
+              de la horde, la vraie limite d'une longue partie. Payée en PA ET en pierre. */}
+          {b.id === "wall" && (
+            <button
+              className="primary"
+              disabled={noPa || townFull || !townStone}
+              onClick={() => townAction("wall", "repair", 1)}
+            >
+              <span>
+                🧱 {townFull
+                  ? "La ville est intacte"
+                  : townStone
+                  ? `Relever les remparts (+${TOWN_REPAIR_HP} PV)`
+                  : "Il faut de la Pierre à la Banque"}
+              </span>
+              <span className="c">-1 PA · -1 Pierre</span>
             </button>
           )}
           {flavor && (
@@ -188,6 +232,9 @@ export function HomeTab() {
 
   return (
     <div className="town-wrap" style={{ position: "absolute", inset: 0 }}>
+      {/* L'ordre du jour passe AVANT tout le reste : c'est la première chose qu'une
+          session de cinq minutes doit lire. */}
+      <TownOrders />
       <ChatBubble />
 
       <div className={`town ${selected ? "dim" : ""}`}>

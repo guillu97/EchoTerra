@@ -57,7 +57,7 @@ fixed seed (`--seed N`, e.g. 42) is used for cohesion across the library.
 |---|---|
 | Backend | **Go** (`chi` router), REST, state serialized as JSON in **SQLite** (`modernc.org/sqlite`, pure-Go, no CGo) |
 | Frontend | **React + Vite + TypeScript**, **Three.js** (moteur voxel : carte, combat, ville), **Zustand** store |
-| Map gen | Perlin (`aquilax/go-perlin`) → heightmap **lissée (maxStep 1)** → biomes par niveau ; **60×60 par défaut** (`worldgen.DefaultSize`) |
+| Map gen | Perlin (`aquilax/go-perlin`) → heightmap **lissée (maxStep 1)** → biomes par niveau ; **taille suivant l'expédition** (`worldgen.SizeForPlayers` : surface par joueur constante ~900 tuiles, bornée `MinMapSize` 40 → `MaxMapSize` 140 ; 1 joueur 40², 4 joueurs 60² = `DefaultSize`, 20 joueurs 134²) ; **jusqu'à `MaxPlayersPerGame` = 20 joueurs** (60 héros) ; `ensureNearbyBiomes` garantit un **gisement** de forêt ET de montagne près de la ville (`biomeQuota` : ∝ surface, 12 tuiles dans le rayon 8 pour une carte de référence 60² — un quota ABSOLU faisait partager la carrière d'un solo à vingt équipes, d'où l'effondrement des grandes parties — l'ancienne garantie « au moins UNE tuile » laissait des cartes à 21 montagnes sur 3600, donc sans pierre exploitable) |
 
 ```bash
 # Backend (:8080). Env: ECHOTERRA_ADDR (:8080), ECHOTERRA_DB (echoterra.db),
@@ -71,6 +71,8 @@ npm --prefix frontend run dev
 ```
 
 Verify: `go -C backend test ./...` · `npx tsc -b` (in frontend) · `npm run build` (in frontend) ·
+`go -C backend run ./cmd/balance` (**simule des parties entières** et dit si le jeu est jouable — voir §5
+« Équilibrage ») ·
 `npm run test:perf` (in frontend — budgets de chargement de l'onglet Map, voir §7; réutilise les dev
 servers s'ils tournent, sinon les démarre; Chromium requis: `PERF_BROWSER` ou Chrome installé).
 
@@ -131,6 +133,9 @@ backend/
     monsters.go                 NewMonster, MonsterSpecies
     townnames.go                NewTownName: noms de ville générés (Town.Name, posé au worldgen)
     *_test.go                   worldgen, combat, tetanise, build (TestBuildConsumesBankMaterials), evolve
+  internal/balance/balance.go   SIMULATION DE PARTIE headless (Run/Report/Table) — l'instrument
+                                d'équilibrage ; balance_test.go = garde-fou SurvivalFloor
+  cmd/balance/main.go           CLI d'exploration : tables vague par vague, balayage 1→6 joueurs
   internal/store/store.go       SQLite OU Postgres (DSN postgres://): one row per game, state as JSON blob
                                 + table leaderboard (ScoreEntry, saveScore/Leaderboard — voir §5)
   internal/store/users.go       comptes (email unique, bcrypt ou Google) + sessions (token TTL 30j)
@@ -223,7 +228,16 @@ per-building `defense`, per-building `cost`, `bank.capacity = sum(storage qty)`,
 "" = private legacy) : **privée** = créée par un joueur, join par CODE, lancée par l'HÔTE, kick = hôte ;
 **publique** = créée automatiquement par le serveur ("Expédition de <Ville>", `ensurePublicLobby` au boot
 + janitor + après chaque auto-start → il y a toujours un salon public ouvert), listée sans joinCode,
-**démarre seule dès `minPlayers` atteint** (`MaybeAutoStart`), start manuel/bots/pouvoirs d'hôte
+**démarre seule dès `minPlayers` atteint** (`MaybeAutoStart`) puis **reste OUVERTE** pendant sa
+**fenêtre d'accueil** — `game.PublicJoinGraceWaves` = 4 vagues, comptées en VAGUES et non en heures
+parce que `WaveInterval` vaut 10 min en dev et 6 h en cible (2 vagues/jour réel), donc « 2 jours » n'est
+portable qu'ainsi. `GameState.JoinOpen()` est l'unique juge (« peut-on encore embarquer ? ») : salon
+toujours, publique lancée pendant la fenêtre, **privée jamais après son lancement**. Un joueur qui
+rejoint en cours de partie voit ses 3 héros naître en ville et **le puits complété**
+(`WellRationsPerHero × 3` — sinon il boirait la réserve des autres). Le serveur maintient **UN SEUL**
+point d'accueil public à la fois (`joinablePublicCount`) : ouvrir un salon neuf pendant qu'une
+expédition accueille séparerait les joueurs, ce que la fenêtre veut justement éviter ; le salon suivant
+naît quand les portes se ferment. start manuel/bots/pouvoirs d'hôte
 refusés, expulsion par **vote majoritaire** (`VoteKick`, `KickVotes`, majorité stricte des autres
 humains, lobby only, votes purgés aux départs). **Mode solo** : `POST /api/games/solo` = partie privée
 créateur + 4 bots lancée immédiatement (bouton menu "🤖 Solo"), marquée `GameState.Solo` (classement).
@@ -240,9 +254,35 @@ leur case si l'équipe 100% bot fait le poids (`botShouldEngage`, IA héros = `h
 l'IA monstre, bataille entière résolue sous le verrou du tick), sinon boule de feu ; retraite/cachette
 avant la vague, eau/dépôt/chantier/réparation en ville, fouille et exploration sinon, évolution de
 classe auto aux paliers jour 2/4 selon les stats (`botEvolve`) — via les actions publiques validées ;
-pas encore de craft [aucune mécanique de consommation d'objets]). Tout est persisté en SQLite (le salon survit à un redémarrage ; les
-salons ouverts se listent via `GET /api/games?status=lobby`). ⚠ **toute recherche de salon passe par
-`store.ListByStatus(StatusLobby, n)`, JAMAIS par `List(n)` + filtre en Go** : un salon est écrit une
+pas encore de craft [aucune mécanique de consommation d'objets]). **Refonte 2026-08-09, guidée par la
+simulation** (§ Équilibrage) : **rôles** (`heroIsBuilder`, 1 héros sur 3 reste en ville — sans ça les
+réparations, toujours disponibles après une vague, absorbaient l'action de TOUT le monde et personne
+n'atteignait le code qui rouvre la porte) ; **couvre-feu** en deux temps (`curfewPhase` : on rentre à
+la moitié de l'intervalle, on VERROUILLE au dernier sixième) et **politique de porte** collective
+(`botGateWork` : ouverte le jour, fermée au crépuscule — l'attendre pour tout le monde revient à ne
+jamais fermer) ; **réserve de dissimulation** (le dernier PA d'un héros dehors ne sert QU'à se cacher :
+sans elle tous les récolteurs mouraient avant la vague 9) ; **campement** (on ne rentre que pour un
+sac plein [`heroLoad`, en OBJETS et non en piles] ou une blessure — la fouille auto récolte toute
+seule) ; **Escape quand Tétanisé** (seule issue : un tétanisé ne peut ni bouger ni fouiller ni se
+cacher) ; **liste de courses** (`botShoppingList`/`botCriticalList` : on récolte ce qui MANQUE, pondéré
+par la rareté, et on explore quand aucune tuile connue ne fournit un matériau) ; **priorité défense**
+(`reservedForDefense` : la pierre des murs n'est pas dépensée en rapiéçage de PV ni en chantiers
+annexes) ; **CRAFT** (`botCraft` : les niveaux 2-3 du design réclament TOUS un matériau crafté —
+Planche/Corde/Brique/Acier — donc une ville qui ne va jamais à l'atelier reste bloquée à sa défense de
+départ ; recycle aussi les Débris en Bois/Pierre dès que la Recyclerie est debout, la réponse du design
+à une carte qui se vide). ⚠ **trois RÔLES par équipe**, par rang (`heroRole`) : bâtisseur (reste en ville), **défenseur** (dégage l'anneau d'assaut — c'est de la défense depuis que `hordePower` en dépend — avec une LAISSE `botDefenderLeash` 10, sans quoi les défenseurs d'une carte 120² partent au bout du monde) et récolteur. Le rang, PAS un hash d'id : « environ un sur trois » ne garantit rien pour UNE équipe, et un bot dont
+les trois héros tombaient récolteurs ne construisait jamais rien. **Combat** : `botShouldEngage` juge sur
+la PUISSANCE et non l'effectif (un combat n'oppose jamais plus de 4 unités quelle que soit la taille du
+pack, et la victoire supprime le pack ENTIER — exiger un héros par unité revenait à ne jamais combattre) ;
+`botRallyTile` envoie un renfort à un camarade Tétanisé (la façon documentée de le libérer) et un pinné
+TIENT quand l'aide est à un pas. **Tuer compte désormais** : `hordePower` inclut les créatures massées dans
+l'anneau, donc dégager les abords retire directement des dégâts (règle changée le 2026-08-09 à la
+demande de l'utilisateur — auparavant le combat ne servait qu'au butin). ⚠ la récolte reste
+prioritaire sur le sauvetage pour un RÉCOLTEUR : mesuré, inverser les deux fait BAISSER la survie
+(les matériaux font vivre la ville). Tout est persisté en SQLite (le salon survit à un redémarrage ; les
+salons ouverts se listent via `GET /api/games?status=lobby`). ⚠ **la recherche de partie REJOIGNABLE passe par `store.OpenForJoin(n)`**
+(colonne miroir `join_open`, alimentée par `JoinOpen()`) et toute recherche de salon par
+`store.ListByStatus(StatusLobby, n)` — **JAMAIS par `List(n)` + filtre en Go** : un salon est écrit une
 fois puis plus jamais, alors que chaque partie active est réécrite à chaque vague ET par le battement —
 filtrer après le `LIMIT` rendait la recherche publique, le `joinByCode` et `ensurePublicLobby` aveugles
 dès qu'il y avait `n` parties plus fraîches (bug 2026-08-02, test `TestListByStatusIgnoresFresherGames`).
@@ -362,11 +402,21 @@ legacy = pas de limite. Front : `useTurnRemaining` → badge « ⏱ Ns » dans `
 
 **Waves / horde (Hordes-like)** — `nextWaveAt` is **server-driven**; the client only shows the countdown
 (`useWaveRemaining`). Resolved lazily on access (`tick`) AND by a 15s scheduler goroutine.
-`ProcessWave`: `hordePower = 12 + 6*waveNumber`; **defense** = sum of wall/gate/tower contributions scaled by
+`ProcessWave`: **`hordePower = pression(vague) + créatures massées dans le rayon d'assaut`**
+(2026-08-09). Deux termes, et la distinction est tout le design : la **pression**
+(`hordeBase 6 + 2*vague`, × `hordeScale`) est un plancher qui monte quoi qu'on fasse ; l'**assaut**
+(`besiegingCreatures`, Chebyshev ≤ `assaultRadius` 2 autour de la ville) est la horde réellement
+présente quand elle frappe — **c'est ce terme que tuer fait baisser**. Avant, la puissance était une
+pure fonction du numéro de vague : nettoyer les abords ne retirait pas un point, donc le combat ne
+servait qu'au butin, et une expédition de 20 ne pouvait pas dépasser un solo (le plafond de défense
+20+16+12=48 est le même à 3 héros qu'à 60). ⚠ **rien n'apparaît dans l'anneau d'assaut**
+(`spawnSafeRadius = assaultRadius`) : un pack qui s'y matérialise est un pack que personne n'a laissé
+passer. Les packs qui ont porté l'assaut s'y **brisent** (`spendAssaultingPacks`,
+`WaveReport.MonstersSpent`), le calcul se faisant AVANT leur retrait ; **defense** = sum of wall/gate/tower contributions scaled by
 durability (**an open Gate = 0**, a construction site = 0); `overflow = horde - defense` → town HP loss +
 random building durability damage; defensive buildings also wear. Heroes **outside** town are hit individually
 (`Blessé`); **hidden** heroes skipped; **in-town** heroes safe. PA regen each wave; the **Well refills +10**;
-new monsters spawn **selon les biomes d'apparition des espèces** — **scaling INFINI par vague (2026-07-22)** :
+new monsters spawn **selon les biomes d'apparition des espèces** — ⚠ les renforts de vague naissent dans un **FRONT de rayon FIXE** (`hordeFrontRadius` 14, indépendant de la taille de carte) : les packs migrent d'une case par vague, donc les tirer uniformément sur une carte de 134² faisait que la horde n'arrivait JAMAIS — mesuré, deux joueurs dans un salon prévu pour vingt tenaient 30 vagues contre 16 sur leur propre carte, le mode facile du jeu. Le semis initial (`SeedStartingMonsters`, `4 + 3×joueurs + surface/1200`) reste réparti partout : c'est du peuplement, pas de la pression, et il suit l'EXPÉDITION et non la surface. **scaling INFINI par vague (2026-07-22)** :
 le nombre de packs posés (`spawnWaveMonsters` : `4+waveNumber`, PLUS de plafond — borné en pratique par la
 saturation des tuiles) ET la taille des packs croissent sans borne (`spawnWeightedPack` : la croissance de
 vague `waveNumber/2` s'empile SANS clamp au PackMax — le PackMax ne borne plus que la taille de départ). Les
@@ -417,6 +467,8 @@ ajouté après coup n'atteindrait aucune partie en cours.
   est en Banque* (sinon l'action échoue en silence), déposent les plans qu'ils trouvent, et rejoignent les
   améliorations ouvertes par les humains. Tests in `build_test.go`.
 - `restore` → +5 durability per PA (built only).
+- `repair` (Wall) → **relève les PV de la VILLE** : 1 PA + 1 Pierre → +`TownRepairHP` (5) PV, borné
+  aux PV manquants. Voir §5 « Réparer la VILLE » — la seule source de PV de ville du jeu.
 - `revive` (Townhall) → **ressuscite le premier héros mort** : PV = max/2, replacé en ville, états purgés.
   Quota quotidien = niveau du Townhall (1/jour niv.1, 2/jour niv.2) ; **niv.3 = illimité ET gratuit** (sinon
   2 PA). Suivi `Town.ReviveDay/RevivesToday`. Bouton « 🛏️ Ressusciter <héros> » dans le modal Home.
@@ -441,9 +493,24 @@ ajouté après coup n'atteindrait aucune partie en cours.
 + `Tile.RuinID`, caviardés par le fog comme les monstres. **Déblayage COLLECTIF** (`ClearRuin`,
 PA partagés comme les chantiers, refus Tétanisé/combat) puis **donjon** (`ExploreRuin`, 2 PA,
 4 charges) : tirage pondéré par type — matériaux rares (Acier, Cœur de chêne ancien), items
-rares, « plans anciens » ; Récupérateur +1. Front : menu radial ⛏️ Déblayer / 🏛️ Explorer ;
+rares, « plans anciens » ; Récupérateur +1. **MÉMORIAUX (2026-08-09)** : chaque carte neuve sème aussi les ruines de villes RÉELLEMENT
+tombées avant elle (`Memorial`, `SeedMemorialRuins`, `api.seedMemorials`) — nom, dernière vague,
+défenseurs (`Ruin.Epitaph()`), butin = les MATÉRIAUX de la ville morte. La source est
+`store.FallenTowns` : le classement conservait déjà tout et survit à la suppression de la partie,
+donc aucune table de plus. ⚠ **jamais de transfert de puissance entre parties** (pas de plan de
+bâtiment dans la table, test dédié) : ça casserait l'égalité qui fait tenir une survie de groupe.
+C'est la réponse au trou de rétention n°1 (`RETENTION-PLAN.md`). Front : menu radial ⛏️ Déblayer / 🏛️ Explorer ;
 voxel `site-*` v0 enseveli / v1 déblayé (variante par ÉTAT serveur), socle doré. Tests
 `ruins_test.go`. (Les bots ignorent les ruines.)
+
+**Ordre du jour & prévision de vague** (`orders.go`, `components/TownOrders.tsx`, 2026-08-09) —
+`Town.Orders` (≤ `townOrdersCap` 4 lignes) et `Town.Forecast` sont **entièrement DÉRIVÉS**, refaits par
+`Recompute` EN DERNIER (ils lisent les `b.Cost` qu'on vient de recalculer). L'ordre du jour classe par
+urgence : menace chiffrée → portail ouvert → remparts → chantier en cours → matériau manquant pour la
+prochaine amélioration défensive → plan posable → usure. `Forecast` = `hordePower` SANS le terme
+aléatoire (on annonce « ~34 », pas une promesse) et n'est actionnable que parce que la puissance dérive
+des assiégeants : tuer fait baisser le chiffre sous les yeux du joueur. Réponse aux trous T3/T5 de
+`RETENTION-PLAN.md`. Tests `orders_test.go`.
 
 **Journal de la ville** (`town.log`, bâtiment Panel) — `TownLogEntry {at, day, text}`, **serveur-side,
 partagé, plus récent en premier, plafonné à 100** (`logTown`). Recense UNIQUEMENT les actions faites en
@@ -470,6 +537,26 @@ et `loose:true` (sous-chaîne) réservé aux mots longs et sans ambiguïté — 
 bouton ✉️ de la TopBar (pastille `chatCount − chatSeen`, lu localStorage par partie), feuille
 `store.chatOpen`, bulle du DERNIER message sur l'écran Ville, panneau verrouillé explicatif hors de
 portée. Tests `chat_test.go`, `moderation_test.go`.
+
+**Équilibrage & simulation de partie** (`internal/balance`, `cmd/balance`, 2026-08-09) — une partie
+ENTIÈRE jouée en tête, sans mock : vrai worldgen, vrais joueurs-IA, vraie horloge (`game.AdvanceTo`,
+le chemin du battement en production) — donc un verdict de la simulation est un verdict sur le JEU.
+`balance.Run(Config{Seed,Players,Waves})` → `Report{Snapshots[]}` (par vague : horde/défense/dégâts/
+PV, héros vivants·en ville·cachés·tétanisés, bâtiments/niveaux/usure, banque + bois + pierre, sacs,
+packs/unités, ressources restantes). CLI : `go -C backend run ./cmd/balance [-seeds N] [-players N]
+[-waves N] [-detail] [-sweep] [-json]`. **`SurvivalFloor = 10`** (`balance_test.go`) est le contrat :
+une ville laissée aux seuls bots doit tenir 10 vagues sur toute graine et à 1·2·4·6 joueurs ; un
+`TestTownActuallyProgresses` exige en plus qu'elle CONSTRUISE, récolte, tue et évolue (survivre sans
+rien faire n'est pas un jeu). Écrire cet instrument a révélé que **toutes les graines mouraient à la
+vague 5** — invisible pour la suite de tests, qui n'avait jamais joué une partie. Historique complet
+des causes et des correctifs : `journal.md` (entrée 94).
+
+**Réparer la VILLE** (`TownAction("wall","repair")`, `TownRepairHP` 5 PV par PA, `TownRepairMaterial`
+« Pierre », 1 par PA ; bouton « 🧱 Relever les remparts » du modal Mur) — **rien ne rendait de PV à
+`Town.HP`** : les bâtiments se restauraient, la ville non, donc toute partie était un compte à rebours
+indépendant des joueurs. C'est cette action qui fait de l'ÉPUISEMENT DE LA CARTE, et non de
+l'arithmétique de la horde, la vraie limite d'une longue partie. Bornée aux PV manquants (ne gaspille
+ni PA ni pierre) et refusée sur une ville intacte. Tests `townrepair_test.go`.
 
 **Crafting** (`craft.go`, `CraftTab.tsx`) — **town mode** (≥1 hero in town): full recipes, ingredients from the
 Bank, paid by the chosen *town worker*, output to the Bank. **Field mode** (no hero in town): only `field`
@@ -501,7 +588,9 @@ POST /api/auth/login                             {email,password} -> {user,token
 POST /api/auth/google                            {credential:id_token GIS} -> {user,token} (501 si non configuré)
 GET  /api/auth/me                                 (Bearer) -> {user}
 GET  /api/auth/me/games                           (Bearer) mes parties + myPlayerId (reprise multi-appareils)
-GET  /api/games?status=lobby                      list game summaries (id,name,joinCode,players,min/max…)
+GET  /api/games?status=open|lobby|active          `open` = ce qu'on peut REJOINDRE (salons + expéditions
+                                                 publiques dans leur fenêtre d'accueil) ; résumés
+                                                 (id,name,players,min/max,joinOpen,joinWavesLeft…)
 POST /api/games                                  {width?,height?,seed?} -> GameState (legacy solo, 3 héros)
 POST /api/games/lobby                            {playerName,name?,minPlayers?,maxPlayers?,…} -> {game,player}
 POST /api/games/solo                             {playerName} -> {game,player} (privée + 4 bots, lancée)
@@ -515,7 +604,8 @@ POST /api/games/{id}/bots                        {playerId} -> {game,player} (h�
 GET  /api/games/{id}                              (runs wave catch-up)
 GET  /api/games/{id}/world
 POST /api/games/{id}/advance                      force a wave (dev)
-POST /api/games/{id}/town/action                  {buildingId, action: build|restore|use|water|toggle|revive, points?, heroId?}
+POST /api/games/{id}/town/action                  {buildingId, action: build|restore|repair|use|water|toggle|revive, points?, heroId?}
+                                                  (repair = mur : PA + Pierre -> PV de la ville)
 POST /api/games/{id}/town/deposit                 deposit in-town heroes' loot into the Bank
 POST /api/games/{id}/town/craft                   {recipeId, heroId}
 GET  /api/games/{id}/town/chat?playerId=…         messagerie de la ville (gatée : héros en ville OU Poste
@@ -662,7 +752,9 @@ bâtiments s'affichent via `buildingName(id)` (`data/buildings.ts`), pas via `b.
   vertical 1/10) plutôt qu'en cubes d'une tuile ; props, personnages et monstres en modèles voxel
   animés (§7a-bis). **Fog of war — appliqué dans le payload HTTP** : `Tile.Discovered` est
   server-authoritative & partagé (`fog.go`: `RevealVision` dans `Recompute`, anneau Chebyshev autour
-  de la ville et de chaque héros vivant). `GameState.ClientView()` est appliqué à TOUTE réponse par
+  de la ville [rayon 3] et de chaque héros vivant [**rayon 1**, Éclaireur 2 — le rayon 0 « au contact »
+  d'origine rendait la prospection impossible : mesuré, 2 tuiles de montagne découvertes sur 31 en douze
+  vagues, donc zéro pierre et défaite arithmétique]). `GameState.ClientView()` est appliqué à TOUTE réponse par
   l'interception centrale `clientView` dans `api.writeJSON` : les tuiles non découvertes partent
   **vierges**, les monstres sur tuiles cachées sont **omis**, et la **seed est masquée** (seed +
   générateur = toute la carte). Tests : `fog_test.go` (`TestClientViewRedactsUndiscovered`).
@@ -964,6 +1056,11 @@ setSpeed, setTurntable, state, engine}` — pilotable en headless (vérif Playwr
 - **Pas de React StrictMode** (le double-invoke monterait le moteur deux fois).
 - **Preview/screenshot tooling** is flaky in the headless tab (RAF pauses → screenshots time out). Verify via
   `preview_eval` + the dev hook **`window.__eg = { store, bus, EV }`** (DEV only) and `preview_snapshot`/`preview_inspect`.
+- **Ordre d'itération = état** : toute boucle sur une map (`g.Monsters`, `g.Combats`) qui MUTE l'état ou
+  consomme du hasard doit être TRIÉE (par position — les id sont des UUID, les trier ne fixe rien).
+  L'architecture entière repose sur « rejouer le temps écoulé » (`sim.go`) : deux instances rejouant la
+  même période doivent aboutir au même monde. Deux fuites corrigées le 2026-08-09 (fusion des packs en
+  migration, `EnforceCombatTimers`) ; la même graine pouvait tomber vague 13 ou vague 19.
 - **Per-game locking**: every access to a game's state must hold its per-game mutex (`Server.lockGame`).
   HTTP requests get it automatically via `gameLockMiddleware` on the `/{gameID}` route; the wave scheduler,
   `lobbyJanitor` and `join`-by-code take it explicitly. `GameState` itself has NO internal synchronization.
