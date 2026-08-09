@@ -6,6 +6,66 @@
 
 ---
 
+## 2026-08-09 (97) — Le clic vise ce qu'on voit, pas le sol derrière
+
+Retour de l'utilisateur : « quand je veux cliquer sur la case pour faire une action, le perso se
+déplace au lieu de m'ouvrir la pop up qui liste les actions possibles ».
+
+### La cause : 1,73 case d'écart entre ce qu'on vise et ce qu'on touche
+
+`VoxelMapView.onTap` résolvait le tap par le SEUL point d'impact du rayon sur le **terrain** ; tout ce
+qui est posé dessus — héros, monstres, ruines, village de la case ville — était traversé en silence. Or
+la caméra est dimétrique à **30°** : un point situé à la hauteur `h` au-dessus du sol se projette là où
+le sol se trouve `h/tan(30°) ≈ 1,73` unité plus loin, réparti sur x ET z (azimut 45°). **Cliquer le
+torse d'un héros touchait donc le sol une à deux cases DERRIÈRE lui.** Selon le relief et la position du
+personnage sur sa case, la case ainsi désignée tombe :
+
+- **orthogonale** → le héros PART (c'est le bug rapporté) ;
+- **en diagonale** → le store ignore le clic, **rien ne se passe** (l'autre moitié du symptôme, jamais
+  rapportée parce qu'un clic mort passe pour une maladresse).
+
+Mesuré avant correctif, sur une équipe sortie ensemble : clic sur le corps du héros sélectionné →
+« déplace-toi en (10,11) », un peu plus haut → rien ; seul un clic sur ses PIEDS ouvrait le menu.
+
+### Le correctif : les objets disent quelle case ils occupent
+
+Une étiquette `userData.pickTag {x, y, heroId?}` est posée sur les modèles (rig, billboard de repli,
+étiquette de nom), les monstres, les ruines et le village de la case ville ; `onTap` remonte la
+hiérarchie du premier objet touché et **préfère cette case au terrain masqué**. `heroId` n'est posé que
+sur MES héros, et il vaut sortie immédiate : taper un personnage, c'est le viser LUI — menu d'actions
+s'il est déjà sélectionné, sélection sinon — **jamais marcher**. Ça règle du même coup un conflit plus
+ancien : un coéquipier debout sur une case voisine ne pouvait pas être tapé, l'adjacence gagnait
+toujours.
+
+Corollaire trouvé en écrivant le test : `engine.pick` fait désormais `scene.updateMatrixWorld(true)`.
+Le raycast lit `matrixWorld`, que THREE ne met à jour qu'au rendu — et le moteur est on-demand : un
+objet reconstruit par un `draw()` et pas encore rendu serait resté à l'origine, donc invisible au
+picking. En jeu ça ne se voyait pas (un tap suit toujours un rendu), mais le picking ne doit pas
+dépendre de ça.
+
+La vue de COMBAT n'était pas touchée : elle enregistrait déjà chaque mesh de rig dans `unitOf`.
+
+### Fonctionnel (vérifié)
+
+Nouveau garde-fou `frontend/tests/map-tap.mjs` (`npm run test:map-tap`, dev servers + Chromium), qui
+rejoue le geste dans un vrai navigateur, `bus.emit` intercepté pour lire l'INTENTION sans jouer le coup :
+
+- taper le héros piloté, des pieds à la tête → menu d'actions à chaque hauteur (jamais un déplacement) ;
+- taper un coéquipier sur la case voisine → sélection (jamais un déplacement) ;
+- taper le SOL d'une case voisine → déplacement, comme avant.
+
+3/3 après correctif ; **le même test tombe à 2/3 sur le code d'avant** (`MOVE(12,11)` là où on attend
+une sélection). `npx tsc -b` vert.
+
+### À faire
+
+Les **props** (arbres, rochers) ne sont pas étiquetés : ils sont instanciés, donc l'étiquette devrait
+être par instance. Un gros arbre planté devant une case avale encore le clic vers le terrain qui le
+suit. Rare et sans conséquence (aucun déplacement erroné : la case résolue est diagonale), mais c'est
+le même piège.
+
+---
+
 ## 2026-08-09 (96) — La fenêtre d'accueil des expéditions publiques
 
 Demande : qu'une partie publique **se lance** dès le minimum de joueurs atteint, mais qu'elle reste

@@ -92,6 +92,33 @@ function renderHeight(t: { biome: number; height: number }): number {
   return Math.max(0, t.height - GROUND_LEVEL);
 }
 
+// CE QU'UN OBJET DE LA SCÈNE DÉSIGNE (2026-08-09).
+//
+// Le tap était résolu par le SEUL point d'impact du rayon sur le terrain : tout
+// ce qui est posé dessus (héros, monstres, ruines, village de la case ville)
+// était traversé en silence. Or la caméra est dimétrique à 30° : un point situé
+// à la hauteur `h` au-dessus du sol se projette là où le sol se trouve
+// `h/tan(30°) ≈ 1,73` unité PLUS LOIN, réparti sur x ET z (azimut 45°) — donc
+// cliquer le TORSE d'un héros touchait le sol une à deux cases derrière lui.
+// Mesuré : sur une équipe sortie ensemble, un clic sur le corps du héros
+// sélectionné émettait « déplace-toi en (10,11) » au lieu d'ouvrir son menu
+// d'actions, et un clic un peu plus haut ne faisait RIEN (la case visée
+// tombait en diagonale, que le store ignore). C'est le bug « le perso se
+// déplace au lieu d'ouvrir la popup ».
+//
+// D'où cette étiquette : un objet du jeu dit lui-même quelle case il occupe, et
+// le picking la préfère au terrain qu'il masque. `heroId` n'est posé que sur MES
+// héros — taper un personnage, c'est le viser lui, jamais marcher.
+type PickTag = { x: number; y: number; heroId?: string };
+/** Remonte la hiérarchie (les rigs sont des groupes) jusqu'à l'objet étiqueté. */
+function pickTagOf(o: THREE.Object3D | null): PickTag | undefined {
+  for (let n = o; n; n = n.parent) {
+    const tag = (n.userData as { pickTag?: PickTag }).pickTag;
+    if (tag) return tag;
+  }
+  return undefined;
+}
+
 // Couleur du badge de danger : jaune (#ffe066, pack minuscule) → rouge (#ff3b30,
 // gros pack). `t` ∈ [0,1].
 function dangerColor(t: number): string {
@@ -308,13 +335,18 @@ class MapWorld {
     return t.discovered ? renderHeight(t) + 1 : 1.5; // brume = nappe basse (sommet à 1.5)
   }
 
-  /** logique de clic de MapScene, à l'identique */
+  /** Résolution d'un tap : on vise CE QU'ON VOIT, le terrain seulement à défaut. */
   onTap(cssX: number, cssY: number) {
     const game = this.game;
     if (!game) return;
     const hits = this.engine.pick(cssX, cssY);
     let cell: { x: number; y: number } | undefined;
+    let tappedHeroId: string | undefined;
     for (const h of hits) {
+      // Un objet du jeu (héros, monstre, ruine, village) désigne SA case — même
+      // si le rayon, en le traversant, irait frapper le sol derrière lui.
+      const tag = pickTagOf(h.object);
+      if (tag) { cell = { x: tag.x, y: tag.y }; tappedHeroId = tag.heroId; break; }
       if (this.smooth.mesh && h.object === this.smooth.mesh) {
         // surface continue : le point d'impact désigne directement la tuile
         cell = { x: Math.round(h.point.x), y: Math.round(h.point.z) };
@@ -326,6 +358,16 @@ class MapWorld {
     if (!cell) return;
     const { x, y } = cell;
     const hero = this.selectedHero();
+    // Taper UN DE MES HÉROS le vise LUI : menu d'actions s'il est déjà
+    // sélectionné, sélection sinon. Jamais un déplacement — sans cette sortie,
+    // un héros posé sur une case voisine de celle du héros actif était compris
+    // comme « marche vers cette case », et le personnage filait au lieu
+    // d'ouvrir sa popup.
+    if (tappedHeroId) {
+      if (tappedHeroId === this.selectedHeroId) bus.emit(EV.MapHeroMenu, { sx: cssX, sy: cssY });
+      else bus.emit(EV.MapHeroClick, { heroId: tappedHeroId });
+      return;
+    }
     if (hero && Math.abs(x - hero.x) + Math.abs(y - hero.y) === 1) {
       bus.emit(EV.MapTileClick, { x, y });
       return;
@@ -436,6 +478,12 @@ class MapWorld {
       s.center.set(0.5, 0.04); // pieds posés sur la face du dessus
       s.position.set(x + (opts.ox ?? 0), topOf(x, y), y + (opts.oy ?? 0));
       this.sprites.add(s);
+      return s;
+    };
+    /** Rend un objet CLIQUABLE pour la case qu'il occupe (cf. PickTag). */
+    const pickable = <T extends THREE.Object3D>(o: T, tag: PickTag): T => {
+      o.userData.pickTag = tag;
+      return o;
     };
 
     // CASES ÉPUISÉES : `Tile.resources` tombé à 0, la fouille n'y rend plus
@@ -517,7 +565,7 @@ class MapWorld {
       if (!geom.boundingBox) geom.computeBoundingBox();
       const bb = geom.boundingBox!;
       const w = Math.max(bb.max.x - bb.min.x, bb.max.z - bb.min.z) || 1;
-      const m = new THREE.Mesh(geom, TOWN_MAT);
+      const m = pickable(new THREE.Mesh(geom, TOWN_MAT), { x: game.town.x, y: game.town.y });
       m.castShadow = m.receiveShadow = true;
       m.position.set(game.town.x + dx, townTop - 0.03, game.town.y + dz);
       m.scale.setScalar(cells / w);
@@ -533,7 +581,10 @@ class MapWorld {
       townPiece("bld-wall", -R, 0, 0.5, Math.PI / 2) &&
       townPiece("bld-wall", R, 0, 0.5, Math.PI / 2) &&
       townPiece("bld-wall", 0, -R, 0.5, 0);
-    if (!placed) billboard(libUrl("buildings", "bld-church"), game.town.x, game.town.y, { size: 1.15 });
+    if (!placed)
+      pickable(billboard(libUrl("buildings", "bld-church"), game.town.x, game.town.y, { size: 1.15 }), {
+        x: game.town.x, y: game.town.y,
+      });
     // couronne d'OLIVIERS autour du temple (déterministe par partie) — posés
     // sur la surface, jamais sur l'eau connue
     const oliveGeom = this.propsLib.get("olive", 0);
@@ -568,7 +619,7 @@ class MapWorld {
       const ru = game.ruins![id];
       const geom = this.propsLib.get(`site-${ru.type}`, ru.cleared ? 1 : 0);
       if (!geom) continue;
-      const mesh = new THREE.Mesh(geom, PROP_MAT);
+      const mesh = pickable(new THREE.Mesh(geom, PROP_MAT), { x: ru.x, y: ru.y });
       mesh.castShadow = mesh.receiveShadow = true;
       mesh.position.set(ru.x, topOf(ru.x, ru.y) - 0.02, ru.y);
       mesh.scale.setScalar(0.72);
@@ -605,12 +656,13 @@ class MapWorld {
         rig.root.scale.multiplyScalar(mScale); // taille par espèce (limace ≪ boss)
         rig.root.position.set(m.x, top, m.y);
         rig.root.rotation.y = engine.azimuthNow;
-        this.sprites.add(rig.root);
+        this.sprites.add(pickable(rig.root, { x: m.x, y: m.y }));
         this.animator.sync(id, rig, m.x, top, m.y, { faceCamera: true });
-      } else if (tex) billboard(libUrl("monsters", tex), m.x, m.y, { size: 0.6 * mScale });
+      } else if (tex)
+        pickable(billboard(libUrl("monsters", tex), m.x, m.y, { size: 0.6 * mScale }), { x: m.x, y: m.y });
       // badge de danger : icône + taille du pack, teinte jaune (peu) → rouge (beaucoup)
       const danger = Math.min(Math.max((m.count - 1) / 5, 0), 1);
-      const badge = makeLabel(`☠ ${m.count}`, dangerColor(danger), 0.24 + danger * 0.08);
+      const badge = pickable(makeLabel(`☠ ${m.count}`, dangerColor(danger), 0.24 + danger * 0.08), { x: m.x, y: m.y });
       badge.center.set(0.5, 0);
       badge.position.set(m.x, top + 0.62, m.y);
       this.sprites.add(badge);
@@ -643,25 +695,33 @@ class MapWorld {
       }
       // Phase 5 : modèle voxel de la classe quand il existe (rig animé qui tourne
       // avec la caméra), billboard PNG sinon — bascule progressive par modèle.
+      // Étiquette de picking : le MODÈLE (et son étiquette de nom) désigne le
+      // héros lui-même — c'est ce qui empêche un clic sur le personnage d'être
+      // lu comme un clic sur la case que son corps masque. Seuls MES héros
+      // portent l'id : ceux des autres joueurs ne valent que pour leur case.
+      const tag: PickTag = mine ? { x: h.x, y: h.y, heroId: h.id } : { x: h.x, y: h.y };
       const mesh = this.chars.makeRig(heroKey(h.class));
       if (mesh) {
         const by = topOf(h.x, h.y);
         mesh.root.position.set(h.x + ox, by, h.y + oy);
         mesh.root.rotation.y = engine.azimuthNow;
         if (!mine) setRigOpacity(mesh, OTHER_ALPHA); // héros des autres : translucides
-        this.sprites.add(mesh.root);
+        this.sprites.add(pickable(mesh.root, tag));
         this.animator.sync(h.id, mesh, h.x + ox, by, h.y + oy, { faceCamera: true });
         if (mine) {
-          const lbl = makeLabel(h.name, "#fff6d8", 0.2);
+          const lbl = pickable(makeLabel(h.name, "#fff6d8", 0.2), tag);
           lbl.center.set(0.5, 0);
           lbl.position.set(h.x + ox, topOf(h.x, h.y) + 0.82, h.y + oy);
           this.sprites.add(lbl);
         }
       } else {
-        billboard(libUrl("characters", heroTexKey(h.class)), h.x, h.y, {
-          alpha: mine ? 1 : OTHER_ALPHA,
-          ox, oy,
-        });
+        pickable(
+          billboard(libUrl("characters", heroTexKey(h.class)), h.x, h.y, {
+            alpha: mine ? 1 : OTHER_ALPHA,
+            ox, oy,
+          }),
+          tag,
+        );
       }
     }
 

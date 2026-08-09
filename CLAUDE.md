@@ -74,7 +74,9 @@ Verify: `go -C backend test ./...` · `npx tsc -b` (in frontend) · `npm run bui
 `go -C backend run ./cmd/balance` (**simule des parties entières** et dit si le jeu est jouable — voir §5
 « Équilibrage ») ·
 `npm run test:perf` (in frontend — budgets de chargement de l'onglet Map, voir §7; réutilise les dev
-servers s'ils tournent, sinon les démarre; Chromium requis: `PERF_BROWSER` ou Chrome installé).
+servers s'ils tournent, sinon les démarre; Chromium requis: `PERF_BROWSER` ou Chrome installé) ·
+`npm run test:map-tap` (in frontend — **le picking de la carte** : taper un héros ouvre son menu et ne
+le déplace jamais, taper le sol déplace toujours; mêmes prérequis que `test:perf`).
 
 **Déploiement Vercel (gratuit)** — voir `DEPLOY.md`. Preset **Services** (`vercel.json`) : service
 `frontend` (root `frontend/`, Vite, statique CDN) + service `backend` (root `backend/`, le preset Go
@@ -764,7 +766,19 @@ bâtiments s'affichent via `buildingName(id)` (`data/buildings.ts`), pas via `b.
   `visibility:hidden`. Tap a hero (or the **⚡ Actions**
   button) opens a **radial action menu** (Fight if monster on tile / compétence de classe / Search /
   Hide / **Escape only when Tétanisé** ; **Search/Hide cachés sur la case ville**). Combat reached
-  from the map. Boutons de vue en haut à droite (`.view-rot`) : **🔼/🎥 vue de dessus**
+  from the map. **Le tap vise CE QU'ON VOIT** (2026-08-09) : les objets posés sur le sol (héros,
+  monstres, ruines, village de la case ville) portent une étiquette `userData.pickTag {x,y,heroId?}`
+  et `VoxelMapView.onTap` la préfère au terrain qu'ils masquent. Sans elle le tap était résolu par le
+  seul point d'impact du rayon sur le sol : la caméra étant dimétrique à **30°**, un point à la hauteur
+  `h` se projette là où le sol se trouve `h/tan(30°) ≈ 1,73` unité plus loin (sur x ET z, azimut 45°) —
+  donc **cliquer le torse d'un héros touchait le sol une à deux cases derrière lui**, et le héros
+  PARTAIT (case voisine) ou rien ne se passait (case en diagonale) au lieu d'ouvrir le menu radial.
+  Taper un de MES héros (`heroId` posé) le vise LUI — menu s'il est sélectionné, sélection sinon — et
+  ne déclenche JAMAIS un déplacement. Corollaire : `engine.pick` fait `scene.updateMatrixWorld(true)`
+  (le moteur est on-demand ; un objet redessiné mais pas encore rendu serait resté à l'origine, donc
+  invisible au picking). Garde-fou : `npm run test:map-tap` (dev servers requis).
+  Le combat, lui, enregistrait déjà chaque mesh de rig dans `unitOf` — il n'était pas touché.
+  Boutons de vue en haut à droite (`.view-rot`) : **🔼/🎥 vue de dessus**
   (`engine.setTopDown`, ~78° — le MÊME contrôle qu'en combat ; seule l'élévation change, azimut/zoom/
   cible conservés, on retrouve donc sa vue en ressortant) puis ↺/↻ rotation 4 orientations.
 - **Cases ÉPUISÉES** (2026-08-02) : `Tile.resources` à 0 → un InstancedMesh de quads texturés « terre

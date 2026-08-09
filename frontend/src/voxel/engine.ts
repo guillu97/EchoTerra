@@ -422,6 +422,12 @@ export class VoxelEngine {
   /** raycast complet dans la scène (picking) */
   pick(cssX: number, cssY: number): THREE.Intersection[] {
     this.applyCamera();
+    // Le raycast lit `matrixWorld`, que THREE ne met à jour qu'au RENDU. Or le
+    // moteur est on-demand : un objet reconstruit par un draw() et pas encore
+    // rendu serait resté à l'origine, donc invisible au picking (les héros
+    // d'une vue tout juste redessinée). Une passe de matrices par tap est
+    // négligeable — les taps sont rares.
+    this.scene.updateMatrixWorld(true);
     const ndc = new THREE.Vector2((cssX / this.cssW) * 2 - 1, -(cssY / this.cssH) * 2 + 1);
     const ray = new THREE.Raycaster();
     ray.setFromCamera(ndc, this.camera);
