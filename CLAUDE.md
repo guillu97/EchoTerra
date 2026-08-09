@@ -258,7 +258,12 @@ seule) ; **Escape quand Tétanisé** (seule issue : un tétanisé ne peut ni bou
 cacher) ; **liste de courses** (`botShoppingList`/`botCriticalList` : on récolte ce qui MANQUE, pondéré
 par la rareté, et on explore quand aucune tuile connue ne fournit un matériau) ; **priorité défense**
 (`reservedForDefense` : la pierre des murs n'est pas dépensée en rapiéçage de PV ni en chantiers
-annexes). Tout est persisté en SQLite (le salon survit à un redémarrage ; les
+annexes) ; **CRAFT** (`botCraft` : les niveaux 2-3 du design réclament TOUS un matériau crafté —
+Planche/Corde/Brique/Acier — donc une ville qui ne va jamais à l'atelier reste bloquée à sa défense de
+départ ; recycle aussi les Débris en Bois/Pierre dès que la Recyclerie est debout, la réponse du design
+à une carte qui se vide). ⚠ le rôle de bâtisseur vient du RANG dans l'équipe (`heroIsBuilder`, 1er
+héros), PAS d'un hash d'id : « environ un sur trois » ne garantit rien pour UNE équipe, et un bot dont
+les trois héros tombaient récolteurs ne construisait jamais rien. Tout est persisté en SQLite (le salon survit à un redémarrage ; les
 salons ouverts se listent via `GET /api/games?status=lobby`). ⚠ **toute recherche de salon passe par
 `store.ListByStatus(StatusLobby, n)`, JAMAIS par `List(n)` + filtre en Go** : un salon est écrit une
 fois puis plus jamais, alors que chaque partie active est réécrite à chaque vague ET par le battement —
@@ -380,7 +385,7 @@ legacy = pas de limite. Front : `useTurnRemaining` → badge « ⏱ Ns » dans `
 
 **Waves / horde (Hordes-like)** — `nextWaveAt` is **server-driven**; the client only shows the countdown
 (`useWaveRemaining`). Resolved lazily on access (`tick`) AND by a 15s scheduler goroutine.
-`ProcessWave`: **`hordePower = (8 + 3*waveNumber) * hordeScale()`** (2026-08-09 — l'ancienne `12 + 6*vague` dépassait dès la vague 6 le total qu'une ville PARFAITE peut opposer [20+16+12 = 48], donc AUCUNE partie n'était gagnable ; `hordeScale = (6+équipes)/10` pondère DOUCEMENT par la taille de l'expédition, car des joueurs en plus n'apportent pas de défense en plus — une pondération plus raide faisait tomber les grandes tables AVANT les solos) ; les packs arrivés au pied des murs s'y **brisent** (`spendAssaultingPacks`, `WaveReport.MonstersSpent`) — sans cette usure la horde silte le pourtour de la ville (mesuré : 130 packs / 660 créatures à la vague 12, ville encerclée, héros incapables de rentrer) ; **defense** = sum of wall/gate/tower contributions scaled by
+`ProcessWave`: **`hordePower = (8 + 3*waveNumber) * hordeScale()`** (2026-08-09 — l'ancienne `12 + 6*vague` dépassait dès la vague 6 le total qu'une ville PARFAITE peut opposer [20+16+12 = 48], donc AUCUNE partie n'était gagnable ; `hordeScale = (6+équipes)/10` (et `SeedStartingMonsters` n'ajoute plus que (joueurs-1)/2 packs : cumuler les deux pénalisait deux fois les grandes tables) pondère DOUCEMENT par la taille de l'expédition, car des joueurs en plus n'apportent pas de défense en plus — une pondération plus raide faisait tomber les grandes tables AVANT les solos) ; les packs arrivés au pied des murs s'y **brisent** (`spendAssaultingPacks`, `WaveReport.MonstersSpent`) — sans cette usure la horde silte le pourtour de la ville (mesuré : 130 packs / 660 créatures à la vague 12, ville encerclée, héros incapables de rentrer) ; **defense** = sum of wall/gate/tower contributions scaled by
 durability (**an open Gate = 0**, a construction site = 0); `overflow = horde - defense` → town HP loss +
 random building durability damage; defensive buildings also wear. Heroes **outside** town are hit individually
 (`Blessé`); **hidden** heroes skipped; **in-town** heroes safe. PA regen each wave; the **Well refills +10**;
@@ -1007,6 +1012,11 @@ setSpeed, setTurntable, state, engine}` — pilotable en headless (vérif Playwr
 - **Pas de React StrictMode** (le double-invoke monterait le moteur deux fois).
 - **Preview/screenshot tooling** is flaky in the headless tab (RAF pauses → screenshots time out). Verify via
   `preview_eval` + the dev hook **`window.__eg = { store, bus, EV }`** (DEV only) and `preview_snapshot`/`preview_inspect`.
+- **Ordre d'itération = état** : toute boucle sur une map (`g.Monsters`, `g.Combats`) qui MUTE l'état ou
+  consomme du hasard doit être TRIÉE (par position — les id sont des UUID, les trier ne fixe rien).
+  L'architecture entière repose sur « rejouer le temps écoulé » (`sim.go`) : deux instances rejouant la
+  même période doivent aboutir au même monde. Deux fuites corrigées le 2026-08-09 (fusion des packs en
+  migration, `EnforceCombatTimers`) ; la même graine pouvait tomber vague 13 ou vague 19.
 - **Per-game locking**: every access to a game's state must hold its per-game mutex (`Server.lockGame`).
   HTTP requests get it automatically via `gameLockMiddleware` on the `/{gameID}` route; the wave scheduler,
   `lobbyJanitor` and `join`-by-code take it explicitly. `GameState` itself has NO internal synchronization.

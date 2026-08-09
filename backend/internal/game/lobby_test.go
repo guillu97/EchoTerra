@@ -243,8 +243,11 @@ func TestStartingMonstersScaleWithPlayers(t *testing.T) {
 	if err := quad.StartGame(host.ID, now); err != nil {
 		t.Fatal(err)
 	}
-	// Plus de joueurs = plus de packs (cible base + 2*(players-1)).
-	quadTarget := 6 + (quad.Width*quad.Height)/280 + 2*3
+	// Plus de joueurs = un peu plus de packs. La pente est VOLONTAIREMENT plate
+	// ((players-1)/2) : la horde est déjà pondérée par l'effectif dans hordePower, et
+	// cumuler les deux inversait la difficulté — les grandes tables tombaient avant les
+	// solos (cf. SeedStartingMonsters).
+	quadTarget := 6 + (quad.Width*quad.Height)/280 + 3/2
 	if n := len(quad.Monsters); n < quadTarget-2 || n > quadTarget {
 		t.Fatalf("4-player launch should seed ~%d packs (>solo), got %d", quadTarget, n)
 	}

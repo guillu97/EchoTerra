@@ -91,14 +91,50 @@ qu'une ville peut survivre en ne faisant rien si la horde est assez faible, et c
 `go -C backend test ./...` vert (5 tests existants mis à jour pour dire le NOUVEAU comportement
 voulu, pas pour repasser au vert), `npx tsc -b` vert, `go run ./cmd/balance -sweep` sur 1→6 joueurs.
 
+### Deuxième passe : le plafond, et la marge
+
+La première passe laissait la défense bloquée vers 24 alors que 48 est atteignable. La cause tenait en
+une phrase : **tous les niveaux 2-3 du design réclament un matériau CRAFTÉ** (Planche, Corde, Brique,
+Acier) et les bots n'allaient jamais à l'atelier. `botCraft` fabrique désormais ce qui manque, et
+**recycle les Débris** en Bois/Pierre quand la Recyclerie est debout — la réponse du design à une carte
+qui se vide, donc exactement ce qui doit porter la fin d'une longue partie. Effet immédiat : défense
+39, et la ville se SOIGNE (PV 39 → 95 entre les vagues 10 et 12 sur la graine 1).
+
+Trois autres choses trouvées en mesurant :
+
+- **Le rôle de bâtisseur tenait à un hash d'identifiant.** « Environ un sur trois » ne dit rien d'une
+  ÉQUIPE donnée : un bot dont les trois héros tombaient tous en récolteurs n'avait personne pour la
+  porte, les chantiers ni l'atelier — la ville ne construisait jamais rien. Le rôle vient maintenant du
+  RANG dans l'équipe (le 1er héros reste), donc exactement un bâtisseur pour trois.
+- **La simulation ne répondait pas deux fois pareil à la même graine** (chute vague 13 ou 19). Deux
+  itérations de map fuyaient dans l'état : la fusion des packs en migration et le forçage des tours de
+  combat. Triées par POSITION désormais (les id sont des UUID, les trier ne fixe rien). C'est un vrai
+  défaut au-delà de l'outil : toute l'architecture repose sur « rejouer le temps écoulé », donc deux
+  instances rejouant la même période doivent aboutir au même monde.
+- **Les grandes tables étaient punies deux fois.** `SeedStartingMonsters` ajoutait 2 packs par joueur
+  ET `hordePower` pondérait déjà par l'effectif : une table de six ouvrait sur 3,5× plus de packs qu'un
+  solo pour le même plafond de défense. Pente aplatie.
+
+Enfin la MARGE : sur 20 graines, une tombait pile à la vague 10 — le seuil que le jeu doit garantir.
+`hordeBase` passe de 8 à 6 (la base fait le démarrage, la pente fait la fin de partie).
+
+| | avant | 1re passe | après |
+|---|---|---|---|
+| chute médiane (4 joueurs) | 5 | 15 | **16** |
+| pire graine, toutes tailles | 5 | 11 | **12-13** |
+| défense atteinte | 9 | 20-26 | **jusqu'à 39** |
+| PV de ville | jamais rendus | réparables | réellement regagnés en jeu |
+
+Le garde-fou couvre maintenant 1→6 joueurs × 3 graines, vérifié stable sur quatre exécutions.
+
 ### À faire
 
 - **Les récolteurs meurent encore en fin de partie** (une graine perd 5 héros sur 7 avant la
   vague 7) : la horde qui converge les tétanise loin de la ville. Piste : se regrouper pour combattre
   (`botShouldEngage` exige des héros sur LA MÊME case, ce qui n'arrive jamais).
-- **La défense plafonne à ~24 alors que 48 est atteignable** : les niveaux 2-3 réclament des
-  matériaux CRAFTÉS (Planche, Corde, Brique, Acier) et les bots ne craftent pas. C'est aussi la
-  réponse du design à l'épuisement (Recyclerie : Débris → matériaux).
+- **Déterminisme incomplet** : les deux fuites trouvées sont bouchées, mais la même graine peut encore
+  varier de quelques vagues — il reste des consommations de hasard dépendantes d'un ordre de map à
+  débusquer. Le garde-fou est stable, l'outil d'exploration reste à lire avec cette réserve.
 - Faire tourner le balayage sur plus de graines et brancher `cmd/balance` en CI.
 
 ---

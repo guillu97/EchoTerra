@@ -39,8 +39,8 @@ func TestTownSurvivesTheFirstWaves(t *testing.T) {
 // died BEFORE a solo player. That is exactly the kind of regression this test exists
 // to catch, and it is invisible to every other test in the repository.
 func TestEveryExpeditionSizeIsPlayable(t *testing.T) {
-	for _, players := range []int{1, 2, 4, 6} {
-		for _, seed := range []int64{5, 6} {
+	for _, players := range []int{1, 2, 3, 4, 5, 6} {
+		for _, seed := range []int64{5, 6, 7} {
 			rep := Run(Config{Seed: seed, Players: players, Waves: SurvivalFloor})
 			if rep.GameOver {
 				t.Errorf("%d joueur(s), seed %d: %s", players, seed, rep.Verdict())

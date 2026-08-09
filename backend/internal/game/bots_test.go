@@ -93,12 +93,16 @@ func TestBotDepositsAndDrawsWaterInTown(t *testing.T) {
 	g, bot := botGame(t)
 	parkTeam(g, bot, g.Town.X, g.Town.Y, 2) // low PA so nobody heads back out
 	h := g.HeroByID(bot.HeroIDs[0])
-	h.AddLoot(Item{Type: "objet", Name: "Bois", Qty: 2})
+	// Un butin qu'AUCUNE recette ne consomme : avec du Bois, un coéquipier bâtisseur le
+	// transforme en Planche dans le même tour (botCraft) et l'assertion sur la Banque
+	// mesurerait le craft plutôt que le dépôt.
+	h.AddLoot(Item{Type: "animal", Name: "Trophée de monstre", Qty: 2})
 	if !g.BotAct(time.Now()) {
 		t.Fatal("bot should act")
 	}
-	if len(h.Inventory) != 0 || g.storageQty("Bois") != 2 {
-		t.Fatalf("bot should deposit its loot into the Bank: inv=%d bank=%d", len(h.Inventory), g.storageQty("Bois"))
+	if len(h.Inventory) != 0 || g.storageQty("Trophée de monstre") != 2 {
+		t.Fatalf("bot should deposit its loot into the Bank: inv=%d bank=%d",
+			len(h.Inventory), g.storageQty("Trophée de monstre"))
 	}
 
 	// Thirsty in town: next action is the daily ration.
@@ -438,5 +442,47 @@ func TestBotDeclinesFightAboveItsPower(t *testing.T) {
 	g.TileAt(3, 3).MonsterID = m.ID
 	if g.botShouldEngage(g.HeroByID(bot.HeroIDs[0]), m) {
 		t.Fatal("a frail party must not engage a pack far above its power")
+	}
+}
+
+// Les bots FABRIQUENT ce qui ne se ramasse pas. Tous les niveaux 2-3 du design
+// réclament un matériau crafté (Planche, Corde, Brique, Acier) : une ville qui ne
+// passe jamais à l'atelier reste bloquée à sa défense de départ quelle que soit la
+// pierre accumulée — mesuré, la défense plafonnait à ~24 quand 48 est atteignable.
+func TestBotCraftsMissingBuildingMaterial(t *testing.T) {
+	g, bot := botGame(t)
+	parkTeam(g, bot, g.Town.X, g.Town.Y, 6)
+	// La muraille de niveau 3 réclame de la Brique, qui se fabrique à partir de Pierre.
+	if w := g.buildingByID("wall"); w != nil {
+		w.Level = 2
+	}
+	g.addStorage(Item{Type: "minerai", Name: "Pierre", Qty: 20})
+	g.Recompute()
+
+	for i := 0; i < 6 && g.storageQty("Brique") == 0; i++ {
+		g.BotAct(time.Now())
+	}
+	if g.storageQty("Brique") == 0 {
+		t.Fatal("les bots doivent transformer la Pierre en Brique pour la muraille niv.3")
+	}
+}
+
+// Le recyclage des Débris est la réponse du design à une carte qui se vide : c'est ce
+// qui permet à une longue partie de continuer une fois les cases épuisées.
+func TestBotRecyclesDebrisWhenRecyclerieStands(t *testing.T) {
+	g, bot := botGame(t)
+	parkTeam(g, bot, g.Town.X, g.Town.Y, 6)
+	r := g.buildingByID("recyclerie")
+	r.Built, r.Level, r.Durability, r.MaxDurability = true, 1, 80, 80
+	g.addStorage(Item{Type: "objet", Name: "Débris", Qty: 9})
+	g.Town.HP = g.Town.MaxHP // pas d'urgence : le recyclage n'est pas masqué par une réparation
+	g.Recompute()
+
+	before := g.storageQty("Pierre")
+	for i := 0; i < 6 && g.storageQty("Pierre") == before; i++ {
+		g.BotAct(time.Now())
+	}
+	if g.storageQty("Pierre") <= before {
+		t.Fatal("les bots doivent recycler les Débris en Pierre quand la Recyclerie est debout")
 	}
 }

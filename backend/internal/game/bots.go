@@ -225,7 +225,7 @@ func (g *GameState) botHeroAct(h *Hero, curfew int) bool {
 		// inside repairing the same wall while the Bank held no stone and no chantier
 		// could advance. Measured: twelve heroes still within three tiles of the town at
 		// wave 8, with a discovered mountain four tiles away.
-		builder := heroIsBuilder(h.ID)
+		builder := g.heroIsBuilder(h.ID)
 		if builder {
 			// A BUILDER DOES NOT LEAVE. It is the town's standing crew: the chantiers,
 			// the repairs and the gate all need someone who is reliably home. Letting
@@ -632,6 +632,12 @@ func (g *GameState) botBuild(h *Hero) bool {
 			return true
 		}
 	}
+	// 4b. Make what cannot be gathered. Every level-2/3 building in the design wants a
+	// crafted good, so a town that never visits its own workshop stops dead at its
+	// starting defense — and recycling débris is the design's answer to a map run dry.
+	if g.botCraft(h) {
+		return true
+	}
 	// 5. The town's own wounds, paid in the SURPLUS stone only. Nothing else in the
 	// game heals Town.HP, so a town that never repairs is on a one-way slide — but
 	// stone earmarked for the next wall level is not surplus. A town actually bleeding
@@ -678,6 +684,79 @@ func (g *GameState) reservedForDefense(name string) int {
 	return n
 }
 
+// recipeFor returns the town recipe whose OUTPUT is this item name, or nil.
+func recipeFor(name string) *Recipe {
+	for i := range Recipes {
+		r := &Recipes[i]
+		out := r.OutputName
+		if out == "" {
+			out = r.Name
+		}
+		if out == name {
+			return r
+		}
+	}
+	return nil
+}
+
+// botCraft turns raw materials into the CRAFTED ones the town's upgrades ask for
+// (Planche, Corde, Brique, Acier) and recycles Débris back into Bois and Pierre.
+//
+// Without this the town hits a hard ceiling and stops: every level-2 and level-3
+// building in the design wants a crafted good, so a town that never crafts is stuck at
+// its starting defense forever however much stone it piles up. Measured before: defense
+// plateaued around 24 while 48 was reachable. Recycling matters for a different reason
+// — it is the design's answer to a map running dry, which is exactly what a long game
+// is supposed to run into.
+func (g *GameState) botCraft(h *Hero) bool {
+	// 1. What is missing for the next level of something, and can only be made?
+	for _, b := range g.orderedForCraft() {
+		if b.Built && b.Level >= MaxBuildingLevel {
+			continue
+		}
+		for _, m := range g.buildingCost(b).Materials {
+			if g.storageQty(m.Name) >= m.Qty || terrainDroppable(m.Name) {
+				continue // already have it, or it is gathered rather than made
+			}
+			r := recipeFor(m.Name)
+			if r == nil || !g.bankCovers(r.Ingredients) {
+				continue
+			}
+			if _, err := g.Craft(r.ID, h.ID); err == nil {
+				return true
+			}
+		}
+	}
+	// 2. Recycle the junk from picked-clean tiles back into the two materials that
+	// actually build things — stone first, it is the one the walls eat.
+	for _, name := range []string{"Pierre", "Bois"} {
+		r := recipeFor(name)
+		if r == nil || !g.bankCovers(r.Ingredients) {
+			continue
+		}
+		if _, err := g.Craft(r.ID, h.ID); err == nil {
+			return true
+		}
+	}
+	return false
+}
+
+// orderedForCraft lists the buildings worth crafting for, defense first.
+func (g *GameState) orderedForCraft() []*TownBuilding {
+	var out []*TownBuilding
+	for _, id := range botDefensiveOrder {
+		if b := g.buildingByID(id); b != nil {
+			out = append(out, b)
+		}
+	}
+	for _, b := range g.Town.Buildings {
+		if !isDefensive(b.ID) {
+			out = append(out, b)
+		}
+	}
+	return out
+}
+
 // bankCovers reports whether the Bank currently holds every listed material.
 func (g *GameState) bankCovers(mats []Item) bool {
 	for _, m := range mats {
@@ -722,11 +801,26 @@ func heroHash(id string) int {
 	return h
 }
 
-// heroIsBuilder splits a bot team into roles the way a real expedition does: roughly
-// one hero in three stays home as a BUILDER (chantiers, repairs, the gate) while the
-// others range out for materials. The split is stable per hero id, so a team doesn't
-// oscillate between "everyone gathers" and "everyone builds".
-func heroIsBuilder(id string) bool { return heroHash(id)%3 == 0 }
+// heroIsBuilder splits a bot team into roles the way a real expedition does: the FIRST
+// hero of each team stays home as a BUILDER (chantiers, repairs, crafting, the gate)
+// while the other two range out for materials.
+//
+// The role comes from the hero's rank in its own team, not from a hash of its id: a
+// hash gives "roughly one in three" over many heroes but says nothing about any single
+// team, and a lone bot player whose three heroes all hashed to gatherers had NOBODY to
+// work the gate, hold a chantier or visit the workshop — the town simply never built
+// anything. Per-team ranking guarantees exactly one builder per three heroes, which is
+// what the split was always meant to mean.
+func (g *GameState) heroIsBuilder(heroID string) bool {
+	for _, p := range g.Players {
+		for i, id := range p.HeroIDs {
+			if id == heroID {
+				return i == 0
+			}
+		}
+	}
+	return false // heroes with no owner (legacy solo) are all gatherers
+}
 
 // pickResourceTile chooses where the bot hero goes gathering: discovered, walkable,
 // monster-free tiles with resources left, scored by distance MINUS richness, plus a

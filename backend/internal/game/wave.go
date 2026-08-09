@@ -2,6 +2,7 @@ package game
 
 import (
 	"math/rand"
+	"sort"
 	"time"
 )
 
@@ -175,8 +176,14 @@ func (g *GameState) recomputeTetanise() {
 // remparts, cf. TownRepairHP) — donc la vraie limite devient l'épuisement de la carte
 // et non l'arithmétique de la horde. La croissance reste LINÉAIRE et sans plafond :
 // la ville finit toujours par tomber, plus tard et pour une raison jouable.
+// Réglés sur la MARGE, pas sur la moyenne. Une ville de départ oppose ~22 (muraille
+// niv.1 + portail niv.2 fermé) ; à 8+3×vague le débordement cumulé atteignait déjà
+// 100 PV vers la vague 12, si bien que la graine la plus malchanceuse tombait PILE à
+// la vague 10 — le seuil que le jeu doit garantir. Six points de base laissent la
+// marge qui manquait, sans toucher à la pente : c'est la pente qui fait la fin de
+// partie, la base qui fait le démarrage.
 const (
-	hordeBase   = 8 // puissance de départ
+	hordeBase   = 6 // puissance de départ
 	hordeGrowth = 3 // par vague, sans plafond
 )
 
@@ -483,10 +490,28 @@ func (g *GameState) migrateMonstersTowardTown() {
 	}
 	// Snapshot des IDs : on supprime des packs (fusion) en cours de route, et chaque
 	// pack ne joue qu'UNE fois par vague (acted) — un survivant de fusion ne rebouge pas.
+	//
+	// L'ordre est TRIÉ, pas celui de la map : deux packs qui se disputent la même case
+	// fusionnent différemment selon qui avance en premier, donc l'ordre d'itération
+	// aléatoire de Go rendait une vague non reproductible. C'est faux pour un jeu dont
+	// toute l'architecture est « rejouer le temps écoulé » (sim.go) — deux instances
+	// rejouant la même période doivent aboutir au même monde — et ça rendait la
+	// simulation d'équilibrage incapable de répondre deux fois pareil à la même graine
+	// (mesuré : même seed, chute vague 13 ou vague 19 selon le tirage).
+	// Trié par POSITION, pas par identifiant : les id sont des UUID tirés au hasard, donc
+	// les trier ne fixe rien. Une case ne porte qu'un pack (Tile.MonsterID), donc (Y,X)
+	// est un ordre total et stable d'une exécution à l'autre.
 	ids := make([]string, 0, len(g.Monsters))
 	for id := range g.Monsters {
 		ids = append(ids, id)
 	}
+	sort.Slice(ids, func(i, j int) bool {
+		a, b := g.Monsters[ids[i]], g.Monsters[ids[j]]
+		if a.Y != b.Y {
+			return a.Y < b.Y
+		}
+		return a.X < b.X
+	})
 	acted := map[string]bool{}
 	for _, id := range ids {
 		m := g.Monsters[id]

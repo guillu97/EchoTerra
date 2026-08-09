@@ -163,8 +163,15 @@ func (g *GameState) SeedStartingMonsters(players int) int {
 	if players < 1 {
 		players = 1
 	}
-	target := 6 + (g.Width*g.Height)/280 + 2*(players-1)
-	near := 3 + (players - 1) // visibles dès le départ (dans le rayon de vision de la ville)
+	// La croissance par joueur est VOLONTAIREMENT plate (les packs sont surtout fonction
+	// de la taille de carte). Elle valait 2 packs par joueur en plus, et près de la ville
+	// un de plus par joueur : une table de six ouvrait donc sur 3,5× plus de packs qu'un
+	// solo, pour EXACTEMENT le même plafond de défense (muraille + portail + tour). Comme
+	// hordePower pondère déjà la horde par l'effectif (hordeScale), l'effet se cumulait et
+	// s'inversait — mesuré : les grandes expéditions tombaient à la vague 11 quand les
+	// solos tenaient jusqu'à 17.
+	target := 6 + (g.Width*g.Height)/280 + (players-1)/2
+	near := 3 + (players-1)/3 // visibles dès le départ (dans le rayon de vision de la ville)
 	placed := 0
 	for i := 0; i < near; i++ {
 		if g.spawnPackInBand(spawnSafeRadius+1, townSightRadius, false) {
