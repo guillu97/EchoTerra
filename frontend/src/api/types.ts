@@ -352,7 +352,13 @@ export interface GameState {
     y: number;
     hp: number;
     maxHp: number;
-    defense: number;
+    defense: number; // bâtiments + garnison
+    // LA GARNISON : les héros présents dans les murs défendent (backend wave.go).
+    // `garrison` = têtes aux remparts, `garrisonValue` = ce qu'elles ajoutent, plafonné
+    // à ce que les bâtiments tiennent déjà — on ne défend que le rempart qu'on a bâti.
+    // C'est le seul terme de la défense qu'un joueur change en une action : sortir.
+    garrison?: number;
+    garrisonValue?: number;
     buildings: TownBuilding[];
     storage: Item[];
     waterDrawnToday: string[];

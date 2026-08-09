@@ -220,14 +220,27 @@ const (
 // vague 8, quand huit joueurs tenaient vingt vagues. La densité de matériaux par héros
 // doit être la même à toutes les tailles ; la surface l'est déjà (SizeForPlayers).
 func biomeQuota(side int) (radius, tiles int) {
+	// ⚠ LE RAYON NE SUIT PAS LA CARTE. Il suivait la taille du monde, ce qui satisfait
+	// la garantie sur le papier et affame la ville en pratique : sur la carte d'une
+	// expédition de vingt (134²) le « gisement proche » pouvait s'étaler jusqu'à DIX-HUIT
+	// cases du bourg, alors qu'un héros a six PA par vague et doit rentrer. Mesuré sur
+	// une partie de vingt joueurs : ZÉRO tuile de forêt découverte pendant trois vagues,
+	// quatre en douze vagues contre cinquante de montagne — bois en banque = 0 du début
+	// à la fin, donc ni tour, ni portail niveau 3, ni aucun des sites, pendant que 143
+	// pierres dormaient à la Banque.
+	//
+	// La portée d'un héros est fixe ; c'est le monde qui grandit. Même erreur, même
+	// correctif que hordeFrontRadius (wave.go).
+	radius = nearBiomeR
 	f := float64(side) / float64(DefaultSize)
-	radius = int(math.Round(float64(nearBiomeR) * f))
-	if radius < nearBiomeR {
-		radius = nearBiomeR
-	}
 	tiles = int(math.Round(float64(minBiomeTiles) * f * f)) // ∝ surface, comme la population
 	if tiles < minBiomeTiles {
 		tiles = minBiomeTiles
+	}
+	// …mais deux gisements ne peuvent pas dévorer tout le voisinage : un quart chacun
+	// au plus, sinon la ville naît entre une falaise et une futaie, sans rien d'autre.
+	if maxTiles := (2*radius + 1) * (2*radius + 1) / 4; tiles > maxTiles {
+		tiles = maxTiles
 	}
 	return radius, tiles
 }

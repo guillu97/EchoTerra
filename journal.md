@@ -6,6 +6,86 @@
 
 ---
 
+## 2026-08-09 (97) — Ce que la simulation ne voyait pas : la garnison, l'horloge, et une forêt à dix-huit cases
+
+Suite directe de l'entrée 94 (l'instrument d'équilibrage). Cette fois l'instrument a servi à
+*chercher*, pas seulement à garder — et il a fallu commencer par le réparer.
+
+### D'abord : le hasard ne l'était pas (au sens où on croyait)
+
+`rand.Seed` est un **NO-OP depuis Go 1.24**. Deux endroits comptaient dessus en silence : le worldgen
+(donc **deux parties de même graine ne donnaient pas la même carte** — le champ `Seed` mentait) et la
+simulation elle-même (donc elle ne répondait pas deux fois pareil à la même question : deux faux
+positifs et une garde de non-régression rendue instable). `game/rng.go` : un générateur de paquet,
+semable et verrouillé. Gardes permanentes dans `balance/determinism_test.go`.
+
+Au passage, une leçon de méthode : la sonde qui « prouvait » une divergence résiduelle faisait avancer
+les deux rejeux **tour à tour sur le même flux de hasard**. Elle se mesurait elle-même. Une fois la
+sonde écrite correctement, quarante rounds identiques.
+
+### Ensuite : l'instrument mesurait un jeu amputé
+
+`SearchTile` planifiait la fouille automatique à partir de `time.Now()`. La simulation tourne sur une
+horloge synthétique → l'échéance tombait toujours dans le futur → **zéro récolte automatique sur une
+partie entière**. Tout le raisonnement « les bots ne récoltent rien » portait sur un jeu privé de son
+économie de campement. Et c'était aussi un vrai bug de production : pendant un rattrapage, un round
+rejoué à T-3 h posait sa récolte trois heures trop tard.
+
+`GameState.clock()` : l'instant REJOUÉ pendant un rattrapage, l'heure réelle sinon. Toute échéance
+qu'une action pose dans le futur part de là.
+
+### Ce que la mesure a alors montré
+
+Instrumentation du mélange d'actions et du contenu de la Banque, sur une vraie partie :
+
+- **7 % des PA allaient à la récolte** ; 71 % au déplacement. Les récolteurs **rechoisissaient leur
+  destination à chaque round** (tirage parmi les trois meilleures cases, dont le score dépend de leur
+  propre position) : ils oscillaient au lieu de voyager, et une case à dix pas n'était jamais atteinte
+  avec six PA par vague. → `Hero.Goal*` : on se fixe un cap et on s'y tient.
+- **56 Pierre et 39 plans dormaient dans les sacs**, dont dix « Plan de la Tour » alors que la tour n'a
+  jamais été bâtie de la partie. Le seuil de portage (14 objets) est un critère de *rendement*, muet sur
+  l'*urgence* : à soixante héros portant huit objets chacun, personne ne l'atteint jamais. →
+  `botCarryingWanted` : on rentre ce dont la Banque est à ZÉRO, sac léger ou non. Auto-limitant.
+- **Zéro tuile de forêt découverte** pendant trois vagues sur la carte d'une expédition de vingt, quatre
+  en douze vagues contre cinquante de montagne. `biomeQuota` faisait grandir le **rayon** de la garantie
+  avec la carte : le « gisement proche » pouvait s'étaler à dix-huit cases du bourg. Satisfait sur le
+  papier, inatteignable en jeu. **La portée d'un héros est fixe ; c'est le monde qui grandit** — même
+  erreur et même correctif que `hordeFrontRadius`. Rayon figé, quota ∝ population.
+
+### La garnison — les murs se tiennent
+
+Le vrai plafond : la défense d'une ville ne dépendait que de ses **bâtiments**, plafonnés aux mêmes
+trois niveaux qu'on soit trois héros ou soixante, pendant que la pression de la horde suivait
+l'expédition. D'où une courbe de survie **non monotone** : 15 · 14 · 14 · 16 · 17 · 19 vagues pour
+1 · 2 · 4 · 8 · 12 · 20 joueurs — deux et quatre joueurs allaient *moins* loin qu'un solo.
+
+Un héros présent dans les murs quand la horde frappe **défend** (1, 2 pour une classe évoluée, 3 pour un
+Gardien). **Plafonné par la pierre** : jamais plus que ce que les bâtiments tiennent déjà — sinon masser
+du monde rendrait la construction, donc le jeu, inutile ; et une porte ouverte abaisse aussi le plafond.
+C'est le dilemme de Hordes sous sa forme la plus simple : rentré je défends, sorti je récolte.
+
+Enfin un **genou** sur `hordeScale` (au-delà de 8 équipes la pression croît à taux réduit), parce que la
+capacité d'une ville sature là où la pression, elle, ne saturait pas.
+
+### Fonctionnel (vérifié)
+
+- Courbe de survie **monotone** : médianes **15 · 18 · 22 · 22** vagues pour 1 · 4 · 12 · 20 joueurs
+  (12 à 20 graines par point). Vingt joueurs vont ~47 % plus loin qu'un solo.
+- `SurvivalFloor` relevé de 10 à **12** ; `TestBigExpeditionsGoFurther` devient une **échelle**
+  (1 < 4 < 20) et non deux points — « 20 > 1 » se satisfaisait d'une courbe qui plongeait au milieu.
+- Une ville de vingt joueurs monte désormais tour niveau 3, mur 3, cuisine, recyclerie, mairie et poste
+  (contre six bâtiments figés au niveau de départ pendant toute la partie).
+- `go test ./... -count=2` vert, `go vet` propre, `npx tsc -b` et `npm run build` verts.
+- Interface : le détail de défense (TownStatus) affiche la garnison et explique le plafond.
+
+### À faire
+
+- P7 (chronique de compte & titres) et P8 (saisons) de `RETENTION-PLAN.md`.
+- L'ergonomie de l'ordre du jour et du bouton de la Tour n'a jamais été vue en vrai par l'utilisateur.
+- Le portail reste bloqué au niveau 2 faute d'Acier : les bots ne craftent pas assez haut.
+
+---
+
 ## 2026-08-09 (96) — La fenêtre d'accueil des expéditions publiques
 
 Demande : qu'une partie publique **se lance** dès le minimum de joueurs atteint, mais qu'elle reste

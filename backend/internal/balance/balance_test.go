@@ -12,7 +12,12 @@ import (
 // died at wave 5, and nothing in the test suite noticed, because no test had ever
 // played a game. A change that drops a town below this line has broken the game for
 // every player, and should fail CI rather than ship.
-const SurvivalFloor = 10
+// Relevé de 10 à 12 le 2026-08-09 : sur vingt graines, la pire configuration (un
+// joueur seul, la plus dure — voir la ladder ci-dessous) tombe au plus tôt à la
+// quatorzième vague, et la médiane de toutes les tailles est de 15 à 22. Un plancher
+// qu'on dépasse de moitié ne garde plus rien ; celui-ci laisse deux vagues de marge à
+// la variance des graines et échouerait pour de bon si une régression revenait.
+const SurvivalFloor = 12
 
 // TestTownSurvivesTheFirstWaves plays a full game per seed and fails if the town falls
 // before the floor. Kept to a handful of seeds and a short horizon so it stays a test
@@ -52,10 +57,18 @@ func TestBigExpeditionsGoFurther(t *testing.T) {
 		}
 		return float64(total) / float64(n)
 	}
-	solo, big := reach(1), reach(20)
-	t.Logf("portée moyenne : 1 joueur %.1f vagues · 20 joueurs %.1f vagues", solo, big)
-	if big <= solo {
-		t.Errorf("une expédition de 20 doit dépasser un solo : %.1f vs %.1f vagues", big, solo)
+	// UNE ÉCHELLE, PAS DEUX POINTS. « 20 > 1 » se satisfaisait d'une courbe qui plongeait
+	// au milieu, et c'était le cas : mesuré, 15 · 14 · 14 · 16 · 17 · 19 vagues pour
+	// 1 · 2 · 4 · 8 · 12 · 20 joueurs — deux et quatre joueurs allaient MOINS loin qu'un
+	// solo, parce qu'ils héritaient d'une horde plus dure sans aucun moyen de bâtir plus
+	// haut. On garde donc l'ordre sur toute la plage.
+	solo, mid, big := reach(1), reach(4), reach(20)
+	t.Logf("portée moyenne : 1 joueur %.1f · 4 joueurs %.1f · 20 joueurs %.1f vagues", solo, mid, big)
+	if mid <= solo {
+		t.Errorf("quatre joueurs doivent dépasser un solo : %.1f vs %.1f vagues", mid, solo)
+	}
+	if big <= mid {
+		t.Errorf("une expédition de 20 doit dépasser quatre joueurs : %.1f vs %.1f vagues", big, mid)
 	}
 }
 

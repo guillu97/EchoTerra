@@ -78,6 +78,13 @@ type Hero struct {
 	// n'est pas installé à récolter). Posée par la première fouille — celle qui
 	// coûte 1 PA — puis replanifiée toute seule par la simulation. Voir forage.go.
 	ForageAt time.Time `json:"forageAt,omitzero"`
+	// Goal* est le CAP d'un héros de joueur-IA : la case de récolte vers laquelle il
+	// marche. Il faut le retenir d'un round à l'autre, sinon le bot rechoisit sa
+	// destination à chaque pas et erre au lieu de voyager (voir bots.go
+	// botGatherTarget). Sans effet sur un héros humain.
+	GoalX   int  `json:"goalX,omitempty"`
+	GoalY   int  `json:"goalY,omitempty"`
+	HasGoal bool `json:"hasGoal,omitempty"`
 	// ClassID identifies the hero's current class in the Classes catalog ("" while
 	// "Sans classe"). ClassTier mirrors its tier (see ClassTier* consts). ClassBonuses
 	// accumulates the stat bonuses already folded into Stats by EvolveHero, kept only
@@ -184,14 +191,19 @@ type GameState struct {
 	// jeu coopératif ; le registre est volontairement NON trié par mérite.
 	Contributions map[string]*Contribution `json:"contributions,omitempty"`
 	Town          struct {
-		Name      string          `json:"name"` // generated town name (see townnames.go)
-		X         int             `json:"x"`
-		Y         int             `json:"y"`
-		HP        int             `json:"hp"`
-		MaxHP     int             `json:"maxHp"`
-		Defense   int             `json:"defense"` // computed from defensive buildings
-		Buildings []*TownBuilding `json:"buildings"`
-		Storage   []Item          `json:"storage"` // shared stash (the House/Bank)
+		Name    string `json:"name"` // generated town name (see townnames.go)
+		X       int    `json:"x"`
+		Y       int    `json:"y"`
+		HP      int    `json:"hp"`
+		MaxHP   int    `json:"maxHp"`
+		Defense int    `json:"defense"` // bâtiments + garnison (voir GarrisonDefense)
+		// Garnison : les héros présents dans les murs défendent (wave.go). Dérivés,
+		// exposés pour que l'interface puisse détailler « d'où vient ma défense » —
+		// c'est le seul terme que le joueur change en une action.
+		Garrison      int             `json:"garrison"`      // têtes aux remparts
+		GarrisonValue int             `json:"garrisonValue"` // ce qu'elles ajoutent, plafond compris
+		Buildings     []*TownBuilding `json:"buildings"`
+		Storage       []Item          `json:"storage"` // shared stash (the House/Bank)
 		// WaterDrawnToday lists the in-town hero IDs who have already taken their daily
 		// Well ration this game.day (derived; refreshed by Recompute). The Well "water"
 		// action is limited to one ration per hero per day.
@@ -235,6 +247,22 @@ type GameState struct {
 	// sends the whole map (tiles marked discovered) — the real explored set is left
 	// untouched, so clearing the flag restores the genuine fog. See fog.go.
 	RevealAll bool `json:"revealAll,omitempty"`
+
+	// simNow est l'INSTANT REJOUÉ pendant un rattrapage (AdvanceTo). Non sérialisé, à
+	// dessein : hors rattrapage il vaut zéro et l'horloge retombe sur l'heure réelle.
+	// Voir clock().
+	simNow time.Time
+}
+
+// clock rend l'instant COURANT DU MONDE : l'instant rejoué quand un rattrapage est en
+// cours (sim.go), l'heure réelle sinon. Toute échéance qu'une action POSE dans le futur
+// doit partir d'ici et non de time.Now() — un rattrapage rejoue des instants passés, et
+// une échéance calée sur « maintenant » y arrive systématiquement trop tard.
+func (g *GameState) clock() time.Time {
+	if g.simNow.IsZero() {
+		return time.Now()
+	}
+	return g.simNow
 }
 
 // TileAt returns a pointer to the tile at (x,y), or nil if out of bounds.

@@ -77,7 +77,7 @@ func TestBiomeThresholds(t *testing.T) {
 		{0.95, game.BiomeSnow},
 	}
 	for _, c := range cases {
-		if got := biomeFromLevel(int(c.v*float64(genMaxHeight)+0.5)); got != c.want {
+		if got := biomeFromLevel(int(c.v*float64(genMaxHeight) + 0.5)); got != c.want {
 			t.Errorf("biomeFromLevel(%v)=%v want %v", c.v, got, c.want)
 		}
 	}

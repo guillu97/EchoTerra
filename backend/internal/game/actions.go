@@ -1,8 +1,6 @@
 package game
 
-import (
-	"time"
-)
+import ()
 
 // Map-level state names used by the slice.
 const (
@@ -244,7 +242,7 @@ func (g *GameState) SearchTile(heroID string) (*Item, error) {
 	}
 	// Le PA payé ici ouvre la FOUILLE AUTOMATIQUE : le héros reste sur place et
 	// continue de fouiller tout seul (voir forage.go).
-	h.ForageAt = time.Now().Add(ForageInterval())
+	h.ForageAt = g.clock().Add(ForageInterval())
 	return it, nil
 }
 

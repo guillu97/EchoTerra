@@ -64,7 +64,8 @@ func buildingDefense(b *TownBuilding) int {
 	return int(float64(lv.Defense) * ratio)
 }
 
-func (g *GameState) TownDefense() int {
+// buildingsDefense is what the STONE alone holds — walls, closed gate, tower.
+func (g *GameState) buildingsDefense() int {
 	def := 0
 	for _, b := range g.Town.Buildings {
 		def += buildingDefense(b)
@@ -72,11 +73,62 @@ func (g *GameState) TownDefense() int {
 	return def
 }
 
+// LA GARNISON — les murs se tiennent, ils ne tiennent pas tout seuls.
+//
+// Pourquoi ce terme existe : la défense d'une ville était une pure fonction de ses
+// BÂTIMENTS, plafonnée à 48 (muraille 20 + portail 16 + tour 12), qu'on soit trois
+// héros ou soixante — pendant que la pression de la horde, elle, suit l'expédition
+// (hordeScale). Mesuré : médianes de survie 15 · 14 · 14 · 16 · 17 · 19 vagues pour
+// 1 · 2 · 4 · 8 · 12 · 20 joueurs. Vingt joueurs allaient à peine plus loin qu'un
+// seul, et deux ou quatre allaient MOINS LOIN — ils héritaient d'une horde plus dure
+// sans aucun moyen de bâtir plus haut. Un renfort ne servait à rien derrière le mur.
+//
+// Un héros présent dans les murs à l'instant où la horde frappe DÉFEND. C'est ce qui
+// fait qu'une expédition nombreuse va plus loin, et c'est le dilemme de Hordes rendu à
+// sa forme la plus simple : chaque héros rentré défend mais ne récolte pas ce tour-là.
+//
+// ⚠ PLAFONNÉ PAR LA PIERRE. La garnison ne peut pas dépasser ce que les bâtiments
+// tiennent déjà : on ne défend que le rempart qu'on a bâti, et sans ce plafond
+// soixante héros massés en ville rendraient la construction — donc le jeu — inutile.
+// Le portail ouvert vaut 0 : il abaisse aussi le plafond, parce qu'une brèche ne se
+// tient pas à mains nues.
+func garrisonWeight(h *Hero) int {
+	switch {
+	case h.ClassID == "gardien":
+		return 3 // sa raison d'être : il compte déjà pour trois face à un pack
+	case h.ClassTier >= 1:
+		return 2
+	}
+	return 1
+}
+
+// GarrisonDefense rend le nombre de héros aux remparts et ce qu'ils y ajoutent.
+func (g *GameState) GarrisonDefense() (heroes, value int) {
+	raw := 0
+	for _, h := range g.HeroesInTown() {
+		if h.HP <= 0 {
+			continue
+		}
+		heroes++
+		raw += garrisonWeight(h)
+	}
+	if walls := g.buildingsDefense(); raw > walls {
+		raw = walls
+	}
+	return heroes, raw
+}
+
+func (g *GameState) TownDefense() int {
+	_, garrison := g.GarrisonDefense()
+	return g.buildingsDefense() + garrison
+}
+
 // Recompute refreshes derived fields (town defense, hero "Tétanisé", building costs,
 // Bank usage). Safe anytime.
 func (g *GameState) Recompute() {
 	g.backfillBuildings()
-	g.Town.Defense = g.TownDefense()
+	g.Town.Garrison, g.Town.GarrisonValue = g.GarrisonDefense()
+	g.Town.Defense = g.buildingsDefense() + g.Town.GarrisonValue
 	g.recomputeTetanise()
 	g.RevealVision() // grow the shared fog-of-war reveal set from current positions
 	// Which in-town heroes have already drawn their daily water ration.
@@ -226,8 +278,25 @@ func (g *GameState) expeditionTeams() int {
 	return teams
 }
 
+// hordeKnee : au-delà de ce nombre d'équipes, la pression de la horde ne suit plus
+// l'expédition au même rythme.
+//
+// Pourquoi un genou et pas une droite : la CAPACITÉ d'une ville sature. Sa défense
+// vaut au plus deux fois ce que ses bâtiments tiennent (garnison plafonnée, cf.
+// GarrisonDefense), et ces bâtiments ont les mêmes trois niveaux qu'on soit trois
+// héros ou soixante. Une pression strictement proportionnelle finissait donc par
+// dépasser un plafond qui, lui, ne bougeait pas : mesuré, une expédition de vingt
+// tombait à la vague 20 quand une de douze tenait jusqu'à 21 — l'inverse de la règle
+// qu'on veut (plus nombreux = plus loin). Au-delà du genou, une équipe de plus apporte
+// donc encore de la difficulté, mais à taux réduit.
+const hordeKnee = 8
+
 func (g *GameState) hordeScale() float64 {
-	return float64(6+g.expeditionTeams()) / 10.0
+	teams := float64(g.expeditionTeams())
+	if teams > hordeKnee {
+		teams = hordeKnee + (teams-hordeKnee)*0.6
+	}
+	return (6 + teams) / 10.0
 }
 
 // hordePower assemble les deux termes pour la vague qui frappe maintenant.
