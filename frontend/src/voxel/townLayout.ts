@@ -246,7 +246,36 @@ const POLAR: PolarPlot[] = [
   // La Poste occupe le secteur resté vide entre la Banque (28°) et la
   // Recyclerie (112°) — un relais se pose au bord de la route, pas au sommet.
   { bid: "poste", r: 0.64, deg: 70, cells: 3.2 },
+  // LES CINQ BÂTIMENTS DE SPÉCIALITÉ (backend design.go) : placés PLUS BAS sur la
+  // pente que le noyau civique, dans les secteurs restés vides. Ce sont des annexes,
+  // pas le cœur du bourg — et aucune ville ne les aura tous, donc leurs parcelles sont
+  // le plus souvent des chantiers ou de l'herbe nue.
+  { bid: "infirmerie", r: 0.74, deg: 154, cells: 3.4 },
+  { bid: "cartographe", r: 0.74, deg: 236, cells: 3.0 },
+  { bid: "caserne", r: 0.78, deg: 278, cells: 3.6 },
+  { bid: "armurerie", r: 0.78, deg: 350, cells: 3.4 },
+  { bid: "verger", r: 0.80, deg: 92, cells: 3.2 },
 ];
+
+/**
+ * MODÈLE VOXEL utilisé pour une parcelle. Par défaut `bld-<id>`.
+ *
+ * ⚠ ART PROVISOIRE : les cinq bâtiments de spécialité n'ont pas encore leur propre
+ * modèle (`scripts/voxel/` les génère par recette, ce qui reste à faire). Ils
+ * EMPRUNTENT donc celui d'un voisin plausible. Sans cette table le rendu ferait
+ * `if (!geom) continue` et le bâtiment serait INVISIBLE — donc impossible à cliquer,
+ * alors qu'il est bel et bien construit et qu'il agit.
+ */
+const BLD_MODEL: Record<string, string> = {
+  infirmerie: "bld-townhall",
+  cartographe: "bld-panel",
+  armurerie: "bld-workshop",
+  caserne: "bld-tower",
+  verger: "bld-kitchen",
+};
+
+/** Clé du modèle voxel d'un bâtiment (emprunt compris, cf. BLD_MODEL). */
+export const buildingModelKey = (bid: string): string => BLD_MODEL[bid] ?? `bld-${bid}`;
 
 const polarXY = (r: number, deg: number) => {
   const a = (deg * Math.PI) / 180;

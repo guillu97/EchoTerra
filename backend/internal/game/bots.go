@@ -606,6 +606,18 @@ func (g *GameState) botShoppingList() map[string]bool {
 		if b.Built && b.Level >= MaxBuildingLevel {
 			continue
 		}
+		// ON NE FAIT PAS LES COURSES POUR UN CHANTIER QU'ON NE PEUT PAS OUVRIR. Un site
+		// neuf exige son PLAN, qui se trouve sur le terrain ou dans les ruines : tant
+		// qu'il n'est pas en Banque, ses matériaux ne servent à rien. Sans ce filtre,
+		// l'arrivée des cinq bâtiments de spécialité a mis Cuir, Herbe médicinale,
+		// Graines anciennes et Minerai d'or sur la liste de courses de TOUTES les villes,
+		// y compris celles qui n'auraient jamais le plan — les récolteurs partaient
+		// chercher au loin de quoi bâtir l'imaginaire pendant que la pierre manquait.
+		if !b.Built {
+			if plan := buildingPlanItem(b.ID); plan != "" && g.storageQty(plan) == 0 {
+				continue
+			}
+		}
 		for _, m := range g.buildingCost(b).Materials {
 			if g.storageQty(m.Name) < m.Qty {
 				add(m.Name)

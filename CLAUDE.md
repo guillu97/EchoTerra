@@ -535,6 +535,31 @@ ajouté après coup n'atteindrait aucune partie en cours.
 
 **Bank** = `town.storage`: deposit hero loot (`/town/deposit`), craft I/O in town, construction materials.
 
+**LES CINQ BÂTIMENTS DE SPÉCIALITÉ** (`design.go`, 2026-08-10) — Infirmerie, Cartographe,
+Armurerie, Verger, Caserne. **Pourquoi** : une expédition de vingt construisait LES ONZE bâtiments du
+catalogue (mesuré : 11 debout, 18 niveaux sur 33) — il n'y avait aucune priorité à arbitrer, juste
+une liste à dérouler ; un solo, lui, n'en bâtissait aucun. Chacun ouvre un AXE que rien d'autre ne
+couvre, pour que l'arbitrage porte sur des choses INCOMPARABLES et non sur « lequel donne le plus de
+défense » : **Infirmerie** (action `heal`, quota/jour = niveau, gratuit au niv.3 — elle bouche un
+trou : RIEN ne rendait de PV à un héros, la seule remise en état était de mourir puis d'être
+ressuscité) · **Cartographe** (`fog.go` : vision de TOUS les héros +niveau, plafond +2 ; niv.3
+révèle aussi les abords) · **Armurerie** (`NewCombat` : +niveau en force, prêté à l'unité et jamais
+greffé sur `Hero.Stats` — le SEUL bâtiment dont l'effet sort des murs) · **Verger** (`regrowOrchard`
+à chaque vague : rend une ressource aux cases les plus PAUVRES dans `orchardRadius` 4, plafonné à
+`orchardCap` — réponse à l'ÉPUISEMENT DE LA CARTE, la vraie limite d'une longue partie) ·
+**Caserne** (`casernePerLevel` 4 au PLAFOND de la garnison, sans un point de défense de pierre —
+l'axe « tenir plus nombreux », qui profite d'autant plus que l'expédition est grande).
+⚠ **TOUS À TROIS NIVEAUX** comme le reste (`MaxBuildingLevel`), et **DEUX VERROUS** les rendent
+rares : un **prérequis** d'arbre techno (kitchen 1 · panel 2 · workshop 2 · well 2 · wall 2) et un
+**plan qui ne tombe QUE des ruines, un par biome** — les débloquer tous demanderait de déblayer une
+ruine dans CHAQUE biome. Mesuré : même en donnant les cinq plans aux bots, une ville n'en bâtit que
+1 à 3, tous au niveau 1. ⚠ **`botShoppingList` ignore les sites dont le PLAN n'est pas en Banque** :
+sans ça les cinq nouveaux mettaient Cuir, Herbe médicinale, Graines anciennes et Minerai d'or sur la
+liste de courses de TOUTES les villes, y compris celles qui n'auraient jamais le plan. Art voxel
+PROVISOIRE : ils empruntent le modèle d'un voisin (`BLD_MODEL`/`buildingModelKey` dans
+`townLayout.ts`) — sans cette table, `if (!geom) continue` les rendait INVISIBLES donc incliquables.
+Tests : `specialties_test.go`.
+
 **Ruines-donjons** (`ruins.go`, 2026-07-19) — 5 bâtiments en ruine PAR BIOME semés au worldgen
 (`SeedRuins`, déterministe, 1/biome, Chebyshev ≥ 3 de la ville) : Épave (sable 8 PA), Ferme
 (prairie 8), Sanctuaire (forêt 10), Mine (montagne 12), Tour gelée (neige 12). `GameState.Ruins`
@@ -701,7 +726,7 @@ POST /api/games/{id}/bots                        {playerId} -> {game,player} (h�
 GET  /api/games/{id}                              (runs wave catch-up)
 GET  /api/games/{id}/world
 POST /api/games/{id}/advance                      force a wave (dev)
-POST /api/games/{id}/town/action                  {buildingId, action: build|restore|repair|use|water|toggle|revive, points?, heroId?}
+POST /api/games/{id}/town/action                  {buildingId, action: build|restore|repair|use|water|toggle|revive|heal, points?, heroId?}
                                                   (repair = mur : PA + Pierre -> PV de la ville)
 POST /api/games/{id}/town/deposit                 deposit in-town heroes' loot into the Bank
 POST /api/games/{id}/town/craft                   {recipeId, heroId}
@@ -1195,7 +1220,12 @@ setSpeed, setTurntable, state, engine}` — pilotable en headless (vérif Playwr
    quitter/expulser un joueur, purge des salons abandonnés (même jour). ✅ 2026-07-07 : 1 joueur =
    3 héros (équipes), spawns initiaux ∝ nombre de joueurs (au lancement), verrous par partie.
    Restent : reconnexion sans localStorage, présence en ligne, hordePower ∝ joueurs.
-4. **Building skills** — multiple upgradable skills per building (mockup page 6), beyond a single level.
+4. ✅ **Building skills** — REFORMULÉ ET LIVRÉ (2026-08-10) à la demande de l'utilisateur : plutôt que
+   N compétences par bâtiment, on garde **trois niveaux maximum partout** et on AJOUTE des bâtiments —
+   cinq bâtiments de spécialité (Infirmerie, Cartographe, Armurerie, Verger, Caserne), chacun sur un
+   axe que rien d'autre ne couvre, rendus rares par un prérequis + un plan qui ne tombe que des
+   ruines. Le catalogue passe de 11 à 16 : aucune ville ne peut tout avoir, donc il y a des priorités
+   à arbitrer. Voir §5 « LES CINQ BÂTIMENTS DE SPÉCIALITÉ ».
 4b. ✅ **Design JSON du Studio implémenté** (2026-07-14, `design.go`) : terrains data-driven (fouille pondérée,
    richesse), 11 espèces avec grilles d'attaque GDD en combat iso + spawn par biome + loots pondérés + boss
    vague 4+, bâtiments (matériaux par niveau, prérequis, défense/capacités par niveau, revive Townhall,

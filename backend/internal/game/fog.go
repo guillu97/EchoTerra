@@ -36,7 +36,22 @@ func (g *GameState) revealAround(cx, cy, r int) {
 // RevealVision re-reveals the fog around the town and every living hero. Called from
 // Recompute so the explored set grows as heroes move.
 func (g *GameState) RevealVision() {
-	g.revealAround(g.Town.X, g.Town.Y, townSightRadius)
+	town := townSightRadius
+	// LE CARTOGRAPHE (bâtiment de spécialité) : la ville dessine ce que ses héros
+	// rapportent, et chacun part avec une meilleure carte. Son dernier niveau relève
+	// aussi les abords du bourg. C'est l'axe « voir » — la carte d'une expédition de
+	// vingt fait 134², et sans lui on prospecte à l'aveugle une case à la fois.
+	bonus := 0
+	if c := g.buildingByID("cartographe"); c != nil && c.Built && c.Durability > 0 {
+		bonus = c.Level
+		if bonus > 2 {
+			bonus = 2 // le niveau 3 n'élargit plus la vision : il révèle les abords
+		}
+		if c.Level >= 3 {
+			town += 2
+		}
+	}
+	g.revealAround(g.Town.X, g.Town.Y, town)
 	for _, h := range g.Heroes {
 		if h.HP > 0 {
 			r := heroSightRadius
@@ -44,7 +59,7 @@ func (g *GameState) RevealVision() {
 			if h.ClassID == "eclaireur" {
 				r = eclaireurSightRadius
 			}
-			g.revealAround(h.X, h.Y, r)
+			g.revealAround(h.X, h.Y, r+bonus)
 		}
 	}
 }

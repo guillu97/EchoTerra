@@ -6,6 +6,85 @@
 
 ---
 
+## 2026-08-10 (102) — Cinq bâtiments de spécialité, pour qu'il y ait enfin des priorités à arbitrer
+
+Demande : « les bâtiments ne doivent pas dépasser 3 niveaux, donc il faut en AJOUTER, et il faudrait
+qu'il soit dur de tous les construire dans une partie, pour laisser aux joueurs des choix de
+priorité ». Ça reformule le point 4 de la §9 (« building skills ») : pas N compétences par bâtiment,
+mais plus de bâtiments, tous à trois niveaux.
+
+### La mesure qui cadre le problème
+
+Avant de concevoir quoi que ce soit : combien une ville peut-elle réellement bâtir ?
+
+| Expédition | bâtiments debout | niveaux cumulés (max 33) |
+|---|---|---|
+| 1 joueur | 6 (la dotation de départ) | 7 |
+| 4 joueurs | 8 | 12 |
+| 20 joueurs | **11 sur 11** | 18 |
+
+Une expédition de vingt construisait donc **tout le catalogue** : aucune priorité à arbitrer, juste
+une liste à dérouler. Et un solo n'en bâtissait aucun. Dans les deux cas, zéro choix.
+
+### Cinq axes incomparables
+
+Le piège aurait été d'ajouter cinq bâtiments défensifs : le choix se serait réduit à « lequel donne
+le plus de défense », c'est-à-dire à un calcul, pas à un choix. Chacun ouvre donc un axe que rien
+d'autre ne couvre :
+
+- **Infirmerie** — soigne. Elle bouche un vrai TROU : *rien* ne rendait de PV à un héros. Une vague
+  frappe 3 + son numéro, un combat perdu renvoie à 1 PV, et la seule remise en état du jeu était de
+  MOURIR puis d'être ressuscité à la Mairie. Un héros abîmé le restait toute la partie.
+- **Cartographe** — voir. Vision de tous les héros +niveau. Sur une carte de 134² avec un rayon de
+  vue de 1, c'est la différence entre prospecter et tâtonner.
+- **Armurerie** — frapper. +niveau en force au combat, PRÊTÉ à l'unité et jamais greffé sur le héros
+  (sinon il s'empilerait à chaque combat). Le seul bâtiment dont l'effet sort des murs.
+- **Verger** — durer. Regarnit les cases les plus pauvres autour du bourg. C'est la réponse à
+  l'épuisement de la carte, que `CLAUDE.md` désigne depuis longtemps comme la vraie limite d'une
+  longue partie.
+- **Caserne** — tenir plus nombreux. Relève le PLAFOND de la garnison sans donner un point de pierre.
+
+### Ce qui les rend rares (deux verrous, pas un prix)
+
+Rendre les choses simplement plus chères ralentit tout le monde sans créer de choix. Deux verrous :
+un **prérequis** d'arbre techno (il faut avoir déjà investi ailleurs) et un **plan qui ne tombe QUE
+des ruines, un par biome** — les débloquer tous demanderait de déblayer une ruine dans *chaque*
+biome de la carte. Les ruines sont finies et les donjons ont peu de charges.
+
+Mesuré : **même en donnant les cinq plans aux bots, une ville n'en bâtit que 1 à 3, tous au niveau 1**,
+et la survie ne bouge quasiment pas — parce que les PA versés dans une spécialité sont des PA qui ne
+sont pas allés dans les murs. C'est exactement l'arbitrage recherché.
+
+### Un défaut que j'ai introduit puis corrigé
+
+Les cinq nouveaux sites ont aussitôt mis Cuir, Herbe médicinale, Graines anciennes et Minerai d'or
+sur la **liste de courses** de toutes les villes — y compris celles qui n'auraient jamais le plan.
+Les récolteurs partaient chercher au loin de quoi bâtir l'imaginaire pendant que la pierre manquait.
+`botShoppingList` ignore désormais un site dont le plan n'est pas en Banque : un joueur ne stocke pas
+des briques pour un chantier qu'il ne peut pas ouvrir.
+
+### Fonctionnel (vérifié)
+
+- 16 bâtiments au catalogue, tous à 3 niveaux ; `backfillBuildings` les fait parvenir aux parties
+  déjà en cours.
+- Médianes de survie inchangées dans le bruit : 15 · 15 · 18 · 20 · 22 · 22 vagues pour
+  1 · 2 · 4 · 8 · 12 · 20 joueurs. Les gardes (`SurvivalFloor` 12, l'échelle 1 < 4 < 20) tiennent.
+- `go test ./... -count=2` vert, `go vet` propre, `tsc -b` et `npm run build` verts.
+- **Lancé en vrai** : le plan de ville accueille les 16 parcelles sans collision, et l'onglet Bâtir
+  affiche les dix chantiers avec leur plan manquant, leurs matériaux et leur prérequis verrouillé —
+  c'est là que le choix se fait, et il se lit.
+
+### À faire
+
+- **Art voxel PROVISOIRE** : les cinq empruntent le modèle d'un voisin (`BLD_MODEL`). Sans cette
+  table le rendu les rendait invisibles donc incliquables ; il reste à leur écrire une recette.
+- Les **bots n'explorent toujours pas les ruines**, donc une ville 100 % IA n'aura jamais de
+  spécialité. C'est jouable (c'est au joueur humain de le faire, et ça lui donne un rôle que l'IA ne
+  lui prend pas), mais ça mérite d'être décidé plutôt que subi.
+- Les niveaux 2 et 3 des spécialités ne sont jamais atteints en pratique — à surveiller.
+
+---
+
 ## 2026-08-09 (101) — Le jeu tourné pour de vrai, et les noms anglais qu'on y a vus
 
 Premier lancement RÉEL de tout ce qui a été livré ces dernières entrées : serveur + Vite + Chromium

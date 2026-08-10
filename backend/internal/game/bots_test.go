@@ -321,9 +321,24 @@ func TestBotAvoidsTilesOccupiedByTeammates(t *testing.T) {
 	g, bot := botGame(t)
 	// The town wants for nothing, so the choice is purely about spreading out — with a
 	// shopping list the bots would (rightly) rank a barren quarry above a rich meadow.
+	//
+	// La liste est REMPLIE DEPUIS LA LISTE DE COURSES elle-même, et pas depuis quatre
+	// noms en dur : le catalogue de bâtiments grandit (les cinq bâtiments de spécialité
+	// ont ajouté Cuir, Herbe médicinale, Graines anciennes…), et une mise en scène qui
+	// prétend « la ville ne manque de rien » doit le rester quand il apparaît un besoin
+	// de plus.
 	g.Town.HP = g.Town.MaxHP
-	for _, name := range []string{"Bois", "Pierre", "Minerai de fer", "Fibre végétale"} {
-		g.addStorage(Item{Type: "objet", Name: name, Qty: 999})
+	for i := 0; i < 10; i++ {
+		want := g.botShoppingList()
+		if len(want) == 0 {
+			break
+		}
+		for name := range want {
+			g.addStorage(Item{Type: "objet", Name: name, Qty: 999})
+		}
+	}
+	if n := len(g.botShoppingList()); n != 0 {
+		t.Fatalf("staging: la ville manque encore de %d matériaux", n)
 	}
 	// Every tile barren except two: R1 (occupied by a teammate) and R2 (free).
 	for i := range g.Tiles {

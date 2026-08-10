@@ -225,6 +225,10 @@ type GameState struct {
 		// the Townhall's level; level 3 is unlimited AND free).
 		ReviveDay    int `json:"reviveDay,omitempty"`
 		RevivesToday int `json:"revivesToday,omitempty"`
+		// Infirmerie : soins délivrés aujourd'hui (quota quotidien = niveau ; le
+		// niveau 3 est illimité ET gratuit, comme le lit de la Mairie).
+		HealDay    int `json:"healDay,omitempty"`
+		HealsToday int `json:"healsToday,omitempty"`
 		// L'ORDRE DU JOUR et la PRÉVISION de la prochaine vague (orders.go) — dérivés,
 		// reconstruits par Recompute comme la défense. C'est ce qui donne un énoncé à
 		// une session de cinq minutes : sans eux, le joueur arrive avec 18 PA devant un

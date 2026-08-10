@@ -71,6 +71,12 @@ var Terrains = map[Biome]TerrainDef{
 		{"plante", "Baie sauvage", 1, 2}, {"plante", "Fibre végétale", 1, 2},
 		{"objet", "Plan de la Cuisine", 1, 3}, {"objet", "Plan de la Recyclerie", 1, 2},
 		{"objet", "Plan de la Poste", 1, 3},
+		// Les GRAINES ANCIENNES du Verger : une vieille friche en garde. Poids faible —
+		// la source abondante reste la ferme en ruine — mais elles doivent exister hors
+		// des ruines, sinon le Verger serait otage d'UN type de ruine sur la carte
+		// (attrapé par TestEveryBuildingMaterialIsObtainable, qui ne compte que les
+		// terrains, les monstres et le craft).
+		{"plante", "Graines anciennes", 1, 1},
 	}},
 	BiomeForest: {Searchable: true, ResourcesMin: 3, ResourcesMax: 6, Drops: []DropDef{
 		// la forêt est LA source de bois (poids fort) — le reste en appoint
@@ -456,6 +462,63 @@ var BuildingDesigns = map[string]BuildingDesign{
 			{Materials: []Item{{"objet", "Bois", 3}, {"plante", "Fibre végétale", 2}}, Effects: "messagerie accessible depuis le terrain"},
 			{Materials: []Item{{"objet", "Bois", 6}, {"objet", "Corde", 1}, {"objet", "Planche", 1}}, Effects: "courrier plus fiable"},
 			{Materials: []Item{{"objet", "Bois", 9}, {"objet", "Planche", 2}, {"minerai", "Brique", 1}}, Effects: "relais permanent"},
+		},
+	},
+
+	// ─── LES CINQ BÂTIMENTS DE SPÉCIALITÉ (2026-08-10) ─────────────────────────
+	//
+	// Pourquoi ils existent : une expédition de vingt construisait LES ONZE bâtiments du
+	// catalogue (mesuré : 11 debout, 18 niveaux sur 33) — il n'y avait donc aucune
+	// priorité à arbitrer, seulement une liste à dérouler. Un jeu de survie coopératif se
+	// joue dans le choix « la ville peut avoir ceci OU cela cette semaine », pas dans
+	// l'ordre de la liste.
+	//
+	// Chacun ouvre un AXE que rien d'autre ne couvre — soigner, voir, frapper, regarnir,
+	// tenir plus nombreux — pour que l'arbitrage porte sur des choses incomparables et
+	// non sur « lequel donne le plus de défense ». Tous plafonnent à trois niveaux comme
+	// les autres.
+	//
+	// Ce qui les rend RARES : (1) un PRÉREQUIS qui demande d'avoir déjà investi ailleurs,
+	// (2) leur plan tombe surtout des RUINES — finies sur une carte — et rarement de la
+	// fouille ordinaire. On ne peut pas tout avoir ; c'est le sujet.
+	"infirmerie": {
+		Requires: []BuildingRequire{{"kitchen", 1}},
+		Levels: []BuildingLevelDef{
+			{Materials: []Item{{"objet", "Bois", 3}, {"plante", "Herbe médicinale", 2}}, Effects: "soigne 1 héros/jour"},
+			{Materials: []Item{{"objet", "Bois", 6}, {"objet", "Cuir", 1}, {"plante", "Herbe médicinale", 3}}, Effects: "soigne 2 héros/jour"},
+			{Materials: []Item{{"objet", "Bois", 9}, {"objet", "Planche", 2}, {"plante", "Sève de dryade", 1}}, Effects: "soins illimités et gratuits"},
+		},
+	},
+	"cartographe": {
+		Requires: []BuildingRequire{{"panel", 2}},
+		Levels: []BuildingLevelDef{
+			{Materials: []Item{{"objet", "Bois", 2}, {"plante", "Fibre végétale", 3}}, Effects: "vision des héros +1"},
+			{Materials: []Item{{"objet", "Bois", 4}, {"objet", "Cuir", 2}, {"objet", "Corde", 1}}, Effects: "vision des héros +2"},
+			{Materials: []Item{{"objet", "Bois", 6}, {"objet", "Planche", 2}, {"minerai", "Minerai d'argent", 1}}, Effects: "vision +2 et abords de la ville révélés"},
+		},
+	},
+	"armurerie": {
+		Requires: []BuildingRequire{{"workshop", 2}},
+		Levels: []BuildingLevelDef{
+			{Materials: []Item{{"minerai", "Minerai de fer", 3}, {"objet", "Bois", 2}}, Effects: "+1 force au combat"},
+			{Materials: []Item{{"minerai", "Minerai de fer", 6}, {"minerai", "Acier", 1}, {"objet", "Cuir", 2}}, Effects: "+2 force au combat"},
+			{Materials: []Item{{"minerai", "Minerai de fer", 9}, {"minerai", "Acier", 2}, {"minerai", "Minerai d'or", 1}}, Effects: "+3 force au combat"},
+		},
+	},
+	"verger": {
+		Requires: []BuildingRequire{{"well", 2}},
+		Levels: []BuildingLevelDef{
+			{Materials: []Item{{"plante", "Graines anciennes", 1}, {"objet", "Bois", 3}}, Effects: "regarnit 2 cases proches par vague"},
+			{Materials: []Item{{"plante", "Graines anciennes", 2}, {"objet", "Bois", 6}, {"objet", "Corde", 1}}, Effects: "regarnit 4 cases proches par vague"},
+			{Materials: []Item{{"plante", "Graines anciennes", 3}, {"objet", "Planche", 2}, {"objet", "Cœur de chêne ancien", 1}}, Effects: "regarnit 6 cases proches par vague"},
+		},
+	},
+	"caserne": {
+		Requires: []BuildingRequire{{"wall", 2}},
+		Levels: []BuildingLevelDef{
+			{Materials: []Item{{"objet", "Bois", 4}, {"minerai", "Pierre", 3}}, Effects: "garnison +4 au plafond"},
+			{Materials: []Item{{"objet", "Bois", 8}, {"minerai", "Pierre", 6}, {"objet", "Cuir", 2}}, Effects: "garnison +8 au plafond"},
+			{Materials: []Item{{"objet", "Bois", 12}, {"minerai", "Brique", 2}, {"minerai", "Acier", 1}}, Effects: "garnison +12 au plafond"},
 		},
 	},
 }

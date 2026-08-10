@@ -112,11 +112,22 @@ func (g *GameState) GarrisonDefense() (heroes, value int) {
 		heroes++
 		raw += garrisonWeight(h)
 	}
-	if walls := g.buildingsDefense(); raw > walls {
-		raw = walls
+	// LA CASERNE (bâtiment de spécialité) relève le PLAFOND sans donner un point de
+	// défense par elle-même : c'est l'axe « tenir plus nombreux ». Une ville qui la bâtit
+	// choisit d'employer ses gens plutôt que d'empiler de la pierre — et une expédition
+	// de vingt en tire beaucoup plus qu'un solo, ce qui est exactement le but.
+	cap := g.buildingsDefense()
+	if c := g.buildingByID("caserne"); c != nil && c.Built && c.Durability > 0 {
+		cap += casernePerLevel * c.Level
+	}
+	if raw > cap {
+		raw = cap
 	}
 	return heroes, raw
 }
+
+// casernePerLevel : ce qu'un niveau de Caserne ajoute au PLAFOND de la garnison.
+const casernePerLevel = 4
 
 func (g *GameState) TownDefense() int {
 	_, garrison := g.GarrisonDefense()
@@ -387,6 +398,13 @@ func (g *GameState) processWave(now time.Time, safeTown bool) {
 	// Les observateurs de la tour valaient pour LA vague qui vient de frapper : la
 	// suivante est une autre horde, et il faudra remonter voir.
 	g.Town.Scouts = nil
+
+	// LE VERGER (bâtiment de spécialité) regarnit quelques cases autour de la ville.
+	// C'est l'axe « durer » : CLAUDE.md le dit depuis longtemps, ce qui borne vraiment
+	// une longue partie n'est pas l'arithmétique de la horde mais l'ÉPUISEMENT DE LA
+	// CARTE — les cases proches se vident, les héros marchent de plus en plus loin, et
+	// la ville s'étrangle sans que rien ne l'ait attaquée.
+	g.regrowOrchard()
 
 	// The Well slowly refills between waves.
 	if w := g.buildingByID("well"); w != nil && w.Built && w.Capacity < w.MaxCapacity {
@@ -698,3 +716,60 @@ func (g *GameState) mergePacks(keep, gone *Monster) {
 	}
 	delete(g.Monsters, gone.ID)
 }
+
+// orchardRadius : la portée du Verger. Volontairement COURTE — il nourrit les abords du
+// bourg, il ne remet pas la carte à neuf. Aller chercher loin reste le métier des héros.
+const orchardRadius = 4
+
+// regrowOrchard rend une ressource à quelques cases fouillables proches de la ville, en
+// commençant par les plus PAUVRES : un verger sert à rouvrir des cases mortes, pas à
+// engraisser celles qui donnent encore.
+func (g *GameState) regrowOrchard() {
+	b := g.buildingByID("verger")
+	if b == nil || !b.Built || b.Durability <= 0 {
+		return
+	}
+	budget := 2 * b.Level
+	type cell struct{ x, y, res int }
+	var cands []cell
+	for dy := -orchardRadius; dy <= orchardRadius; dy++ {
+		for dx := -orchardRadius; dx <= orchardRadius; dx++ {
+			x, y := g.Town.X+dx, g.Town.Y+dy
+			if x == g.Town.X && y == g.Town.Y {
+				continue // la case ville n'est pas fouillable
+			}
+			t := g.TileAt(x, y)
+			if t == nil || !t.Biome.Walkable() {
+				continue
+			}
+			if td, ok := Terrains[t.Biome]; !ok || !td.Searchable {
+				continue
+			}
+			if t.Resources >= orchardCap {
+				continue
+			}
+			cands = append(cands, cell{x, y, t.Resources})
+		}
+	}
+	// Tri par pauvreté puis par POSITION : l'ordre doit être total et stable, sinon deux
+	// instances rejouant la même vague ne regarniraient pas les mêmes cases (cf. la règle
+	// « ordre d'itération = état » de CLAUDE.md).
+	sort.Slice(cands, func(i, j int) bool {
+		if cands[i].res != cands[j].res {
+			return cands[i].res < cands[j].res
+		}
+		if cands[i].y != cands[j].y {
+			return cands[i].y < cands[j].y
+		}
+		return cands[i].x < cands[j].x
+	})
+	for i := 0; i < len(cands) && i < budget; i++ {
+		if t := g.TileAt(cands[i].x, cands[i].y); t != nil {
+			t.Resources++
+		}
+	}
+}
+
+// orchardCap : le Verger ne pousse pas une case au-delà de ce seuil — il ressuscite les
+// cases mortes, il ne fabrique pas une mine inépuisable au pied des murs.
+const orchardCap = 4

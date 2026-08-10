@@ -256,7 +256,7 @@ export const api = {
     gameId: string,
     payload: {
       buildingId: string;
-      action: "build" | "restore" | "repair" | "use" | "water" | "toggle" | "revive";
+      action: "build" | "restore" | "repair" | "use" | "water" | "toggle" | "revive" | "heal";
       points?: number;
       heroId?: string;
       playerId?: string;

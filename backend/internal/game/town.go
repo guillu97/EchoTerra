@@ -37,6 +37,16 @@ func buildingPlanItem(id string) string {
 		return "Plan de la Recyclerie"
 	case "poste":
 		return "Plan de la Poste"
+	case "infirmerie":
+		return "Plan de l'Infirmerie"
+	case "cartographe":
+		return "Plan du Cartographe"
+	case "armurerie":
+		return "Plan de l'Armurerie"
+	case "verger":
+		return "Plan du Verger"
+	case "caserne":
+		return "Plan de la Caserne"
 	}
 	return ""
 }
@@ -77,6 +87,13 @@ var buildPA = map[string]int{
 	"panel":      6,
 	"recyclerie": 12,
 	"poste":      12,
+	// Les bâtiments de spécialité : chers, parce que les choisir doit coûter quelque
+	// chose. La Caserne et l'Armurerie touchent au combat, donc au prix fort.
+	"infirmerie":  14,
+	"cartographe": 12,
+	"armurerie":   16,
+	"verger":      12,
+	"caserne":     18,
 }
 
 // planPACost is the price of laying down the plan that opens a chantier.
@@ -140,9 +157,9 @@ func (g *GameState) checkBuildRequires(b *TownBuilding) error {
 	for _, req := range BuildingDesigns[b.ID].Requires {
 		o := g.buildingByID(req.Building)
 		if o == nil || !o.Built || o.Level < req.Level {
-			name := req.Building
+			name := buildingLabel(req.Building, req.Building)
 			if o != nil {
-				name = o.Name
+				name = o.Label()
 			}
 			return ActionError{fmt.Sprintf("%s requiert %s niveau %d", b.Label(), name, req.Level)}
 		}
@@ -179,6 +196,14 @@ func DefaultBuildings() []*TownBuilding {
 		// Poste : chantier à construire — débloque la messagerie de la ville DEPUIS
 		// LE TERRAIN (en ville on écrit toujours, cf. chat.go / ChatAccess).
 		{ID: "poste", Name: "Poste", Built: false, Level: 0, MaxDurability: 80},
+		// LES CINQ BÂTIMENTS DE SPÉCIALITÉ (voir BuildingDesigns) : chacun ouvre un axe
+		// que rien d'autre ne couvre, et AUCUNE ville ne peut tous les avoir — c'est le
+		// but. Leurs plans tombent surtout des ruines, qui sont finies sur une carte.
+		{ID: "infirmerie", Name: "Infirmary", Built: false, Level: 0, MaxDurability: 80},
+		{ID: "cartographe", Name: "Cartographer", Built: false, Level: 0, MaxDurability: 70},
+		{ID: "armurerie", Name: "Armory", Built: false, Level: 0, MaxDurability: 100},
+		{ID: "verger", Name: "Orchard", Built: false, Level: 0, MaxDurability: 60},
+		{ID: "caserne", Name: "Barracks", Built: false, Level: 0, MaxDurability: 110},
 	}
 }
 
@@ -636,6 +661,61 @@ func (g *GameState) TownAction(buildingID, action string, points int, heroID str
 		g.logTown(fmt.Sprintf("🛏️ %s a ressuscité %s au Townhall", worker, dead.Name))
 		return nil
 
+	case "heal": // Infirmerie : soigne un héros blessé présent en ville.
+		// POURQUOI CE BÂTIMENT EXISTE : RIEN ne rendait de PV à un héros. Une vague
+		// frappe 3 + son numéro à tout héros resté dehors, un combat perdu renvoie les
+		// survivants à 1 PV, et la seule remise en état du jeu était de MOURIR puis de
+		// se faire ressusciter à la Mairie (PV = moitié). Un héros abîmé le restait donc
+		// pour toute la partie, ce qui poussait à ne plus rien risquer — l'inverse d'un
+		// jeu d'expédition. (Les potions portent bien « +8 PV » dans leurs effets, mais
+		// rien ne consomme les objets : c'est du texte, cf. §9 de CLAUDE.md.)
+		if b.ID != "infirmerie" {
+			return ActionError{"action réservée à l'Infirmerie"}
+		}
+		if !b.Built {
+			return ActionError{b.Label() + " n'est pas encore construite"}
+		}
+		if b.Durability <= 0 {
+			return ActionError{"l'Infirmerie est en ruine"}
+		}
+		// Le plus mal en point d'abord : c'est ce qu'on ferait, et ça évite au joueur
+		// d'avoir à désigner qui soigner parmi quinze héros.
+		var patient *Hero
+		for _, hh := range g.HeroesInTown() {
+			if hh.HP <= 0 || hh.HP >= hh.MaxHP && !hh.HasState("Blessé") {
+				continue
+			}
+			if patient == nil || hh.HP < patient.HP {
+				patient = hh
+			}
+		}
+		if patient == nil {
+			return ActionError{"personne à soigner en ville"}
+		}
+		if g.Town.HealDay != g.Day {
+			g.Town.HealDay, g.Town.HealsToday = g.Day, 0
+		}
+		if b.Level < MaxBuildingLevel && g.Town.HealsToday >= b.Level {
+			return ActionError{"l'Infirmerie a déjà fait son service aujourd'hui"}
+		}
+		cost := 1
+		if b.Level >= MaxBuildingLevel {
+			cost = 0 // « soins illimités et gratuits »
+		}
+		if !g.spendFor(heroID, cost) {
+			return ActionError{"PA insuffisants"}
+		}
+		before := patient.HP
+		patient.HP += infirmaryHeal
+		if patient.HP > patient.MaxHP {
+			patient.HP = patient.MaxHP
+		}
+		patient.RemoveState("Blessé")
+		g.Town.HealsToday++
+		g.credit(heroID, func(c *Contribution) { c.Repaired += patient.HP - before })
+		g.logTown(fmt.Sprintf("🏥 %s a soigné %s à l'Infirmerie (+%d PV)", worker, patient.Name, patient.HP-before))
+		return nil
+
 	case "toggle": // Gate: open/close it. An open gate provides no defense. Costs 1 PA.
 		if b.ID != "gate" {
 			return ActionError{"action réservée à la porte"}
@@ -701,9 +781,22 @@ func buildingLabel(id, fallback string) string {
 		return "Recyclerie"
 	case "poste":
 		return "Poste"
+	case "infirmerie":
+		return "Infirmerie"
+	case "cartographe":
+		return "Cartographe"
+	case "armurerie":
+		return "Armurerie"
+	case "verger":
+		return "Verger"
+	case "caserne":
+		return "Caserne"
 	}
 	return fallback
 }
 
 // Label rend le nom français de ce bâtiment (voir buildingLabel).
 func (b *TownBuilding) Label() string { return buildingLabel(b.ID, b.Name) }
+
+// infirmaryHeal : PV rendus par un passage à l'Infirmerie.
+const infirmaryHeal = 12
