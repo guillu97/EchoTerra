@@ -8,6 +8,7 @@ import type {
   Combat,
   GameState,
   GameSummary,
+  ItemEffects,
   MapSkillDef,
   MyGameSummary,
   Recipe,
@@ -202,6 +203,7 @@ interface StoreState {
   recipes: Recipe[];
   classes: ClassDef[];
   mapSkills: MapSkillDef[]; // catalogue des compétences de carte par classe
+  itemEffects: ItemEffects; // ce qui se CONSOMME et ce que ça fait (backend game/items.go)
 
   // --- lobby / multiplayer ---
   playerId?: string; // my player id in the current game (undefined in legacy solo games)
@@ -297,6 +299,9 @@ interface StoreState {
   escape: () => Promise<void>;
   castSkill: (skillId: string) => Promise<void>; // compétence de carte par classe
   drinkRation: () => Promise<void>; // boire une ration d'eau (+6 PA) du sac
+  // Consommer un objet (nourriture, potion). En ville, le héros peut puiser dans la
+  // réserve commune : il consomme SUR PLACE, il n'emporte rien (backend items.go).
+  useItem: (heroId: string, item: string) => Promise<void>;
   ruinClear: () => Promise<void>; // déblayer la ruine sous le héros (tous ses PA)
   ruinExplore: () => Promise<void>; // fouiller le donjon déblayé (2 PA)
   advance: (safe?: boolean) => Promise<void>;
@@ -489,6 +494,7 @@ export const useStore = create<StoreState>((set, get) => {
     if (get().recipes.length === 0) try { set({ recipes: await api.recipes() }); } catch { /* non-critical */ }
     if (get().classes.length === 0) try { set({ classes: await api.classes() }); } catch { /* non-critical */ }
     if (get().mapSkills.length === 0) try { set({ mapSkills: await api.mapSkills() }); } catch { /* non-critical */ }
+    if (Object.keys(get().itemEffects).length === 0) try { set({ itemEffects: await api.items() }); } catch { /* non-critical */ }
   };
 
   // Adopt a (re)loaded game: remember it + my player identity, select my own hero.
@@ -575,6 +581,7 @@ export const useStore = create<StoreState>((set, get) => {
     recipes: [],
     classes: [],
     mapSkills: [],
+    itemEffects: {},
     playerName: localStorage.getItem(LS_PLAYER_NAME) ?? "",
     lobbies: [],
     lobbyMode: "public" as const,
@@ -1212,6 +1219,17 @@ export const useStore = create<StoreState>((set, get) => {
         const next = await api.drinkRation(game.id, selectedHeroId, playerId);
         set({ game: next });
         pushLog(`💧 ${name} boit une ration d'eau (+${6} PA).`);
+        renderMap();
+      }),
+
+    useItem: (heroId, item) =>
+      withBusy(async () => {
+        const { game, playerId } = get();
+        if (!game || !ownsHero(heroId)) return;
+        const name = game.heroes.find((h) => h.id === heroId)?.name ?? "Le héros";
+        const res = await api.useItem(game.id, heroId, item, playerId);
+        set({ game: res.game });
+        get().notify(`🍽️ ${name} utilise « ${item} » — ${res.effect?.desc ?? "c'est fait"}.`);
         renderMap();
       }),
 

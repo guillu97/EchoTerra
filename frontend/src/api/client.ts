@@ -2,6 +2,8 @@ import type {
   ChatMessage,
   Chronicle,
   ClassDef,
+  ItemEffect,
+  ItemEffects,
   CombatResponse,
   GameState,
   GameSummary,
@@ -248,6 +250,15 @@ export const api = {
   },
 
   seasons: () => req<SeasonList>("GET", "/api/seasons"),
+
+  // Le catalogue de ce qui se consomme, et l'action de consommer.
+  items: () => req<ItemEffects>("GET", "/api/items"),
+  useItem: (gameId: string, heroId: string, item: string, playerId?: string) =>
+    req<{ effect: ItemEffect; game: GameState }>(
+      "POST",
+      `/api/games/${gameId}/heroes/${heroId}/use`,
+      { item, playerId },
+    ),
 
   evolve: (gameId: string, heroId: string, classId: string, playerId?: string) =>
     req<GameState>("POST", `/api/games/${gameId}/heroes/${heroId}/evolve`, { classId, playerId }),

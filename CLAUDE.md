@@ -285,7 +285,15 @@ TIENT quand l'aide est à un pas. **Tuer compte désormais** : `hordePower` incl
 l'anneau, donc dégager les abords retire directement des dégâts (règle changée le 2026-08-09 à la
 demande de l'utilisateur — auparavant le combat ne servait qu'au butin). ⚠ la récolte reste
 prioritaire sur le sauvetage pour un RÉCOLTEUR : mesuré, inverser les deux fait BAISSER la survie
-(les matériaux font vivre la ville). **RUINES** (2026-08-10) : un bot déblaie et fouille la ruine de sa case (`botWorkRuin`), et un
+(les matériaux font vivre la ville). **PROSPECTION** (2026-08-10) : l'exploration n'était qu'un REPLI (on ne poussait le brouillard que si
+plus aucune case connue ne fournissait ce qu'on cherchait — presque jamais vrai). Mesuré : **0,9 %**
+d'une carte de vingt joueurs explorée en vingt vagues, et les bots faisaient la NAVETTE (2491
+déplacements pour 572 cases révélées). `botProspecting` : un RÉCOLTEUR, pendant les
+`botProspectWaves` (6) premières vagues, et seulement si la Banque ne tient rien à zéro, vise la
+lisière du brouillard et **ne campe pas** (fouiller arme la récolte auto et fixe le héros). Résultat
+2,5 %, ×2,3, à survie égale. ⚠ mesuré et REJETÉ : viser la lisière la plus ÉLOIGNÉE de la ville au
+lieu de la plus proche fait TOMBER l'exploration à 1,7 % et coûte deux vagues de survie — les héros
+courent après des cases inatteignables à 6 PA. **RUINES** (2026-08-10) : un bot déblaie et fouille la ruine de sa case (`botWorkRuin`), et un
 récolteur s'y rend (`botRuinTarget`, portée `botRuinReach` 12) — une ruine déjà déblayée vaut toujours
 le détour, une ruine ensevelie seulement si la Banque ne tient plus rien à zéro. Sans ça les cinq
 bâtiments de spécialité étaient INVISIBLES à l'IA (leurs plans ne tombent que des ruines). ⚠ mesuré :
@@ -698,6 +706,25 @@ indépendant des joueurs. C'est cette action qui fait de l'ÉPUISEMENT DE LA CAR
 l'arithmétique de la horde, la vraie limite d'une longue partie. Bornée aux PV manquants (ne gaspille
 ni PA ni pierre) et refusée sur une ville intacte. Tests `townrepair_test.go`.
 
+**USAGE DES OBJETS** (`items.go`, `GET /api/items`, `POST /heroes/{h}/use`, 2026-08-10) — le
+catalogue portait 26 recettes dont les effets n'étaient QUE DU TEXTE : on cuisinait des ragoûts et
+des potions qui dormaient en Banque, et la seule remise en état d'un héros abîmé était de mourir puis
+d'être ressuscité. `ItemEffects` (table servie au client, jamais recopiée) donne `{PA, HP, Clears,
+ClearsAll, Desc}` par nom d'objet. ⚠ **LA FAIM N'EXISTE PAS** dans le code (elle est au GDD) : un plat
+ne « restaure la faim », il rend des **PA** — la vraie monnaie d'une journée, à l'image de la Ration
+d'eau (`RationPA` 6). Barème : plat cuisiné 2-5 PA, aliment BRUT 1 (dépannage, ça laisse sa raison
+d'être à la Cuisine), potions 5-10 PV, Ambroisie rend tout et purge TOUS les états. **Gratuit en PA**
+comme boire : ce qui borne l'usage, c'est l'objet, qu'il a fallu récolter puis cuisiner. ⚠ **Tétanisé
+ne se mange pas** (c'est un pack qui cloue, pas une fatigue) — seule l'Ambroisie le retire. ⚠ **LA
+CANTINE** : en ville un héros consomme SUR LA RÉSERVE COMMUNE sans rien emporter — la seule sortie de
+la Banque vers un joueur reste la requête du Panneau, qui exige d'être deux ; sans cette porte tout ce
+que la Cuisine produit restait bloqué en Banque. Les bots s'en servent (`botUseItem` : potion sous
+60 % de PV, repas à court de PA) et **cuisinent** (`botCookStores`, seuil bas par produit). Mesuré :
+médianes 15 · 17 · 19 · 21 · 22 · 23 (contre 15 · 15 · 18 · 21 · 22 · 22). Tests : `items_test.go`.
+⚠ `ItemEffect` PORTE DES TAGS JSON : la table est servie au client, sans eux Go sérialisait `PA`/`Desc`
+et l'interface lisait `undefined`. ⚠ et un handler qui a besoin du `playerId` ET d'un autre champ doit
+DÉCODER LE CORPS UNE SEULE FOIS (`decodePlayer` consomme le flux — sinon le champ arrive vide).
+
 **Crafting** (`craft.go`, `CraftTab.tsx`) — **town mode** (≥1 hero in town): full recipes, ingredients from the
 Bank, paid by the chosen *town worker*, output to the Bank. **Field mode** (no hero in town): only `field`
 recipes (kitchen/campfire), ingredients from the **selected hero's bag**, paid by that hero, output to the bag.
@@ -762,6 +789,9 @@ POST /api/games/{id}/heroes/{h}/hide
 POST /api/games/{id}/heroes/{h}/escape
 POST /api/games/{id}/heroes/{h}/skill             {skillId} compétence de carte par classe -> {report, game}
 POST /api/games/{id}/heroes/{h}/drink             boit une Ration d'eau du sac (+6 PA) -> GameState
+GET  /api/items                                   {nom -> {pa,hp,clears,clearsAll,desc}} ce qui se consomme
+POST /api/games/{id}/heroes/{h}/use               {item} consomme un objet du sac (ou, EN VILLE, de la
+                                                  réserve commune : on mange sur place, on n'emporte rien)
 POST /api/games/{id}/heroes/{h}/ruin/clear        {points} déblaye la ruine sous le héros -> {ruin, game}
 POST /api/games/{id}/heroes/{h}/ruin/explore      fouille le donjon déblayé (2 PA) -> {item, game}
 POST /api/games/{id}/heroes/{h}/evolve            {classId} -> GameState (applies class bonuses)

@@ -140,6 +140,14 @@ func (g *GameState) botHeroAct(h *Hero, curfew int) bool {
 		return true
 	}
 
+	// SE SOIGNER ET SE RESTAURER (items.go). Le catalogue portait vingt-six recettes dont
+	// les effets n'étaient que du texte : on cuisinait des ragoûts et des potions qui
+	// dormaient en Banque. C'est GRATUIT en PA — ce qui borne l'usage, c'est l'objet
+	// lui-même, qu'il a fallu récolter puis cuisiner, et qui disparaît.
+	if g.botUseItem(h) {
+		return true
+	}
+
 	// Out in the field, the choice is: haul the load home, or CAMP.
 	//
 	// Camping is what the game is built for — a search arms the automatic foraging
@@ -307,7 +315,12 @@ func (g *GameState) botHeroAct(h *Hero, curfew int) bool {
 	if g.botWorkRuin(h) {
 		return true
 	}
-	if t := g.TileAt(h.X, h.Y); t != nil && t.Resources > 0 {
+	// ⚠ UN PROSPECTEUR NE CAMPE PAS. Fouiller arme la récolte automatique et fixe le
+	// héros sur sa case (forage.go) : c'est excellent pour l'économie et incompatible
+	// avec le fait de voir du pays. Mesuré avant cette exception : 2491 déplacements pour
+	// 572 cases révélées sur une carte de 134² — les bots faisaient la NAVETTE entre la
+	// ville et leur coin, sans jamais rien découvrir.
+	if t := g.TileAt(h.X, h.Y); t != nil && t.Resources > 0 && !g.botProspecting(h) {
 		if _, err := g.SearchTile(h.ID); err == nil {
 			return true
 		}
@@ -753,6 +766,23 @@ func (g *GameState) botPickGatherTarget(h *Hero) (int, int, bool) {
 	if x, y, ok := g.botRuinTarget(h); ok && g.botRuinWorthTheTrip(x, y) {
 		return x, y, true
 	}
+	// PROSPECTER QUAND LA VILLE RESPIRE.
+	//
+	// L'exploration n'était qu'un REPLI : on ne poussait le brouillard que si plus aucune
+	// case connue ne fournissait ce qu'on cherchait — condition presque jamais vraie, une
+	// prairie fournit toujours quelque chose. Mesuré : 0,9 % d'une carte de vingt joueurs
+	// explorée en vingt vagues, et UNE ruine vue sur douze. Les bots campent (c'est bon
+	// pour l'économie : la fouille automatique récolte toute seule) et camper ne découvre
+	// rien. Une carte qu'on ne voit pas est une carte qui n'existe pas : ni gisement de
+	// remplacement quand les abords s'épuisent, ni ruine, donc aucun plan de spécialité.
+	//
+	// Dès que la Banque ne tient plus rien à zéro, un récolteur va donc voir plus loin.
+	// La pénurie reprend toujours le pas : c'est un temps libre, pas une vocation.
+	if g.botProspecting(h) {
+		if x, y, ok := g.pickFrontierTile(h); ok {
+			return x, y, true
+		}
+	}
 	if g.botSupplyKnown(g.botShoppingList()) {
 		if x, y, ok := g.pickResourceTile(h); ok {
 			return x, y, ok
@@ -1010,6 +1040,17 @@ func (g *GameState) botCraft(h *Hero) bool {
 			}
 		}
 	}
+	// 1b. LA CUISINE ET L'ALCHIMIE. Depuis que les objets se consomment (items.go), un
+	// ragoût est des PA et une potion est la seule façon de soigner un héros hors des
+	// murs. Une ville qui ne cuisine jamais laisse donc dormir sa moitié « vivres » —
+	// c'était le cas : les bots n'allaient à l'atelier que pour des matériaux.
+	//
+	// On ne fait pas de stock pour le plaisir : un seuil bas par produit, et seulement
+	// quand les ingrédients sont là. Les MATÉRIAUX passent avant (étape 1) — on ne mange
+	// pas les murs.
+	if g.botCookStores(h) {
+		return true
+	}
 	// 2. Recycle the junk from picked-clean tiles back into the two materials that
 	// actually build things — stone first, it is the one the walls eat.
 	for _, name := range []string{"Pierre", "Bois"} {
@@ -1209,9 +1250,15 @@ func (g *GameState) pickFrontierTile(h *Hero) (int, int, bool) {
 			if !touchesFog || (x == h.X && y == h.Y) {
 				continue
 			}
+			// ⚠ LA LISIÈRE LA PLUS PROCHE, et pas la plus lointaine. Viser le bord le
+			// plus éloigné de la ville semble mieux « pousser » l'exploration ; mesuré,
+			// c'est l'inverse : les héros couraient après des cases qu'ils n'atteignaient
+			// jamais avec six PA, la carte explorée TOMBAIT de 2,5 % à 1,7 % et la survie
+			// baissait de deux vagues. On avance de proche en proche ; c'est le SECTEUR
+			// (heroBias) qui évite que tout le monde grignote le même bord.
 			score := 2 * (absI(x-h.X) + absI(y-h.Y))
 			if (x-h.X)*dirX+(y-h.Y)*dirY < 0 {
-				score += 8
+				score += 8 // hors de mon secteur : à quelqu'un d'autre
 			}
 			if score < bestScore {
 				bestX, bestY, bestScore = x, y, score
@@ -1331,4 +1378,113 @@ func (g *GameState) botRuinWorthTheTrip(x, y int) bool {
 		return true
 	}
 	return len(g.botCriticalList(g.botShoppingList())) == 0
+}
+
+// botProspectWaves : combien de vagues durent les repérages du début de partie.
+//
+// L'exploration d'un jeu de survie est FRONT-CHARGÉE, comme chez un joueur humain : on
+// commence par savoir où sont la forêt, la carrière et les ruines, puis on s'installe et
+// on récolte. Ces premières vagues sont aussi les moins dangereuses — c'est le seul
+// moment où l'on peut s'offrir de marcher sans rien rapporter.
+const botProspectWaves = 6
+
+// botProspecting : ce héros est-il en repérage plutôt qu'en récolte ?
+//
+// Un RÉCOLTEUR seulement (le bâtisseur tient la ville, le défenseur tient l'anneau), au
+// début de la partie, et jamais quand la Banque est à zéro de quelque chose : la pénurie
+// reprend toujours le pas sur la curiosité.
+func (g *GameState) botProspecting(h *Hero) bool {
+	if g.WaveNumber > botProspectWaves {
+		return false
+	}
+	if g.heroRole(h.ID) != roleGatherer {
+		return false
+	}
+	return len(g.botCriticalList(g.botShoppingList())) == 0
+}
+
+// botConsumeHurtPct : en dessous de cette part de ses PV, un héros boit une potion.
+// Assez bas pour ne pas gaspiller un soin sur une égratignure, assez haut pour ne pas
+// mourir avec la fiole dans le sac.
+const botConsumeHurtPct = 60
+
+// botUseItem fait boire ou manger un héros quand ça sert vraiment.
+//
+// Deux cas seulement, et dans cet ordre : SE SOIGNER quand on est bas (rien d'autre ne
+// rend des PV hors de la ville, à part l'Infirmerie qui suppose d'être rentré), puis
+// REPRENDRE DES FORCES quand il ne reste plus de quoi agir. Un bot qui mangerait « au
+// cas où » viderait le garde-manger de la ville pour rien.
+func (g *GameState) botUseItem(h *Hero) bool {
+	if h.HP*100 < h.MaxHP*botConsumeHurtPct {
+		if g.botConsumeBest(h, func(e ItemEffect) int { return e.HP }) {
+			return true
+		}
+	}
+	// À court de PA : un plat rend la fin de la journée. On garde toutefois de quoi se
+	// cacher — la réserve de dissimulation est la règle qui tient tout le reste.
+	if h.PA <= 1 && h.PA < h.MaxPA {
+		if g.botConsumeBest(h, func(e ItemEffect) int { return e.PA }) {
+			return true
+		}
+	}
+	return false
+}
+
+// botConsumeBest consomme, parmi le sac, l'objet qui rend le PLUS selon `value` — sans
+// jamais entamer un objet qui ne servirait à rien (UseItem le refuse de toute façon).
+func (g *GameState) botConsumeBest(h *Hero, value func(ItemEffect) int) bool {
+	// Le sac d'abord ; et EN VILLE, la réserve commune (voir UseItem : on consomme sur
+	// place, on n'emporte rien).
+	pools := [][]Item{h.Inventory}
+	if h.X == g.Town.X && h.Y == g.Town.Y {
+		pools = append(pools, g.Town.Storage)
+	}
+	best, bestV := "", 0
+	for _, pool := range pools {
+		for _, it := range pool {
+			eff, ok := ItemEffects[it.Name]
+			if !ok || value(eff) <= bestV {
+				continue
+			}
+			best, bestV = it.Name, value(eff)
+		}
+	}
+	if best == "" {
+		return false
+	}
+	_, _, err := g.UseItem(h.ID, best)
+	return err == nil
+}
+
+// botStockPerConsumable : combien d'exemplaires d'un même vivre la ville garde d'avance.
+// Volontairement BAS : au-delà, les ingrédients servent mieux ailleurs, et un garde-manger
+// plein n'a jamais tenu un rempart.
+const botStockPerConsumable = 3
+
+// botCookStores fabrique un vivre ou une potion quand la réserve est courte et que les
+// ingrédients sont en Banque. Renvoie false s'il n'y a rien d'utile à faire.
+func (g *GameState) botCookStores(h *Hero) bool {
+	// Les SOINS d'abord : c'est la seule chose qu'on ne peut pas remplacer par du temps.
+	for _, cat := range []string{"potion", "conso"} {
+		for i := range Recipes {
+			r := &Recipes[i]
+			if r.Category != cat {
+				continue
+			}
+			out := r.OutputName
+			if out == "" {
+				out = r.Name
+			}
+			if !UsableItem(out) || g.storageQty(out) >= botStockPerConsumable {
+				continue
+			}
+			if !g.bankCovers(r.Ingredients) {
+				continue
+			}
+			if _, err := g.Craft(r.ID, h.ID); err == nil {
+				return true
+			}
+		}
+	}
+	return false
 }

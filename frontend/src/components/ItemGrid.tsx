@@ -22,14 +22,36 @@ export function itemEmoji(it: Item): string {
   return TYPE_ICON[it.type] ?? "❔";
 }
 
-export function ItemGrid({ items, empty = "— vide —" }: { items: Item[]; empty?: string }) {
+// `onUse` rend les objets CONSOMMABLES cliquables (nourriture, potions — cf. le backend
+// game/items.go). Sans lui la grille reste une vitrine, ce qu'elle était : les vingt-six
+// recettes du jeu produisaient des plats et des potions que personne ne pouvait avaler.
+export function ItemGrid({
+  items,
+  empty = "— vide —",
+  onUse,
+  usable,
+}: {
+  items: Item[];
+  empty?: string;
+  onUse?: (it: Item) => void;
+  usable?: (it: Item) => boolean;
+}) {
   if (items.length === 0) return <div className="empty small">{empty}</div>;
   return (
     <div className="item-grid">
       {items.map((it) => {
         const url = itemAssetUrl(it);
+        const canUse = !!onUse && (usable ? usable(it) : false);
         return (
-          <div className="item-cell" key={it.name} title={it.name}>
+          <div
+            className={"item-cell" + (canUse ? " usable" : "")}
+            key={it.name}
+            title={canUse ? `${it.name} — utiliser` : it.name}
+            role={canUse ? "button" : undefined}
+            tabIndex={canUse ? 0 : undefined}
+            onClick={canUse ? () => onUse!(it) : undefined}
+            onKeyDown={canUse ? (e) => (e.key === "Enter" || e.key === " ") && onUse!(it) : undefined}
+          >
             <div className="item-ic">
               {url ? (
                 <img

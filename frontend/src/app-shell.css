@@ -4212,3 +4212,14 @@ body {
   font-size: var(--t-sm);
   font-weight: 700;
 }
+
+/* Un consommable est CLIQUABLE : on le distingue au survol et au focus, sinon rien ne
+   dit qu'une case de la grille se mange (cf. backend game/items.go). */
+.item-cell.usable {
+  cursor: pointer;
+  border-color: var(--gold);
+}
+.item-cell.usable:hover,
+.item-cell.usable:focus-visible {
+  background: rgba(217, 164, 65, 0.16);
+}

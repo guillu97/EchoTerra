@@ -6,6 +6,86 @@
 
 ---
 
+## 2026-08-10 (104) — Les bots prospectent, et les objets servent enfin à quelque chose
+
+Trois demandes : ne PAS ouvrir le brouillard mais faire explorer les bots, vérifier qu'ils évoluent,
+et débloquer les crafts et l'usage des objets.
+
+### L'évolution marchait déjà
+
+Mesuré avant de toucher à quoi que ce soit : **35 héros sur 36** atteignent le palier 2 à quatre
+joueurs, 173 sur 180 à vingt. Les paliers de jour (2 et 4) sont respectés par `EvolveHero`, et
+`botEvolve` saisit l'ouverture dès qu'elle arrive. Rien à faire — je le note plutôt que d'inventer du
+travail.
+
+### L'exploration, elle, était à 0,9 %
+
+Une carte de vingt joueurs fait 134². Les bots en voyaient **0,9 %** en vingt vagues, et une ruine sur
+douze. Pourtant ils se déplaçaient beaucoup : 2491 déplacements pour 572 cases révélées — ils
+faisaient la **navette** entre la ville et leur coin de récolte. L'exploration n'était qu'un REPLI :
+on ne poussait le brouillard que si plus aucune case connue ne fournissait ce qu'on cherchait, ce qui
+n'arrive jamais (une prairie fournit toujours quelque chose).
+
+`botProspecting` : un récolteur, pendant les six premières vagues, si la Banque ne tient rien à zéro,
+vise la lisière et **ne campe pas** — fouiller arme la récolte automatique et fixe le héros sur sa
+case, ce qui est excellent pour l'économie et incompatible avec voir du pays. L'exploration d'un jeu
+de survie est front-chargée, comme chez un humain : on regarde où sont la forêt et la carrière, puis
+on s'installe. Résultat **2,5 %, soit 2,3 fois plus, à survie égale**.
+
+⚠ **Une idée mesurée puis jetée** : viser la lisière la plus ÉLOIGNÉE de la ville, pour « pousser »
+l'exploration. Ça semblait évident. Mesuré : l'exploration TOMBE à 1,7 % et la survie perd deux
+vagues — les héros courent après des cases qu'ils n'atteindront jamais avec six PA. On avance de
+proche en proche ; c'est le secteur (`heroBias`) qui évite que tout le monde grignote le même bord.
+
+### Les objets : vingt-six recettes décoratives
+
+Le catalogue portait vingt-six recettes dont les effets n'étaient QUE DU TEXTE. « Potion de soin :
++8 PV, retire Blessé » — rien ne consommait rien. Toute la moitié cuisine-et-alchimie du jeu était
+décorative.
+
+`items.go` : une table `ItemEffects` servie au client (jamais recopiée), une action `UseItem`,
+gratuite en PA comme boire — ce qui borne l'usage, c'est l'objet, qu'il a fallu récolter puis
+cuisiner, et qui disparaît.
+
+**La faim n'existe pas** dans le code (elle est au GDD). Plutôt que de bâcler un système de faim, un
+plat rend des **PA** : la vraie monnaie d'une journée de héros, à l'image de la Ration d'eau. Un plat
+cuisiné vaut 2 à 5, un aliment brut 1 — de quoi finir une course, pas de quoi remplacer la Cuisine.
+
+**Le maillon qui manquait.** Première version : aucun effet sur les mesures. Un plat cuisiné en ville
+va dans la **Banque**, et un héros ne mange que dans son sac — or la seule sortie de la Banque vers un
+joueur est la requête du Panneau, qui exige d'être deux. Tout ce que la Cuisine produisait restait
+donc bloqué. La réponse : **en ville on consomme SUR PLACE**, sans rien emporter. La règle de
+coopération est intacte (pour emporter une potion en expédition, il faut toujours qu'un coéquipier
+honore votre demande) et la Cuisine sert enfin. Vingt joueurs sont passés de 22 à 23 vagues sur ce
+seul point.
+
+Les bots boivent une potion sous 60 % de PV, mangent quand ils n'ont plus de PA, et **cuisinent**
+(seuil bas par produit : on ne fait pas de stock, on ne mange pas les murs).
+
+### Fonctionnel (vérifié)
+
+- Médianes **15 · 17 · 19 · 21 · 22 · 23** vagues pour 1 · 2 · 4 · 8 · 12 · 20 joueurs — en hausse
+  pour les petites équipes (15 · 15 · 18 avant), monotone.
+- `go test ./... -count=2` vert, `go vet` propre, `tsc -b` et `npm run build` verts.
+- **Testé en vrai** contre le serveur : la viande disparaît du sac et rend un PA.
+
+### Deux bugs attrapés en lançant
+
+- `ItemEffect` n'avait pas de tags JSON : Go sérialisait `PA`/`Desc`, le client lisait `undefined` et
+  le libellé arrivait vide. Invisible aux tests Go.
+- La route `/use` appelait `decodePlayer` — qui CONSOMME le corps de la requête — puis redécodait :
+  `item` arrivait vide et l'action échouait sur un nom vide. Les autres routes à paramètres décodent
+  déjà tout d'un coup ; celle-ci s'y conforme.
+
+### À faire
+
+- Les ÉQUIPEMENTS (armes, capes, armures : +force, +agilité, −dégâts) restent du texte : ils
+  demandent des emplacements sur le héros et un effet en combat, ce qui est un chantier à part.
+- Les bots ne découvrent toujours qu'une ruine sur douze — mieux qu'avant, mais une carte de 134²
+  reste immense pour un rayon de vue de 1.
+
+---
+
 ## 2026-08-10 (103) — L'art des spécialités, les ruines aux bots, et quatre niveaux qui ne faisaient rien
 
 Les trois points laissés ouverts par l'entrée 102, dans l'ordre demandé.

@@ -282,6 +282,19 @@ export interface MyGameSummary extends GameSummary {
   myPlayerId: string;
 }
 
+// CE QUI SE CONSOMME (GET /api/items, backend game/items.go). La table vient du serveur
+// et n'est pas recopiée ici : deux catalogues finiraient par diverger. ⚠ la FAIM n'existe
+// pas dans le jeu — un plat rend des POINTS D'ACTION, la vraie monnaie d'une journée.
+export interface ItemEffect {
+  pa?: number; // PA rendus
+  hp?: number; // PV rendus
+  clears?: string[]; // états retirés
+  clearsAll?: boolean; // retire TOUS les états (Ambroisie)
+  desc?: string; // ce que le joueur lit
+}
+
+export type ItemEffects = Record<string, ItemEffect>;
+
 // LES SAISONS (GET /api/seasons, backend game/season.go) — un classement cumulatif se
 // FIGE : au bout de quelques mois les premières lignes sont tenues par des expéditions
 // qu'on ne reverra pas, et qui arrive n'a plus rien à viser. Une partie appartient à la
