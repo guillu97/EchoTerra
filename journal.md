@@ -6,6 +6,81 @@
 
 ---
 
+## 2026-08-10 (103) — L'art des spécialités, les ruines aux bots, et quatre niveaux qui ne faisaient rien
+
+Les trois points laissés ouverts par l'entrée 102, dans l'ordre demandé.
+
+### 1. L'art voxel — et un piège de couleur
+
+Les cinq bâtiments de spécialité empruntaient le modèle d'un voisin : deux bâtiments aux effets
+opposés se ressemblaient trait pour trait. Sur un plan de ville vu de haut, on reconnaît un bâtiment
+à sa SILHOUETTE et à sa COULEUR DE TOIT avant d'en lire la pastille — c'est le seul repère qui
+survit au dézoom. Chacun a donc sa recette : infirmerie (toit bleu-vert, croix de lin, herbes qui
+sèchent), cartographe (indigo, tourelle, rose des vents dorée), armurerie (rouge forge, cheminée,
+enclume), caserne (long corps bas, bannière), verger (pas une maison : une parcelle plantée).
+
+**Mes premiers toits sont sortis LILAS.** `shade()` est divisionniste — le commentaire juste au-dessus
+le dit, « comme les pins de Signac » : il écarte la teinte pour faire vibrer la matière. Sur une
+couleur franche c'est le but ; sur un QUASI-NEUTRE il n'y a pas de teinte où aller et ça bascule dans
+le violet. Mesuré : chaume « lin » [226,220,200] (chroma 26) → [197,169,232] ; vert-de-gris (chroma
+18) → mauve ; alors que les toits qui marchent depuis toujours sont à chroma 66 et 116. La règle est
+maintenant écrite à côté de `shade()`, avec les chiffres. J'y suis arrivé en écrivant un banc d'essai
+sur les couleurs candidates plutôt qu'en retouchant à l'œil.
+
+Au passage : `sharp` n'était importé que pour les aperçus PNG, mais en tête de fichier — son absence
+faisait échouer la génération entière alors que le produit du script, ce sont les `.vox`.
+
+### 2. Les ruines aux bots
+
+Les joueurs-IA ignoraient les ruines, or c'est la SEULE source des plans de spécialité : une ville
+sans humain ne pouvait jamais bâtir cinq bâtiments sur seize. Ils déblaient et fouillent désormais la
+ruine de leur case, et un récolteur s'y rend.
+
+**Ce que la mesure a corrigé dans mon idée.** J'avais posé une porte « on n'y va que si la ville ne
+manque de rien ». En la retirant pour voir : aucun changement, 0 à 1 ruine sur quatre dans les deux
+cas. Ce qui limite les bots n'est pas la priorité mais la DÉCOUVERTE — le brouillard ne se lève que
+d'une case autour d'un héros, et ils n'explorent qu'une fraction d'une grande carte. La porte reste
+(elle exprime la bonne priorité quand le cas se présente) mais je la documente comme telle : elle ne
+sauve pas la partie. Conséquence assumée : débloquer les spécialités reste largement l'affaire d'un
+joueur humain — ce qui lui donne un rôle que l'IA ne lui prend pas.
+
+### 3. Quatre niveaux qui ne faisaient rien
+
+Audit du catalogue : quatre effets n'existaient QUE sur le papier. Le joueur versait des PA et des
+matériaux pour une phrase.
+
+- **Recyclerie 2-3** « recyclage plus efficace » → +1 par palier, sur ses SEULES recettes (l'étendre
+  à tout ferait de l'Atelier une machine à dupliquer l'Acier).
+- **Panneau 2-3** « sondages / statistiques » → la mémoire écrite de la ville s'allonge : journal
+  ×niveau, tableau de demandes +6 par niveau. À vingt joueurs le journal défile en une soirée et les
+  demandes tombent avant d'avoir été vues — or une demande non vue est une demande non servie.
+- **Poste 2-3** « courrier plus fiable / relais permanent » → depuis le TERRAIN on reçoit 20 messages
+  au niveau 1, 40 au 2, tout le fil au 3. En ville on lit tout : on est devant le panneau.
+- **Cuisine 2** « rations +1 » → une seconde ration d'eau par héros et par jour. L'eau rend des PA
+  sur le terrain : c'est du temps de jeu rendu à qui a investi dans ses cuisines.
+
+**Ce que la mesure a démenti.** Je pensais devoir baisser le coût des améliorations, ayant observé
+que les spécialités ne dépassaient jamais le niveau 1. Compté sur le catalogue entier : à vingt
+joueurs et sur trois graines, 19 bâtiments au niveau 1, 3 au niveau 2 et **9 au niveau 3**. Les
+niveaux hauts sont donc bien atteints ; ce sont les spécialités qui restent basses, parce qu'elles se
+débloquent tard. Toucher à la courbe de coût aurait affaibli le « dur d'avoir tout » sans rien
+réparer. Je n'ai rien changé.
+
+### Fonctionnel (vérifié)
+
+- 15 `.vox` générés, servis et chargés (200) par la vue Ville ; régénération complète idempotente.
+- Médianes de survie inchangées : 15 · 15 · 18 · 21 · 22 · 22 vagues pour 1 · 2 · 4 · 8 · 12 · 20
+  joueurs. `go test ./... -count=2` vert, `go vet` propre, `tsc -b` et `npm run build` verts.
+
+### À faire
+
+- Les spécialités restent au niveau 1 en pratique — voulu (elles arrivent tard), à revoir si on veut
+  qu'une ville puisse en approfondir une.
+- Les bots découvrent peu de ruines : si on veut qu'une ville 100 % IA ait des spécialités, c'est le
+  BROUILLARD qu'il faudra ouvrir, pas la priorité des bots.
+
+---
+
 ## 2026-08-10 (102) — Cinq bâtiments de spécialité, pour qu'il y ait enfin des priorités à arbitrer
 
 Demande : « les bâtiments ne doivent pas dépasser 3 niveaux, donc il faut en AJOUTER, et il faudrait

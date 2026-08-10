@@ -142,10 +142,12 @@ func (g *GameState) Recompute() {
 	g.Town.Defense = g.buildingsDefense() + g.Town.GarrisonValue
 	g.recomputeTetanise()
 	g.RevealVision() // grow the shared fog-of-war reveal set from current positions
-	// Which in-town heroes have already drawn their daily water ration.
+	// Quels héros en ville ont ÉPUISÉ leur quota d'eau du jour (une ration, deux avec
+	// une Cuisine niveau 2 — cf. dailyWaterAllowance) : c'est ce que l'interface grise.
+	allowance := g.dailyWaterAllowance()
 	drawn := g.Town.WaterDrawnToday[:0]
 	for _, h := range g.HeroesInTown() {
-		if h.DrewWaterDay == g.Day {
+		if h.DrewWaterDay == g.Day && h.DrewWaterCount >= allowance {
 			drawn = append(drawn, h.ID)
 		}
 	}

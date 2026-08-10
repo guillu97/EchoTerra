@@ -298,6 +298,15 @@ func (g *GameState) botHeroAct(h *Hero, curfew int) bool {
 			return true
 		}
 	}
+	// LA RUINE SOUS SES PIEDS. Les joueurs-IA ignoraient complètement les ruines, alors
+	// qu'elles sont la SEULE source des plans de spécialité (ruins.go) : une ville sans
+	// joueur humain ne pouvait donc jamais bâtir une Infirmerie, un Cartographe, une
+	// Armurerie, un Verger ni une Caserne — cinq bâtiments sur seize, invisibles à l'IA.
+	// Déblayer est collectif (les PA s'additionnent d'un héros à l'autre), fouiller coûte
+	// ruinExplorePA et rend une charge.
+	if g.botWorkRuin(h) {
+		return true
+	}
 	if t := g.TileAt(h.X, h.Y); t != nil && t.Resources > 0 {
 		if _, err := g.SearchTile(h.ID); err == nil {
 			return true
@@ -736,6 +745,14 @@ func (g *GameState) botGoalWorthKeeping(h *Hero) bool {
 }
 
 func (g *GameState) botPickGatherTarget(h *Hero) (int, int, bool) {
+	// UNE RUINE, MAIS PAS AU PRIX DE LA PIERRE. Un donjon rend des matériaux rares et
+	// les SEULS plans de spécialité du jeu — mais déblayer coûte huit à douze PA
+	// collectifs, et une ville qui manque encore de l'essentiel n'a pas les moyens de
+	// s'offrir une expédition archéologique. On n'y va donc que quand la Banque ne tient
+	// plus rien à zéro : la liste critique vide, c'est le signal que la ville respire.
+	if x, y, ok := g.botRuinTarget(h); ok && g.botRuinWorthTheTrip(x, y) {
+		return x, y, true
+	}
 	if g.botSupplyKnown(g.botShoppingList()) {
 		if x, y, ok := g.pickResourceTile(h); ok {
 			return x, y, ok
@@ -1234,4 +1251,84 @@ func (g *GameState) botStepToward(h *Hero, tx, ty int) bool {
 		}
 	}
 	return false
+}
+
+// botWorkRuin fait travailler un héros sur la ruine de SA case : déblayage tant qu'elle
+// est ensevelie, fouille du donjon ensuite. Renvoie false s'il n'y a rien à y faire.
+//
+// ⚠ LA RÉSERVE DE DISSIMULATION EST DÉJÀ APPLIQUÉE plus haut (le dernier PA d'un héros
+// dehors ne sert qu'à se cacher) ; on garde ici la même prudence pour la fouille, qui
+// coûte deux points d'un coup.
+func (g *GameState) botWorkRuin(h *Hero) bool {
+	ru := g.ruinAt(h.X, h.Y)
+	if ru == nil {
+		return false
+	}
+	if !ru.Cleared {
+		return g.clearRuinSilently(h)
+	}
+	if ru.Charges > 0 && h.PA >= ruinExplorePA+1 {
+		_, err := g.ExploreRuin(h.ID)
+		return err == nil
+	}
+	return false
+}
+
+func (g *GameState) clearRuinSilently(h *Hero) bool {
+	_, err := g.ClearRuin(h.ID, 1)
+	return err == nil
+}
+
+// ruinAt rend la ruine posée sur une case, ou nil.
+func (g *GameState) ruinAt(x, y int) *Ruin {
+	t := g.TileAt(x, y)
+	if t == nil || t.RuinID == "" {
+		return nil
+	}
+	return g.Ruins[t.RuinID]
+}
+
+// botRuinTarget : la ruine encore utile la PLUS PROCHE, dans la limite de ce qu'un
+// héros peut atteindre. Une ruine à trente cases est un mirage — six PA par vague.
+func (g *GameState) botRuinTarget(h *Hero) (int, int, bool) {
+	bx, by, best := 0, 0, botRuinReach+1
+	for _, ru := range g.Ruins {
+		if ru == nil || (ru.Cleared && ru.Charges <= 0) {
+			continue
+		}
+		t := g.TileAt(ru.X, ru.Y)
+		if t == nil || !t.Discovered || t.MonsterID != "" {
+			continue
+		}
+		d := absI(ru.X-h.X) + absI(ru.Y-h.Y)
+		if d == 0 || d >= best {
+			continue
+		}
+		bx, by, best = ru.X, ru.Y, d
+	}
+	return bx, by, best <= botRuinReach
+}
+
+// botRuinReach : au-delà, une ruine ne vaut pas le voyage.
+const botRuinReach = 12
+
+// botRuinWorthTheTrip : une ruine DÉJÀ DÉBLAYÉE est presque du butin gratuit (deux PA
+// la fouille) et vaut toujours le détour. Une ruine ENSEVELIE coûte huit à douze PA
+// collectifs : on ne s'offre cette expédition archéologique que si la ville ne tient
+// plus rien à zéro — sinon on va chercher de la pierre.
+//
+// ⚠ MESURÉ : cette porte ne change quasiment rien au nombre de ruines travaillées
+// (0 à 1 sur quatre, avec ou sans elle). Ce qui limite vraiment les joueurs-IA, c'est
+// qu'ils DÉCOUVRENT peu de ruines — le brouillard ne se lève que d'une case autour d'un
+// héros. Elle reste parce qu'elle exprime la bonne priorité quand le cas se présente,
+// pas parce qu'elle sauve la partie.
+func (g *GameState) botRuinWorthTheTrip(x, y int) bool {
+	ru := g.ruinAt(x, y)
+	if ru == nil {
+		return false
+	}
+	if ru.Cleared {
+		return true
+	}
+	return len(g.botCriticalList(g.botShoppingList())) == 0
 }

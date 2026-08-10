@@ -285,7 +285,13 @@ TIENT quand l'aide est à un pas. **Tuer compte désormais** : `hordePower` incl
 l'anneau, donc dégager les abords retire directement des dégâts (règle changée le 2026-08-09 à la
 demande de l'utilisateur — auparavant le combat ne servait qu'au butin). ⚠ la récolte reste
 prioritaire sur le sauvetage pour un RÉCOLTEUR : mesuré, inverser les deux fait BAISSER la survie
-(les matériaux font vivre la ville). Tout est persisté en SQLite (le salon survit à un redémarrage ; les
+(les matériaux font vivre la ville). **RUINES** (2026-08-10) : un bot déblaie et fouille la ruine de sa case (`botWorkRuin`), et un
+récolteur s'y rend (`botRuinTarget`, portée `botRuinReach` 12) — une ruine déjà déblayée vaut toujours
+le détour, une ruine ensevelie seulement si la Banque ne tient plus rien à zéro. Sans ça les cinq
+bâtiments de spécialité étaient INVISIBLES à l'IA (leurs plans ne tombent que des ruines). ⚠ mesuré :
+les bots ne travaillent que 0 à 1 ruine sur quatre, non par manque de volonté mais parce qu'ils en
+DÉCOUVRENT peu — le brouillard ne se lève que d'une case autour d'un héros. Débloquer les spécialités
+reste donc largement l'affaire d'un joueur humain. Tout est persisté en SQLite (le salon survit à un redémarrage ; les
 salons ouverts se listent via `GET /api/games?status=lobby`). ⚠ **la recherche de partie REJOIGNABLE passe par `store.OpenForJoin(n)`**
 (colonne miroir `join_open`, alimentée par `JoinOpen()`) et toute recherche de salon par
 `store.ListByStatus(StatusLobby, n)` — **JAMAIS par `List(n)` + filtre en Go** : un salon est écrit une
@@ -535,6 +541,19 @@ ajouté après coup n'atteindrait aucune partie en cours.
 
 **Bank** = `town.storage`: deposit hero loot (`/town/deposit`), craft I/O in town, construction materials.
 
+**LES NIVEAUX 2-3 NE SONT PLUS DU TEXTE** (2026-08-10) — quatre effets du catalogue de design
+n'existaient que sur le papier ; le joueur payait des PA et des matériaux pour une phrase. Ils sont
+branchés : **Recyclerie** (`craftYieldBonus` : +1 par palier sur ses SEULES recettes — l'étendre à
+tout ferait de l'Atelier une machine à dupliquer l'Acier) · **Panneau** (`townLogCapacity` ×niveau et
+`requestsCapacity` +6/niveau : à vingt joueurs le journal défile en une soirée et les demandes les
+plus anciennes tombent avant d'avoir été vues) · **Poste** (`chatRemoteDepth` : depuis LE TERRAIN on
+reçoit 20 messages au niv.1, 40 au niv.2, tout le fil au niv.3 ; en ville on lit tout, on est devant
+le panneau) · **Cuisine niv.2** (`dailyWaterAllowance` : une SECONDE ration d'eau par héros et par
+jour — l'eau rend des PA sur le terrain, donc du temps de jeu). ⚠ mesuré, les niveaux 2-3 du
+catalogue courant SONT atteints (20 joueurs, 3 graines : 19 bâtiments niv.1, 3 niv.2, 9 niv.3) ; ce
+sont les spécialités qui restent au niveau 1, parce qu'elles se débloquent tard. Tests :
+`levels_test.go`.
+
 **LES CINQ BÂTIMENTS DE SPÉCIALITÉ** (`design.go`, 2026-08-10) — Infirmerie, Cartographe,
 Armurerie, Verger, Caserne. **Pourquoi** : une expédition de vingt construisait LES ONZE bâtiments du
 catalogue (mesuré : 11 debout, 18 niveaux sur 33) — il n'y avait aucune priorité à arbitrer, juste
@@ -555,9 +574,12 @@ rares : un **prérequis** d'arbre techno (kitchen 1 · panel 2 · workshop 2 · 
 ruine dans CHAQUE biome. Mesuré : même en donnant les cinq plans aux bots, une ville n'en bâtit que
 1 à 3, tous au niveau 1. ⚠ **`botShoppingList` ignore les sites dont le PLAN n'est pas en Banque** :
 sans ça les cinq nouveaux mettaient Cuir, Herbe médicinale, Graines anciennes et Minerai d'or sur la
-liste de courses de TOUTES les villes, y compris celles qui n'auraient jamais le plan. Art voxel
-PROVISOIRE : ils empruntent le modèle d'un voisin (`BLD_MODEL`/`buildingModelKey` dans
-`townLayout.ts`) — sans cette table, `if (!geom) continue` les rendait INVISIBLES donc incliquables.
+liste de courses de TOUTES les villes, y compris celles qui n'auraient jamais le plan. Chacun a
+désormais SON modèle voxel (`gen-props.mjs`), reconnaissable à sa couleur de toit et à sa silhouette
+— c'est le seul repère qui survit au dézoom : infirmerie bleu-vert + croix, cartographe indigo +
+rose des vents, armurerie rouge forge + enclume, caserne longue et basse + bannière, verger =
+parcelle plantée. ⚠ `buildingModelKey` (townLayout.ts) reste l'indirection : un modèle manquant fait
+`if (!geom) continue`, donc un bâtiment INVISIBLE et incliquable.
 Tests : `specialties_test.go`.
 
 **Ruines-donjons** (`ruins.go`, 2026-07-19) — 5 bâtiments en ruine PAR BIOME semés au worldgen
@@ -1014,7 +1036,15 @@ MapScene/CombatScene, `components/TownMap.tsx` et le réglage « Classique » on
 Maintenir deux moteurs obligeait le plan de ville à rester exprimable sur une grille de cases
 entières, ce qui interdisait à la fois la géométrie polaire du tertre et le terrain lissé.) **2026-07-22** : `voxelBeauty: true` (mode CINÉMATIQUE — ACES + bloom
 + ciel/brume) et `quality: "Very high"` sont aussi des DÉFAUTS ; migration unique `RENDER_PRESET`
-dans `loadSettings` qui bascule les installs déjà sauvegardées une fois (opt-out ultérieur respecté). **Détails du monde** (`WORLD-DETAILS-PLAN.md`, lots D1+D2 faits
+dans `loadSettings` qui bascule les installs déjà sauvegardées une fois (opt-out ultérieur respecté). ⚠ **PAS DE QUASI-NEUTRE SUR UNE GRANDE SURFACE VOXEL** (2026-08-10) : `shade()` de
+`scripts/voxel/gen-props.mjs` est DIVISIONNISTE (il écarte la teinte pour faire vibrer la matière).
+Sur une couleur franche c'est le but ; sur un quasi-neutre il n'y a pas de teinte où aller et le
+résultat bascule dans le VIOLET — mesuré, un chaume « lin » [226,220,200] (chroma 26) ressort lilas
+[197,169,232]. Les toits qui marchent sont à chroma ≥ ~40. Un blanc pur reste possible en petite
+touche via `g.box` direct, qui ne passe pas par `shade`. Au passage `sharp` n'est plus importé qu'à
+la demande (il ne sert qu'aux aperçus PNG ; son absence faisait échouer toute la génération).
+
+**Détails du monde** (`WORLD-DETAILS-PLAN.md`, lots D1+D2 faits
 2026-07-18) : 37 props ×3 variantes (`scripts/voxel/gen-props.mjs` → `voxels/props/`) et
 **`frontend/src/voxel/scatter.ts`** = scatter PARTAGÉ carte/banc, pur (sans THREE) — tables
 par biome, règles « près de » (voisinage 8 : bord d'eau, eau calme, pied de falaise, sommet,

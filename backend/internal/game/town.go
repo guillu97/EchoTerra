@@ -223,8 +223,8 @@ const townLogCap = 100
 func (g *GameState) logTown(text string) {
 	e := TownLogEntry{At: g.clock(), Day: g.Day, Text: text}
 	g.Town.Log = append([]TownLogEntry{e}, g.Town.Log...)
-	if len(g.Town.Log) > townLogCap {
-		g.Town.Log = g.Town.Log[:townLogCap]
+	if cap := g.townLogCapacity(); len(g.Town.Log) > cap {
+		g.Town.Log = g.Town.Log[:cap]
 	}
 }
 
@@ -608,11 +608,14 @@ func (g *GameState) TownAction(buildingID, action string, points int, heroID str
 		if h == nil || h.HP <= 0 || h.X != g.Town.X || h.Y != g.Town.Y {
 			return ActionError{"sélectionnez un héros présent dans la ville pour puiser"}
 		}
-		if h.DrewWaterDay == g.Day {
-			return ActionError{h.Name + " a déjà puisé de l'eau aujourd'hui"}
+		if h.DrewWaterDay != g.Day {
+			h.DrewWaterDay, h.DrewWaterCount = g.Day, 0
+		}
+		if h.DrewWaterCount >= g.dailyWaterAllowance() {
+			return ActionError{h.Name + " a déjà puisé sa part d'eau aujourd'hui"}
 		}
 		b.Capacity--
-		h.DrewWaterDay = g.Day
+		h.DrewWaterCount++
 		h.RemoveState(StateSoif) // drinking quenches thirst
 		h.AddLoot(Item{Type: "eau", Name: "Ration d'eau", Qty: 1})
 		g.logTown(fmt.Sprintf("💧 %s a puisé une ration d'eau au puits", h.Name))
@@ -800,3 +803,34 @@ func (b *TownBuilding) Label() string { return buildingLabel(b.ID, b.Name) }
 
 // infirmaryHeal : PV rendus par un passage à l'Infirmerie.
 const infirmaryHeal = 12
+
+// townLogCapacity : combien de lignes le journal de la ville retient.
+//
+// Le PANNEAU annonçait « sondages » puis « statistiques » à ses niveaux 2 et 3, et ne
+// faisait RIEN — du texte dans le catalogue de design, pas une ligne de code. Or c'est
+// lui qui porte la mémoire écrite de la ville : à vingt joueurs le journal défile si
+// vite qu'une soirée d'absence l'efface entièrement. L'améliorer allonge donc ce que la
+// ville se rappelle. (La capacité du tableau de DEMANDES suit la même logique, cf.
+// requestsCapacity.)
+func (g *GameState) townLogCapacity() int {
+	b := g.buildingByID("panel")
+	if b == nil || !b.Built || b.Durability <= 0 {
+		return townLogCap
+	}
+	return townLogCap * b.Level
+}
+
+// dailyWaterAllowance : rations d'eau qu'un héros peut tirer du puits par jour.
+//
+// Une, et DEUX dès que la Cuisine atteint le niveau 2 — c'est son effet « rations +1 »,
+// qui n'existait jusqu'ici que dans le texte du catalogue de design. L'eau redonne des
+// PA sur le terrain (DrinkRation) : c'est donc directement du temps de jeu rendu à une
+// expédition qui a investi dans ses cuisines, et un vrai motif de monter un bâtiment qui
+// n'en avait aucun.
+func (g *GameState) dailyWaterAllowance() int {
+	n := 1
+	if k := g.buildingByID("kitchen"); k != nil && k.Built && k.Durability > 0 && k.Level >= 2 {
+		n++
+	}
+	return n
+}

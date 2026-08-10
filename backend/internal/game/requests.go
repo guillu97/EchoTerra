@@ -201,7 +201,22 @@ func (g *GameState) trimRequests() {
 		kept = append(kept, r)
 	}
 	g.Town.Requests = kept
-	if n := len(g.Town.Requests); n > requestsCap {
-		g.Town.Requests = g.Town.Requests[n-requestsCap:] // on garde les plus récentes
+	if cap := g.requestsCapacity(); len(g.Town.Requests) > cap {
+		g.Town.Requests = g.Town.Requests[len(g.Town.Requests)-cap:] // on garde les plus récentes
 	}
+}
+
+// requestsCapacity : combien de demandes le Panneau affiche à la fois.
+//
+// À vingt joueurs, douze places se remplissent en une vague et les demandes les plus
+// anciennes tombent avant d'avoir été vues — or une demande non vue est une demande non
+// servie, et les requêtes sont la SEULE sortie de la Banque vers un joueur. Agrandir le
+// panneau est donc un vrai gain collectif, et c'est ce que ses niveaux 2 et 3
+// promettaient sans rien faire.
+func (g *GameState) requestsCapacity() int {
+	b := g.buildingByID("panel")
+	if b == nil || !b.Built || b.Durability <= 0 {
+		return requestsCap
+	}
+	return requestsCap + 6*(b.Level-1)
 }

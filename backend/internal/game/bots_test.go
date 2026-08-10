@@ -562,3 +562,70 @@ func seedForTest(t *testing.T, seed int64) {
 	SeedRNG(seed)
 	t.Cleanup(func() { SeedRNG(time.Now().UnixNano()) })
 }
+
+// LES JOUEURS-IA TRAVAILLENT LES RUINES.
+//
+// Ils les ignoraient complètement, alors qu'une ruine est la SEULE source des plans de
+// spécialité (ruins.go) : une ville sans joueur humain ne pouvait donc jamais bâtir une
+// Infirmerie, un Cartographe, une Armurerie, un Verger ni une Caserne — cinq bâtiments
+// sur seize, invisibles à l'IA.
+func TestBotClearsThenExploresARuinUnderIt(t *testing.T) {
+	g, bot := botGame(t)
+	h := g.HeroByID(bot.HeroIDs[0])
+	h.X, h.Y = g.Town.X+3, g.Town.Y
+	ru := &Ruin{ID: "r1", Type: "ferme", Name: "Ferme abandonnée", Icon: "🏚️",
+		X: h.X, Y: h.Y, ClearPA: 3, Charges: 4}
+	g.Ruins = map[string]*Ruin{ru.ID: ru}
+	g.TileAt(ru.X, ru.Y).RuinID = ru.ID
+
+	// Ensevelie : le héros déblaie, et le PA compte pour le chantier COLLECTIF.
+	if !g.botWorkRuin(h) {
+		t.Fatal("un bot sur une ruine ensevelie doit déblayer")
+	}
+	if ru.PaInvested == 0 {
+		t.Fatalf("le PA doit aller au déblayage : %+v", ru)
+	}
+
+	// Déblayée : il fouille le donjon.
+	ru.Cleared, ru.PaInvested = true, ru.ClearPA
+	h.PA, h.Inventory = 6, nil
+	if !g.botWorkRuin(h) {
+		t.Fatal("un bot sur une ruine déblayée doit fouiller")
+	}
+	if ru.Charges != 3 || len(h.Inventory) == 0 {
+		t.Fatalf("la fouille doit consommer une charge et rapporter : charges=%d sac=%d", ru.Charges, len(h.Inventory))
+	}
+
+	// ⚠ LA RÉSERVE DE DISSIMULATION TIENT : fouiller coûte deux points d'un coup, on ne
+	// laisse jamais un héros dehors sans de quoi se cacher.
+	h.PA = ruinExplorePA
+	if g.botWorkRuin(h) {
+		t.Fatal("il doit garder son dernier point pour se cacher")
+	}
+
+	// Épuisée : plus rien à y faire.
+	ru.Charges, h.PA = 0, 6
+	if g.botWorkRuin(h) {
+		t.Fatal("une ruine épuisée ne doit plus retenir personne")
+	}
+}
+
+// Une ruine DÉBLAYÉE vaut toujours le détour (deux PA la fouille) ; une ruine ENSEVELIE
+// coûte huit à douze PA collectifs, et une ville qui manque de l'essentiel a mieux à
+// faire que de l'archéologie.
+func TestBotWeighsARuinAgainstTheTownsShortages(t *testing.T) {
+	g, _ := botGame(t)
+	ru := &Ruin{ID: "r1", Type: "mine", Name: "Mine effondrée", X: g.Town.X + 2, Y: g.Town.Y, ClearPA: 12, Charges: 4}
+	g.Ruins = map[string]*Ruin{ru.ID: ru}
+	g.TileAt(ru.X, ru.Y).RuinID = ru.ID
+	g.Town.HP = g.Town.MaxHP - 20 // la ville réclame de la Pierre, et la Banque est vide
+	g.Recompute()
+
+	if g.botRuinWorthTheTrip(ru.X, ru.Y) {
+		t.Fatal("ville en pénurie + ruine ensevelie : on va chercher de la pierre")
+	}
+	ru.Cleared = true
+	if !g.botRuinWorthTheTrip(ru.X, ru.Y) {
+		t.Fatal("une ruine déjà déblayée est du butin presque gratuit")
+	}
+}
