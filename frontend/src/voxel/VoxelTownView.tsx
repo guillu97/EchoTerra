@@ -260,6 +260,8 @@ export function VoxelTownView({
     void propsLib
       .load(["bld-well", "bld-panel", "bld-bank", "bld-workshop", "bld-gate", "bld-tower",
              "bld-townhall", "bld-kitchen", "bld-wall", "bld-recyclerie", "bld-poste", "bld-chantier",
+             // les cinq bâtiments de spécialité (design.go)
+             "bld-infirmerie", "bld-cartographe", "bld-armurerie", "bld-caserne", "bld-verger",
              "bld-gate-door-l", "bld-gate-door-r", "cloud", ...TOWN_DECOR_PROPS])
       .then(() => {
         drawBuildings();

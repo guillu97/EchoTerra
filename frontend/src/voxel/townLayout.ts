@@ -258,24 +258,16 @@ const POLAR: PolarPlot[] = [
 ];
 
 /**
- * MODÈLE VOXEL utilisé pour une parcelle. Par défaut `bld-<id>`.
+ * MODÈLE VOXEL d'une parcelle : `bld-<id>`.
  *
- * ⚠ ART PROVISOIRE : les cinq bâtiments de spécialité n'ont pas encore leur propre
- * modèle (`scripts/voxel/` les génère par recette, ce qui reste à faire). Ils
- * EMPRUNTENT donc celui d'un voisin plausible. Sans cette table le rendu ferait
- * `if (!geom) continue` et le bâtiment serait INVISIBLE — donc impossible à cliquer,
- * alors qu'il est bel et bien construit et qu'il agit.
+ * Les cinq bâtiments de spécialité ont eu leur propre modèle le 2026-08-10
+ * (`scripts/voxel/gen-props.mjs`) ; ils empruntaient jusque-là celui d'un voisin, si
+ * bien que deux bâtiments aux effets opposés se ressemblaient trait pour trait. La
+ * table d'emprunt a donc disparu — mais l'indirection reste, parce qu'un modèle
+ * manquant fait `if (!geom) continue` dans le rendu : le bâtiment devient INVISIBLE,
+ * donc incliquable, alors qu'il est construit et qu'il agit.
  */
-const BLD_MODEL: Record<string, string> = {
-  infirmerie: "bld-townhall",
-  cartographe: "bld-panel",
-  armurerie: "bld-workshop",
-  caserne: "bld-tower",
-  verger: "bld-kitchen",
-};
-
-/** Clé du modèle voxel d'un bâtiment (emprunt compris, cf. BLD_MODEL). */
-export const buildingModelKey = (bid: string): string => BLD_MODEL[bid] ?? `bld-${bid}`;
+export const buildingModelKey = (bid: string): string => `bld-${bid}`;
 
 const polarXY = (r: number, deg: number) => {
   const a = (deg * Math.PI) / 180;
