@@ -158,6 +158,10 @@ export interface Hero {
   // installé à récolter). La première fouille, payée 1 PA, l'installe ; la suite
   // est jouée par la simulation serveur, même sans personne connecté.
   forageAt?: string; // RFC3339
+  // ÉQUIPEMENT PORTÉ (backend equipment.go) : l'objet quitte le sac tant qu'il est
+  // porté, et y revient quand on le retire.
+  weapon?: string;
+  gear?: string;
   classId: string;
   classTier: number;
   classBonuses: Stats;
@@ -294,6 +298,25 @@ export interface ItemEffect {
 }
 
 export type ItemEffects = Record<string, ItemEffect>;
+
+// CE QUI SE PORTE (GET /api/equipment, backend game/equipment.go). Deux emplacements
+// seulement — une ARME et un ÉQUIPEMENT — pour qu'un choix se pose sans devenir un jeu de
+// gestion d'inventaire. ⚠ les bonus sont PRÊTÉS à l'unité de combat, jamais greffés sur
+// les statistiques du héros.
+export interface EquipDef {
+  slot: "arme" | "equipement";
+  force?: number;
+  dexterite?: number;
+  agilite?: number;
+  endurance?: number;
+  armor?: number; // dégâts subis en moins
+  reach?: number; // portée de l'attaque de base (0 = mêlée)
+  rangedStat?: string;
+  vsCursed?: number;
+  desc: string;
+}
+
+export type Equipment = Record<string, EquipDef>;
 
 // LES SAISONS (GET /api/seasons, backend game/season.go) — un classement cumulatif se
 // FIGE : au bout de quelques mois les premières lignes sont tenues par des expéditions

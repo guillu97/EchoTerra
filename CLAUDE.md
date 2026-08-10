@@ -706,6 +706,24 @@ indépendant des joueurs. C'est cette action qui fait de l'ÉPUISEMENT DE LA CAR
 l'arithmétique de la horde, la vraie limite d'une longue partie. Bornée aux PV manquants (ne gaspille
 ni PA ni pierre) et refusée sur une ville intacte. Tests `townrepair_test.go`.
 
+**ÉQUIPEMENT** (`equipment.go`, `GET /api/equipment`, `POST /heroes/{h}/equip`, 2026-08-10) — la
+forge produisait lames, arcs, capes et armures dont les effets n'étaient QUE DU TEXTE : on montait
+l'Atelier au niveau 2, on fabriquait l'objet, il rejoignait la Banque et n'en ressortait jamais.
+**DEUX EMPLACEMENTS** (`SlotWeapon` « arme », `SlotGear` « equipement ») — assez pour qu'un choix se
+pose, assez peu pour rester lisible sur un téléphone. ⚠ **l'objet QUITTE le sac** tant qu'il est porté
+(sinon on le déposerait en Banque tout en le portant, et une seule lame armerait la ville) et y
+revient au retrait, y compris quand on remplace une pièce. ⚠ **les bonus sont PRÊTÉS à la
+`CombatUnit`, jamais greffés sur `Hero.Stats`** (même règle que l'Armurerie : greffés, ils
+s'empileraient à chaque combat). Quatre effets réels : stats (force/dext/agilité/endurance — et
+`u.Move` est RECALCULÉ après, sinon une cape d'agilité ne changerait rien), `Armor` (dégâts subis en
+moins, appliqué APRÈS les multiplicateurs, plancher 1), `Reach` (l'arme change les `Targets` de
+l'attaque de base — c'est ce qui fait d'un arc autre chose qu'une épée aux chiffres différents) et
+`VsCursed` (l'argent contre les loups-garous). ⚠ `damageWith` et `EstimateDamage` doivent rester
+MIROIRS, armure comprise, sinon la prévisualisation d'attaque ment. Les bots PORTENT ce qu'ils
+trouvent (`botEquip`) mais ⚠ **NE FORGENT PAS** : mesuré, leur faire fabriquer des armes coûte deux
+vagues aux grandes expéditions (le fer d'une lame est celui du portail niveau 3). Tests :
+`equipment_test.go`.
+
 **USAGE DES OBJETS** (`items.go`, `GET /api/items`, `POST /heroes/{h}/use`, 2026-08-10) — le
 catalogue portait 26 recettes dont les effets n'étaient QUE DU TEXTE : on cuisinait des ragoûts et
 des potions qui dormaient en Banque, et la seule remise en état d'un héros abîmé était de mourir puis
@@ -790,6 +808,8 @@ POST /api/games/{id}/heroes/{h}/escape
 POST /api/games/{id}/heroes/{h}/skill             {skillId} compétence de carte par classe -> {report, game}
 POST /api/games/{id}/heroes/{h}/drink             boit une Ration d'eau du sac (+6 PA) -> GameState
 GET  /api/items                                   {nom -> {pa,hp,clears,clearsAll,desc}} ce qui se consomme
+GET  /api/equipment                               {nom -> EquipDef} ce qui se PORTE (2 emplacements)
+POST /api/games/{id}/heroes/{h}/equip             {item,slot} porte un objet du sac (item vide = retirer)
 POST /api/games/{id}/heroes/{h}/use               {item} consomme un objet du sac (ou, EN VILLE, de la
                                                   réserve commune : on mange sur place, on n'emporte rien)
 POST /api/games/{id}/heroes/{h}/ruin/clear        {points} déblaye la ruine sous le héros -> {ruin, game}

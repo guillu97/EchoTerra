@@ -140,6 +140,12 @@ func (g *GameState) botHeroAct(h *Hero, curfew int) bool {
 		return true
 	}
 
+	// S'ARMER (equipment.go). Une lame dans un sac ne frappe personne : sans ce geste,
+	// tout ce que la forge produit reste du poids mort — c'était exactement le cas.
+	if g.botEquip(h) {
+		return true
+	}
+
 	// SE SOIGNER ET SE RESTAURER (items.go). Le catalogue portait vingt-six recettes dont
 	// les effets n'étaient que du texte : on cuisinait des ragoûts et des potions qui
 	// dormaient en Banque. C'est GRATUIT en PA — ce qui borne l'usage, c'est l'objet
@@ -1465,6 +1471,12 @@ const botStockPerConsumable = 3
 // ingrédients sont en Banque. Renvoie false s'il n'y a rien d'utile à faire.
 func (g *GameState) botCookStores(h *Hero) bool {
 	// Les SOINS d'abord : c'est la seule chose qu'on ne peut pas remplacer par du temps.
+	// ⚠ PAS LA FORGE. Faire fabriquer des ARMES aux bots semblait aller de soi une fois
+	// l'équipement implémenté ; mesuré, ça COÛTE deux vagues aux grandes expéditions
+	// (21 et 22 au lieu de 22 et 23 à douze et vingt joueurs) : le fer et l'acier d'une
+	// lame sont ceux du portail niveau 3, et un rempart protège soixante héros quand une
+	// épée en arme un. Les bots PORTENT ce qu'ils trouvent (botEquip) ; forger reste une
+	// décision de joueur, qui sait, lui, à quoi il destine son héros.
 	for _, cat := range []string{"potion", "conso"} {
 		for i := range Recipes {
 			r := &Recipes[i]
@@ -1487,4 +1499,38 @@ func (g *GameState) botCookStores(h *Hero) bool {
 		}
 	}
 	return false
+}
+
+// botEquip fait porter au héros ce qu'il a de mieux dans son sac, arme et équipement.
+//
+// Le critère est volontairement simple — la somme des bonus — parce qu'un bot n'a pas de
+// plan de bataille : ce qu'on veut éviter, c'est qu'une Lame de fer voyage dans un sac
+// pendant vingt vagues sans jamais servir.
+func (g *GameState) botEquip(h *Hero) bool {
+	for _, slot := range []string{SlotWeapon, SlotGear} {
+		cur := h.Weapon
+		if slot == SlotGear {
+			cur = h.Gear
+		}
+		best, bestV := "", equipValue(Equipment[cur])
+		for _, it := range h.Inventory {
+			d, ok := Equipment[it.Name]
+			if !ok || d.Slot != slot || equipValue(d) <= bestV {
+				continue
+			}
+			best, bestV = it.Name, equipValue(d)
+		}
+		if best == "" {
+			continue
+		}
+		if _, err := g.Equip(h.ID, best); err == nil {
+			return true
+		}
+	}
+	return false
+}
+
+// equipValue : ce que vaut grossièrement une pièce d'équipement pour un bot.
+func equipValue(d EquipDef) int {
+	return d.Force + d.Dexterite + d.Agilite + d.Endurance + 2*d.Armor + d.Reach + d.VsCursed/2
 }

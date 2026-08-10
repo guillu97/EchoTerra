@@ -89,6 +89,12 @@ type Hero struct {
 	GoalX   int  `json:"goalX,omitempty"`
 	GoalY   int  `json:"goalY,omitempty"`
 	HasGoal bool `json:"hasGoal,omitempty"`
+	// ÉQUIPEMENT PORTÉ (equipment.go) : une ARME et un ÉQUIPEMENT, par nom d'objet.
+	// L'objet QUITTE le sac tant qu'il est porté — sinon il serait déposé en Banque tout
+	// en restant équipé, et une seule lame armerait la ville entière. Les bonus sont
+	// PRÊTÉS à l'unité de combat, jamais greffés sur Stats (ils s'empileraient).
+	Weapon string `json:"weapon,omitempty"`
+	Gear   string `json:"gear,omitempty"`
 	// ClassID identifies the hero's current class in the Classes catalog ("" while
 	// "Sans classe"). ClassTier mirrors its tier (see ClassTier* consts). ClassBonuses
 	// accumulates the stat bonuses already folded into Stats by EvolveHero, kept only

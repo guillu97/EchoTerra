@@ -4,11 +4,16 @@ import { TownWorker } from "../components/TownWorker";
 import { buildingName } from "../data/buildings";
 import { heroesInTown, effectiveTownHeroId } from "../townUtils";
 
+// « Tout » EN PREMIER et par défaut : les recettes sont réparties sur quatre catégories,
+// et sans vue d'ensemble on ne peut pas comparer ce qu'on pourrait faire avec ce qu'on a
+// — il fallait ouvrir les quatre onglets pour savoir. (Même convention que le Sac, qui
+// commence lui aussi par « Tout ».)
 const CATS = [
+  { id: "all", label: "Tout" },
   { id: "conso", label: "Consommable" },
   { id: "potion", label: "Potion" },
   { id: "forge", label: "Forge" },
-  { id: "deco", label: "Decoration" },
+  { id: "deco", label: "Décoration" },
 ];
 
 // Craft is always accessible. In town the chosen worker crafts from the Maison (full
@@ -22,7 +27,7 @@ export function CraftTab() {
   const selectedHeroId = useStore((s) => s.selectedHeroId);
   const townHeroId = useStore((s) => s.townHeroId);
   const playerId = useStore((s) => s.playerId);
-  const [cat, setCat] = useState("conso");
+  const [cat, setCat] = useState("all");
   if (!game) return null;
 
   const inTown = heroesInTown(game, playerId).length > 0;
@@ -31,7 +36,7 @@ export function CraftTab() {
   const pa = actor?.pa ?? 0;
   const source = inTown ? game.town.storage ?? [] : actor?.inventory ?? [];
   const have = (name: string) => source.find((i) => i.name === name)?.qty ?? 0;
-  const list = recipes.filter((r) => r.category === cat);
+  const list = cat === "all" ? recipes : recipes.filter((r) => r.category === cat);
 
   return (
     <div className="panel-screen">

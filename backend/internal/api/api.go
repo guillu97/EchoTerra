@@ -248,6 +248,11 @@ func (s *Server) Router() http.Handler {
 		writeJSON(w, http.StatusOK, game.ItemEffects)
 	})
 
+	// Ce qui se PORTE et ce que ça apporte (game/equipment.go).
+	r.Get("/api/equipment", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, game.Equipment)
+	})
+
 	r.Get("/api/mapskills", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, game.MapSkills)
 	})
@@ -293,6 +298,8 @@ func (s *Server) Router() http.Handler {
 			r.Post("/heroes/{heroID}/drink", s.drinkRation)
 			// Consommer un objet du sac (nourriture, potion) : items.go.
 			r.Post("/heroes/{heroID}/use", s.useItem)
+			// Porter / retirer un objet (equipment.go).
+			r.Post("/heroes/{heroID}/equip", s.equipItem)
 			r.Post("/heroes/{heroID}/order", s.heroOrder) // consigne permanente
 			r.Post("/heroes/{heroID}/ruin/clear", s.ruinClear)
 			r.Post("/heroes/{heroID}/ruin/explore", s.ruinExplore)
@@ -1176,6 +1183,40 @@ func (s *Server) useItem(w http.ResponseWriter, r *http.Request) {
 	}
 	s.persist(gs)
 	writeJSON(w, http.StatusOK, map[string]any{"effect": eff, "game": gs})
+}
+
+// equipItem : un héros porte un objet de son sac, ou libère un emplacement (item vide).
+// Même précaution que useItem : UN SEUL décodage du corps (decodePlayer le consomme).
+func (s *Server) equipItem(w http.ResponseWriter, r *http.Request) {
+	gs := s.mustGame(w, r)
+	if gs == nil {
+		return
+	}
+	var body struct {
+		Item     string `json:"item"`
+		Slot     string `json:"slot"`
+		PlayerID string `json:"playerId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeErr(w, http.StatusBadRequest, "corps invalide")
+		return
+	}
+	heroID := chi.URLParam(r, "heroID")
+	if !s.ownHero(w, gs, body.PlayerID, heroID) {
+		return
+	}
+	var err error
+	if body.Item == "" {
+		_, err = gs.Unequip(heroID, body.Slot)
+	} else {
+		_, err = gs.Equip(heroID, body.Item)
+	}
+	if err != nil {
+		writeActionErr(w, err)
+		return
+	}
+	s.persist(gs)
+	writeJSON(w, http.StatusOK, gs)
 }
 
 func (s *Server) drinkRation(w http.ResponseWriter, r *http.Request) {

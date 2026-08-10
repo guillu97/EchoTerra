@@ -57,6 +57,68 @@ le combat tournaient jusqu'ici à la fréquence de l'écran, ils profitent du pl
 
 ---
 
+## 2026-08-10 (105) — L'équipement, et un filtre « Tout » à l'atelier
+
+Suite directe de l'entrée 104 : les consommables servaient enfin à quelque chose, restaient les
+ARMES et les ARMURES — l'autre moitié du catalogue de forge, elle aussi purement décorative.
+
+### Deux emplacements, pas huit
+
+Une ARME et un ÉQUIPEMENT. Assez pour qu'un choix se pose — une lame lourde ou un arc, une cape
+légère ou du cuir — et assez peu pour rester lisible sur un téléphone. Un inventaire à huit
+emplacements serait un autre jeu.
+
+Deux règles qui tiennent le reste :
+
+- **l'objet QUITTE le sac** tant qu'il est porté (sinon on le déposerait en Banque tout en le
+  portant, et une seule lame armerait la ville entière) et y revient au retrait, y compris quand on
+  remplace une pièce — rien ne se perd ;
+- **les bonus sont PRÊTÉS à l'unité de combat**, jamais greffés sur `Hero.Stats`. C'est la règle de
+  l'Armurerie : greffés, ils s'empileraient à chaque combat et un héros finirait à quarante de force.
+
+### Quatre effets réels, dont un qui change la façon de jouer
+
+Stats (force, dextérité, agilité, endurance), armure (dégâts subis en moins, appliquée APRÈS les
+multiplicateurs, plancher 1), bonus d'argent contre les créatures maudites — et surtout la **PORTÉE** :
+une arme change les cases de ciblage de l'attaque de base. C'est ce qui fait d'un arc autre chose
+qu'une épée aux chiffres différents : on frappe de loin, donc on choisit sa place autrement.
+
+Deux pièges attrapés en écrivant :
+
+- `u.Move` se calcule sur l'agilité NUE, avant l'équipement — une cape de plumes n'aurait rien changé
+  au déplacement, c'est-à-dire à ce qu'elle promet. Recalculé après.
+- `damageWith` et `EstimateDamage` sont des MIROIRS (le commentaire du fichier le dit) : oublier
+  l'armure dans le second aurait fait mentir la prévisualisation d'attaque.
+
+### Ce que la mesure a tranché : les bots ne forgent pas
+
+Une fois l'équipement en place, faire fabriquer des armes aux bots semblait aller de soi. Mesuré :
+ça **coûte deux vagues** aux grandes expéditions (21 et 22 au lieu de 22 et 23 à douze et vingt
+joueurs). Le fer et l'acier d'une lame sont ceux du portail niveau 3, et un rempart protège soixante
+héros quand une épée en arme un. Les bots PORTENT donc ce qu'ils trouvent, mais forger reste une
+décision de joueur — qui sait, lui, à quoi il destine son héros. Revenu en arrière.
+
+### Le filtre « Tout »
+
+Les recettes sont réparties sur quatre catégories et l'atelier n'offrait aucune vue d'ensemble : il
+fallait ouvrir les quatre onglets pour savoir ce qu'on pouvait faire avec ce qu'on avait. « Tout » en
+premier et par défaut, comme au Sac. (Au passage « Decoration » → « Décoration », une chaîne oubliée.)
+
+### Fonctionnel (vérifié)
+
+- Médianes inchangées : 15 · 17 · 19 · 21 · 22 · 23 vagues pour 1 · 2 · 4 · 8 · 12 · 20 joueurs.
+- `go test ./... -count=2` vert, `go vet` propre, `tsc -b` et `npm run build` verts.
+- **Lancé en vrai** : la fiche de héros montre les deux emplacements, ce qui est porté avec son
+  effet, un bouton Retirer et un bouton Équiper par pièce du sac.
+
+### À faire
+
+- Les bots ne forgent pas (décision mesurée) : dans une partie 100 % IA, l'équipement n'apparaît que
+  s'il tombe d'un butin. C'est cohérent avec les spécialités, mais c'est un choix à assumer.
+- Les DÉCORATIONS (« moral de la ville ») restent du texte — le moral n'existe pas dans le code.
+
+---
+
 ## 2026-08-10 (104) — Les bots prospectent, et les objets servent enfin à quelque chose
 
 Trois demandes : ne PAS ouvrir le brouillard mais faire explorer les bots, vérifier qu'ils évoluent,

@@ -57,6 +57,8 @@ export function HeroOverlay() {
   const close = useStore((s) => s.closeHero);
   const evolve = useStore((s) => s.evolve);
   const busy = useStore((s) => s.busy);
+  const equipment = useStore((s) => s.equipment);
+  const equipItem = useStore((s) => s.equipItem);
   const myHeroes = useStore((s) => s.myHeroes);
   const [pickerOpen, setPickerOpen] = useState(false);
 
@@ -72,6 +74,8 @@ export function HeroOverlay() {
     setPickerOpen(false);
     if (n > 0) openHero(roster[((index < 0 ? 0 : index) + delta + n) % n].id);
   };
+  // Ce que ce héros porte dans son sac et peut mettre.
+  const wearable = h.inventory.filter((it) => !!equipment[it.name]);
   const here = h.x === game.town.x && h.y === game.town.y;
 
   const currentClass = classes.find((c) => c.id === h.classId);
@@ -144,6 +148,45 @@ export function HeroOverlay() {
           <span>❤️ {h.hp}/{h.maxHp}</span>
           <span>⚡ {h.pa}/{h.maxPa} PA</span>
           <span className={`tag-loc ${here ? "in" : "out"}`}>{here ? "en ville" : "en expédition"}</span>
+        </div>
+
+        {/* ÉQUIPEMENT PORTÉ (backend equipment.go). Deux emplacements seulement — une
+            arme, un équipement — et les bonus ne s'appliquent qu'AU COMBAT : ils sont
+            prêtés à l'unité, jamais greffés sur les attributs ci-dessous. */}
+        <h4>Équipement</h4>
+        <div className="gear-slots">
+          {([
+            { slot: "arme", icon: "🗡️", label: "Arme", worn: h.weapon },
+            { slot: "equipement", icon: "🧥", label: "Équipement", worn: h.gear },
+          ] as const).map(({ slot, icon, label, worn }) => (
+            <div className="gear-slot" key={slot}>
+              <span className="gear-ic">{icon}</span>
+              <span className="gear-txt">
+                <b>{worn || <span className="muted">{label} — vide</span>}</b>
+                {worn && equipment[worn] && <span className="gear-desc">{equipment[worn].desc}</span>}
+              </span>
+              {worn && (
+                <button className="small" disabled={busy} onClick={() => equipItem(h.id, "", slot)}>
+                  Retirer
+                </button>
+              )}
+            </div>
+          ))}
+          {wearable.length > 0 && (
+            <div className="gear-pick">
+              {wearable.map((it) => (
+                <button
+                  key={it.name}
+                  className="small green"
+                  disabled={busy}
+                  title={equipment[it.name]?.desc}
+                  onClick={() => equipItem(h.id, it.name, equipment[it.name].slot)}
+                >
+                  Équiper {it.name}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <h4>Attributs</h4>

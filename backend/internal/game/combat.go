@@ -3,6 +3,7 @@ package game
 import (
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -39,6 +40,12 @@ type CombatUnit struct {
 	// couverture. Vecteur unitaire orthogonal (FX,FY).
 	FX int `json:"fx"`
 	FY int `json:"fy"`
+	// ÉQUIPEMENT PRÊTÉ (equipment.go) : ce que l'arme et la cape/armure du héros
+	// apportent, valable le temps de CE combat. Jamais greffé sur le héros lui-même.
+	Armor      int    `json:"armor,omitempty"`      // dégâts subis en moins (plancher 1)
+	Reach      int    `json:"reach,omitempty"`      // portée de l'attaque de base (0 = mêlée)
+	VsCursed   int    `json:"vsCursed,omitempty"`   // bonus contre les créatures maudites
+	RangedStat string `json:"rangedStat,omitempty"` // stat de dégâts d'une arme à distance
 	// Size (lot C5) : côté de l'empreinte — 2 pour un BOSS (2×2 cases, une seule
 	// unité, ancre = coin haut-gauche X,Y). 0/1 = unité normale.
 	Size int `json:"size,omitempty"`
@@ -442,6 +449,8 @@ func NewCombat(gs *GameState, heroes []*Hero, monster *Monster, starterID string
 	// murs, et le pendant de la Caserne (qui, elle, ne sert qu'à l'intérieur).
 	forge := gs.armoryBonus()
 	for i, h := range heroes {
+		// L'ÉQUIPEMENT PORTÉ (equipment.go) : prêté à l'unité, jamais greffé sur le héros.
+		gear, armor, reach, vsCursed, rangedStat := equipBonuses(h)
 		appearance := ""
 		if cls := ClassByID(h.ClassID); cls != nil {
 			appearance = cls.Appearance.Map
@@ -464,7 +473,14 @@ func NewCombat(gs *GameState, heroes []*Hero, monster *Monster, starterID string
 			Move:       2 + h.Stats.Agilite/3,
 			States:     []string{},
 		}
-		u.Stats.Force += forge
+		u.Stats.Force += forge + gear.Force
+		u.Stats.Dexterite += gear.Dexterite
+		u.Stats.Agilite += gear.Agilite
+		u.Stats.Endurance += gear.Endurance
+		u.Armor, u.Reach, u.VsCursed, u.RangedStat = armor, reach, vsCursed, rangedStat
+		// L'agilité gagnée doit compter pour le DÉPLACEMENT : Move a été calculé au-dessus
+		// sur la statistique nue, une cape de plumes n'aurait rien changé.
+		u.Move = 2 + u.Stats.Agilite/3
 		c.Units = append(c.Units, u)
 	}
 	if boss {
@@ -742,7 +758,16 @@ func (c *Combat) HeroSkills(u *CombatUnit) []AttackDef {
 // species' "base" attack from the design grids).
 func (c *Combat) baseAttackFor(u *CombatUnit) AttackDef {
 	if u.Side == "hero" {
-		return heroBaseAttack()
+		// UNE ARME CHANGE LA PORTÉE. C'est ce qui fait d'un arc autre chose qu'une épée
+		// aux chiffres différents : on frappe de loin, donc on choisit sa place autrement.
+		a := heroBaseAttack()
+		if u.Reach > 1 {
+			a.Targets = manhattanCells(1, u.Reach)
+			if u.RangedStat != "" {
+				a.DmgStat = u.RangedStat
+			}
+		}
+		return a
 	}
 	for _, a := range monsterAttacks(u.Kind) {
 		if a.Kind == "base" {
@@ -893,7 +918,7 @@ func (c *Combat) damageWith(att, def *CombatUnit, atk *AttackDef) int {
 		stat /= atk.DmgDiv
 	}
 	hd, num, den := c.dmgMods(att, def)
-	d := stat + atk.Bonus + hd + randIntn(3) - def.Stats.Endurance/2
+	d := stat + atk.Bonus + hd + randIntn(3) - def.Stats.Endurance/2 + att.cursedBonus(def)
 	if d < 1 {
 		d = 1
 	}
@@ -907,7 +932,26 @@ func (c *Combat) damageWith(att, def *CombatUnit, atk *AttackDef) int {
 			d = 1
 		}
 	}
+	// L'ARMURE PORTÉE, en dernier : elle retire des dégâts réellement encaissés, après
+	// les multiplicateurs. Plancher à 1 — rien ne rend invulnérable.
+	if d -= def.Armor; d < 1 {
+		d = 1
+	}
 	return d
+}
+
+// cursedBonus : l'argent des légendes mord la chair maudite (loup-garou). Le seul effet
+// conditionnel du catalogue d'équipement, et il vient du texte de la recette.
+func (u *CombatUnit) cursedBonus(def *CombatUnit) int {
+	if u.VsCursed == 0 || def == nil || !isCursedSpecies(def.Kind) {
+		return 0
+	}
+	return u.VsCursed
+}
+
+// isCursedSpecies : les créatures que l'argent brûle.
+func isCursedSpecies(species string) bool {
+	return strings.Contains(strings.ToLower(species), "garou")
 }
 
 // EstimateDamage renvoie la fourchette [min,max] des dégâts de atk sur def —
@@ -928,7 +972,7 @@ func (c *Combat) EstimateDamage(att, def *CombatUnit, atk *AttackDef) (int, int)
 		stat /= atk.DmgDiv
 	}
 	hd, num, den := c.dmgMods(att, def) // mêmes modificateurs C4 que damageWith
-	base := stat + atk.Bonus + hd - def.Stats.Endurance/2
+	base := stat + atk.Bonus + hd - def.Stats.Endurance/2 + att.cursedBonus(def)
 	clamp := func(d int) int {
 		if d < 1 {
 			d = 1
@@ -942,6 +986,9 @@ func (c *Combat) EstimateDamage(att, def *CombatUnit, atk *AttackDef) (int, int)
 			if d < 1 {
 				d = 1
 			}
+		}
+		if d -= def.Armor; d < 1 { // ⚠ MIROIR EXACT de damageWith, armure comprise
+			d = 1
 		}
 		return d
 	}

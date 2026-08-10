@@ -8,6 +8,7 @@ import type {
   Combat,
   GameState,
   GameSummary,
+  Equipment,
   ItemEffects,
   MapSkillDef,
   MyGameSummary,
@@ -212,6 +213,7 @@ interface StoreState {
   classes: ClassDef[];
   mapSkills: MapSkillDef[]; // catalogue des compétences de carte par classe
   itemEffects: ItemEffects; // ce qui se CONSOMME et ce que ça fait (backend game/items.go)
+  equipment: Equipment; // ce qui se PORTE (backend game/equipment.go)
 
   // --- lobby / multiplayer ---
   playerId?: string; // my player id in the current game (undefined in legacy solo games)
@@ -310,6 +312,8 @@ interface StoreState {
   // Consommer un objet (nourriture, potion). En ville, le héros peut puiser dans la
   // réserve commune : il consomme SUR PLACE, il n'emporte rien (backend items.go).
   useItem: (heroId: string, item: string) => Promise<void>;
+  // Porter un objet, ou libérer un emplacement (item vide).
+  equipItem: (heroId: string, item: string, slot: string) => Promise<void>;
   ruinClear: () => Promise<void>; // déblayer la ruine sous le héros (tous ses PA)
   ruinExplore: () => Promise<void>; // fouiller le donjon déblayé (2 PA)
   advance: (safe?: boolean) => Promise<void>;
@@ -503,6 +507,7 @@ export const useStore = create<StoreState>((set, get) => {
     if (get().classes.length === 0) try { set({ classes: await api.classes() }); } catch { /* non-critical */ }
     if (get().mapSkills.length === 0) try { set({ mapSkills: await api.mapSkills() }); } catch { /* non-critical */ }
     if (Object.keys(get().itemEffects).length === 0) try { set({ itemEffects: await api.items() }); } catch { /* non-critical */ }
+    if (Object.keys(get().equipment).length === 0) try { set({ equipment: await api.equipment() }); } catch { /* non-critical */ }
   };
 
   // Adopt a (re)loaded game: remember it + my player identity, select my own hero.
@@ -590,6 +595,7 @@ export const useStore = create<StoreState>((set, get) => {
     classes: [],
     mapSkills: [],
     itemEffects: {},
+    equipment: {},
     playerName: localStorage.getItem(LS_PLAYER_NAME) ?? "",
     lobbies: [],
     lobbyMode: "public" as const,
@@ -1238,6 +1244,16 @@ export const useStore = create<StoreState>((set, get) => {
         const res = await api.useItem(game.id, heroId, item, playerId);
         set({ game: res.game });
         get().notify(`🍽️ ${name} utilise « ${item} » — ${res.effect?.desc ?? "c'est fait"}.`);
+        renderMap();
+      }),
+
+    equipItem: (heroId, item, slot) =>
+      withBusy(async () => {
+        const { game, playerId } = get();
+        if (!game || !ownsHero(heroId)) return;
+        const next = await api.equip(game.id, heroId, item, slot, playerId);
+        set({ game: next });
+        get().notify(item ? `🗡️ Équipé : ${item}.` : "Emplacement libéré.");
         renderMap();
       }),
 

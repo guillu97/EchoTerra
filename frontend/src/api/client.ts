@@ -2,6 +2,7 @@ import type {
   ChatMessage,
   Chronicle,
   ClassDef,
+  Equipment,
   ItemEffect,
   ItemEffects,
   CombatResponse,
@@ -253,6 +254,10 @@ export const api = {
 
   // Le catalogue de ce qui se consomme, et l'action de consommer.
   items: () => req<ItemEffects>("GET", "/api/items"),
+  equipment: () => req<Equipment>("GET", "/api/equipment"),
+  // item vide = libérer l'emplacement.
+  equip: (gameId: string, heroId: string, item: string, slot: string, playerId?: string) =>
+    req<GameState>("POST", `/api/games/${gameId}/heroes/${heroId}/equip`, { item, slot, playerId }),
   useItem: (gameId: string, heroId: string, item: string, playerId?: string) =>
     req<{ effect: ItemEffect; game: GameState }>(
       "POST",
