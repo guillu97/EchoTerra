@@ -73,6 +73,14 @@ export const TOWN_BUILDINGS: BuildingLayout[] = [
   { id: "kitchen",  name: "Cuisine",  icon: "🍳",  assetKey: "building-kitchen",  blurb: "Feu de camp / cuisine.", primary: "Cuisiner", island: "sw", x: 50, y: 62 },
   { id: "recyclerie", name: "Recyclerie", icon: "♻️", assetKey: "building-workshop", blurb: "Recycle les débris ramassés en matériaux de construction (Bois/Pierre).", primary: "", island: "sw", x: 38, y: 62 },
   { id: "poste",    name: "Poste",     icon: "📮",  assetKey: "building-panel",    blurb: "Relais de courrier. Tant qu'elle n'est pas debout, on n'écrit à la ville que DEPUIS la ville.", primary: "Messagerie", island: "core", x: 50, y: 72 },
+  // LES CINQ BÂTIMENTS DE SPÉCIALITÉ (backend design.go). Chacun ouvre un axe que rien
+  // d'autre ne couvre, et leur plan ne tombe QUE d'une ruine — un biome, une spécialité.
+  // Aucune ville ne peut tous les avoir : c'est là qu'est le choix.
+  { id: "infirmerie",  name: "Infirmerie",  icon: "🏥", assetKey: "building-townhall", blurb: "Soigne les héros blessés. Rien d'autre dans le jeu ne rend des PV à un héros.", primary: "Soigner un héros", island: "core", x: 30, y: 72 },
+  { id: "cartographe", name: "Cartographe", icon: "🗺️", assetKey: "building-panel",    blurb: "Élargit la vue de tous les héros — on prospecte moins à l'aveugle.", primary: "", island: "core", x: 70, y: 72 },
+  { id: "armurerie",   name: "Armurerie",   icon: "⚔️", assetKey: "building-workshop", blurb: "Arme les héros : force accrue en combat. Le seul bâtiment dont l'effet sort des murs.", primary: "", island: "ne", x: 30, y: 62 },
+  { id: "caserne",     name: "Caserne",     icon: "🛡️", assetKey: "building-wall",     blurb: "Loge la garnison : les héros présents défendent davantage, sans ajouter un point de pierre.", primary: "", island: "ne", x: 66, y: 62 },
+  { id: "verger",      name: "Verger",      icon: "🌱", assetKey: "building-kitchen",  blurb: "Regarnit les cases proches à chaque vague — la réponse à une carte qui s'épuise.", primary: "", island: "sw", x: 62, y: 62 },
 ];
 
 export function buildingIcon(id: string): string {

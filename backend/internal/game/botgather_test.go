@@ -107,3 +107,105 @@ func TestAGathererHeadsHomeWithABlueprintTheTownLacks(t *testing.T) {
 		t.Fatal("le plan déjà en Banque, un second ne justifie plus le trajet")
 	}
 }
+
+// UN BÂTIMENT QUI GARDE UN MATÉRIAU DE DÉFENSE EST UN BÂTIMENT DE DÉFENSE.
+//
+// Les bots n'amélioraient que la muraille, le portail et la tour. Or le dernier niveau
+// du portail (+16 au lieu de +12) réclame de l'ACIER, l'acier réclame un Atelier de
+// niveau 2, et l'Atelier n'était sur la liste de personne : mesuré, atelier bloqué au
+// niveau 1 et portail plafonné au niveau 2 sur CHAQUE partie simulée, pendant que le
+// bois du chantier dormait à la Banque.
+func TestBotsUpgradeTheForgeWhenTheWallsNeedWhatItCannotYetMake(t *testing.T) {
+	g, _ := botGame(t)
+	gate, shop := g.buildingByID("gate"), g.buildingByID("workshop")
+	gate.Built, gate.Level = true, 2 // le niveau 3 réclame de l'Acier
+	shop.Built, shop.Level = true, 1 // …que la forge ne sait pas encore faire
+	g.Recompute()
+
+	// Sans de quoi monter la forge, on ne promet rien.
+	if b := g.botCraftUnlockNeeded(); b != nil {
+		t.Fatalf("Banque vide : aucun chantier ne doit être proposé, obtenu %q", b.ID)
+	}
+	// Avec les matériaux de la forge en Banque, c'est ELLE qu'il faut monter.
+	for _, m := range g.buildingCost(shop).Materials {
+		g.addStorage(Item{Type: m.Type, Name: m.Name, Qty: m.Qty})
+	}
+	b := g.botCraftUnlockNeeded()
+	if b == nil || b.ID != "workshop" {
+		t.Fatalf("il faut monter l'Atelier pour débloquer l'Acier, obtenu %v", b)
+	}
+	// …et une fois la forge au niveau requis, plus rien à débloquer de ce côté.
+	shop.Level = 2
+	g.Recompute()
+	if b := g.botCraftUnlockNeeded(); b != nil && b.ID == "workshop" {
+		t.Fatal("la forge sait désormais faire l'Acier : ne pas la remonter pour rien")
+	}
+}
+
+// LE DÉBUT DE PARTIE SERT À VOIR (bots.go botProspecting).
+//
+// L'exploration n'était qu'un repli : on ne poussait le brouillard que si plus aucune
+// case connue ne fournissait ce qu'on cherchait — condition presque jamais vraie. Mesuré :
+// 0,9 % d'une carte de vingt joueurs explorée en vingt vagues, et les bots faisaient la
+// NAVETTE (2491 déplacements pour 572 cases révélées). Une carte qu'on ne voit pas est une
+// carte qui n'existe pas : ni gisement de remplacement, ni ruine, donc aucun plan de
+// spécialité. Après : 2,5 %, soit 2,3 fois plus, à survie égale.
+func TestGatherersProspectEarlyThenSettleDown(t *testing.T) {
+	g, bot := botGame(t)
+	// Un récolteur (rang 2 de son équipe), une ville qui ne manque de rien.
+	var scout *Hero
+	for _, id := range bot.HeroIDs {
+		if h := g.HeroByID(id); h != nil && g.heroRole(id) == roleGatherer {
+			scout = h
+		}
+	}
+	if scout == nil {
+		t.Skip("aucun récolteur dans cette équipe")
+	}
+	for i := 0; i < 10; i++ {
+		want := g.botShoppingList()
+		if len(want) == 0 {
+			break
+		}
+		for name := range want {
+			g.addStorage(Item{Type: "objet", Name: name, Qty: 999})
+		}
+	}
+	g.Town.HP = g.Town.MaxHP
+	g.Recompute()
+
+	g.WaveNumber = 1
+	if !g.botProspecting(scout) {
+		t.Fatal("au début, un récolteur part en repérage")
+	}
+	// …mais la pénurie reprend TOUJOURS le pas sur la curiosité.
+	g.Town.Storage = nil
+	g.Town.HP = g.Town.MaxHP - 10
+	g.Recompute()
+	if g.botProspecting(scout) {
+		t.Fatal("la Banque à zéro : on va chercher, pas voir du pays")
+	}
+
+	// Passé les premières vagues, on s'installe : c'est la phase d'économie.
+	for i := 0; i < 10; i++ {
+		for name := range g.botShoppingList() {
+			g.addStorage(Item{Type: "objet", Name: name, Qty: 999})
+		}
+	}
+	g.Town.HP = g.Town.MaxHP
+	g.Recompute()
+	g.WaveNumber = botProspectWaves + 1
+	if g.botProspecting(scout) {
+		t.Fatal("passé la phase de repérage, un récolteur récolte")
+	}
+
+	// Et le bâtisseur ne part JAMAIS en repérage : il tient la ville.
+	for _, id := range bot.HeroIDs {
+		if g.heroRole(id) == roleBuilder {
+			g.WaveNumber = 1
+			if g.botProspecting(g.HeroByID(id)) {
+				t.Fatal("un bâtisseur reste en ville")
+			}
+		}
+	}
+}

@@ -57,6 +57,13 @@ function BuildingMenu({ layout, b, onClose }: { layout: BuildingLayout; b: TownB
   const deadHero = game?.heroes.find((h) => h.hp <= 0);
   const reviveCost = b.level >= 3 ? 0 : 2;
 
+  // Infirmerie : le blessé le plus mal en point parmi les héros EN VILLE (miroir du
+  // choix serveur, cf. TownAction "heal").
+  const hurt = (game?.heroes ?? [])
+    .filter((h) => h.hp > 0 && h.x === game?.town.x && h.y === game?.town.y)
+    .filter((h) => h.hp < h.maxHp || h.states.includes("Blessé"))
+    .sort((a, z) => a.hp - z.hp)[0];
+
   // Building-specific primary action (label, handler, PA cost).
   const flavor: { label: string; fn: () => void; cost: number; disabled?: boolean } | null =
     layout.id === "bank"
@@ -76,6 +83,16 @@ function BuildingMenu({ layout, b, onClose }: { layout: BuildingLayout; b: TownB
       ? { label: "📋 Journal", fn: () => { onClose(); toggleTownJournal(true); }, cost: 0 }
       : layout.id === "poste"
       ? { label: "✉️ Ouvrir la messagerie", fn: () => { onClose(); toggleChat(true); }, cost: 0 }
+      : layout.id === "infirmerie"
+      ? {
+          // L'Infirmerie soigne le plus mal en point de MES héros présents (le serveur
+          // choisit le patient : à quinze héros, désigner soi-même serait une corvée).
+          // Quota quotidien = niveau ; gratuit et illimité au niveau 3.
+          label: hurt ? `🏥 Soigner ${hurt.name}` : "🏥 Soigner (personne de blessé)",
+          fn: () => townAction("infirmerie", "heal"),
+          cost: b.level >= 3 ? 0 : 1,
+          disabled: !hurt,
+        }
       : null;
 
   return (

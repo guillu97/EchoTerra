@@ -22,6 +22,8 @@ export function StockTab() {
   const playerId = useStore((s) => s.playerId);
   const deposit = useStore((s) => s.townDeposit);
   const busy = useStore((s) => s.busy);
+  const useItem = useStore((s) => s.useItem);
+  const itemEffects = useStore((s) => s.itemEffects);
   const [cat, setCat] = useState("all");
   if (!game) return null;
 
@@ -55,7 +57,15 @@ export function StockTab() {
                 <span className={`tag-loc ${here ? "in" : "out"}`}>{here ? "en ville" : "en expédition"}</span>
                 <span className="right muted">{carriedH} obj.</span>
               </div>
-              <ItemGrid items={filt(h.inventory)} />
+              {/* Les consommables sont CLIQUABLES : nourriture et potions se prennent
+                  depuis le sac (backend game/items.go). Avant, la grille n'était qu'une
+                  vitrine — les vingt-six recettes du jeu produisaient des plats que
+                  personne ne pouvait avaler. */}
+              <ItemGrid
+                items={filt(h.inventory)}
+                onUse={(it) => useItem(h.id, it.name)}
+                usable={(it) => !!itemEffects[it.name]}
+              />
             </div>
           );
         })}

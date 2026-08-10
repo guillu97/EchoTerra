@@ -190,6 +190,12 @@ func (s *Server) Router() http.Handler {
 
 	// Classement des villes. ?mode=solo|public|private restreint à un type de partie
 	// (les trois ne se comparent pas) ; sans mode, tout est classé ensemble.
+	//
+	// ?season : la SAISON EN COURS par défaut — c'est tout l'intérêt des saisons, un
+	// tableau cumulatif se fige et ne donne plus rien à viser à qui arrive. `all` rend le
+	// palmarès de tous les temps, un identifiant précis rend une saison passée (elles
+	// restent consultables : une remise à zéro qui effacerait le passé serait une
+	// punition, pas un renouveau).
 	r.Get("/api/leaderboard", func(w http.ResponseWriter, r *http.Request) {
 		mode := r.URL.Query().Get("mode")
 		switch mode {
@@ -198,12 +204,48 @@ func (s *Server) Router() http.Handler {
 			writeErr(w, http.StatusBadRequest, "mode inconnu: "+mode)
 			return
 		}
-		entries, err := s.store.Leaderboard(mode, 50)
+		season := r.URL.Query().Get("season")
+		switch season {
+		case "":
+			season = game.CurrentSeason()
+		case game.SeasonAll:
+			season = "" // pas de filtre : tous les temps
+		}
+		entries, err := s.store.Leaderboard(mode, season, 50)
 		if err != nil {
 			writeErr(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 		writeJSON(w, http.StatusOK, entries)
+	})
+
+	// Les saisons RÉELLEMENT jouées, la plus récente d'abord, plus celle en cours (même
+	// vierge : c'est celle qu'on dispute). Alimente le sélecteur du classement.
+	r.Get("/api/seasons", func(w http.ResponseWriter, r *http.Request) {
+		played, err := s.store.Seasons(24)
+		if err != nil {
+			writeErr(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		cur := game.CurrentSeason()
+		seasons := []map[string]any{}
+		seen := map[string]bool{}
+		for _, id := range append([]string{cur}, played...) {
+			if id == "" || seen[id] {
+				continue
+			}
+			seen[id] = true
+			seasons = append(seasons, map[string]any{
+				"id": id, "label": game.SeasonLabel(id), "current": id == cur,
+			})
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"current": cur, "seasons": seasons})
+	})
+
+	// Ce qui se CONSOMME et ce que ça fait (game/items.go) — servi plutôt que recopié
+	// côté client : deux tables finiraient par diverger.
+	r.Get("/api/items", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, game.ItemEffects)
 	})
 
 	r.Get("/api/mapskills", func(w http.ResponseWriter, r *http.Request) {
@@ -249,6 +291,8 @@ func (s *Server) Router() http.Handler {
 			r.Post("/heroes/{heroID}/escape", s.escapeHero)
 			r.Post("/heroes/{heroID}/skill", s.castMapSkill)
 			r.Post("/heroes/{heroID}/drink", s.drinkRation)
+			// Consommer un objet du sac (nourriture, potion) : items.go.
+			r.Post("/heroes/{heroID}/use", s.useItem)
 			r.Post("/heroes/{heroID}/order", s.heroOrder) // consigne permanente
 			r.Post("/heroes/{heroID}/ruin/clear", s.ruinClear)
 			r.Post("/heroes/{heroID}/ruin/explore", s.ruinExplore)
@@ -1102,6 +1146,38 @@ func (s *Server) castMapSkill(w http.ResponseWriter, r *http.Request) {
 }
 
 // drinkRation consumes a Ration d'eau from the hero's bag to restore action points.
+// useItem : un héros consomme un objet de son sac (voir game/items.go). Le corps porte
+// le NOM de l'objet — les objets n'ont pas d'identité propre, ce sont des piles.
+func (s *Server) useItem(w http.ResponseWriter, r *http.Request) {
+	gs := s.mustGame(w, r)
+	if gs == nil {
+		return
+	}
+	// ⚠ UN SEUL DÉCODAGE DU CORPS. `decodePlayer` consomme le flux : l'appeler puis
+	// décoder à nouveau laissait `item` VIDE, et l'action échouait avec « ne se consomme
+	// pas » sur un nom vide. Les autres routes à paramètres (skill, evolve) décodent déjà
+	// playerId et leur charge d'un coup — même motif ici.
+	var body struct {
+		Item     string `json:"item"`
+		PlayerID string `json:"playerId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeErr(w, http.StatusBadRequest, "corps invalide")
+		return
+	}
+	heroID := chi.URLParam(r, "heroID")
+	if !s.ownHero(w, gs, body.PlayerID, heroID) {
+		return
+	}
+	_, eff, err := gs.UseItem(heroID, body.Item)
+	if err != nil {
+		writeActionErr(w, err)
+		return
+	}
+	s.persist(gs)
+	writeJSON(w, http.StatusOK, map[string]any{"effect": eff, "game": gs})
+}
+
 func (s *Server) drinkRation(w http.ResponseWriter, r *http.Request) {
 	gs := s.mustGame(w, r)
 	if gs == nil {

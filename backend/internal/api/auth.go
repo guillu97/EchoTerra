@@ -71,6 +71,7 @@ func (s *Server) authRoutes(r chi.Router) {
 	r.Post("/logout", s.logout)
 	r.Get("/me", s.me)
 	r.Get("/me/games", s.myGames)
+	r.Get("/me/chronicle", s.myChronicle)
 }
 
 func (s *Server) register(w http.ResponseWriter, r *http.Request) {

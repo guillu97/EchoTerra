@@ -168,16 +168,57 @@ Un joueur affiche un besoin (« il me faut 3 Corde »), n'importe qui le sert de
 journal note qui l'a fait. La réciprocité est la colle sociale la plus solide qui existe, et
 l'infrastructure (journal + messagerie) est déjà là.
 
-### P7 · Chronique de compte et titres
+### P7 · Chronique de compte et titres — ✅ **LIVRÉ** (2026-08-09)
 
-Une page par compte : mes expéditions, la vague atteinte, le rôle le plus joué, des titres gagnés
-(« Gardien de la porte », « Celui qui a relevé les remparts quarante fois »). De l'identité qui
-traverse les parties — cosmétique, jamais de la puissance (cf. P5).
+Une page par compte : mes expéditions, la vague atteinte, ce que j'y ai apporté, et des titres
+gagnés. De l'identité qui traverse les parties — **cosmétique, jamais de la puissance** (cf. P5).
 
-### P8 · Saisons
+- **Table `chronicle`** (`store/chronicle.go`), une ligne par (compte, partie), upsertée en même
+  temps que la ligne de classement — donc aussi par le BATTEMENT, sinon une ville qui ne survit que
+  par le cron n'entrerait dans la chronique de personne. Elle **survit à la suppression de la
+  partie**, et c'est tout l'intérêt : c'est justement quand la ville n'est plus là qu'on veut se
+  souvenir d'elle. Les anonymes (pas de `Player.UserID`) et les joueurs-IA n'y figurent pas.
+- **Ce qu'on garde par expédition** : la ville, le mode, la vague atteinte, et les six colonnes du
+  registre de contribution (P3) — PA de chantier, objets rapportés, créatures abattues, PV rendus
+  aux remparts, objets fabriqués, requêtes honorées.
+- **Titres DÉRIVÉS à la lecture** (`api/chronicle.go`), rien de plus à stocker : douze paliers sur
+  six domaines, deux par domaine (un qu'on atteint en une bonne expédition, un qui demande d'y
+  revenir — au-delà on tomberait dans le grind, et le jeu se joue deux fois cinq minutes par jour).
+  Changer un seuil corrige rétroactivement tout le monde. `GET /api/auth/me/chronicle`, réservé au
+  titulaire : **il n'y a pas de chronique publique**, exposer celle des autres transformerait un
+  souvenir en palmarès.
+- ⚠ **Un titre n'accorde ni PA, ni défense, ni objet** — test dédié (`TestATitleCarriesNoPower`).
+  Un vétéran et un débutant qui rejoignent la même ville y arrivent strictement égaux ; c'est cette
+  égalité qui fait tenir une survie de groupe.
 
-Le classement se remet à zéro périodiquement ; les expéditions publiques appartiennent à une saison.
-Peu coûteux, et redonne un enjeu à un tableau qui, sinon, se fige.
+### P8 · Saisons — ✅ **LIVRÉ** (2026-08-09)
+
+Le classement se remet à zéro périodiquement ; chaque expédition appartient à une saison. Peu
+coûteux, et redonne un enjeu à un tableau qui, sinon, se fige : au bout de quelques mois les dix
+premières lignes sont tenues par des villes qu'on ne reverra pas, et qui arrive n'a plus rien à
+viser — le tableau lui dit seulement qu'il est arrivé trop tard.
+
+- **Une saison = un MOIS civil** (`game/season.go`, identifiant `2026-08`). Une expédition dure une
+  dizaine de jours réels à la cadence visée, donc un mois en contient deux ou trois : assez pour
+  qu'une saison raconte quelque chose, assez court pour que le tableau ne se fige pas. Et c'est une
+  frontière que tout le monde lit sans explication, contrairement à un compteur de semaines depuis
+  une époque arbitraire. Les identifiants se trient chronologiquement en tant que chaînes, ce dont
+  dépend l'`ORDER BY season DESC` côté base.
+- ⚠ **Une partie appartient à la saison où elle a COMMENCÉ**, pas à celle où elle finit. La faire
+  changer de saison en cours de route la ferait disparaître du tableau qu'elle disputait, au moment
+  précis où elle y monte. C'est aussi ce qui rend la valeur STABLE : `StartedAt` ne bouge plus une
+  fois posé, donc chaque réécriture de la ligne (à chaque vague, à chaque battement) recalcule la
+  même saison.
+- **Colonne `season` sur `leaderboard`** (pas de table de plus). `GET /api/leaderboard?season=` rend
+  la **saison en cours par défaut**, `all` le palmarès de tous les temps, un identifiant une saison
+  passée — **les précédentes restent consultables** : une remise à zéro qui effacerait le passé
+  serait une punition, pas un renouveau. `GET /api/seasons` liste les saisons RÉELLEMENT jouées plus
+  celle en cours (même vierge : c'est celle qu'on dispute).
+- Les lignes écrites avant l'existence des saisons portent `''` et ne figurent que dans « tous les
+  temps » : on ne sait pas à quelle saison les rattacher, et deviner serait pire.
+- ⚠ **Rien ne traverse une saison**, comme rien ne traverse une partie (cf. P5, P7) : une saison
+  change ce qu'on VISE, jamais ce qu'on a. Et la **chronique de compte ne se réinitialise jamais** —
+  effacer le souvenir serait une punition.
 
 ## 4. Ce qu'il ne faut PAS faire
 

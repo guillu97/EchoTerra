@@ -282,6 +282,86 @@ export interface MyGameSummary extends GameSummary {
   myPlayerId: string;
 }
 
+// CE QUI SE CONSOMME (GET /api/items, backend game/items.go). La table vient du serveur
+// et n'est pas recopiée ici : deux catalogues finiraient par diverger. ⚠ la FAIM n'existe
+// pas dans le jeu — un plat rend des POINTS D'ACTION, la vraie monnaie d'une journée.
+export interface ItemEffect {
+  pa?: number; // PA rendus
+  hp?: number; // PV rendus
+  clears?: string[]; // états retirés
+  clearsAll?: boolean; // retire TOUS les états (Ambroisie)
+  desc?: string; // ce que le joueur lit
+}
+
+export type ItemEffects = Record<string, ItemEffect>;
+
+// LES SAISONS (GET /api/seasons, backend game/season.go) — un classement cumulatif se
+// FIGE : au bout de quelques mois les premières lignes sont tenues par des expéditions
+// qu'on ne reverra pas, et qui arrive n'a plus rien à viser. Une partie appartient à la
+// saison où elle a COMMENCÉ (elle dure une dizaine de jours réels : la faire changer de
+// saison en route la ferait disparaître du tableau qu'elle dispute). Les saisons passées
+// restent consultables, et la chronique de compte ne se réinitialise jamais.
+export interface Season {
+  id: string; // "2026-08"
+  label: string; // "Saison d'août 2026"
+  current: boolean;
+}
+
+export interface SeasonList {
+  current: string;
+  seasons: Season[];
+}
+
+// LA CHRONIQUE DE COMPTE (GET /api/auth/me/chronicle, backend api/chronicle.go) — ce
+// qu'un compte garde des villes qu'il a vues tomber. ⚠ COSMÉTIQUE : un titre n'a jamais
+// d'effet en jeu. Deux joueurs qui rejoignent la même expédition y arrivent égaux.
+export interface ChronicleRun {
+  gameId: string;
+  townName: string;
+  mode: "solo" | "public" | "private";
+  playerName: string;
+  days: number;
+  waves: number;
+  monstersKilled: number; // de la VILLE (score partagé)
+  gameOver: boolean;
+  // ce que CE joueur y a apporté
+  buildPa: number;
+  deposited: number;
+  slain: number;
+  repaired: number;
+  crafted: number;
+  filled: number;
+  updatedAt: string;
+}
+
+export interface ChronicleTotals {
+  runs: number;
+  bestWave: number;
+  days: number;
+  buildPa: number;
+  deposited: number;
+  slain: number;
+  repaired: number;
+  crafted: number;
+  filled: number;
+}
+
+export interface Title {
+  id: string;
+  name: string;
+  icon: string;
+  desc: string;
+  value: number; // où en est le joueur
+  need: number; // le seuil
+  got: boolean;
+}
+
+export interface Chronicle {
+  runs: ChronicleRun[];
+  totals: ChronicleTotals;
+  titles: Title[];
+}
+
 // Lightweight game listing DTO returned by GET /api/games. Join codes are never
 // listed (private lobbies are joined by sharing their code out-of-band).
 export interface GameSummary {
@@ -319,6 +399,7 @@ export interface ScoreEntry {
   monstersKilled: number;
   gameOver: boolean;
   updatedAt: string;
+  season: string; // "" pour les villes d'avant les saisons (hors concours)
 }
 
 export interface GameState {

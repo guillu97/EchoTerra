@@ -95,7 +95,7 @@ export function TownStatus() {
             <div className="ts-report">
               <div>Horde <b>{lw.hordePower}</b> · Défense <b>{lw.defense}</b> · Dégâts ville <b className="lost">−{lw.townDamage}</b></div>
               {(lw.buildingsHit ?? []).length > 0 && (
-                <div>Bâtiments : {(lw.buildingsHit ?? []).map((h) => `${h.name} ${h.delta}`).join(", ")}</div>
+                <div>Bâtiments : {(lw.buildingsHit ?? []).map((h) => `${buildingName(h.id, h.name)} ${h.delta}`).join(", ")}</div>
               )}
               {(lw.heroesHit ?? []).length > 0 && (
                 <div>Héros hors ville : {(lw.heroesHit ?? []).map((h) => `${h.name} ${h.delta}`).join(", ")}</div>

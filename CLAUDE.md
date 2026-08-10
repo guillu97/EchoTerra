@@ -272,7 +272,11 @@ par la rareté, et on explore quand aucune tuile connue ne fournit un matériau)
 annexes) ; **CRAFT** (`botCraft` : les niveaux 2-3 du design réclament TOUS un matériau crafté —
 Planche/Corde/Brique/Acier — donc une ville qui ne va jamais à l'atelier reste bloquée à sa défense de
 départ ; recycle aussi les Débris en Bois/Pierre dès que la Recyclerie est debout, la réponse du design
-à une carte qui se vide). ⚠ **trois RÔLES par équipe**, par rang (`heroRole`) : bâtisseur (reste en ville), **défenseur** (dégage l'anneau d'assaut — c'est de la défense depuis que `hordePower` en dépend — avec une LAISSE `botDefenderLeash` 10, sans quoi les défenseurs d'une carte 120² partent au bout du monde) et récolteur. Le rang, PAS un hash d'id : « environ un sur trois » ne garantit rien pour UNE équipe, et un bot dont
+à une carte qui se vide) ; **débloquer la FORGE** (`botCraftUnlockNeeded` : les
+bots n'amélioraient que muraille/portail/tour, or le niveau 3 du portail réclame de l'ACIER, l'acier
+un Atelier niveau 2, et l'Atelier n'était sur la liste de personne — mesuré, portail plafonné au
+niveau 2 sur CHAQUE partie simulée ; un bâtiment qui garde un matériau de défense EST un bâtiment de
+défense, à un cran de distance). ⚠ **trois RÔLES par équipe**, par rang (`heroRole`) : bâtisseur (reste en ville), **défenseur** (dégage l'anneau d'assaut — c'est de la défense depuis que `hordePower` en dépend — avec une LAISSE `botDefenderLeash` 10, sans quoi les défenseurs d'une carte 120² partent au bout du monde) et récolteur. Le rang, PAS un hash d'id : « environ un sur trois » ne garantit rien pour UNE équipe, et un bot dont
 les trois héros tombaient récolteurs ne construisait jamais rien. **Combat** : `botShouldEngage` juge sur
 la PUISSANCE et non l'effectif (un combat n'oppose jamais plus de 4 unités quelle que soit la taille du
 pack, et la victoire supprime le pack ENTIER — exiger un héros par unité revenait à ne jamais combattre) ;
@@ -281,7 +285,21 @@ TIENT quand l'aide est à un pas. **Tuer compte désormais** : `hordePower` incl
 l'anneau, donc dégager les abords retire directement des dégâts (règle changée le 2026-08-09 à la
 demande de l'utilisateur — auparavant le combat ne servait qu'au butin). ⚠ la récolte reste
 prioritaire sur le sauvetage pour un RÉCOLTEUR : mesuré, inverser les deux fait BAISSER la survie
-(les matériaux font vivre la ville). Tout est persisté en SQLite (le salon survit à un redémarrage ; les
+(les matériaux font vivre la ville). **PROSPECTION** (2026-08-10) : l'exploration n'était qu'un REPLI (on ne poussait le brouillard que si
+plus aucune case connue ne fournissait ce qu'on cherchait — presque jamais vrai). Mesuré : **0,9 %**
+d'une carte de vingt joueurs explorée en vingt vagues, et les bots faisaient la NAVETTE (2491
+déplacements pour 572 cases révélées). `botProspecting` : un RÉCOLTEUR, pendant les
+`botProspectWaves` (6) premières vagues, et seulement si la Banque ne tient rien à zéro, vise la
+lisière du brouillard et **ne campe pas** (fouiller arme la récolte auto et fixe le héros). Résultat
+2,5 %, ×2,3, à survie égale. ⚠ mesuré et REJETÉ : viser la lisière la plus ÉLOIGNÉE de la ville au
+lieu de la plus proche fait TOMBER l'exploration à 1,7 % et coûte deux vagues de survie — les héros
+courent après des cases inatteignables à 6 PA. **RUINES** (2026-08-10) : un bot déblaie et fouille la ruine de sa case (`botWorkRuin`), et un
+récolteur s'y rend (`botRuinTarget`, portée `botRuinReach` 12) — une ruine déjà déblayée vaut toujours
+le détour, une ruine ensevelie seulement si la Banque ne tient plus rien à zéro. Sans ça les cinq
+bâtiments de spécialité étaient INVISIBLES à l'IA (leurs plans ne tombent que des ruines). ⚠ mesuré :
+les bots ne travaillent que 0 à 1 ruine sur quatre, non par manque de volonté mais parce qu'ils en
+DÉCOUVRENT peu — le brouillard ne se lève que d'une case autour d'un héros. Débloquer les spécialités
+reste donc largement l'affaire d'un joueur humain. Tout est persisté en SQLite (le salon survit à un redémarrage ; les
 salons ouverts se listent via `GET /api/games?status=lobby`). ⚠ **la recherche de partie REJOIGNABLE passe par `store.OpenForJoin(n)`**
 (colonne miroir `join_open`, alimentée par `JoinOpen()`) et toute recherche de salon par
 `store.ListByStatus(StatusLobby, n)` — **JAMAIS par `List(n)` + filtre en Go** : un salon est écrit une
@@ -316,6 +334,36 @@ aussi les combats auto-résolus des bots). Front : bouton « 🏆 Classement » 
 4 onglets **Toutes · Solo · Publiques · Privées**, chacun refaisant la requête avec son mode ; le
 badge de mode par ligne n'apparaît que dans « Toutes ». Tests : `achievements_test.go`,
 `store_test.go` (`TestLeaderboardSavesAndRanks`, `TestLeaderboardFiltersByMode`).
+
+**Saisons du classement** (`game/season.go`, colonne `leaderboard.season`, `GET /api/seasons`,
+2026-08-09) — P8 de `RETENTION-PLAN.md`. **Une saison = un MOIS civil** (identifiant `2026-08`, qui
+se trie chronologiquement en tant que chaîne — d'où l'`ORDER BY season DESC` sans conversion). ⚠ **une
+partie appartient à la saison de son LANCEMENT** (`GameState.Season()` lit `StartedAt`, repli sur
+`CreatedAt`) : une expédition dure une dizaine de jours réels, la faire changer de saison en route la
+ferait disparaître du tableau qu'elle dispute au moment où elle y monte — et `StartedAt` ne bougeant
+plus, chaque réécriture de la ligne recalcule la MÊME saison. `GET /api/leaderboard?season=` rend la
+**saison en cours par défaut**, `all` tous les temps, un identifiant une saison passée (elles restent
+consultables : une remise à zéro qui effacerait le passé serait une punition). `GET /api/seasons` rend
+les saisons réellement jouées + celle en cours même vierge. Les lignes d'avant la colonne portent `''`
+et ne figurent que dans « tous les temps ». ⚠ **rien ne traverse une saison** (même règle que les
+mémoriaux et les titres) et la chronique de compte, elle, ne se réinitialise JAMAIS. Tests :
+`game/season_test.go`, `store` (`TestLeaderboardFiltersBySeason`), `api/season_test.go`.
+
+**Chronique de compte & titres** (`store/chronicle.go`, `api/chronicle.go`,
+`components/ChronicleCard.tsx`, 2026-08-09) — ce qu'un compte garde des villes qu'il a vues tomber
+(P7 de `RETENTION-PLAN.md`). Table `chronicle`, **une ligne par (compte, partie)**, upsertée avec la
+ligne de classement — donc aussi par `SaveIfUnchanged`, sinon une ville qui ne survit que par le
+BATTEMENT n'entrerait dans la chronique de personne — et qui **survit à la suppression de la
+partie** (c'est quand la ville n'est plus là qu'on veut s'en souvenir). Anonymes (`Player.UserID`
+vide) et joueurs-IA exclus. On y garde la ville, le mode, la vague atteinte et les six colonnes du
+registre de contribution. **Titres DÉRIVÉS à la lecture** (`titleDefs`, 12 paliers sur 6 domaines,
+deux par domaine) : rien de plus à stocker, et changer un seuil corrige rétroactivement tout le
+monde. `GET /api/auth/me/chronicle` (Bearer) → `{runs, totals, titles}`, **réservé au titulaire** :
+pas de chronique publique — exposer celle des autres transformerait un souvenir en palmarès.
+⚠ **COSMÉTIQUE, JAMAIS DE LA PUISSANCE** (même règle que les mémoriaux) : aucun titre n'accorde de
+PA, de défense ni d'objet — un vétéran et un débutant rejoignent une ville strictement égaux, et
+c'est cette égalité qui fait tenir une survie de groupe. Tests : `store/chronicle_test.go`
+(dont la survie à la purge), `api/chronicle_test.go` (dont `TestATitleCarriesNoPower`).
 
 **Comptes utilisateur** (`store/users.go`, `api/auth.go`, `api/google.go`, `AccountScreen.tsx`,
 `googleAuth.ts`) — email+mot de passe (bcrypt, gratuit) **et Google Sign-In**, sessions Bearer 30 j,
@@ -501,6 +549,47 @@ ajouté après coup n'atteindrait aucune partie en cours.
 
 **Bank** = `town.storage`: deposit hero loot (`/town/deposit`), craft I/O in town, construction materials.
 
+**LES NIVEAUX 2-3 NE SONT PLUS DU TEXTE** (2026-08-10) — quatre effets du catalogue de design
+n'existaient que sur le papier ; le joueur payait des PA et des matériaux pour une phrase. Ils sont
+branchés : **Recyclerie** (`craftYieldBonus` : +1 par palier sur ses SEULES recettes — l'étendre à
+tout ferait de l'Atelier une machine à dupliquer l'Acier) · **Panneau** (`townLogCapacity` ×niveau et
+`requestsCapacity` +6/niveau : à vingt joueurs le journal défile en une soirée et les demandes les
+plus anciennes tombent avant d'avoir été vues) · **Poste** (`chatRemoteDepth` : depuis LE TERRAIN on
+reçoit 20 messages au niv.1, 40 au niv.2, tout le fil au niv.3 ; en ville on lit tout, on est devant
+le panneau) · **Cuisine niv.2** (`dailyWaterAllowance` : une SECONDE ration d'eau par héros et par
+jour — l'eau rend des PA sur le terrain, donc du temps de jeu). ⚠ mesuré, les niveaux 2-3 du
+catalogue courant SONT atteints (20 joueurs, 3 graines : 19 bâtiments niv.1, 3 niv.2, 9 niv.3) ; ce
+sont les spécialités qui restent au niveau 1, parce qu'elles se débloquent tard. Tests :
+`levels_test.go`.
+
+**LES CINQ BÂTIMENTS DE SPÉCIALITÉ** (`design.go`, 2026-08-10) — Infirmerie, Cartographe,
+Armurerie, Verger, Caserne. **Pourquoi** : une expédition de vingt construisait LES ONZE bâtiments du
+catalogue (mesuré : 11 debout, 18 niveaux sur 33) — il n'y avait aucune priorité à arbitrer, juste
+une liste à dérouler ; un solo, lui, n'en bâtissait aucun. Chacun ouvre un AXE que rien d'autre ne
+couvre, pour que l'arbitrage porte sur des choses INCOMPARABLES et non sur « lequel donne le plus de
+défense » : **Infirmerie** (action `heal`, quota/jour = niveau, gratuit au niv.3 — elle bouche un
+trou : RIEN ne rendait de PV à un héros, la seule remise en état était de mourir puis d'être
+ressuscité) · **Cartographe** (`fog.go` : vision de TOUS les héros +niveau, plafond +2 ; niv.3
+révèle aussi les abords) · **Armurerie** (`NewCombat` : +niveau en force, prêté à l'unité et jamais
+greffé sur `Hero.Stats` — le SEUL bâtiment dont l'effet sort des murs) · **Verger** (`regrowOrchard`
+à chaque vague : rend une ressource aux cases les plus PAUVRES dans `orchardRadius` 4, plafonné à
+`orchardCap` — réponse à l'ÉPUISEMENT DE LA CARTE, la vraie limite d'une longue partie) ·
+**Caserne** (`casernePerLevel` 4 au PLAFOND de la garnison, sans un point de défense de pierre —
+l'axe « tenir plus nombreux », qui profite d'autant plus que l'expédition est grande).
+⚠ **TOUS À TROIS NIVEAUX** comme le reste (`MaxBuildingLevel`), et **DEUX VERROUS** les rendent
+rares : un **prérequis** d'arbre techno (kitchen 1 · panel 2 · workshop 2 · well 2 · wall 2) et un
+**plan qui ne tombe QUE des ruines, un par biome** — les débloquer tous demanderait de déblayer une
+ruine dans CHAQUE biome. Mesuré : même en donnant les cinq plans aux bots, une ville n'en bâtit que
+1 à 3, tous au niveau 1. ⚠ **`botShoppingList` ignore les sites dont le PLAN n'est pas en Banque** :
+sans ça les cinq nouveaux mettaient Cuir, Herbe médicinale, Graines anciennes et Minerai d'or sur la
+liste de courses de TOUTES les villes, y compris celles qui n'auraient jamais le plan. Chacun a
+désormais SON modèle voxel (`gen-props.mjs`), reconnaissable à sa couleur de toit et à sa silhouette
+— c'est le seul repère qui survit au dézoom : infirmerie bleu-vert + croix, cartographe indigo +
+rose des vents, armurerie rouge forge + enclume, caserne longue et basse + bannière, verger =
+parcelle plantée. ⚠ `buildingModelKey` (townLayout.ts) reste l'indirection : un modèle manquant fait
+`if (!geom) continue`, donc un bâtiment INVISIBLE et incliquable.
+Tests : `specialties_test.go`.
+
 **Ruines-donjons** (`ruins.go`, 2026-07-19) — 5 bâtiments en ruine PAR BIOME semés au worldgen
 (`SeedRuins`, déterministe, 1/biome, Chebyshev ≥ 3 de la ville) : Épave (sable 8 PA), Ferme
 (prairie 8), Sanctuaire (forêt 10), Mine (montagne 12), Tour gelée (neige 12). `GameState.Ruins`
@@ -598,6 +687,9 @@ pour 1 · 4 · 12 · 20 joueurs.** Historique complet : `journal.md` (entrées 9
   amputé de son économie de campement. `GameState.clock()` rend l'instant REJOUÉ pendant un rattrapage
   (`simNow`, posé par `AdvanceTo`, non sérialisé) et l'heure réelle sinon. **Toute échéance qu'une
   action pose dans le futur doit partir de `g.clock()`**, jamais de `time.Now()`.
+- **Un test qui affirme quelque chose sur une issue tirée aux dés doit SEMER** (`seedForTest` dans
+  `bots_test.go`) : empiler les statistiques rend une victoire probable, pas certaine — mesuré, trois
+  héros à 20 de force perdaient contre deux slimes une fois sur vingt, et le test échouait au hasard.
 
 **Comportement des bots — deux règles trouvées à la mesure** (entrée 98) : un récolteur **se fixe un
 cap et s'y tient** (`Hero.GoalX/GoalY/HasGoal`, `botGoalWorthKeeping`) — rechoisir sa destination à
@@ -613,6 +705,25 @@ dormant dans les sacs, dont dix « Plan de la Tour » jamais bâtie).
 indépendant des joueurs. C'est cette action qui fait de l'ÉPUISEMENT DE LA CARTE, et non de
 l'arithmétique de la horde, la vraie limite d'une longue partie. Bornée aux PV manquants (ne gaspille
 ni PA ni pierre) et refusée sur une ville intacte. Tests `townrepair_test.go`.
+
+**USAGE DES OBJETS** (`items.go`, `GET /api/items`, `POST /heroes/{h}/use`, 2026-08-10) — le
+catalogue portait 26 recettes dont les effets n'étaient QUE DU TEXTE : on cuisinait des ragoûts et
+des potions qui dormaient en Banque, et la seule remise en état d'un héros abîmé était de mourir puis
+d'être ressuscité. `ItemEffects` (table servie au client, jamais recopiée) donne `{PA, HP, Clears,
+ClearsAll, Desc}` par nom d'objet. ⚠ **LA FAIM N'EXISTE PAS** dans le code (elle est au GDD) : un plat
+ne « restaure la faim », il rend des **PA** — la vraie monnaie d'une journée, à l'image de la Ration
+d'eau (`RationPA` 6). Barème : plat cuisiné 2-5 PA, aliment BRUT 1 (dépannage, ça laisse sa raison
+d'être à la Cuisine), potions 5-10 PV, Ambroisie rend tout et purge TOUS les états. **Gratuit en PA**
+comme boire : ce qui borne l'usage, c'est l'objet, qu'il a fallu récolter puis cuisiner. ⚠ **Tétanisé
+ne se mange pas** (c'est un pack qui cloue, pas une fatigue) — seule l'Ambroisie le retire. ⚠ **LA
+CANTINE** : en ville un héros consomme SUR LA RÉSERVE COMMUNE sans rien emporter — la seule sortie de
+la Banque vers un joueur reste la requête du Panneau, qui exige d'être deux ; sans cette porte tout ce
+que la Cuisine produit restait bloqué en Banque. Les bots s'en servent (`botUseItem` : potion sous
+60 % de PV, repas à court de PA) et **cuisinent** (`botCookStores`, seuil bas par produit). Mesuré :
+médianes 15 · 17 · 19 · 21 · 22 · 23 (contre 15 · 15 · 18 · 21 · 22 · 22). Tests : `items_test.go`.
+⚠ `ItemEffect` PORTE DES TAGS JSON : la table est servie au client, sans eux Go sérialisait `PA`/`Desc`
+et l'interface lisait `undefined`. ⚠ et un handler qui a besoin du `playerId` ET d'un autre champ doit
+DÉCODER LE CORPS UNE SEULE FOIS (`decodePlayer` consomme le flux — sinon le champ arrive vide).
 
 **Crafting** (`craft.go`, `CraftTab.tsx`) — **town mode** (≥1 hero in town): full recipes, ingredients from the
 Bank, paid by the chosen *town worker*, output to the Bank. **Field mode** (no hero in town): only `field`
@@ -636,14 +747,18 @@ POST /api/tick                                   BATTEMENT: avance TOUTES les pa
                                                  des salons (jeton ECHOTERRA_TICK_TOKEN/CRON_SECRET en
                                                  Bearer ou ?token=; GET accepté aussi) -> {ok,games[],…}
 GET  /api/recipes
-GET  /api/leaderboard[?mode=solo|public|private]  classement des villes (top 50, vagues puis monstres tués ;
-                                                 mode inconnu -> 400) -> [] ScoreEntry
+GET  /api/leaderboard[?mode=…][&season=…]         classement des villes (top 50, vagues puis monstres
+                                                 tués ; mode inconnu -> 400). season: SAISON EN COURS
+                                                 par défaut, `all` = tous les temps -> [] ScoreEntry
+GET  /api/seasons                                {current, seasons[{id,label,current}]} (jouées + en cours)
 GET  /api/auth/config                            {googleClientId} (""=Google désactivé; le front s'y adapte)
 POST /api/auth/register                          {email,name?,password} -> {user,token} (bcrypt, session 30j)
 POST /api/auth/login                             {email,password} -> {user,token} ; POST /api/auth/logout
 POST /api/auth/google                            {credential:id_token GIS} -> {user,token} (501 si non configuré)
 GET  /api/auth/me                                 (Bearer) -> {user}
 GET  /api/auth/me/games                           (Bearer) mes parties + myPlayerId (reprise multi-appareils)
+GET  /api/auth/me/chronicle                       (Bearer) ma chronique -> {runs,totals,titles}
+                                                 (cosmétique ; réservé au titulaire, pas de vue publique)
 GET  /api/games?status=open|lobby|active          `open` = ce qu'on peut REJOINDRE (salons + expéditions
                                                  publiques dans leur fenêtre d'accueil) ; résumés
                                                  (id,name,players,min/max,joinOpen,joinWavesLeft…)
@@ -660,7 +775,7 @@ POST /api/games/{id}/bots                        {playerId} -> {game,player} (h�
 GET  /api/games/{id}                              (runs wave catch-up)
 GET  /api/games/{id}/world
 POST /api/games/{id}/advance                      force a wave (dev)
-POST /api/games/{id}/town/action                  {buildingId, action: build|restore|repair|use|water|toggle|revive, points?, heroId?}
+POST /api/games/{id}/town/action                  {buildingId, action: build|restore|repair|use|water|toggle|revive|heal, points?, heroId?}
                                                   (repair = mur : PA + Pierre -> PV de la ville)
 POST /api/games/{id}/town/deposit                 deposit in-town heroes' loot into the Bank
 POST /api/games/{id}/town/craft                   {recipeId, heroId}
@@ -674,6 +789,9 @@ POST /api/games/{id}/heroes/{h}/hide
 POST /api/games/{id}/heroes/{h}/escape
 POST /api/games/{id}/heroes/{h}/skill             {skillId} compétence de carte par classe -> {report, game}
 POST /api/games/{id}/heroes/{h}/drink             boit une Ration d'eau du sac (+6 PA) -> GameState
+GET  /api/items                                   {nom -> {pa,hp,clears,clearsAll,desc}} ce qui se consomme
+POST /api/games/{id}/heroes/{h}/use               {item} consomme un objet du sac (ou, EN VILLE, de la
+                                                  réserve commune : on mange sur place, on n'emporte rien)
 POST /api/games/{id}/heroes/{h}/ruin/clear        {points} déblaye la ruine sous le héros -> {ruin, game}
 POST /api/games/{id}/heroes/{h}/ruin/explore      fouille le donjon déblayé (2 PA) -> {item, game}
 POST /api/games/{id}/heroes/{h}/evolve            {classId} -> GameState (applies class bonuses)
@@ -698,7 +816,12 @@ passent **obligatoirement** par `ui/Overlay.tsx` (ne pas recopier le couple
 `.settings` + `stopPropagation`) ; les retours d'action passent par `store.notify()` → `ui/Toasts.tsx`.
 L'app est **en français** : les chaînes anglaises restantes sont des bugs — SAUF celles qui portent
 de la logique de jeu (`"Ration d'eau"`, `"Plan "`, `"Tétanisé"`), à ne jamais traduire. Les noms de
-bâtiments s'affichent via `buildingName(id)` (`data/buildings.ts`), pas via `b.name` du serveur.
+bâtiments s'affichent via `buildingName(id)` (`data/buildings.ts`), pas via `b.name` du serveur —
+⚠ et côté SERVEUR, toute phrase française composée en Go (journal de la ville, ordre du jour,
+messages d'erreur) doit passer par **`buildingLabel(id, fallback)` / `b.Label()`** (`town.go`) : une
+phrase fabriquée côté serveur ne peut pas être traduite côté client, et le joueur lisait « Wall
+niveau 2 : il manque 6 Pierre » ou « Gui a achevé la construction de Kitchen » (corrigé 2026-08-09,
+test `TestServerWrittenSentencesUseFrenchBuildingNames`).
 
 - **App shell**: **full-bleed à toutes les tailles** — `.device` est simplement le conteneur plein
   viewport (100dvh) ; le cadre téléphone/tablette centré sur desktop a été SUPPRIMÉ (2026-07-13). Le
@@ -950,7 +1073,15 @@ MapScene/CombatScene, `components/TownMap.tsx` et le réglage « Classique » on
 Maintenir deux moteurs obligeait le plan de ville à rester exprimable sur une grille de cases
 entières, ce qui interdisait à la fois la géométrie polaire du tertre et le terrain lissé.) **2026-07-22** : `voxelBeauty: true` (mode CINÉMATIQUE — ACES + bloom
 + ciel/brume) et `quality: "Very high"` sont aussi des DÉFAUTS ; migration unique `RENDER_PRESET`
-dans `loadSettings` qui bascule les installs déjà sauvegardées une fois (opt-out ultérieur respecté). **Détails du monde** (`WORLD-DETAILS-PLAN.md`, lots D1+D2 faits
+dans `loadSettings` qui bascule les installs déjà sauvegardées une fois (opt-out ultérieur respecté). ⚠ **PAS DE QUASI-NEUTRE SUR UNE GRANDE SURFACE VOXEL** (2026-08-10) : `shade()` de
+`scripts/voxel/gen-props.mjs` est DIVISIONNISTE (il écarte la teinte pour faire vibrer la matière).
+Sur une couleur franche c'est le but ; sur un quasi-neutre il n'y a pas de teinte où aller et le
+résultat bascule dans le VIOLET — mesuré, un chaume « lin » [226,220,200] (chroma 26) ressort lilas
+[197,169,232]. Les toits qui marchent sont à chroma ≥ ~40. Un blanc pur reste possible en petite
+touche via `g.box` direct, qui ne passe pas par `shade`. Au passage `sharp` n'est plus importé qu'à
+la demande (il ne sert qu'aux aperçus PNG ; son absence faisait échouer toute la génération).
+
+**Détails du monde** (`WORLD-DETAILS-PLAN.md`, lots D1+D2 faits
 2026-07-18) : 37 props ×3 variantes (`scripts/voxel/gen-props.mjs` → `voxels/props/`) et
 **`frontend/src/voxel/scatter.ts`** = scatter PARTAGÉ carte/banc, pur (sans THREE) — tables
 par biome, règles « près de » (voisinage 8 : bord d'eau, eau calme, pied de falaise, sommet,
@@ -1156,7 +1287,12 @@ setSpeed, setTurntable, state, engine}` — pilotable en headless (vérif Playwr
    quitter/expulser un joueur, purge des salons abandonnés (même jour). ✅ 2026-07-07 : 1 joueur =
    3 héros (équipes), spawns initiaux ∝ nombre de joueurs (au lancement), verrous par partie.
    Restent : reconnexion sans localStorage, présence en ligne, hordePower ∝ joueurs.
-4. **Building skills** — multiple upgradable skills per building (mockup page 6), beyond a single level.
+4. ✅ **Building skills** — REFORMULÉ ET LIVRÉ (2026-08-10) à la demande de l'utilisateur : plutôt que
+   N compétences par bâtiment, on garde **trois niveaux maximum partout** et on AJOUTE des bâtiments —
+   cinq bâtiments de spécialité (Infirmerie, Cartographe, Armurerie, Verger, Caserne), chacun sur un
+   axe que rien d'autre ne couvre, rendus rares par un prérequis + un plan qui ne tombe que des
+   ruines. Le catalogue passe de 11 à 16 : aucune ville ne peut tout avoir, donc il y a des priorités
+   à arbitrer. Voir §5 « LES CINQ BÂTIMENTS DE SPÉCIALITÉ ».
 4b. ✅ **Design JSON du Studio implémenté** (2026-07-14, `design.go`) : terrains data-driven (fouille pondérée,
    richesse), 11 espèces avec grilles d'attaque GDD en combat iso + spawn par biome + loots pondérés + boss
    vague 4+, bâtiments (matériaux par niveau, prérequis, défense/capacités par niveau, revive Townhall,

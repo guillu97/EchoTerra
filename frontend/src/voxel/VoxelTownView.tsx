@@ -32,7 +32,7 @@ import { makeClouds, type Clouds } from "./clouds";
 import { makeLabel } from "./labels";
 import { ALL_CHAR_KEYS, CharLibrary } from "./characters";
 import { UnitAnimator } from "./unitAnim";
-import { buildTownLayout, TOWN_DECOR_PROPS, type TownPlot } from "./townLayout";
+import { buildTownLayout, buildingModelKey, TOWN_DECOR_PROPS, type TownPlot } from "./townLayout";
 
 const HERO_KEYS = ALL_CHAR_KEYS.filter((k) => k.startsWith("char-"));
 
@@ -245,7 +245,7 @@ export function VoxelTownView({
           continue;
         }
 
-        const geom = b.built ? propsLib.get(`bld-${pl.bid}`, variant) : propsLib.get("bld-chantier", 0);
+        const geom = b.built ? propsLib.get(buildingModelKey(pl.bid), variant) : propsLib.get("bld-chantier", 0);
         if (!geom) continue;
         const mesh = new THREE.Mesh(geom, BLD_MAT);
         mesh.castShadow = mesh.receiveShadow = true;
@@ -266,6 +266,8 @@ export function VoxelTownView({
     void propsLib
       .load(["bld-well", "bld-panel", "bld-bank", "bld-workshop", "bld-gate", "bld-tower",
              "bld-townhall", "bld-kitchen", "bld-wall", "bld-recyclerie", "bld-poste", "bld-chantier",
+             // les cinq bâtiments de spécialité (design.go)
+             "bld-infirmerie", "bld-cartographe", "bld-armurerie", "bld-caserne", "bld-verger",
              "bld-gate-door-l", "bld-gate-door-r", "cloud", ...TOWN_DECOR_PROPS])
       .then(() => {
         drawBuildings();

@@ -225,9 +225,16 @@ func TestHumansAreNeverBotDriven(t *testing.T) {
 }
 
 func TestBotEngagesAndAutoResolvesCombat(t *testing.T) {
+	// UN COMBAT SE JOUE AUX DÉS — ce test doit donc poser la même question à chaque fois.
+	// Mesuré sans graine : trois héros à 20 de force et 60 PV perdent contre DEUX slimes
+	// une fois sur vingt, et le test échouait au hasard (« stack the odds so the win is
+	// deterministic » était faux — empiler les statistiques rend une victoire probable,
+	// pas certaine). Un 5 % d'upset est un choix de game design défendable ; en faire
+	// dépendre une suite de tests ne l'est pas.
+	seedForTest(t, 1)
 	g, bot := botGame(t)
 	parkTeam(g, bot, 3, 3, 6)
-	for _, id := range bot.HeroIDs { // stack the odds so the win is deterministic
+	for _, id := range bot.HeroIDs {
 		hh := g.HeroByID(id)
 		hh.Stats.Force = 20
 		hh.HP, hh.MaxHP = 60, 60
@@ -314,9 +321,24 @@ func TestBotAvoidsTilesOccupiedByTeammates(t *testing.T) {
 	g, bot := botGame(t)
 	// The town wants for nothing, so the choice is purely about spreading out — with a
 	// shopping list the bots would (rightly) rank a barren quarry above a rich meadow.
+	//
+	// La liste est REMPLIE DEPUIS LA LISTE DE COURSES elle-même, et pas depuis quatre
+	// noms en dur : le catalogue de bâtiments grandit (les cinq bâtiments de spécialité
+	// ont ajouté Cuir, Herbe médicinale, Graines anciennes…), et une mise en scène qui
+	// prétend « la ville ne manque de rien » doit le rester quand il apparaît un besoin
+	// de plus.
 	g.Town.HP = g.Town.MaxHP
-	for _, name := range []string{"Bois", "Pierre", "Minerai de fer", "Fibre végétale"} {
-		g.addStorage(Item{Type: "objet", Name: name, Qty: 999})
+	for i := 0; i < 10; i++ {
+		want := g.botShoppingList()
+		if len(want) == 0 {
+			break
+		}
+		for name := range want {
+			g.addStorage(Item{Type: "objet", Name: name, Qty: 999})
+		}
+	}
+	if n := len(g.botShoppingList()); n != 0 {
+		t.Fatalf("staging: la ville manque encore de %d matériaux", n)
 	}
 	// Every tile barren except two: R1 (occupied by a teammate) and R2 (free).
 	for i := range g.Tiles {
@@ -528,5 +550,82 @@ func TestBotsRallyToAPinnedComrade(t *testing.T) {
 	g.BotAct(time.Now())
 	if after := absI(rescuer.X-pinned.X) + absI(rescuer.Y-pinned.Y); after >= before {
 		t.Fatalf("le coéquipier doit marcher vers le camarade cloué : %d -> %d", before, after)
+	}
+}
+
+// seedForTest rend le hasard du jeu REPRODUCTIBLE le temps d'un test, puis le rend à
+// l'horloge. À utiliser dès qu'un test affirme quelque chose sur une issue tirée aux dés
+// (combat, butin, apparition) : sans graine il pose une question différente à chaque
+// exécution, et un échec ne veut plus rien dire.
+func seedForTest(t *testing.T, seed int64) {
+	t.Helper()
+	SeedRNG(seed)
+	t.Cleanup(func() { SeedRNG(time.Now().UnixNano()) })
+}
+
+// LES JOUEURS-IA TRAVAILLENT LES RUINES.
+//
+// Ils les ignoraient complètement, alors qu'une ruine est la SEULE source des plans de
+// spécialité (ruins.go) : une ville sans joueur humain ne pouvait donc jamais bâtir une
+// Infirmerie, un Cartographe, une Armurerie, un Verger ni une Caserne — cinq bâtiments
+// sur seize, invisibles à l'IA.
+func TestBotClearsThenExploresARuinUnderIt(t *testing.T) {
+	g, bot := botGame(t)
+	h := g.HeroByID(bot.HeroIDs[0])
+	h.X, h.Y = g.Town.X+3, g.Town.Y
+	ru := &Ruin{ID: "r1", Type: "ferme", Name: "Ferme abandonnée", Icon: "🏚️",
+		X: h.X, Y: h.Y, ClearPA: 3, Charges: 4}
+	g.Ruins = map[string]*Ruin{ru.ID: ru}
+	g.TileAt(ru.X, ru.Y).RuinID = ru.ID
+
+	// Ensevelie : le héros déblaie, et le PA compte pour le chantier COLLECTIF.
+	if !g.botWorkRuin(h) {
+		t.Fatal("un bot sur une ruine ensevelie doit déblayer")
+	}
+	if ru.PaInvested == 0 {
+		t.Fatalf("le PA doit aller au déblayage : %+v", ru)
+	}
+
+	// Déblayée : il fouille le donjon.
+	ru.Cleared, ru.PaInvested = true, ru.ClearPA
+	h.PA, h.Inventory = 6, nil
+	if !g.botWorkRuin(h) {
+		t.Fatal("un bot sur une ruine déblayée doit fouiller")
+	}
+	if ru.Charges != 3 || len(h.Inventory) == 0 {
+		t.Fatalf("la fouille doit consommer une charge et rapporter : charges=%d sac=%d", ru.Charges, len(h.Inventory))
+	}
+
+	// ⚠ LA RÉSERVE DE DISSIMULATION TIENT : fouiller coûte deux points d'un coup, on ne
+	// laisse jamais un héros dehors sans de quoi se cacher.
+	h.PA = ruinExplorePA
+	if g.botWorkRuin(h) {
+		t.Fatal("il doit garder son dernier point pour se cacher")
+	}
+
+	// Épuisée : plus rien à y faire.
+	ru.Charges, h.PA = 0, 6
+	if g.botWorkRuin(h) {
+		t.Fatal("une ruine épuisée ne doit plus retenir personne")
+	}
+}
+
+// Une ruine DÉBLAYÉE vaut toujours le détour (deux PA la fouille) ; une ruine ENSEVELIE
+// coûte huit à douze PA collectifs, et une ville qui manque de l'essentiel a mieux à
+// faire que de l'archéologie.
+func TestBotWeighsARuinAgainstTheTownsShortages(t *testing.T) {
+	g, _ := botGame(t)
+	ru := &Ruin{ID: "r1", Type: "mine", Name: "Mine effondrée", X: g.Town.X + 2, Y: g.Town.Y, ClearPA: 12, Charges: 4}
+	g.Ruins = map[string]*Ruin{ru.ID: ru}
+	g.TileAt(ru.X, ru.Y).RuinID = ru.ID
+	g.Town.HP = g.Town.MaxHP - 20 // la ville réclame de la Pierre, et la Banque est vide
+	g.Recompute()
+
+	if g.botRuinWorthTheTrip(ru.X, ru.Y) {
+		t.Fatal("ville en pénurie + ruine ensevelie : on va chercher de la pierre")
+	}
+	ru.Cleared = true
+	if !g.botRuinWorthTheTrip(ru.X, ru.Y) {
+		t.Fatal("une ruine déjà déblayée est du butin presque gratuit")
 	}
 }

@@ -140,6 +140,14 @@ func (g *GameState) botHeroAct(h *Hero, curfew int) bool {
 		return true
 	}
 
+	// SE SOIGNER ET SE RESTAURER (items.go). Le catalogue portait vingt-six recettes dont
+	// les effets n'étaient que du texte : on cuisinait des ragoûts et des potions qui
+	// dormaient en Banque. C'est GRATUIT en PA — ce qui borne l'usage, c'est l'objet
+	// lui-même, qu'il a fallu récolter puis cuisiner, et qui disparaît.
+	if g.botUseItem(h) {
+		return true
+	}
+
 	// Out in the field, the choice is: haul the load home, or CAMP.
 	//
 	// Camping is what the game is built for — a search arms the automatic foraging
@@ -298,7 +306,21 @@ func (g *GameState) botHeroAct(h *Hero, curfew int) bool {
 			return true
 		}
 	}
-	if t := g.TileAt(h.X, h.Y); t != nil && t.Resources > 0 {
+	// LA RUINE SOUS SES PIEDS. Les joueurs-IA ignoraient complètement les ruines, alors
+	// qu'elles sont la SEULE source des plans de spécialité (ruins.go) : une ville sans
+	// joueur humain ne pouvait donc jamais bâtir une Infirmerie, un Cartographe, une
+	// Armurerie, un Verger ni une Caserne — cinq bâtiments sur seize, invisibles à l'IA.
+	// Déblayer est collectif (les PA s'additionnent d'un héros à l'autre), fouiller coûte
+	// ruinExplorePA et rend une charge.
+	if g.botWorkRuin(h) {
+		return true
+	}
+	// ⚠ UN PROSPECTEUR NE CAMPE PAS. Fouiller arme la récolte automatique et fixe le
+	// héros sur sa case (forage.go) : c'est excellent pour l'économie et incompatible
+	// avec le fait de voir du pays. Mesuré avant cette exception : 2491 déplacements pour
+	// 572 cases révélées sur une carte de 134² — les bots faisaient la NAVETTE entre la
+	// ville et leur coin, sans jamais rien découvrir.
+	if t := g.TileAt(h.X, h.Y); t != nil && t.Resources > 0 && !g.botProspecting(h) {
 		if _, err := g.SearchTile(h.ID); err == nil {
 			return true
 		}
@@ -606,6 +628,18 @@ func (g *GameState) botShoppingList() map[string]bool {
 		if b.Built && b.Level >= MaxBuildingLevel {
 			continue
 		}
+		// ON NE FAIT PAS LES COURSES POUR UN CHANTIER QU'ON NE PEUT PAS OUVRIR. Un site
+		// neuf exige son PLAN, qui se trouve sur le terrain ou dans les ruines : tant
+		// qu'il n'est pas en Banque, ses matériaux ne servent à rien. Sans ce filtre,
+		// l'arrivée des cinq bâtiments de spécialité a mis Cuir, Herbe médicinale,
+		// Graines anciennes et Minerai d'or sur la liste de courses de TOUTES les villes,
+		// y compris celles qui n'auraient jamais le plan — les récolteurs partaient
+		// chercher au loin de quoi bâtir l'imaginaire pendant que la pierre manquait.
+		if !b.Built {
+			if plan := buildingPlanItem(b.ID); plan != "" && g.storageQty(plan) == 0 {
+				continue
+			}
+		}
 		for _, m := range g.buildingCost(b).Materials {
 			if g.storageQty(m.Name) < m.Qty {
 				add(m.Name)
@@ -724,6 +758,31 @@ func (g *GameState) botGoalWorthKeeping(h *Hero) bool {
 }
 
 func (g *GameState) botPickGatherTarget(h *Hero) (int, int, bool) {
+	// UNE RUINE, MAIS PAS AU PRIX DE LA PIERRE. Un donjon rend des matériaux rares et
+	// les SEULS plans de spécialité du jeu — mais déblayer coûte huit à douze PA
+	// collectifs, et une ville qui manque encore de l'essentiel n'a pas les moyens de
+	// s'offrir une expédition archéologique. On n'y va donc que quand la Banque ne tient
+	// plus rien à zéro : la liste critique vide, c'est le signal que la ville respire.
+	if x, y, ok := g.botRuinTarget(h); ok && g.botRuinWorthTheTrip(x, y) {
+		return x, y, true
+	}
+	// PROSPECTER QUAND LA VILLE RESPIRE.
+	//
+	// L'exploration n'était qu'un REPLI : on ne poussait le brouillard que si plus aucune
+	// case connue ne fournissait ce qu'on cherchait — condition presque jamais vraie, une
+	// prairie fournit toujours quelque chose. Mesuré : 0,9 % d'une carte de vingt joueurs
+	// explorée en vingt vagues, et UNE ruine vue sur douze. Les bots campent (c'est bon
+	// pour l'économie : la fouille automatique récolte toute seule) et camper ne découvre
+	// rien. Une carte qu'on ne voit pas est une carte qui n'existe pas : ni gisement de
+	// remplacement quand les abords s'épuisent, ni ruine, donc aucun plan de spécialité.
+	//
+	// Dès que la Banque ne tient plus rien à zéro, un récolteur va donc voir plus loin.
+	// La pénurie reprend toujours le pas : c'est un temps libre, pas une vocation.
+	if g.botProspecting(h) {
+		if x, y, ok := g.pickFrontierTile(h); ok {
+			return x, y, true
+		}
+	}
 	if g.botSupplyKnown(g.botShoppingList()) {
 		if x, y, ok := g.pickResourceTile(h); ok {
 			return x, y, ok
@@ -823,6 +882,18 @@ func (g *GameState) botBuild(h *Hero) bool {
 			return true
 		}
 	}
+	// 3b. DÉBLOQUER LA FORGE. Les bots n'amélioraient que les bâtiments de botDefensiveOrder
+	// — or la défense ne s'arrête pas aux murs : le dernier niveau du portail (+16 contre
+	// +12) réclame de l'ACIER, l'acier réclame un Atelier de niveau 2, et l'Atelier n'était
+	// dans la liste de personne. Mesuré : atelier bloqué au niveau 1 toute la partie, donc
+	// portail plafonné au niveau 2 sur chaque partie simulée, alors que le bois du chantier
+	// dormait à la Banque. Un bâtiment qui GARDE un matériau de défense est un bâtiment de
+	// défense, à un cran de distance.
+	if b := g.botCraftUnlockNeeded(); b != nil {
+		if err := g.TownAction(b.ID, "build", 1, h.ID); err == nil {
+			return true
+		}
+	}
 	// 4. Sites whose blueprint we found — but only when the Bank can actually FEED the
 	// chantier. Opening one on a promise burns the (lootable, scarce) plan and parks a
 	// site that refuses every point of labour until the missing material shows up: measured,
@@ -869,6 +940,38 @@ func (g *GameState) botBuild(h *Hero) bool {
 		}
 	}
 	return false
+}
+
+// botCraftUnlockNeeded rend le bâtiment d'artisanat qu'il faut monter d'un niveau pour
+// que la ville puisse FABRIQUER un matériau que sa défense réclame — l'Atelier niveau 2
+// pour l'Acier du portail, typiquement. nil quand la forge sait déjà tout faire, quand
+// le matériau se ramasse plutôt qu'il ne se fabrique, ou quand la Banque ne couvre pas
+// le chantier d'amélioration lui-même.
+func (g *GameState) botCraftUnlockNeeded() *TownBuilding {
+	for _, id := range botDefensiveOrder {
+		b := g.buildingByID(id)
+		if b == nil || !b.Built || b.Level >= MaxBuildingLevel {
+			continue
+		}
+		for _, m := range g.buildingCost(b).Materials {
+			if g.storageQty(m.Name) >= m.Qty || terrainDroppable(m.Name) {
+				continue // déjà en Banque, ou ça se ramasse
+			}
+			r := recipeFor(m.Name)
+			if r == nil || r.Building == "" {
+				continue
+			}
+			shop := g.buildingByID(r.Building)
+			if shop == nil || !shop.Built || shop.Level >= r.BuildingLevel || shop.Level >= MaxBuildingLevel {
+				continue // la forge sait déjà le faire (ou ne pourra jamais)
+			}
+			if !g.bankCovers(g.buildingCost(shop).Materials) {
+				continue // pas de quoi monter la forge : ce sera pour plus tard
+			}
+			return shop
+		}
+	}
+	return nil
 }
 
 // townRepairUrgentPct: below this share of its hit points the town stops saving
@@ -936,6 +1039,17 @@ func (g *GameState) botCraft(h *Hero) bool {
 				return true
 			}
 		}
+	}
+	// 1b. LA CUISINE ET L'ALCHIMIE. Depuis que les objets se consomment (items.go), un
+	// ragoût est des PA et une potion est la seule façon de soigner un héros hors des
+	// murs. Une ville qui ne cuisine jamais laisse donc dormir sa moitié « vivres » —
+	// c'était le cas : les bots n'allaient à l'atelier que pour des matériaux.
+	//
+	// On ne fait pas de stock pour le plaisir : un seuil bas par produit, et seulement
+	// quand les ingrédients sont là. Les MATÉRIAUX passent avant (étape 1) — on ne mange
+	// pas les murs.
+	if g.botCookStores(h) {
+		return true
 	}
 	// 2. Recycle the junk from picked-clean tiles back into the two materials that
 	// actually build things — stone first, it is the one the walls eat.
@@ -1136,9 +1250,15 @@ func (g *GameState) pickFrontierTile(h *Hero) (int, int, bool) {
 			if !touchesFog || (x == h.X && y == h.Y) {
 				continue
 			}
+			// ⚠ LA LISIÈRE LA PLUS PROCHE, et pas la plus lointaine. Viser le bord le
+			// plus éloigné de la ville semble mieux « pousser » l'exploration ; mesuré,
+			// c'est l'inverse : les héros couraient après des cases qu'ils n'atteignaient
+			// jamais avec six PA, la carte explorée TOMBAIT de 2,5 % à 1,7 % et la survie
+			// baissait de deux vagues. On avance de proche en proche ; c'est le SECTEUR
+			// (heroBias) qui évite que tout le monde grignote le même bord.
 			score := 2 * (absI(x-h.X) + absI(y-h.Y))
 			if (x-h.X)*dirX+(y-h.Y)*dirY < 0 {
-				score += 8
+				score += 8 // hors de mon secteur : à quelqu'un d'autre
 			}
 			if score < bestScore {
 				bestX, bestY, bestScore = x, y, score
@@ -1175,6 +1295,195 @@ func (g *GameState) botStepToward(h *Hero, tx, ty int) bool {
 		}
 		if err := g.MoveHero(h.ID, c[0], c[1]); err == nil {
 			return true
+		}
+	}
+	return false
+}
+
+// botWorkRuin fait travailler un héros sur la ruine de SA case : déblayage tant qu'elle
+// est ensevelie, fouille du donjon ensuite. Renvoie false s'il n'y a rien à y faire.
+//
+// ⚠ LA RÉSERVE DE DISSIMULATION EST DÉJÀ APPLIQUÉE plus haut (le dernier PA d'un héros
+// dehors ne sert qu'à se cacher) ; on garde ici la même prudence pour la fouille, qui
+// coûte deux points d'un coup.
+func (g *GameState) botWorkRuin(h *Hero) bool {
+	ru := g.ruinAt(h.X, h.Y)
+	if ru == nil {
+		return false
+	}
+	if !ru.Cleared {
+		return g.clearRuinSilently(h)
+	}
+	if ru.Charges > 0 && h.PA >= ruinExplorePA+1 {
+		_, err := g.ExploreRuin(h.ID)
+		return err == nil
+	}
+	return false
+}
+
+func (g *GameState) clearRuinSilently(h *Hero) bool {
+	_, err := g.ClearRuin(h.ID, 1)
+	return err == nil
+}
+
+// ruinAt rend la ruine posée sur une case, ou nil.
+func (g *GameState) ruinAt(x, y int) *Ruin {
+	t := g.TileAt(x, y)
+	if t == nil || t.RuinID == "" {
+		return nil
+	}
+	return g.Ruins[t.RuinID]
+}
+
+// botRuinTarget : la ruine encore utile la PLUS PROCHE, dans la limite de ce qu'un
+// héros peut atteindre. Une ruine à trente cases est un mirage — six PA par vague.
+func (g *GameState) botRuinTarget(h *Hero) (int, int, bool) {
+	bx, by, best := 0, 0, botRuinReach+1
+	for _, ru := range g.Ruins {
+		if ru == nil || (ru.Cleared && ru.Charges <= 0) {
+			continue
+		}
+		t := g.TileAt(ru.X, ru.Y)
+		if t == nil || !t.Discovered || t.MonsterID != "" {
+			continue
+		}
+		d := absI(ru.X-h.X) + absI(ru.Y-h.Y)
+		if d == 0 || d >= best {
+			continue
+		}
+		bx, by, best = ru.X, ru.Y, d
+	}
+	return bx, by, best <= botRuinReach
+}
+
+// botRuinReach : au-delà, une ruine ne vaut pas le voyage.
+const botRuinReach = 12
+
+// botRuinWorthTheTrip : une ruine DÉJÀ DÉBLAYÉE est presque du butin gratuit (deux PA
+// la fouille) et vaut toujours le détour. Une ruine ENSEVELIE coûte huit à douze PA
+// collectifs : on ne s'offre cette expédition archéologique que si la ville ne tient
+// plus rien à zéro — sinon on va chercher de la pierre.
+//
+// ⚠ MESURÉ : cette porte ne change quasiment rien au nombre de ruines travaillées
+// (0 à 1 sur quatre, avec ou sans elle). Ce qui limite vraiment les joueurs-IA, c'est
+// qu'ils DÉCOUVRENT peu de ruines — le brouillard ne se lève que d'une case autour d'un
+// héros. Elle reste parce qu'elle exprime la bonne priorité quand le cas se présente,
+// pas parce qu'elle sauve la partie.
+func (g *GameState) botRuinWorthTheTrip(x, y int) bool {
+	ru := g.ruinAt(x, y)
+	if ru == nil {
+		return false
+	}
+	if ru.Cleared {
+		return true
+	}
+	return len(g.botCriticalList(g.botShoppingList())) == 0
+}
+
+// botProspectWaves : combien de vagues durent les repérages du début de partie.
+//
+// L'exploration d'un jeu de survie est FRONT-CHARGÉE, comme chez un joueur humain : on
+// commence par savoir où sont la forêt, la carrière et les ruines, puis on s'installe et
+// on récolte. Ces premières vagues sont aussi les moins dangereuses — c'est le seul
+// moment où l'on peut s'offrir de marcher sans rien rapporter.
+const botProspectWaves = 6
+
+// botProspecting : ce héros est-il en repérage plutôt qu'en récolte ?
+//
+// Un RÉCOLTEUR seulement (le bâtisseur tient la ville, le défenseur tient l'anneau), au
+// début de la partie, et jamais quand la Banque est à zéro de quelque chose : la pénurie
+// reprend toujours le pas sur la curiosité.
+func (g *GameState) botProspecting(h *Hero) bool {
+	if g.WaveNumber > botProspectWaves {
+		return false
+	}
+	if g.heroRole(h.ID) != roleGatherer {
+		return false
+	}
+	return len(g.botCriticalList(g.botShoppingList())) == 0
+}
+
+// botConsumeHurtPct : en dessous de cette part de ses PV, un héros boit une potion.
+// Assez bas pour ne pas gaspiller un soin sur une égratignure, assez haut pour ne pas
+// mourir avec la fiole dans le sac.
+const botConsumeHurtPct = 60
+
+// botUseItem fait boire ou manger un héros quand ça sert vraiment.
+//
+// Deux cas seulement, et dans cet ordre : SE SOIGNER quand on est bas (rien d'autre ne
+// rend des PV hors de la ville, à part l'Infirmerie qui suppose d'être rentré), puis
+// REPRENDRE DES FORCES quand il ne reste plus de quoi agir. Un bot qui mangerait « au
+// cas où » viderait le garde-manger de la ville pour rien.
+func (g *GameState) botUseItem(h *Hero) bool {
+	if h.HP*100 < h.MaxHP*botConsumeHurtPct {
+		if g.botConsumeBest(h, func(e ItemEffect) int { return e.HP }) {
+			return true
+		}
+	}
+	// À court de PA : un plat rend la fin de la journée. On garde toutefois de quoi se
+	// cacher — la réserve de dissimulation est la règle qui tient tout le reste.
+	if h.PA <= 1 && h.PA < h.MaxPA {
+		if g.botConsumeBest(h, func(e ItemEffect) int { return e.PA }) {
+			return true
+		}
+	}
+	return false
+}
+
+// botConsumeBest consomme, parmi le sac, l'objet qui rend le PLUS selon `value` — sans
+// jamais entamer un objet qui ne servirait à rien (UseItem le refuse de toute façon).
+func (g *GameState) botConsumeBest(h *Hero, value func(ItemEffect) int) bool {
+	// Le sac d'abord ; et EN VILLE, la réserve commune (voir UseItem : on consomme sur
+	// place, on n'emporte rien).
+	pools := [][]Item{h.Inventory}
+	if h.X == g.Town.X && h.Y == g.Town.Y {
+		pools = append(pools, g.Town.Storage)
+	}
+	best, bestV := "", 0
+	for _, pool := range pools {
+		for _, it := range pool {
+			eff, ok := ItemEffects[it.Name]
+			if !ok || value(eff) <= bestV {
+				continue
+			}
+			best, bestV = it.Name, value(eff)
+		}
+	}
+	if best == "" {
+		return false
+	}
+	_, _, err := g.UseItem(h.ID, best)
+	return err == nil
+}
+
+// botStockPerConsumable : combien d'exemplaires d'un même vivre la ville garde d'avance.
+// Volontairement BAS : au-delà, les ingrédients servent mieux ailleurs, et un garde-manger
+// plein n'a jamais tenu un rempart.
+const botStockPerConsumable = 3
+
+// botCookStores fabrique un vivre ou une potion quand la réserve est courte et que les
+// ingrédients sont en Banque. Renvoie false s'il n'y a rien d'utile à faire.
+func (g *GameState) botCookStores(h *Hero) bool {
+	// Les SOINS d'abord : c'est la seule chose qu'on ne peut pas remplacer par du temps.
+	for _, cat := range []string{"potion", "conso"} {
+		for i := range Recipes {
+			r := &Recipes[i]
+			if r.Category != cat {
+				continue
+			}
+			out := r.OutputName
+			if out == "" {
+				out = r.Name
+			}
+			if !UsableItem(out) || g.storageQty(out) >= botStockPerConsumable {
+				continue
+			}
+			if !g.bankCovers(r.Ingredients) {
+				continue
+			}
+			if _, err := g.Craft(r.ID, h.ID); err == nil {
+				return true
+			}
 		}
 	}
 	return false

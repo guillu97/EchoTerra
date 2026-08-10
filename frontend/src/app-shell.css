@@ -4098,3 +4098,128 @@ body {
   color: var(--ink);
   font-weight: 600;
 }
+
+/* ── La chronique de compte (P7) ─────────────────────────────────────────────
+   Ce qu'un compte garde des villes tombées. Cosmétique : aucun de ces chiffres
+   n'a d'effet en jeu — c'est une mémoire, pas un avantage. */
+.chron-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+  gap: var(--s-3);
+  margin: var(--s-3) 0;
+}
+.chron-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--s-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: rgba(255, 255, 255, 0.4);
+  text-align: left;
+}
+.chron-stat-v {
+  font-family: var(--font-title);
+  font-weight: 800;
+  font-size: var(--t-md, 14px);
+  color: var(--ink);
+}
+.chron-stat-l {
+  font-size: var(--t-xs);
+  color: var(--ink-soft);
+}
+.chron-sub {
+  font-weight: 700;
+  font-size: var(--t-sm);
+  color: var(--ink-soft);
+  text-align: left;
+  margin-top: var(--s-4);
+}
+.chron-titles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  margin-top: var(--s-2);
+}
+.chron-title {
+  font-size: var(--t-sm);
+  font-weight: 700;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+.chron-title.got {
+  padding: 4px var(--s-4);
+  border-radius: var(--r-pill);
+  border: 1px solid var(--gold);
+  background: rgba(217, 164, 65, 0.16);
+  color: var(--ink);
+}
+.chron-next {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin-top: var(--s-2);
+}
+.chron-nextrow {
+  display: grid;
+  grid-template-columns: 1fr 68px auto;
+  align-items: center;
+  gap: var(--s-3);
+}
+.chron-prog {
+  height: 6px;
+  border-radius: var(--r-pill);
+  background: var(--shade);
+  overflow: hidden;
+}
+.chron-prog i {
+  display: block;
+  height: 100%;
+  background: var(--gold);
+}
+.chron-num {
+  font-size: var(--t-xs);
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+.lobby-row.static {
+  cursor: default;
+}
+
+/* ── Sélecteur de saison du classement (P8) ──────────────────────────────────
+   Le classement repart à chaque saison ; les précédentes restent consultables. */
+.lb-seasons {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: 0 var(--s-2);
+}
+.lb-seasons label {
+  font-size: var(--t-sm);
+  font-weight: 700;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+.lb-seasons select {
+  flex: 1;
+  min-height: var(--tap);
+  padding: var(--s-2) var(--s-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: rgba(255, 255, 255, 0.55);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--t-sm);
+  font-weight: 700;
+}
+
+/* Un consommable est CLIQUABLE : on le distingue au survol et au focus, sinon rien ne
+   dit qu'une case de la grille se mange (cf. backend game/items.go). */
+.item-cell.usable {
+  cursor: pointer;
+  border-color: var(--gold);
+}
+.item-cell.usable:hover,
+.item-cell.usable:focus-visible {
+  background: rgba(217, 164, 65, 0.16);
+}

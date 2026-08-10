@@ -6,7 +6,7 @@
 
 ---
 
-## 2026-08-09 (99) — Les monstres respiraient plus : un cadenceur d'idle, réglable
+## 2026-08-10 (105) — Les monstres respiraient plus : un cadenceur d'idle, réglable
 
 **Le symptôme** (signalé par Guillaume) : sur la carte, les monstres sont figés tant que rien ne bouge.
 
@@ -54,6 +54,411 @@ le combat tournaient jusqu'ici à la fréquence de l'écran, ils profitent du pl
 - Le réglage `settings.fps` (30/60/120, « Fréquence d'affichage ») est toujours **purement
   décoratif** : personne ne le lit. Soit le brancher (plafond global de rAF du moteur), soit le
   retirer — un réglage qui ne fait rien est un piège.
+
+---
+
+## 2026-08-10 (104) — Les bots prospectent, et les objets servent enfin à quelque chose
+
+Trois demandes : ne PAS ouvrir le brouillard mais faire explorer les bots, vérifier qu'ils évoluent,
+et débloquer les crafts et l'usage des objets.
+
+### L'évolution marchait déjà
+
+Mesuré avant de toucher à quoi que ce soit : **35 héros sur 36** atteignent le palier 2 à quatre
+joueurs, 173 sur 180 à vingt. Les paliers de jour (2 et 4) sont respectés par `EvolveHero`, et
+`botEvolve` saisit l'ouverture dès qu'elle arrive. Rien à faire — je le note plutôt que d'inventer du
+travail.
+
+### L'exploration, elle, était à 0,9 %
+
+Une carte de vingt joueurs fait 134². Les bots en voyaient **0,9 %** en vingt vagues, et une ruine sur
+douze. Pourtant ils se déplaçaient beaucoup : 2491 déplacements pour 572 cases révélées — ils
+faisaient la **navette** entre la ville et leur coin de récolte. L'exploration n'était qu'un REPLI :
+on ne poussait le brouillard que si plus aucune case connue ne fournissait ce qu'on cherchait, ce qui
+n'arrive jamais (une prairie fournit toujours quelque chose).
+
+`botProspecting` : un récolteur, pendant les six premières vagues, si la Banque ne tient rien à zéro,
+vise la lisière et **ne campe pas** — fouiller arme la récolte automatique et fixe le héros sur sa
+case, ce qui est excellent pour l'économie et incompatible avec voir du pays. L'exploration d'un jeu
+de survie est front-chargée, comme chez un humain : on regarde où sont la forêt et la carrière, puis
+on s'installe. Résultat **2,5 %, soit 2,3 fois plus, à survie égale**.
+
+⚠ **Une idée mesurée puis jetée** : viser la lisière la plus ÉLOIGNÉE de la ville, pour « pousser »
+l'exploration. Ça semblait évident. Mesuré : l'exploration TOMBE à 1,7 % et la survie perd deux
+vagues — les héros courent après des cases qu'ils n'atteindront jamais avec six PA. On avance de
+proche en proche ; c'est le secteur (`heroBias`) qui évite que tout le monde grignote le même bord.
+
+### Les objets : vingt-six recettes décoratives
+
+Le catalogue portait vingt-six recettes dont les effets n'étaient QUE DU TEXTE. « Potion de soin :
++8 PV, retire Blessé » — rien ne consommait rien. Toute la moitié cuisine-et-alchimie du jeu était
+décorative.
+
+`items.go` : une table `ItemEffects` servie au client (jamais recopiée), une action `UseItem`,
+gratuite en PA comme boire — ce qui borne l'usage, c'est l'objet, qu'il a fallu récolter puis
+cuisiner, et qui disparaît.
+
+**La faim n'existe pas** dans le code (elle est au GDD). Plutôt que de bâcler un système de faim, un
+plat rend des **PA** : la vraie monnaie d'une journée de héros, à l'image de la Ration d'eau. Un plat
+cuisiné vaut 2 à 5, un aliment brut 1 — de quoi finir une course, pas de quoi remplacer la Cuisine.
+
+**Le maillon qui manquait.** Première version : aucun effet sur les mesures. Un plat cuisiné en ville
+va dans la **Banque**, et un héros ne mange que dans son sac — or la seule sortie de la Banque vers un
+joueur est la requête du Panneau, qui exige d'être deux. Tout ce que la Cuisine produisait restait
+donc bloqué. La réponse : **en ville on consomme SUR PLACE**, sans rien emporter. La règle de
+coopération est intacte (pour emporter une potion en expédition, il faut toujours qu'un coéquipier
+honore votre demande) et la Cuisine sert enfin. Vingt joueurs sont passés de 22 à 23 vagues sur ce
+seul point.
+
+Les bots boivent une potion sous 60 % de PV, mangent quand ils n'ont plus de PA, et **cuisinent**
+(seuil bas par produit : on ne fait pas de stock, on ne mange pas les murs).
+
+### Fonctionnel (vérifié)
+
+- Médianes **15 · 17 · 19 · 21 · 22 · 23** vagues pour 1 · 2 · 4 · 8 · 12 · 20 joueurs — en hausse
+  pour les petites équipes (15 · 15 · 18 avant), monotone.
+- `go test ./... -count=2` vert, `go vet` propre, `tsc -b` et `npm run build` verts.
+- **Testé en vrai** contre le serveur : la viande disparaît du sac et rend un PA.
+
+### Deux bugs attrapés en lançant
+
+- `ItemEffect` n'avait pas de tags JSON : Go sérialisait `PA`/`Desc`, le client lisait `undefined` et
+  le libellé arrivait vide. Invisible aux tests Go.
+- La route `/use` appelait `decodePlayer` — qui CONSOMME le corps de la requête — puis redécodait :
+  `item` arrivait vide et l'action échouait sur un nom vide. Les autres routes à paramètres décodent
+  déjà tout d'un coup ; celle-ci s'y conforme.
+
+### À faire
+
+- Les ÉQUIPEMENTS (armes, capes, armures : +force, +agilité, −dégâts) restent du texte : ils
+  demandent des emplacements sur le héros et un effet en combat, ce qui est un chantier à part.
+- Les bots ne découvrent toujours qu'une ruine sur douze — mieux qu'avant, mais une carte de 134²
+  reste immense pour un rayon de vue de 1.
+
+---
+
+## 2026-08-10 (103) — L'art des spécialités, les ruines aux bots, et quatre niveaux qui ne faisaient rien
+
+Les trois points laissés ouverts par l'entrée 102, dans l'ordre demandé.
+
+### 1. L'art voxel — et un piège de couleur
+
+Les cinq bâtiments de spécialité empruntaient le modèle d'un voisin : deux bâtiments aux effets
+opposés se ressemblaient trait pour trait. Sur un plan de ville vu de haut, on reconnaît un bâtiment
+à sa SILHOUETTE et à sa COULEUR DE TOIT avant d'en lire la pastille — c'est le seul repère qui
+survit au dézoom. Chacun a donc sa recette : infirmerie (toit bleu-vert, croix de lin, herbes qui
+sèchent), cartographe (indigo, tourelle, rose des vents dorée), armurerie (rouge forge, cheminée,
+enclume), caserne (long corps bas, bannière), verger (pas une maison : une parcelle plantée).
+
+**Mes premiers toits sont sortis LILAS.** `shade()` est divisionniste — le commentaire juste au-dessus
+le dit, « comme les pins de Signac » : il écarte la teinte pour faire vibrer la matière. Sur une
+couleur franche c'est le but ; sur un QUASI-NEUTRE il n'y a pas de teinte où aller et ça bascule dans
+le violet. Mesuré : chaume « lin » [226,220,200] (chroma 26) → [197,169,232] ; vert-de-gris (chroma
+18) → mauve ; alors que les toits qui marchent depuis toujours sont à chroma 66 et 116. La règle est
+maintenant écrite à côté de `shade()`, avec les chiffres. J'y suis arrivé en écrivant un banc d'essai
+sur les couleurs candidates plutôt qu'en retouchant à l'œil.
+
+Au passage : `sharp` n'était importé que pour les aperçus PNG, mais en tête de fichier — son absence
+faisait échouer la génération entière alors que le produit du script, ce sont les `.vox`.
+
+### 2. Les ruines aux bots
+
+Les joueurs-IA ignoraient les ruines, or c'est la SEULE source des plans de spécialité : une ville
+sans humain ne pouvait jamais bâtir cinq bâtiments sur seize. Ils déblaient et fouillent désormais la
+ruine de leur case, et un récolteur s'y rend.
+
+**Ce que la mesure a corrigé dans mon idée.** J'avais posé une porte « on n'y va que si la ville ne
+manque de rien ». En la retirant pour voir : aucun changement, 0 à 1 ruine sur quatre dans les deux
+cas. Ce qui limite les bots n'est pas la priorité mais la DÉCOUVERTE — le brouillard ne se lève que
+d'une case autour d'un héros, et ils n'explorent qu'une fraction d'une grande carte. La porte reste
+(elle exprime la bonne priorité quand le cas se présente) mais je la documente comme telle : elle ne
+sauve pas la partie. Conséquence assumée : débloquer les spécialités reste largement l'affaire d'un
+joueur humain — ce qui lui donne un rôle que l'IA ne lui prend pas.
+
+### 3. Quatre niveaux qui ne faisaient rien
+
+Audit du catalogue : quatre effets n'existaient QUE sur le papier. Le joueur versait des PA et des
+matériaux pour une phrase.
+
+- **Recyclerie 2-3** « recyclage plus efficace » → +1 par palier, sur ses SEULES recettes (l'étendre
+  à tout ferait de l'Atelier une machine à dupliquer l'Acier).
+- **Panneau 2-3** « sondages / statistiques » → la mémoire écrite de la ville s'allonge : journal
+  ×niveau, tableau de demandes +6 par niveau. À vingt joueurs le journal défile en une soirée et les
+  demandes tombent avant d'avoir été vues — or une demande non vue est une demande non servie.
+- **Poste 2-3** « courrier plus fiable / relais permanent » → depuis le TERRAIN on reçoit 20 messages
+  au niveau 1, 40 au 2, tout le fil au 3. En ville on lit tout : on est devant le panneau.
+- **Cuisine 2** « rations +1 » → une seconde ration d'eau par héros et par jour. L'eau rend des PA
+  sur le terrain : c'est du temps de jeu rendu à qui a investi dans ses cuisines.
+
+**Ce que la mesure a démenti.** Je pensais devoir baisser le coût des améliorations, ayant observé
+que les spécialités ne dépassaient jamais le niveau 1. Compté sur le catalogue entier : à vingt
+joueurs et sur trois graines, 19 bâtiments au niveau 1, 3 au niveau 2 et **9 au niveau 3**. Les
+niveaux hauts sont donc bien atteints ; ce sont les spécialités qui restent basses, parce qu'elles se
+débloquent tard. Toucher à la courbe de coût aurait affaibli le « dur d'avoir tout » sans rien
+réparer. Je n'ai rien changé.
+
+### Fonctionnel (vérifié)
+
+- 15 `.vox` générés, servis et chargés (200) par la vue Ville ; régénération complète idempotente.
+- Médianes de survie inchangées : 15 · 15 · 18 · 21 · 22 · 22 vagues pour 1 · 2 · 4 · 8 · 12 · 20
+  joueurs. `go test ./... -count=2` vert, `go vet` propre, `tsc -b` et `npm run build` verts.
+
+### À faire
+
+- Les spécialités restent au niveau 1 en pratique — voulu (elles arrivent tard), à revoir si on veut
+  qu'une ville puisse en approfondir une.
+- Les bots découvrent peu de ruines : si on veut qu'une ville 100 % IA ait des spécialités, c'est le
+  BROUILLARD qu'il faudra ouvrir, pas la priorité des bots.
+
+---
+
+## 2026-08-10 (102) — Cinq bâtiments de spécialité, pour qu'il y ait enfin des priorités à arbitrer
+
+Demande : « les bâtiments ne doivent pas dépasser 3 niveaux, donc il faut en AJOUTER, et il faudrait
+qu'il soit dur de tous les construire dans une partie, pour laisser aux joueurs des choix de
+priorité ». Ça reformule le point 4 de la §9 (« building skills ») : pas N compétences par bâtiment,
+mais plus de bâtiments, tous à trois niveaux.
+
+### La mesure qui cadre le problème
+
+Avant de concevoir quoi que ce soit : combien une ville peut-elle réellement bâtir ?
+
+| Expédition | bâtiments debout | niveaux cumulés (max 33) |
+|---|---|---|
+| 1 joueur | 6 (la dotation de départ) | 7 |
+| 4 joueurs | 8 | 12 |
+| 20 joueurs | **11 sur 11** | 18 |
+
+Une expédition de vingt construisait donc **tout le catalogue** : aucune priorité à arbitrer, juste
+une liste à dérouler. Et un solo n'en bâtissait aucun. Dans les deux cas, zéro choix.
+
+### Cinq axes incomparables
+
+Le piège aurait été d'ajouter cinq bâtiments défensifs : le choix se serait réduit à « lequel donne
+le plus de défense », c'est-à-dire à un calcul, pas à un choix. Chacun ouvre donc un axe que rien
+d'autre ne couvre :
+
+- **Infirmerie** — soigne. Elle bouche un vrai TROU : *rien* ne rendait de PV à un héros. Une vague
+  frappe 3 + son numéro, un combat perdu renvoie à 1 PV, et la seule remise en état du jeu était de
+  MOURIR puis d'être ressuscité à la Mairie. Un héros abîmé le restait toute la partie.
+- **Cartographe** — voir. Vision de tous les héros +niveau. Sur une carte de 134² avec un rayon de
+  vue de 1, c'est la différence entre prospecter et tâtonner.
+- **Armurerie** — frapper. +niveau en force au combat, PRÊTÉ à l'unité et jamais greffé sur le héros
+  (sinon il s'empilerait à chaque combat). Le seul bâtiment dont l'effet sort des murs.
+- **Verger** — durer. Regarnit les cases les plus pauvres autour du bourg. C'est la réponse à
+  l'épuisement de la carte, que `CLAUDE.md` désigne depuis longtemps comme la vraie limite d'une
+  longue partie.
+- **Caserne** — tenir plus nombreux. Relève le PLAFOND de la garnison sans donner un point de pierre.
+
+### Ce qui les rend rares (deux verrous, pas un prix)
+
+Rendre les choses simplement plus chères ralentit tout le monde sans créer de choix. Deux verrous :
+un **prérequis** d'arbre techno (il faut avoir déjà investi ailleurs) et un **plan qui ne tombe QUE
+des ruines, un par biome** — les débloquer tous demanderait de déblayer une ruine dans *chaque*
+biome de la carte. Les ruines sont finies et les donjons ont peu de charges.
+
+Mesuré : **même en donnant les cinq plans aux bots, une ville n'en bâtit que 1 à 3, tous au niveau 1**,
+et la survie ne bouge quasiment pas — parce que les PA versés dans une spécialité sont des PA qui ne
+sont pas allés dans les murs. C'est exactement l'arbitrage recherché.
+
+### Un défaut que j'ai introduit puis corrigé
+
+Les cinq nouveaux sites ont aussitôt mis Cuir, Herbe médicinale, Graines anciennes et Minerai d'or
+sur la **liste de courses** de toutes les villes — y compris celles qui n'auraient jamais le plan.
+Les récolteurs partaient chercher au loin de quoi bâtir l'imaginaire pendant que la pierre manquait.
+`botShoppingList` ignore désormais un site dont le plan n'est pas en Banque : un joueur ne stocke pas
+des briques pour un chantier qu'il ne peut pas ouvrir.
+
+### Fonctionnel (vérifié)
+
+- 16 bâtiments au catalogue, tous à 3 niveaux ; `backfillBuildings` les fait parvenir aux parties
+  déjà en cours.
+- Médianes de survie inchangées dans le bruit : 15 · 15 · 18 · 20 · 22 · 22 vagues pour
+  1 · 2 · 4 · 8 · 12 · 20 joueurs. Les gardes (`SurvivalFloor` 12, l'échelle 1 < 4 < 20) tiennent.
+- `go test ./... -count=2` vert, `go vet` propre, `tsc -b` et `npm run build` verts.
+- **Lancé en vrai** : le plan de ville accueille les 16 parcelles sans collision, et l'onglet Bâtir
+  affiche les dix chantiers avec leur plan manquant, leurs matériaux et leur prérequis verrouillé —
+  c'est là que le choix se fait, et il se lit.
+
+### À faire
+
+- **Art voxel PROVISOIRE** : les cinq empruntent le modèle d'un voisin (`BLD_MODEL`). Sans cette
+  table le rendu les rendait invisibles donc incliquables ; il reste à leur écrire une recette.
+- Les **bots n'explorent toujours pas les ruines**, donc une ville 100 % IA n'aura jamais de
+  spécialité. C'est jouable (c'est au joueur humain de le faire, et ça lui donne un rôle que l'IA ne
+  lui prend pas), mais ça mérite d'être décidé plutôt que subi.
+- Les niveaux 2 et 3 des spécialités ne sont jamais atteints en pratique — à surveiller.
+
+---
+
+## 2026-08-09 (101) — Le jeu tourné pour de vrai, et les noms anglais qu'on y a vus
+
+Premier lancement RÉEL de tout ce qui a été livré ces dernières entrées : serveur + Vite + Chromium
+headless, pas seulement des tests. Trois entrées de suite se terminaient par « rien de tout cela n'a
+été vu tourner » ; c'est corrigé.
+
+### Ce qui marchait
+
+Garnison, ordre du jour, prévision, chronique, titres, sélecteur de saison : tout répond et tout
+s'affiche, zéro erreur de page. Vérifié en direct : une ville neuve a 20 de défense (10 de murs + 10
+de garnison, plafonnée par les murs) ; fermer le portail la fait passer à **37** sous les yeux du
+joueur, ce qui est exactement l'effet recherché quand on a rendu ce terme actionnable.
+
+### Ce qui ne marchait pas : l'app parlait anglais
+
+`TownBuilding.Name` est anglais (« Wall », « Kitchen ») et le client le traduit à l'affichage via
+`buildingName(id)`. Mais le SERVEUR compose lui-même des phrases françaises — journal de la ville,
+ordre du jour, messages d'erreur — et y interpolait le nom brut. Le joueur lisait :
+
+- « ⛏️ **Wall** niveau 2 : il manque 6 Pierre » (ordre du jour) ;
+- « 🏗️ Gui a achevé la construction de **Kitchen** » (journal) ;
+- « **Wall** est déjà au niveau maximum » (erreur).
+
+Une phrase composée côté serveur ne peut pas être traduite côté client : il faut le nom là où la
+phrase se fabrique. `buildingLabel(id, fallback)` (Go), utilisé aux 23 sites concernés. Et
+`TownStatus` affichait encore `h.name` brut pour les bâtiments touchés par la vague, là où
+`WaveCinematic` traduisait déjà — corrigé aussi.
+
+C'est typiquement ce que les tests ne trouvent pas et qu'un lancement trouve en trente secondes.
+
+### Aussi
+
+- Le registre de contribution n'était couvert qu'indirectement, alors qu'il est le SOCLE de la
+  chronique et des titres (ce qu'il ne compte pas, un compte ne le gardera jamais) : test dédié, y
+  compris « le travail d'Ana ne tombe jamais au crédit de Bo ».
+- « Voir mes 1 expédition » → « Voir mon expédition ».
+
+### Fonctionnel (vérifié)
+
+- Lancé pour de bon : `go run ./cmd/server` + `npm run dev` + Chromium headless, captures à l'appui
+  (classement avec sélecteur de saison, écran de compte, chronique peuplée avec deux titres gagnés).
+- `go test ./... -count=2` vert, `go vet` propre, `npx tsc -b` et `npm run build` verts.
+
+### À faire
+
+- Le reste du jeu n'a pas été joué à la main : carte, combat, ville. Seuls les écrans touchés ces
+  jours-ci ont été ouverts.
+
+---
+
+## 2026-08-09 (100) — Les saisons : un classement qui ne se fige pas
+
+Dernier point du plan de rétention (P8). `RETENTION-PLAN.md` est désormais livré en totalité.
+
+### Le trou
+
+Un classement cumulatif SE FIGE. Au bout de quelques mois, les dix premières lignes sont tenues par
+des expéditions qu'on ne reverra pas, et un joueur qui arrive n'a plus rien à viser : le tableau lui
+dit seulement qu'il est arrivé trop tard. C'est un problème de rétention à retardement — invisible au
+lancement, structurel ensuite.
+
+### Une saison = un mois civil
+
+Une expédition dure une dizaine de jours réels à la cadence visée (2 vagues/jour), donc un mois en
+contient deux ou trois : assez pour qu'une saison raconte quelque chose, assez court pour que le
+tableau ne se fige pas. Et c'est une frontière que tout le monde lit sans explication, contrairement
+à un compteur de semaines depuis une époque arbitraire que personne ne sait situer. Les identifiants
+(`2026-08`) se trient chronologiquement en tant que CHAÎNES, ce dont dépend l'`ORDER BY season DESC`
+côté base — pas de conversion, pas de colonne de plus.
+
+### La décision qui compte : la saison du LANCEMENT
+
+Une partie appartient à la saison où elle a **commencé**, pas à celle où elle finit. La faire changer
+de saison en cours de route la ferait disparaître du tableau qu'elle disputait, exactement au moment
+où elle y monte. C'est aussi ce qui rend la valeur STABLE : `StartedAt` ne bouge plus une fois posé,
+donc chaque réécriture de la ligne de classement — à chaque vague, à chaque battement — recalcule la
+même saison. Une saison dérivée de « maintenant » aurait fait sauter des villes d'un tableau à
+l'autre en silence.
+
+### Ce qu'on ne remet PAS à zéro
+
+Les saisons passées restent consultables, et la chronique de compte (entrée 99) ne se réinitialise
+jamais. Une remise à zéro qui effacerait le passé serait une punition, pas un renouveau. Et comme
+partout ailleurs — mémoriaux, titres — **rien ne traverse une saison** : elle change ce qu'on VISE,
+jamais ce qu'on a.
+
+Les lignes écrites avant l'existence de la colonne portent `''` et ne figurent que dans « tous les
+temps » : on ne sait pas à quelle saison les rattacher, et deviner serait pire que de les laisser
+hors concours.
+
+### Fonctionnel (vérifié)
+
+- `go test ./... -count=2` vert, `go vet` propre, `npx tsc -b` et `npm run build` verts.
+- Testé : la saison suit le lancement et pas le calendrier, les frontières de mois, le tri des
+  identifiants, le filtrage du classement, les lignes hors saison, et les deux routes (le classement
+  par défaut sur la saison en cours, le sélecteur qui propose la saison en cours même vierge).
+- Écran Classement : sélecteur « 📅 Saison » (saison en cours par défaut, saisons jouées, « Tous les
+  temps »), et un texte de vide qui dit « la place est libre » plutôt que « lance une partie ».
+
+### À faire
+
+- `RETENTION-PLAN.md` est livré de P1 à P8. Ce qui reste est du GAME DESIGN non couvert par le plan
+  (consommation d'objets, faim, moral de la ville) et les points de la §9 de `CLAUDE.md`.
+- **Rien de tout cela n'a été vu tourner par l'utilisateur** : ordre du jour, tour de guet, chronique
+  et sélecteur de saison n'existent que vérifiés par des tests et un build.
+
+---
+
+## 2026-08-09 (99) — La chronique de compte, et la forge que personne ne montait
+
+Suite du plan de rétention (`RETENTION-PLAN.md`). Deux choses : le dernier gros point encore ouvert
+côté joueur (P7), et une conséquence de l'entrée 98 restée en suspens.
+
+### La forge : un bâtiment qui garde un matériau de défense EST un bâtiment de défense
+
+Les bots n'amélioraient que la muraille, le portail et la tour. Or le **niveau 3 du portail** (+16 au
+lieu de +12) réclame de l'**Acier**, l'acier réclame un **Atelier de niveau 2**, et l'Atelier n'était
+sur la liste de personne : mesuré, atelier bloqué au niveau 1 et portail plafonné au niveau 2 sur
+*chaque* partie simulée, pendant que le bois du chantier dormait à la Banque.
+
+`botCraftUnlockNeeded` remonte la chaîne : pour chaque matériau de défense qui se FABRIQUE (et ne se
+ramasse pas), si la forge ne sait pas encore le faire, c'est ELLE qu'on monte. Médianes après :
+**15 · 16 · 19 · 22 · 23 · 21** vagues pour 1 · 2 · 4 · 8 · 12 · 20 joueurs.
+
+### P7 — la chronique de compte
+
+Le problème : une expédition finit **toujours** par tomber, et jusqu'ici tout mourait avec elle.
+Tenir vingt vagues, bâtir une tour, rapporter six cents objets — et n'en garder rien.
+
+Table `chronicle`, une ligne par (compte, partie), écrite avec la ligne de classement — donc aussi
+par le **battement**, sinon une ville qui ne survit que par le cron n'entrerait dans la chronique de
+personne — et qui **survit à la suppression de la partie**. C'est précisément quand la ville n'est
+plus là qu'on veut se souvenir d'elle. On y garde ce que le registre de contribution (P3) savait
+déjà : PA de chantier, objets rapportés, créatures abattues, PV rendus aux remparts, objets
+fabriqués, requêtes honorées.
+
+Les **titres sont dérivés à la lecture** — douze paliers sur six domaines, deux par domaine : un
+qu'on atteint en une bonne expédition, un qui demande d'y revenir. Au-delà on tomberait dans le
+grind, et le jeu se joue deux fois cinq minutes par jour. Rien de plus à stocker, rien à maintenir
+en cohérence, et changer un seuil corrige rétroactivement tout le monde.
+
+⚠ **Cosmétique, jamais de la puissance** — même règle que les mémoriaux. Un vétéran et un débutant
+qui rejoignent la même ville y arrivent strictement égaux ; c'est cette égalité qui fait tenir une
+survie de groupe. Test dédié. Et **pas de chronique publique** : la route est réservée à son
+titulaire, parce qu'exposer celle des autres transformerait un souvenir en palmarès.
+
+### Un test qui parie
+
+`TestBotEngagesAndAutoResolvesCombat` échouait une fois sur six. Son commentaire disait « stack the
+odds so the win is deterministic » — c'était faux : mesuré sur deux cents parties, trois héros à 20
+de force et 60 PV perdent contre DEUX slimes **5 % du temps**. Un upset à 5 % est un choix de game
+design défendable ; en faire dépendre une suite de tests ne l'est pas. `seedForTest` sème le hasard
+du jeu le temps du test (possible seulement depuis l'entrée 98) puis le rend à l'horloge.
+
+### Fonctionnel (vérifié)
+
+- `go test ./... -count=3` vert, cinq exécutions de suite ; `go vet` propre ; `npx tsc -b` et
+  `npm run build` verts.
+- La chronique testée de bout en bout : route authentifiée (401 sans jeton), totaux, titres, et
+  **survie à la purge de la partie**.
+- Carte « 📜 Ma chronique » sur l'écran de compte : totaux, titres gagnés, trois prochains paliers
+  avec barre de progression, et le repli de la liste des expéditions.
+
+### À faire
+
+- P8 (saisons) — le dernier point du plan de rétention.
+- L'ergonomie n'a toujours pas été vue en vrai par l'utilisateur (ordre du jour, bouton de la Tour,
+  chronique).
 
 ---
 

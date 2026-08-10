@@ -46,3 +46,44 @@ func TestTownJournalIsCapped(t *testing.T) {
 		t.Fatalf("journal must be capped at %d, got %d", townLogCap, len(g.Town.Log))
 	}
 }
+
+// L'APP EST EN FRANÇAIS, Y COMPRIS LES PHRASES COMPOSÉES PAR LE SERVEUR.
+//
+// `TownBuilding.Name` est anglais (« Wall », « Kitchen ») et le client le traduit à
+// l'affichage. Mais le serveur écrit lui-même des phrases françaises — journal de la
+// ville, ordre du jour, messages d'erreur — et y interpolait ce nom brut : le joueur
+// lisait « Wall est déjà au niveau maximum », « 🏗️ Gui a achevé la construction de
+// Kitchen », « Wall niveau 2 : il manque 6 Pierre ». Une phrase composée côté serveur ne
+// peut pas être traduite côté client : c'est là qu'il faut le nom français.
+func TestServerWrittenSentencesUseFrenchBuildingNames(t *testing.T) {
+	if got := buildingLabel("wall", "Wall"); got != "Muraille" {
+		t.Fatalf("buildingLabel(wall) = %q", got)
+	}
+	// Repli pour un bâtiment hors catalogue : on ne perd pas le nom.
+	if got := buildingLabel("inconnu", "Something"); got != "Something" {
+		t.Fatalf("repli attendu, obtenu %q", got)
+	}
+
+	g, ana, _ := twoPlayerTown(t)
+	hero := g.HeroByID(ana.HeroIDs[0])
+	if err := g.TownAction("wall", "build", 1, hero.ID); err != nil { // pose du plan
+		t.Fatal(err)
+	}
+	if len(g.Town.Log) == 0 {
+		t.Fatal("le journal doit avoir enregistré la pose du plan")
+	}
+	line := g.Town.Log[0].Text
+	if !strings.Contains(line, "Muraille") || strings.Contains(line, "Wall") {
+		t.Fatalf("journal en français attendu : %q", line)
+	}
+
+	// …et l'ordre du jour, qui est lui aussi composé côté serveur.
+	g.Recompute()
+	for _, o := range g.Town.Orders {
+		for _, en := range []string{"Wall", "Gate", "Tower", "Kitchen", "Workshop", "Townhall", "Well", "Bank", "Panel"} {
+			if strings.Contains(o.Text, en) {
+				t.Errorf("nom anglais dans l'ordre du jour : %q", o.Text)
+			}
+		}
+	}
+}

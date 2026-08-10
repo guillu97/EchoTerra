@@ -7,7 +7,6 @@
 import { writeFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import sharp from "sharp";
 import { Grid, shade as shadeBase } from "../../frontend/src/voxel/shared/char-recipe.mjs";
 import { makeRng, divisionize } from "../../frontend/src/voxel/shared/recipes.mjs";
 
@@ -21,6 +20,13 @@ import { makeRng, divisionize } from "../../frontend/src/voxel/shared/recipes.mj
 // silhouette et la fusion des quads ne bougent pas ; la matière, elle, devient
 // colorée — un pin cesse d'être un dégradé de vert pour devenir un assemblage
 // de verts, de bleus et de violets, comme les pins de Signac.
+// ⚠ PAS DE QUASI-NEUTRE SUR UNE GRANDE SURFACE. `shade` est DIVISIONNISTE : il écarte
+// la teinte pour faire vibrer la matière. Sur une couleur franche c'est le but ; sur un
+// quasi-neutre il n'y a pas de teinte où aller et le résultat bascule dans le VIOLET.
+// Mesuré : un chaume « lin » [226,220,200] (chroma 26) ressort LILAS [197,169,232], et
+// un vert-de-gris [118,134,116] (chroma 18) ressort mauve. Les toits qui marchent sont
+// à chroma ≥ ~40 (vert recyclerie 66, chaume doré 116). Un blanc PUR reste possible en
+// petite touche via `g.box` direct, qui ne passe pas par ici.
 function shade(rgb, f) {
   return divisionize(shadeBase(rgb, f), Math.round(f * 7));
 }
@@ -1379,6 +1385,168 @@ function bldPoste(seed) {
   return g;
 }
 
+// ─── LES CINQ BÂTIMENTS DE SPÉCIALITÉ (2026-08-10) ──────────────────────────
+//
+// Ils empruntaient jusqu'ici le modèle d'un voisin (BLD_MODEL côté client), donc
+// deux bâtiments aux effets opposés se ressemblaient trait pour trait. Sur un
+// plan de ville vu de haut, un joueur reconnaît un bâtiment à sa SILHOUETTE et à
+// sa COULEUR DE TOIT avant d'en lire la pastille — c'est le seul repère qui
+// survit au dézoom. Chacun reçoit donc une teinte de toit qui n'appartient qu'à
+// lui et un attribut lisible posé DEVANT la façade (le débord du chaume avale
+// tout ce qu'on met sur les côtés, cf. la boîte aux lettres de la Poste).
+
+function bldInfirmerie(seed) {
+  // Une maison de soins : chaume clair presque blanc (le lin), des bottes
+  // d'herbes qui sèchent sous l'auvent, un banc pour attendre, et la croix pâle
+  // au pignon — le seul signe qui se lise instantanément à trois cases.
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz, FINE);
+  const rnd = makeRng(seed); void rnd;
+  // Toit BLEU-VERT (chroma 68) : la teinte « propre » du bourg, et la seule. Le blanc
+  // du lin reste pour la croix et les linges, posés en `g.box` direct (voir shade()).
+  const LINEN = [226, 220, 200], HERB = [120, 156, 96], HEAL_ROOF = [104, 156, 172];
+  g.box(4.5, 14.5, 7.5, 13.5, 0, 5.2, shade(THATCH, 0.86)); // corps torchis clair
+  for (const x of [4.9, 9.5, 14.0]) g.box(x, x + 0.55, 7.1, 7.5, 0, 5.2, TIMBER);
+  g.box(8.2, 10.8, 7.05, 7.5, 0, 4.2, DARK_W); // porte
+  g.box(5.4, 7.0, 7.05, 7.5, 2.4, 4.0, [122, 186, 202]); // fenêtre
+  g.box(12.0, 13.6, 7.05, 7.5, 2.4, 4.0, [122, 186, 202]);
+  prismRoof(g, 4.5, 14.5, 7.8, 13.2, 5.4, HEAL_ROOF); // TOIT BLEU-VERT — sa signature
+  // La croix, en plein pignon, SOUS L'AVANCÉE DU TOIT (qui commence à z 5.4) : posée
+  // plus haut elle traversait le chaume et se lisait comme une tache blanche dessus.
+  g.box(9.0, 10.0, 6.95, 7.15, 3.4, 5.2, LINEN);
+  g.box(8.1, 10.9, 6.95, 7.15, 4.1, 4.6, LINEN);
+  // Herbes en bottes suspendues à une perche, DEVANT la façade.
+  g.box(4.0, 15.0, 6.2, 6.5, 4.6, 4.8, TIMBER); // la perche
+  for (const x of [5.2, 7.4, 9.6, 11.8, 14.0]) g.box(x, x + 0.7, 6.2, 6.6, 3.4, 4.6, shade(HERB, 0.94 + 0.1 * ((x | 0) % 3)));
+  // Banc d'attente et bassine.
+  g.box(15.4, 17.0, 9.0, 11.4, 0, 1.2, shade(WOOD_W, 1.04));
+  g.box(2.8, 4.0, 9.4, 10.6, 0, 1.0, shade(STONE_W, 0.94));
+  return g;
+}
+
+function bldCartographe(seed) {
+  // L'atelier des cartes : une tourelle d'observation basse, une grande table à
+  // dessin sous auvent, des rouleaux debout dans leur casier, et la ROSE DES
+  // VENTS dorée en girouette — visible du dessus, ce qui est exactement l'angle
+  // sous lequel on regarde ce jeu.
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz, FINE);
+  const rnd = makeRng(seed); void rnd;
+  // Toit INDIGO (chroma 82) : l'encre des cartes. Le vert-de-gris essayé d'abord
+  // (chroma 18) ressortait mauve — cf. l'avertissement sur shade().
+  const PAPER = [232, 216, 178], INK = [64, 78, 104], MAP_ROOF = [96, 118, 178];
+  g.box(5.0, 13.0, 8.0, 13.5, 0, 5.0, shade(STONE_W, 0.92)); // corps de pierre chaulée
+  g.box(8.2, 10.4, 7.6, 8.05, 0, 4.0, DARK_W); // porte
+  prismRoof(g, 5.0, 13.0, 8.2, 13.2, 5.2, MAP_ROOF); // TOIT INDIGO
+  // Tourelle d'observation, décalée : c'est elle qui donne la silhouette.
+  cylAt(g, 14, 10, 0, 8.2, 1.9, shade(STONE_W, 1.0));
+  cylAt(g, 14, 10, 8.2, 8.8, 2.3, shade(MAP_ROOF, 0.9)); // couronnement
+  // La rose des vents, dorée, au sommet de la tourelle.
+  g.box(13.8, 14.6, 9.6, 10.4, 8.8, 9.2, TRIM_GOLD);
+  g.box(12.8, 15.6, 9.9, 10.1, 9.0, 9.2, TRIM_GOLD);
+  g.box(14.1, 14.3, 8.9, 11.1, 9.0, 9.2, TRIM_GOLD);
+  // Table à cartes sous un auvent, DEVANT la façade : le parchemin déroulé.
+  g.box(4.6, 5.2, 6.0, 6.6, 0, 3.4, TIMBER);
+  g.box(11.4, 12.0, 6.0, 6.6, 0, 3.4, TIMBER);
+  g.box(4.2, 12.4, 5.6, 7.4, 3.4, 3.8, shade(ROOF_TILE, 1.02)); // auvent
+  g.box(5.0, 11.8, 6.0, 7.2, 1.8, 2.1, PAPER); // la carte étalée
+  g.box(6.2, 6.6, 6.3, 6.9, 2.1, 2.2, INK); // un tracé d'encre
+  g.box(9.0, 9.4, 6.2, 7.0, 2.1, 2.2, INK);
+  // Casier à rouleaux.
+  g.box(15.4, 16.8, 12.0, 13.6, 0, 2.6, shade(WOOD_W, 1.02));
+  for (const y of [12.2, 12.8, 13.4]) g.box(15.6, 16.6, y, y + 0.35, 2.6, 3.4, PAPER);
+  return g;
+}
+
+function bldArmurerie(seed) {
+  // La forge d'armes : pierre sombre, cheminée trapue, ENCLUME dehors et la
+  // lueur ORANGE du foyer par la grande baie — la seule couleur chaude du bourg,
+  // donc la plus reconnaissable. Un bouclier accroché au pignon dit le métier.
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz, FINE);
+  const rnd = makeRng(seed); void rnd;
+  // Toit ROUGE FORGE (chroma 90) : la seule tache chaude des toits du bourg.
+  const EMBER = [232, 132, 54], IRON = [104, 108, 118], FORGE_ROOF = [150, 74, 60];
+  g.box(4.0, 14.0, 7.5, 13.5, 0, 5.0, shade(STONE_W, 0.68)); // pierre sombre
+  g.box(4.0, 14.0, 7.5, 13.5, 0, 1.0, shade(CHAR, 0.9)); // soubassement suie
+  g.box(6.2, 11.8, 7.05, 7.5, 0.6, 3.6, DARK_W); // grande baie de forge
+  g.box(6.6, 11.4, 7.0, 7.2, 0.9, 2.4, EMBER); // la lueur du foyer
+  prismRoof(g, 4.0, 14.0, 7.8, 13.2, 5.2, FORGE_ROOF); // TOIT ROUGE FORGE
+  // Cheminée massive, à l'arrière, avec sa couronne de suie.
+  g.box(11.6, 13.4, 11.4, 13.2, 5.0, 9.4, shade(STONE_W, 0.6));
+  g.box(11.4, 13.6, 11.2, 13.4, 9.4, 9.8, shade(CHAR, 1.0));
+  // ENCLUME sur son billot, DEVANT : la silhouette qui dit « armurerie ».
+  g.box(8.4, 10.0, 5.4, 6.6, 0, 1.4, shade(WOOD_W, 0.8)); // billot
+  g.box(8.2, 10.2, 5.5, 6.5, 1.4, 1.9, IRON); // table de l'enclume
+  g.box(8.9, 9.5, 5.8, 6.2, 1.9, 2.2, IRON); // bigorne
+  // Bouclier au pignon + râtelier de lances contre le mur.
+  g.box(8.6, 10.4, 6.95, 7.15, 4.2, 5.6, shade(TRIM_GOLD, 0.9));
+  g.box(9.2, 9.8, 6.88, 7.02, 4.5, 5.3, shade(EMBER, 0.9));
+  for (const x of [15.0, 15.8, 16.6]) g.box(x, x + 0.25, 9.0, 9.25, 0, 4.6, TIMBER);
+  for (const x of [15.0, 15.8, 16.6]) g.box(x - 0.1, x + 0.35, 8.9, 9.35, 4.6, 5.1, IRON); // fers de lance
+  return g;
+}
+
+function bldCaserne(seed) {
+  // Le corps de garde : un LONG bâtiment bas — c'est sa proportion qui le
+  // distingue de tout le reste du bourg, avant même sa couleur. Bannière du
+  // Rohan au mât, râtelier de boucliers le long de la façade, brasero de veille.
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz, FINE);
+  const rnd = makeRng(seed); void rnd;
+  // Toit OLIVE (chroma 50) : le kaki d'un corps de garde, distinct du chaume doré.
+  const BANNER = [168, 78, 66], IRON = [104, 108, 118], GUARD_ROOF = [110, 120, 70];
+  g.box(2.6, 17.4, 8.4, 13.0, 0, 4.6, shade(TIMBER, 1.25)); // long corps de bois
+  g.box(2.6, 17.4, 8.4, 13.0, 0, 0.9, shade(STONE_W, 0.8)); // solin de pierre
+  for (let x = 3.2; x <= 16.8; x += 2.3) g.box(x, x + 0.5, 8.0, 8.45, 0, 4.6, TIMBER); // colombages serrés
+  g.box(9.0, 11.0, 7.95, 8.45, 0, 3.8, DARK_W); // porte centrale
+  prismRoof(g, 2.6, 17.4, 8.6, 12.8, 4.8, GUARD_ROOF); // TOIT OLIVE
+  // Mât et bannière, DEVANT le bâtiment : le repère vertical d'un corps bas.
+  g.box(4.2, 4.6, 6.4, 6.8, 0, 9.6, TIMBER);
+  g.box(4.6, 6.6, 6.5, 6.7, 7.4, 9.4, BANNER);
+  g.box(4.6, 6.6, 6.5, 6.7, 8.2, 8.5, shade(TRIM_GOLD, 1.0)); // le chevron doré
+  // Râtelier de boucliers contre la façade.
+  for (const x of [11.6, 13.0, 14.4, 15.8]) {
+    g.box(x, x + 1.0, 7.85, 8.05, 1.6, 3.0, shade(BANNER, 0.86));
+    g.set(x + 0.5, 7.8, 2.3, IRON); // l'umbo
+  }
+  // Brasero de veille.
+  g.box(15.6, 16.8, 6.2, 7.4, 0, 1.6, IRON);
+  g.box(15.8, 16.6, 6.4, 7.2, 1.6, 2.0, [232, 132, 54]);
+  return g;
+}
+
+function bldVerger(seed) {
+  // LE VERGER N'EST PAS UNE MAISON — et c'est tout l'intérêt : au milieu d'un
+  // bourg de toits, une parcelle plantée se repère au premier coup d'œil. Une
+  // claie basse, quatre arbres fruitiers en quinconce, des paniers de cueillette
+  // et un petit séchoir ouvert. Rien qui dépasse : ça reste un jardin.
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz, FINE);
+  const rnd = makeRng(seed);
+  const LEAF = [104, 152, 84], FRUIT = [214, 96, 72], SOIL = [122, 96, 70];
+  g.box(3.0, 17.0, 6.0, 14.0, 0, 0.5, shade(SOIL, 1.0)); // la terre retournée
+  // Claie de branches sur tout le pourtour (basse, ajourée).
+  for (let x = 3.0; x <= 17.0; x += 1.15) {
+    g.box(x, x + 0.28, 6.0, 6.28, 0.5, 1.9 + 0.3 * rnd(), shade(WOOD_W, 0.92));
+    g.box(x, x + 0.28, 13.72, 14.0, 0.5, 1.9 + 0.3 * rnd(), shade(WOOD_W, 0.92));
+  }
+  for (let y = 6.0; y <= 14.0; y += 1.15) {
+    g.box(3.0, 3.28, y, y + 0.28, 0.5, 2.0, shade(WOOD_W, 0.92));
+    g.box(16.72, 17.0, y, y + 0.28, 0.5, 2.0, shade(WOOD_W, 0.92));
+  }
+  // Quatre pommiers en quinconce : tronc + houppier + quelques fruits.
+  for (const [cx, cy, h] of [[6.5, 8.5, 5.4], [12.5, 8.0, 6.0], [7.5, 12.0, 5.8], [13.5, 12.0, 5.2]]) {
+    g.box(cx - 0.4, cx + 0.4, cy - 0.4, cy + 0.4, 0.5, h * 0.55, shade(WOOD_W, 0.78));
+    cylAt(g, Math.round(cx), Math.round(cy), h * 0.5, h, 1.9, shade(LEAF, 0.94 + 0.12 * rnd()));
+    g.set(cx - 1.2, cy, h * 0.72, FRUIT);
+    g.set(cx + 1.1, cy + 0.6, h * 0.8, FRUIT);
+    g.set(cx, cy - 1.1, h * 0.66, FRUIT);
+  }
+  // Paniers de cueillette et séchoir ouvert (deux poteaux, une claie).
+  g.box(9.4, 10.6, 6.6, 7.8, 0.5, 1.5, shade(THATCH, 0.9));
+  g.set(10, 7.2, 1.5, FRUIT);
+  g.box(15.2, 15.6, 9.4, 9.8, 0.5, 3.6, TIMBER);
+  g.box(15.2, 15.6, 12.0, 12.4, 0.5, 3.6, TIMBER);
+  g.box(14.8, 16.0, 9.0, 12.8, 3.6, 3.9, shade(ROOF_TILE, 0.96));
+  return g;
+}
+
 function bldWall(seed) {
   // PALISSADE de pieux, pas rempart de pierre. C'est l'enceinte du Rohan : des
   // troncs jointifs taillés en pointe, une lisse intérieure et un chemin de
@@ -1799,6 +1967,18 @@ const MUSH_CAPS = [[226, 110, 100], [178, 136, 96], [232, 186, 100]]; // rouge �
 const CRYSTAL_COLS = [[188, 150, 224], [140, 180, 228], [200, 160, 232]]; // violet/bleu/violet
 const WINGS = [[244, 244, 250], [244, 214, 110], [150, 190, 240]]; // blanc/jaune/bleu
 
+// `sharp` ne sert QU'À l'aperçu PNG de revue ; le produit du script, ce sont les
+// `.vox`. Son import était en tête de fichier, donc son absence faisait échouer la
+// génération entière — un poste sans cette dépendance native ne pouvait plus régénérer
+// un seul modèle. Chargé paresseusement : sans lui on écrit les .vox et on saute
+// simplement les aperçus.
+let sharp = null;
+try {
+  ({ default: sharp } = await import("sharp"));
+} catch {
+  console.warn("sharp introuvable — les .vox sont écrits, les aperçus PNG sont sautés.");
+}
+
 async function main() {
   await mkdir(OUT_VOX, { recursive: true });
   await mkdir(OUT_PREVIEW, { recursive: true });
@@ -1867,6 +2047,13 @@ async function main() {
       // ⚠ AJOUTER EN FIN DE LISTE : l'index `bi` sème chaque bâtiment, insérer au
       // milieu re-sèmerait (et donc redessinerait) tous les suivants.
       ["bld-poste", bldPoste],
+      // Les cinq bâtiments de SPÉCIALITÉ (design.go). Chacun a sa teinte de toit
+      // et sa silhouette : c'est à ça qu'on les reconnaît d'en haut.
+      ["bld-infirmerie", bldInfirmerie],
+      ["bld-cartographe", bldCartographe],
+      ["bld-armurerie", bldArmurerie],
+      ["bld-caserne", bldCaserne],
+      ["bld-verger", bldVerger],
     ].map(([id, mk], bi) => ({
       id,
       make: (v) => {
@@ -1920,7 +2107,7 @@ async function main() {
       const model = d.make(v);
       model.palette = model.palette.map((c) => vividProp(c));
       await writeFile(path.join(OUT_VOX, `${d.id}-v${v}.vox`), encodeVox(model));
-      if (v === 0) {
+      if (v === 0 && sharp) {
         const r = renderModel(model, { s: 10 });
         await sharp(Buffer.from(r.rgba), { raw: { width: r.width, height: r.height, channels: 4 } })
           .png().toFile(path.join(OUT_PREVIEW, `${d.id}.png`));

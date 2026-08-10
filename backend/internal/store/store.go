@@ -68,7 +68,16 @@ func Open(dsn string) (*Store, error) {
 	if _, err := db.Exec(`ALTER TABLE leaderboard ADD COLUMN mode TEXT NOT NULL DEFAULT 'private'`); err != nil && !alreadyExists(err) {
 		return nil, fmt.Errorf("migrate leaderboard mode: %w", err)
 	}
+	// Saisons (P8) : un classement cumulatif se fige, découpé en saisons il redevient
+	// atteignable. Les lignes écrites avant la colonne restent « hors saison » ('') —
+	// elles ne figurent que dans la vue « toutes saisons ».
+	if _, err := db.Exec(`ALTER TABLE leaderboard ADD COLUMN season TEXT NOT NULL DEFAULT ''`); err != nil && !alreadyExists(err) {
+		return nil, fmt.Errorf("migrate leaderboard season: %w", err)
+	}
 	if err := s.migrateAuth(); err != nil {
+		return nil, err
+	}
+	if err := s.migrateChronicle(); err != nil {
 		return nil, err
 	}
 	if err := s.migrateGameColumns(); err != nil {
@@ -83,7 +92,8 @@ type ScoreEntry struct {
 	GameID         string    `json:"gameId"`
 	TownName       string    `json:"townName"`
 	GameName       string    `json:"gameName"`
-	Mode           string    `json:"mode"` // "solo" | "public" | "private"
+	Mode           string    `json:"mode"`   // "solo" | "public" | "private"
+	Season         string    `json:"season"` // "2026-08" ; "" = ligne d'avant les saisons
 	Players        []string  `json:"players"`
 	Days           int       `json:"days"`
 	Waves          int       `json:"waves"`
@@ -114,22 +124,18 @@ func (s *Store) saveScore(gs *game.GameState) error {
 		gameOver = 1
 	}
 	_, err = s.db.Exec(s.rebind(`INSERT INTO leaderboard
-		(game_id, town_name, game_name, mode, players, days, waves, monsters_killed, game_over, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		(game_id, town_name, game_name, mode, season, players, days, waves, monsters_killed, game_over, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(game_id) DO UPDATE SET
 			town_name=excluded.town_name, game_name=excluded.game_name, mode=excluded.mode,
-			players=excluded.players, days=excluded.days, waves=excluded.waves,
-			monsters_killed=excluded.monsters_killed, game_over=excluded.game_over,
-			updated_at=excluded.updated_at`),
-		gs.ID, gs.Town.Name, gs.Name, gs.LeaderboardMode(), string(blob),
+			season=excluded.season, players=excluded.players, days=excluded.days,
+			waves=excluded.waves, monsters_killed=excluded.monsters_killed,
+			game_over=excluded.game_over, updated_at=excluded.updated_at`),
+		gs.ID, gs.Town.Name, gs.Name, gs.LeaderboardMode(), gs.Season(), string(blob),
 		gs.Day, gs.WaveNumber, gs.MonstersKilled, gameOver, time.Now().Unix())
 	return err
 }
 
-// Leaderboard returns the best towns: longest survival first (waves, the finest
-// clock), monsters slain as the tie-breaker. An empty mode ranks every run
-// together; "solo" / "public" / "private" restrict it to one kind of game, which is
-// how the ranking screen's tabs read it — the three are not comparable.
 // FallenTowns returns the towns that FELL, most recent first. Elles servent de
 // mémoire du monde : chaque carte neuve sème les ruines de quelques-unes d'entre elles
 // (game.SeedMemorialRuins). Aucune table de plus n'est nécessaire — le classement
@@ -139,7 +145,7 @@ func (s *Store) FallenTowns(limit int) ([]ScoreEntry, error) {
 	if limit <= 0 {
 		limit = 10
 	}
-	rows, err := s.db.Query(s.rebind(`SELECT game_id, town_name, game_name, mode, players,
+	rows, err := s.db.Query(s.rebind(`SELECT game_id, town_name, game_name, mode, season, players,
 		days, waves, monsters_killed, game_over, updated_at
 		FROM leaderboard WHERE game_over = 1 ORDER BY updated_at DESC LIMIT ?`), limit)
 	if err != nil {
@@ -149,17 +155,38 @@ func (s *Store) FallenTowns(limit int) ([]ScoreEntry, error) {
 	return scanScores(rows)
 }
 
-func (s *Store) Leaderboard(mode string, limit int) ([]ScoreEntry, error) {
+// Leaderboard returns the best towns: longest survival first (waves, the finest
+// clock), monsters slain as the tie-breaker. An empty mode ranks every run together;
+// "solo" / "public" / "private" restrict it to one kind of game, which is how the
+// ranking screen's tabs read it — the three are not comparable.
+//
+// `season` vide = toutes saisons confondues ; sinon un identifiant de saison
+// (game.SeasonFor). Les lignes écrites avant l'existence des saisons portent ” et ne
+// figurent donc que dans la vue « toutes saisons » — c'est voulu : on ne sait pas à
+// quelle saison les rattacher, et deviner serait pire que les laisser hors concours.
+func (s *Store) Leaderboard(mode, season string, limit int) ([]ScoreEntry, error) {
 	if limit <= 0 {
 		limit = 50
 	}
-	query := `SELECT game_id, town_name, game_name, mode, players,
+	query := `SELECT game_id, town_name, game_name, mode, season, players,
 		days, waves, monsters_killed, game_over, updated_at
 		FROM leaderboard`
-	args := []any{}
+	where, args := []string{}, []any{}
 	if mode != "" {
-		query += ` WHERE mode = ?`
+		where = append(where, `mode = ?`)
 		args = append(args, mode)
+	}
+	// season vide = la vue « toutes saisons » ; SeasonAll est traité par l'appelant.
+	if season != "" {
+		where = append(where, `season = ?`)
+		args = append(args, season)
+	}
+	for i, w := range where {
+		if i == 0 {
+			query += ` WHERE ` + w
+		} else {
+			query += ` AND ` + w
+		}
 	}
 	query += ` ORDER BY waves DESC, monsters_killed DESC, updated_at DESC LIMIT ?`
 	args = append(args, limit)
@@ -180,7 +207,7 @@ func scanScores(rows *sql.Rows) ([]ScoreEntry, error) {
 		var players string
 		var gameOver int
 		var updated int64
-		if err := rows.Scan(&e.GameID, &e.TownName, &e.GameName, &e.Mode, &players,
+		if err := rows.Scan(&e.GameID, &e.TownName, &e.GameName, &e.Mode, &e.Season, &players,
 			&e.Days, &e.Waves, &e.MonstersKilled, &gameOver, &updated); err != nil {
 			return nil, err
 		}
@@ -303,7 +330,8 @@ func (s *Store) Save(gs *game.GameState) error {
 			join_open=excluded.join_open`),
 		gs.ID, string(blob), time.Now().Unix(), gs.Status, unixOrZero(gs.NextWaveAt), boolToInt(gs.JoinOpen()))
 	if err == nil {
-		_ = s.saveScore(gs) // instantané best-effort : la partie reste la source de vérité
+		_ = s.saveScore(gs)     // instantané best-effort : la partie reste la source de vérité
+		_ = s.saveChronicle(gs) // …et la mémoire des comptes qui l'ont vécue (P7)
 	}
 	return err
 }
@@ -328,8 +356,10 @@ func (s *Store) SaveIfUnchanged(gs *game.GameState) error {
 		return ErrConflict
 	}
 	// Le battement fait avancer les vagues sans joueur connecté : sans ça, une ville
-	// qui survit toute seule ne monterait jamais au classement.
+	// qui survit toute seule ne monterait jamais au classement — ni dans la chronique
+	// des comptes qui l'ont fondée.
 	_ = s.saveScore(gs)
+	_ = s.saveChronicle(gs)
 	return nil
 }
 
@@ -463,4 +493,28 @@ func (s *Store) Load(id string) (*game.GameState, error) {
 	}
 	gs.Rev = rev // révision chargée : base de la sauvegarde conditionnelle du battement
 	return &gs, nil
+}
+
+// Seasons rend les saisons qui comptent au moins une ville, la plus récente d'abord.
+// C'est ce qui alimente le sélecteur du classement : on ne propose pas une saison vide,
+// et on n'invente pas de calendrier — seules les saisons RÉELLEMENT jouées existent.
+func (s *Store) Seasons(limit int) ([]string, error) {
+	if limit <= 0 {
+		limit = 24
+	}
+	rows, err := s.db.Query(s.rebind(
+		`SELECT DISTINCT season FROM leaderboard WHERE season <> '' ORDER BY season DESC LIMIT ?`), limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []string{}
+	for rows.Next() {
+		var v string
+		if err := rows.Scan(&v); err != nil {
+			return nil, err
+		}
+		out = append(out, v)
+	}
+	return out, rows.Err()
 }

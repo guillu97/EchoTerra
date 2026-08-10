@@ -107,7 +107,7 @@ func TestLeaderboardSavesAndRanks(t *testing.T) {
 		}
 	}
 
-	entries, err := st.Leaderboard("", 10)
+	entries, err := st.Leaderboard("", "", 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,7 +130,7 @@ func TestLeaderboardSavesAndRanks(t *testing.T) {
 	if err := st.Save(young); err != nil {
 		t.Fatal(err)
 	}
-	entries, err = st.Leaderboard("", 10)
+	entries, err = st.Leaderboard("", "", 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -142,7 +142,7 @@ func TestLeaderboardSavesAndRanks(t *testing.T) {
 	if err := st.Delete("old"); err != nil {
 		t.Fatal(err)
 	}
-	entries, _ = st.Leaderboard("", 10)
+	entries, _ = st.Leaderboard("", "", 10)
 	if len(entries) != 2 {
 		t.Fatalf("deleting a game must keep its leaderboard row, got %d entries", len(entries))
 	}
@@ -178,7 +178,7 @@ func TestLeaderboardFiltersByMode(t *testing.T) {
 		{game.ModePublic, "pub"},
 		{game.ModePrivate, "priv"},
 	} {
-		entries, err := st.Leaderboard(tc.mode, 10)
+		entries, err := st.Leaderboard(tc.mode, "", 10)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -190,7 +190,7 @@ func TestLeaderboardFiltersByMode(t *testing.T) {
 		}
 	}
 
-	all, err := st.Leaderboard("", 10)
+	all, err := st.Leaderboard("", "", 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -319,5 +319,85 @@ func TestOpenForJoinFindsLaunchedPublicGamesInTheirWindow(t *testing.T) {
 	}
 	if len(ids) != 1 || ids[0] != "public-launched" {
 		t.Fatalf("OpenForJoin doit rendre exactement l'expédition qui accueille encore, got %v", ids)
+	}
+}
+
+// LE CLASSEMENT SE DÉCOUPE EN SAISONS — c'est ce qui l'empêche de se figer.
+func TestLeaderboardFiltersBySeason(t *testing.T) {
+	st, err := Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+
+	mk := func(id, town string, started time.Time, waves int) *game.GameState {
+		g := &game.GameState{ID: id, Status: game.StatusGameOver, Day: 3, WaveNumber: waves}
+		g.Town.Name = town
+		g.CreatedAt, g.StartedAt = started, started
+		return g
+	}
+	july := time.Date(2026, 7, 10, 12, 0, 0, 0, time.UTC)
+	august := time.Date(2026, 8, 10, 12, 0, 0, 0, time.UTC)
+	for _, g := range []*game.GameState{
+		mk("a", "Juillet-la-Grande", july, 30), // la meilleure de tous les temps…
+		mk("b", "Aoûtville", august, 12),
+	} {
+		if err := st.Save(g); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// …mais elle ne doit PAS écraser le tableau du mois suivant : sinon un joueur qui
+	// arrive n'a plus rien à viser, ce qui est exactement le trou que les saisons bouchent.
+	aug, err := st.Leaderboard("", "2026-08", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(aug) != 1 || aug[0].TownName != "Aoûtville" {
+		t.Fatalf("la saison d'août ne doit contenir qu'Aoûtville : %+v", aug)
+	}
+	if jul, _ := st.Leaderboard("", "2026-07", 10); len(jul) != 1 || jul[0].TownName != "Juillet-la-Grande" {
+		t.Fatalf("les saisons passées restent consultables : %+v", jul)
+	}
+	// Toutes saisons confondues : le palmarès de tous les temps, meilleure d'abord.
+	all, err := st.Leaderboard("", "", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(all) != 2 || all[0].TownName != "Juillet-la-Grande" {
+		t.Fatalf("tous les temps : %+v", all)
+	}
+
+	// Les saisons proposées sont celles RÉELLEMENT jouées, la plus récente d'abord.
+	seasons, err := st.Seasons(10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(seasons) != 2 || seasons[0] != "2026-08" || seasons[1] != "2026-07" {
+		t.Fatalf("saisons jouées, plus récente d'abord : %v", seasons)
+	}
+}
+
+// Une ligne écrite AVANT l'existence des saisons reste hors concours : on ne sait pas à
+// quelle saison la rattacher, et deviner serait pire que de la laisser en « tous les temps ».
+func TestPreSeasonRowsStayOutOfEverySeason(t *testing.T) {
+	st, err := Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	g := &game.GameState{ID: "old", Status: game.StatusGameOver, WaveNumber: 40} // aucune date
+	g.Town.Name = "Ancienne"
+	if err := st.Save(g); err != nil {
+		t.Fatal(err)
+	}
+	if rows, _ := st.Leaderboard("", game.CurrentSeason(), 10); len(rows) != 0 {
+		t.Fatalf("une ligne sans saison ne doit figurer dans aucune saison : %+v", rows)
+	}
+	if rows, _ := st.Leaderboard("", "", 10); len(rows) != 1 {
+		t.Fatalf("…mais bien dans « tous les temps » : %+v", rows)
+	}
+	if seasons, _ := st.Seasons(10); len(seasons) != 0 {
+		t.Fatalf("elle ne crée pas une saison fantôme : %v", seasons)
 	}
 }

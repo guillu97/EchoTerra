@@ -158,7 +158,7 @@ func (g *GameState) Craft(recipeID, heroID string) (*Item, error) {
 			lvl = 1
 		}
 		if b.Level < lvl {
-			return nil, ActionError{fmt.Sprintf("%s nécessite %s niveau %d", r.Name, b.Name, lvl)}
+			return nil, ActionError{fmt.Sprintf("%s nécessite %s niveau %d", r.Name, b.Label(), lvl)}
 		}
 	}
 
@@ -194,6 +194,7 @@ func (g *GameState) Craft(recipeID, heroID string) (*Item, error) {
 	if qty < 1 {
 		qty = 1
 	}
+	qty += g.craftYieldBonus(r)
 	out := Item{Type: r.OutputType, Name: name, Qty: qty}
 	if inTown {
 		for _, ing := range r.Ingredients {
@@ -209,4 +210,25 @@ func (g *GameState) Craft(recipeID, heroID string) (*Item, error) {
 		h.AddLoot(out)
 	}
 	return &out, nil
+}
+
+// craftYieldBonus : ce que le NIVEAU de l'atelier ajoute à une fournée.
+//
+// Les niveaux 2 et 3 de la Recyclerie annonçaient « recyclage plus efficace » puis
+// « recyclage optimisé » — et ne faisaient RIEN : du texte dans le catalogue de design,
+// zéro ligne de code. Un niveau qu'on paie en PA et en matériaux doit se voir. Une
+// recyclerie améliorée tire donc une unité de plus par palier des mêmes débris, ce qui
+// est exactement la réponse du design à une carte qui se vide.
+//
+// Réservé au bâtiment dont c'est la raison d'être : élargir ce bonus à toutes les
+// recettes ferait de l'Atelier une machine à dupliquer l'acier.
+func (g *GameState) craftYieldBonus(r *Recipe) int {
+	if r == nil || r.Building != "recyclerie" {
+		return 0
+	}
+	b := g.buildingByID("recyclerie")
+	if b == nil || !b.Built || b.Durability <= 0 {
+		return 0
+	}
+	return b.Level - 1
 }

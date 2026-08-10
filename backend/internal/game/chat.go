@@ -80,16 +80,44 @@ func (g *GameState) ChatAccess(playerID string) (remote bool, err error) {
 // the same rule as writing: an expedition without a Poste is out of touch, and
 // that has to cut both ways or the restriction is decoration.
 func (g *GameState) ChatFor(playerID string) ([]ChatMessage, error) {
-	if _, err := g.ChatAccess(playerID); err != nil {
+	remote, err := g.ChatAccess(playerID)
+	if err != nil {
 		return nil, err
 	}
 	if g.Town.Chat == nil {
 		return []ChatMessage{}, nil
 	}
-	out := make([]ChatMessage, len(g.Town.Chat))
-	copy(out, g.Town.Chat)
+	board := g.Town.Chat
+	// LE RELAIS PORTE PLUS OU MOINS LOIN. La Poste annonçait « courrier plus fiable »
+	// puis « relais permanent » à ses niveaux 2 et 3 sans rien changer — du texte dans
+	// le catalogue de design. Depuis LE TERRAIN, ce qu'on reçoit dépend donc désormais
+	// du relais : les derniers échanges au niveau 1, une vraie conversation au niveau 2,
+	// tout le fil au niveau 3. EN VILLE on lit tout, quel que soit le bâtiment : on est
+	// devant le panneau.
+	if remote {
+		if n := g.chatRemoteDepth(); n < len(board) {
+			board = board[len(board)-n:]
+		}
+	}
+	out := make([]ChatMessage, len(board))
+	copy(out, board)
 	return out, nil
 }
+
+// chatRemoteDepth : combien de messages le relais transmet au terrain.
+func (g *GameState) chatRemoteDepth() int {
+	b := g.buildingByID(chatBuildingID)
+	if b == nil || !b.Built || b.Durability <= 0 {
+		return 0
+	}
+	if b.Level >= MaxBuildingLevel {
+		return chatCap // relais permanent : tout le fil
+	}
+	return chatRemoteBase * b.Level
+}
+
+// chatRemoteBase : la portée d'un relais de niveau 1, en messages.
+const chatRemoteBase = 20
 
 // PostChat validates, moderates and appends a player's message.
 func (g *GameState) PostChat(playerID, text string) (*ChatMessage, error) {

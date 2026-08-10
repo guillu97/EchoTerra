@@ -437,6 +437,10 @@ func NewCombat(gs *GameState, heroes []*Hero, monster *Monster, starterID string
 	if len(heroes) > len(spawnX) {
 		heroes = heroes[:len(spawnX)]
 	}
+	// L'ARMURERIE (bâtiment de spécialité) : ce que la ville forge part au combat avec
+	// ses héros. C'est l'axe « frapper » — le seul bâtiment dont l'effet se voit hors des
+	// murs, et le pendant de la Caserne (qui, elle, ne sert qu'à l'intérieur).
+	forge := gs.armoryBonus()
 	for i, h := range heroes {
 		appearance := ""
 		if cls := ClassByID(h.ClassID); cls != nil {
@@ -460,6 +464,7 @@ func NewCombat(gs *GameState, heroes []*Hero, monster *Monster, starterID string
 			Move:       2 + h.Stats.Agilite/3,
 			States:     []string{},
 		}
+		u.Stats.Force += forge
 		c.Units = append(c.Units, u)
 	}
 	if boss {
@@ -1759,4 +1764,14 @@ func absI(v int) int {
 		return -v
 	}
 	return v
+}
+
+// armoryBonus rend la force que l'Armurerie ajoute à chaque héros au combat (0 si elle
+// n'est pas bâtie, ou si elle est en ruine — un atelier détruit ne forge plus).
+func (g *GameState) armoryBonus() int {
+	b := g.buildingByID("armurerie")
+	if b == nil || !b.Built || b.Durability <= 0 {
+		return 0
+	}
+	return b.Level
 }

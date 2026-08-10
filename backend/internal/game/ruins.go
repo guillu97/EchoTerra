@@ -181,6 +181,14 @@ type ruinDef struct {
 	Loot    []DropDef
 }
 
+// ⚠ CHAQUE RUINE PORTE LE PLAN D'UNE SPÉCIALITÉ, ET UNE SEULE (2026-08-10). Les cinq
+// bâtiments de spécialité (Infirmerie, Cartographe, Armurerie, Verger, Caserne) ne
+// s'obtiennent QUE par ici : un biome = une spécialité, donc les débloquer tous
+// demanderait de déblayer une ruine dans CHAQUE biome de la carte. C'est le mécanisme
+// de rareté qui force à choisir : une ville ne peut pas tout avoir, et ce qu'elle aura
+// dépend de où son expédition est allée. Les ruines sont finies (une par biome présent),
+// et un donjon n'a que quelques charges.
+//
 // ruinDefs maps each biome to its ruin type. Water (0) has none.
 var ruinDefs = map[Biome]ruinDef{
 	1: {Type: "epave", Name: "Épave ensablée", Icon: "⛵", ClearPA: 8, Loot: []DropDef{
@@ -189,6 +197,7 @@ var ruinDefs = map[Biome]ruinDef{
 		{"minerai", "Minerai d'argent", 1, 2},
 		{"aliment", "Rhum de contrebande", 1, 2},
 		{"objet", "Plan de la Recyclerie", 1, 2}, // épave de récupération → recyclerie
+		{"objet", "Plan du Cartographe", 1, 2},   // cartes marines dans l'épave → cartographe
 	}},
 	2: {Type: "ferme", Name: "Ferme abandonnée", Icon: "🏚️", ClearPA: 8, Loot: []DropDef{
 		{"objet", "Planche", 2, 3},
@@ -197,14 +206,16 @@ var ruinDefs = map[Biome]ruinDef{
 		{"minerai", "Acier", 1, 1},
 		{"objet", "Plan de la Cuisine", 1, 2}, // ferme/moulin → cuisine
 		{"objet", "Plan de la Poste", 1, 2},   // relais de poste sur la route → poste
+		{"objet", "Plan du Verger", 1, 2},     // vergers et semences de la ferme → verger
 	}},
 	3: {Type: "sanctuaire", Name: "Sanctuaire englouti", Icon: "🗿", ClearPA: 10, Loot: []DropDef{
 		{"plante", "Herbe médicinale", 1, 3},
 		{"objet", "Relique sculptée", 1, 2},
 		{"objet", "Bois", 3, 2},
 		{"objet", "Cœur de chêne ancien", 1, 1},
-		{"objet", "Plan de la Mairie", 1, 2}, // sanctuaire civique → mairie
-		{"objet", "Plan de la Poste", 1, 1},  // scriptorium du sanctuaire → poste
+		{"objet", "Plan de la Mairie", 1, 2},    // sanctuaire civique → mairie
+		{"objet", "Plan de la Poste", 1, 1},     // scriptorium du sanctuaire → poste
+		{"objet", "Plan de l'Infirmerie", 1, 2}, // herboristerie du sanctuaire → infirmerie
 	}},
 	4: {Type: "mine", Name: "Mine effondrée", Icon: "⛏️", ClearPA: 12, Loot: []DropDef{
 		{"minerai", "Minerai de fer", 2, 3},
@@ -212,13 +223,15 @@ var ruinDefs = map[Biome]ruinDef{
 		{"minerai", "Minerai d'argent", 1, 2},
 		{"minerai", "Acier", 1, 1},
 		{"objet", "Plan de la Recyclerie", 1, 1}, // mine industrielle → recyclerie
+		{"objet", "Plan de l'Armurerie", 1, 2},   // forge de la mine → armurerie
 	}},
 	5: {Type: "tour", Name: "Tour gelée", Icon: "🗼", ClearPA: 12, Loot: []DropDef{
 		{"minerai", "Givre éternel", 1, 3},
 		{"objet", "Grimoire gelé", 1, 2},
 		{"minerai", "Minerai d'argent", 1, 2},
 		{"aliment", "Élixir de givre", 1, 1},
-		{"objet", "Plan de la Tour", 1, 2}, // tour → tour
+		{"objet", "Plan de la Tour", 1, 2},    // tour → tour
+		{"objet", "Plan de la Caserne", 1, 2}, // garnison de la tour → caserne
 	}},
 }
 

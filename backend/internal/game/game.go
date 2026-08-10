@@ -68,6 +68,10 @@ type Hero struct {
 	// DrewWaterDay is the game.day on which this hero last drew a water ration at the
 	// Well (0 = never). One ration per hero per in-game day (see TownAction "water").
 	DrewWaterDay int `json:"drewWaterDay"`
+	// DrewWaterCount : rations tirées CE jour-là. Le puits en donne une par héros et
+	// par jour ; la Cuisine niveau 2 (« rations +1 ») en autorise une seconde — sans ce
+	// compteur, cet effet du design restait du texte (voir dailyWaterAllowance).
+	DrewWaterCount int `json:"drewWaterCount,omitempty"`
 	// Order est la CONSIGNE PERMANENTE du héros (orders_standing.go) : ce qu'il fera
 	// tout seul juste avant la prochaine vague si son joueur n'est pas revenu. Ne dure
 	// qu'UNE vague, n'engage jamais de combat — c'est un filet, pas un pilote
@@ -225,6 +229,10 @@ type GameState struct {
 		// the Townhall's level; level 3 is unlimited AND free).
 		ReviveDay    int `json:"reviveDay,omitempty"`
 		RevivesToday int `json:"revivesToday,omitempty"`
+		// Infirmerie : soins délivrés aujourd'hui (quota quotidien = niveau ; le
+		// niveau 3 est illimité ET gratuit, comme le lit de la Mairie).
+		HealDay    int `json:"healDay,omitempty"`
+		HealsToday int `json:"healsToday,omitempty"`
 		// L'ORDRE DU JOUR et la PRÉVISION de la prochaine vague (orders.go) — dérivés,
 		// reconstruits par Recompute comme la défense. C'est ce qui donne un énoncé à
 		// une session de cinq minutes : sans eux, le joueur arrive avec 18 PA devant un
