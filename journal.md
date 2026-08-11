@@ -46,6 +46,30 @@ découpage en trois lots dont le premier est **backend pur, sans le moindre asse
 qui ramène dans une VRAIE expédition) → l'ossature des thèmes → l'instrumentation J3/J7 → la peau et
 le contenu des thèmes.
 
+**Précision de Guillaume, le même jour : le thème doit changer le GAMEPLAY**, pas seulement la peau —
+la neige qui recouvre les cases et un feu central à entretenir en nordique, un jeu de l'eau et du
+puits en désert. Et « dominant » veut dire *autour de la ville* : au loin, la carte redevient variée.
+Rédigé dans `RETENTION-PLAN.md` §8, avec deux découvertes qui décident de la conception :
+
+- **`StateSoif` n'est POSÉ par personne.** Il est déclaré, retiré par la boisson / le Jus de fruit /
+  l'Élixir de givre, consulté par les bots — et aucun code de jeu ne fait `AddState(StateSoif)`
+  (seuls trois tests le font). Tout le sous-système de l'eau est donc déjà bâti autour d'un état qui
+  n'arrive jamais : rations du puits, `DrewWaterDay`, capacités 50/75/112, +10 par vague, et jusqu'à
+  l'effet de la Cuisine niveau 2 (`dailyWaterAllowance`). Le puits est aujourd'hui un distributeur
+  gratuit de +6 PA. **Le thème désert ne construit rien : il allume.**
+- **Les crochets de la neige existent déjà** : `canForage` lit `Terrains[biome].Searchable` (un test
+  de plus et la fouille auto s'interrompt sur une case couverte — c'est la réponse mécanique au
+  campement qui se joue tout seul), et `regrowOrchard`, appelé à chaque vague, a exactement la forme
+  de la passe de chute de neige. Déneiger doit RENDRE une ressource, sinon la neige n'est qu'un impôt.
+
+Six règles encadrent une contrainte de thème (branche un système existant, collective, payée en
+PA/matériaux donc en concurrence avec la défense, annoncée par l'ordre du jour, ne piège jamais un
+absent, et **passe `SurvivalFloor 12` sur chaque thème**). ⚠ deux garde-fous de génération : la
+garantie de gisement (`ensureNearbyBiomes`) l'emporte TOUJOURS sur le biais du thème, et chaque biome
+doit rester au-dessus d'un seuil de tuiles sinon `SeedRuins` saute un biome et un plan de spécialité
+disparaît. Livraison recommandée : **un thème à la fois, contrainte et sweep compris** ; et le
+classement gagne une colonne `theme` (même schéma que `mode`).
+
 ---
 
 ## 2026-08-11 (107) — La reprise après une absence : le rattrapage, et la sortie d'une ville tombée

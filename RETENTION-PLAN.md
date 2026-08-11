@@ -418,6 +418,101 @@ place, sans code neuf :
 Le lot 1 seul suffit à répondre à R5 et il est testable par la simulation. Les lots 2 et 3 peuvent
 suivre thème par thème sans jamais bloquer le jeu.
 
+### Le thème change aussi le JEU — pas seulement la peau (précision de Guillaume, 2026-08-11)
+
+Un thème qui ne serait qu'une palette s'userait en deux expéditions. Chaque thème porte donc **une
+contrainte de survie** : quelque chose que cette terre exige et qu'aucune autre n'exige.
+
+#### D'abord : « dominant » ne veut pas dire « monochrome »
+
+Le thème décide du biome qui **entoure la ville**, pas du monde entier. Concrètement, le tirage de
+biome reçoit un **champ de biais centré sur le bourg et décroissant avec la distance** (portée ~ la
+moitié de la carte) : neige partout autour de la ville en Nordique, sable en Désertique — et au loin,
+la carte redevient elle-même, avec ses montagnes, ses forêts et ses lacs.
+
+Deux conséquences, l'une voulue et l'autre obligatoire :
+
+- **Voulue** : la variété devient *lointaine*, donc elle se mérite. « Il faut descendre au sud pour
+  trouver du sable » — c'est-à-dire pour trouver l'épave, donc le Plan du Cartographe. Le thème
+  devient un moteur d'exploration, ce que la prospection des bots peine à produire seule.
+- ⚠ **Obligatoire** : **la garantie l'emporte toujours sur le thème.** `ensureNearbyBiomes` continue
+  de creuser son gisement de forêt ET de montagne dans le rayon 8 du bourg, thème ou pas. Une carte
+  nordique, c'est de la neige à perte de vue **plus** un bosquet et une carrière garantis. Sans ce
+  principe on rejoue la famine déjà mesurée deux fois (banque à zéro bois, aucun chantier, défaite
+  arithmétique). Et un second garde-fou : **chaque biome doit rester présent au-dessus d'un seuil
+  minimal de tuiles**, sinon `SeedRuins` saute ce biome et le plan de spécialité qu'il porte
+  disparaît de la partie.
+
+#### Le contrat d'une contrainte de thème
+
+Six règles, qui viennent toutes de mécaniques déjà en place :
+
+1. **Elle branche un système qui EXISTE.** Pas de seconde monnaie d'énergie (§4 l'interdit), pas de
+   nouvelle boucle : on allume ce qui est déjà câblé.
+2. **Elle est COLLECTIVE et se règle en ville.** Le jeu est une survie de groupe : une contrainte doit
+   créer une charge partagée, pas une taxe individuelle.
+3. **Elle se paie en PA ou en matériaux déjà récoltés**, donc elle entre en **concurrence directe avec
+   la défense**. C'est là qu'est le jeu : le bois qui chauffe est le bois qui bâtit.
+4. **Elle est ANNONCÉE** — par l'ordre du jour (P1) et la prévision (P2). Sur un jeu à deux sessions
+   par jour, une contrainte surprise est une punition, pas une tension.
+5. **Elle ne piège jamais un joueur absent** (T4). Elle ne doit ni bloquer le retour en ville, ni tuer
+   un héros posté ; les consignes permanentes (P4) doivent rester une réponse valable.
+6. **Elle passe le plancher.** `SurvivalFloor = 12` sur **chaque thème** et à 1·4·12·20 joueurs, via
+   `balance.Config{Theme}`. Une contrainte non simulée est une contrainte non livrable.
+
+#### Nordique — le froid
+
+Deux faces d'une même idée : dehors la neige, dedans le feu.
+
+- **La neige recouvre les cases.** Un champ `Tile.Covered` (bool, `omitempty`), posé par une passe de
+  chute de neige à chaque vague — à côté de `regrowOrchard`, qui a exactement cette forme. Une case
+  couverte **ne peut plus être fouillée** : `canForage` la refuse, donc **la fouille automatique
+  s'interrompt**. C'est le point le plus intéressant du thème : la neige est la réponse mécanique au
+  reproche qu'on peut faire au campement (poster un héros et ne plus jouer). Elle se déneige pour
+  **1 PA**, et ⚠ **déneiger REND une ressource à la case** (même geste que le Verger) — sinon la neige
+  n'est qu'un impôt ; là, c'est un arbitrage : je dégage ce filon ou je marche jusqu'à un autre.
+  Elle ne bloque **jamais** le déplacement et ne blesse personne (règle 5).
+- **Le brasier central.** Un bâtiment `brasier` **debout au départ** (comme le puits), qui **brûle du
+  bois ou du charbon à chaque vague**. Tant qu'il brûle, les murs protègent du froid ; **éteint**, les
+  héros — y compris ceux qui sont rentrés — prennent `Gelé` : **−2 PA à la vague suivante**. Un héros
+  qui passe la vague DEHORS prend `Gelé` de toute façon ; rentrer près du feu le purge. Le dilemme de
+  Hordes (sortir ou tenir) gagne ainsi une seconde raison de rentrer, au lieu d'une mécanique de plus.
+- ⚠ **Le thème doit financer sa propre contrainte.** Le bois est déjà la matière la plus disputée
+  (mesuré : banque à zéro bois sur les grandes cartes). En Nordique la taïga en donne davantage et le
+  **Charbon** devient un combustible de plein droit. Sans ce contrepoids, on ne crée pas une tension,
+  on crée une défaite programmée — et c'est précisément ce que le sweep par thème doit trancher.
+
+#### Désertique — l'eau
+
+**Le cadeau du désert : la Soif n'existe pas.** `StateSoif` est déclaré, retiré par la boisson, par le
+`Jus de fruit`, par l'`Élixir de givre`, consulté par les bots… et **jamais posé par personne** (rien
+dans le code de jeu ne fait `AddState(StateSoif)` — seuls trois tests le font). Tout un sous-système
+est déjà bâti autour d'un état qui n'arrive jamais : les rations du puits, `DrewWaterDay`, la
+capacité par niveau (50/75/112), le +10 par vague, et jusqu'à l'effet de la **Cuisine niveau 2**
+(`dailyWaterAllowance`, une seconde ration par jour). Aujourd'hui le puits est un distributeur gratuit
+de +6 PA ; il n'est une contrainte pour personne.
+
+Le thème désert ne fait donc **rien construire, il allume**.
+
+- **Un héros qui n'a pas bu de la journée prend `Soif` à la vague.** Effet : **−2 PA au réveil** — la
+  soif ralentit, elle ne tue pas (règle 5), et elle se paie dans la monnaie du jeu.
+- **Le puits redevient un enjeu** : recharge naturelle réduite, donc il faut **aller chercher l'eau**.
+  Symétrique exact de la neige : un champ de tuile `Oasis`, posé par le worldgen, **fouillable en
+  Rations d'eau** qu'on rapporte au puits. Une plomberie, deux thèmes, des signes opposés — l'un
+  retire, l'autre donne.
+- **Monter le puits entre en concurrence avec la muraille** (règle 3), et la Cuisine niveau 2 prend
+  enfin un sens. Aucun système neuf : trois valeurs et un producteur d'état.
+
+#### Ce que ça change au découpage
+
+Le **lot 1** gagne la contrainte de chaque thème (elle est backend, sans asset : un champ de tuile,
+une passe par vague, un producteur d'état, un bâtiment) et **ne se livre qu'avec son sweep**
+`cmd/balance`. Ma recommandation : livrer les thèmes **un par un, contrainte comprise**, plutôt que
+trois peaux d'un coup — un thème dont la contrainte n'a pas été simulée est une partie perdue
+d'avance pour ceux qui le tirent. Et ⚠ le classement gagne une colonne **`theme`** (même schéma que
+`mode`) : comparer une ville nordique et une ville désertique n'a de sens que si l'on sait laquelle
+est laquelle.
+
 ### Thèmes de départ suggérés
 
 **Tempéré** (l'actuel, qui devient un thème parmi d'autres et sert de référence d'équilibrage),
