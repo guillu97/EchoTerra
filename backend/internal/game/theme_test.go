@@ -18,7 +18,7 @@ func TestPickThemeIsDeterministicAndSpread(t *testing.T) {
 	seen := map[string]int{}
 	base := int64(1754938201000000000)
 	for i := int64(0); i < 60; i++ {
-		seen[PickTheme(base + i*1_000_000).ID]++
+		seen[PickTheme(base+i*1_000_000).ID]++
 	}
 	if len(seen) < len(Themes) {
 		t.Errorf("60 graines consécutives ne couvrent que %d thèmes sur %d : %v", len(seen), len(Themes), seen)

@@ -6,6 +6,59 @@
 
 ---
 
+## 2026-08-11 (111) — La soif : la première CONTRAINTE de thème
+
+Suite de l'entrée 110. Un thème qui ne serait qu'une palette s'userait en deux expéditions : chacun
+porte donc **une** contrainte de survie. La première est celle du désert, et c'est la moins chère du
+catalogue — **elle n'invente rien, elle allume.**
+
+**`StateSoif` était posé par PERSONNE.** Déclaré, retiré par la boisson, par le Jus de fruit, par
+l'Élixir de givre, consulté par les bots — et aucun code de jeu ne l'ajoutait (seuls trois tests le
+faisaient). Tout le sous-système de l'eau — rations du puits, `Hero.DrewWaterDay`, capacités
+50/75/112, recharge entre deux vagues, et jusqu'à l'effet « rations +1 » de la Cuisine niveau 2 —
+pendait à un état qui n'arrivait jamais. Le puits n'était qu'un distributeur gratuit de +6 PA.
+
+**Ce que fait le thème désertique** (`game/thirst.go`) :
+- `applyThirst()` pose la Soif **au changement de JOUR** sur qui n'a pas bu de la journée écoulée.
+  Pas à chaque vague : « un héros qui n'a pas bu de la journée » est une phrase que le joueur peut se
+  dire, « depuis la dernière vague » n'en est pas une et punirait deux fois par jour.
+- Elle coûte **2 PA à la régénération**, jamais de PV — elle ralentit, elle ne tue pas (règle 5 : ne
+  jamais piéger un joueur absent). ⚠ **plancher de 1 PA** : un assoiffé doit pouvoir marcher jusqu'au
+  puits.
+- La recharge du puits tombe à **4** contre 10 : c'est ce qui force à ALLER CHERCHER l'eau.
+- **La Palmeraie (le biome forêt) rend de l'eau** — l'oasis est là où sont les palmiers, et le thème
+  les a justement éloignés de la ville. Le même biome porte le bois ET l'eau : une destination
+  disputée, ce qui est le but.
+- Annoncée par l'**ordre du jour** (règle 4) et par le bandeau de thème en tête de l'état de la ville.
+
+⚠ **Trois pièges tenus par des tests.** `ExtraDrops` **AJOUTE** et n'enlève jamais (un thème ne peut
+pas couper une ville de son bois) ; `terrainFor()` **copie** la table (muter `Terrains` en place ferait
+boire TOUTES les parties, tempérées comprises) ; et **toute lecture de `Terrains` qui décide de ce
+qu'on TROUVE doit passer par `terrainFor`** — la fouille manuelle, la fouille automatique **et**
+`biomeSupplies` des joueurs-IA, sinon l'IA ignore l'eau de la palmeraie sur la carte même qui en
+dépend. Les bots boivent désormais dès qu'ils portent de quoi (`botConsumeClearing` — attendre d'être
+à sec, c'est payer la pénalité toute la journée avec la gourde à la ceinture) et l'eau entre dans leur
+liste de courses.
+
+**Mesuré, et c'est le point.**
+- La boucle tourne pour de bon : **148 héros-vagues assoiffés** sur 3 parties désertiques simulées
+  contre **0** en tempéré, 28 rations puisées au puits, de l'eau en circulation en fin de partie. (Un
+  test vert ne dit que le contraire d'un bug, pas qu'une mécanique est exercée.)
+- **Survie médiane IDENTIQUE au thème témoin** : 17 vagues sur 8 graines à 4 joueurs, contre 17 en
+  tempéré. ⚠ le premier relevé, sur 4 graines, montrait 2 vagues d'écart — c'était du bruit ; 4
+  graines ne suffisent pas à distinguer un effet d'une variance de 16 à 20. La contrainte change ce
+  qu'on FAIT, pas la difficulté — exactement le contrat « latéral, jamais supérieur ».
+
+**Vérifié.** `go test ./...` (dont `thirst_test.go` et le plancher par thème) · `npx tsc -b` ·
+`npm run build` · `test:endgame` 8/8, `test:reconnect` 8/8 · en jeu : une partie désertique tirée au
+sort affiche « 💧 15 héros ont soif (−2 PA par jour) — le puits tient encore 50 rations » dans l'ordre
+du jour, et le bandeau « 🏜️ Désertique — Ici l'eau se compte » en tête de l'état de la ville.
+
+**À faire ensuite** : la contrainte nordique (le froid : la neige qui recouvre les cases et interrompt
+la fouille automatique, le brasier à alimenter), puis le lot 2 (la peau).
+
+---
+
 ## 2026-08-11 (110) — Les expéditions thématiques : l'ossature (P9 lot 1)
 
 `RETENTION-PLAN.md` §8 mis en code. **Un thème est une PEAU et un BIAIS, jamais un jeu différent** :

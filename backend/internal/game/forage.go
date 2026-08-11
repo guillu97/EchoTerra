@@ -65,7 +65,7 @@ func (g *GameState) canForage(h *Hero) bool {
 	if t == nil {
 		return false
 	}
-	td, ok := Terrains[t.Biome]
+	td, ok := g.terrainFor(t.Biome)
 	return ok && td.Searchable
 }
 
@@ -99,7 +99,7 @@ func (g *GameState) forageOnce(h *Hero) {
 		h.StopForaging()
 		return
 	}
-	td, ok := Terrains[t.Biome]
+	td, ok := g.terrainFor(t.Biome)
 	if !ok {
 		h.StopForaging()
 		return

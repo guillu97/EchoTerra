@@ -47,6 +47,35 @@ type ThemeDef struct {
 	// d'équilibrage).
 	Bias float64 `json:"-"`
 
+	// --- LA CONTRAINTE DU THÈME -----------------------------------------------------
+	//
+	// Un thème qui ne serait qu'une palette s'userait en deux expéditions. Chacun porte
+	// donc UNE contrainte de survie : quelque chose que cette terre exige et qu'aucune
+	// autre n'exige. Six règles l'encadrent (RETENTION-PLAN.md §8) — elle branche un
+	// système qui EXISTE, elle est collective et se règle en ville, elle se paie en PA
+	// ou en matériaux (donc en concurrence avec la défense), elle est annoncée par
+	// l'ordre du jour, elle ne piège jamais un joueur absent, et elle passe le plancher
+	// de survie sur toute la plage d'effectifs.
+
+	// Thirst : les héros ont SOIF (thirst.go). C'est la contrainte désertique, et elle
+	// ne construit rien : elle ALLUME un sous-système entier qui dormait. `StateSoif`
+	// était déclaré, retiré par la boisson, par le Jus de fruit, par l'Élixir de givre,
+	// consulté par les bots — et POSÉ PAR PERSONNE. Le puits, ses rations, sa capacité
+	// par niveau, sa recharge et jusqu'à l'effet « rations +1 » de la Cuisine niveau 2
+	// pendaient à un état qui n'arrivait jamais.
+	Thirst bool `json:"thirst,omitempty"`
+	// WellRefill remplace la recharge naturelle du puits entre deux vagues (0 = la
+	// valeur ordinaire, wellRefillDefault). En désert elle est basse : c'est ce qui
+	// force à ALLER CHERCHER l'eau au lieu d'attendre qu'elle revienne.
+	WellRefill int `json:"wellRefill,omitempty"`
+	// ExtraDrops ajoute des trouvailles à la table de fouille d'un biome. ⚠ AJOUTE :
+	// un thème n'enlève jamais rien à un terrain, sinon il pourrait couper une ville de
+	// son bois ou de sa pierre. En désert, la Palmeraie (le biome forêt) rend aussi de
+	// l'eau : l'oasis est là où sont les palmiers, et comme le thème a justement
+	// éloigné les palmiers de la ville, l'eau devient un voyage. Le même biome porte
+	// alors le bois ET l'eau : une destination disputée, ce qui est le but.
+	ExtraDrops map[Biome][]DropDef `json:"-"`
+
 	// BiomeNames renomme les terrains à l'écran. Clé = biome, valeur = libellé.
 	BiomeNames map[Biome]string `json:"biomeNames,omitempty"`
 	// RuinNames rhabille les ruines-donjons. ⚠ le TYPE et la table de BUTIN restent
@@ -104,9 +133,20 @@ var Themes = []ThemeDef{
 		ID:       "desertique",
 		Name:     "Désertique",
 		Emoji:    "🏜️",
-		Tagline:  "Le sable a tout recouvert, sauf ce que les anciens ont bâti en pierre.",
+		Tagline:  "Ici l'eau se compte. Le puits fait la loi, et l'oasis est loin.",
 		Dominant: BiomeSand,
 		Bias:     0.72,
+		// LA CONTRAINTE : l'eau. Boire une fois par jour, ou traîner la Soif.
+		Thirst:     true,
+		WellRefill: 4, // contre 10 ailleurs : le puits ne se remplit plus tout seul
+		ExtraDrops: map[Biome][]DropDef{
+			// La palmeraie EST l'oasis. Poids fort : c'est la raison d'y aller, et le
+			// thème l'a mise loin.
+			BiomeForest: {{"eau", "Ration d'eau", 1, 4}},
+			// Une gorgée trouvée dans les dunes, rarement : de quoi rentrer, pas de quoi
+			// s'installer.
+			BiomeSand: {{"eau", "Ration d'eau", 1, 1}},
+		},
 		BiomeNames: map[Biome]string{
 			BiomeWater:    "Oasis",
 			BiomeSand:     "Dunes",

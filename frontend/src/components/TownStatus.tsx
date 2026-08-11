@@ -23,6 +23,19 @@ export function TownStatus() {
     <Overlay variant="sheet" onClose={() => close(false)} title="🏰 État de la ville">
       <>
 
+        {/* LA NATURE DE L'EXPÉDITION (backend theme.go). Un thème n'est pas qu'une
+            couleur : il porte une contrainte (la soif en désert), et une contrainte
+            doit être ANNONCÉE, sinon c'est une punition. C'est ici qu'un joueur vient
+            comprendre la situation de sa ville. */}
+        {game.theme && game.theme.id !== "tempere" && (
+          <div className="ts-theme">
+            <b>
+              {game.theme.emoji} {game.theme.name}
+            </b>
+            <span>{game.theme.tagline}</span>
+          </div>
+        )}
+
         <div className="ts-hp">
           <span>🏰 PV ville {t.hp}/{t.maxHp}</span>
           <div className="mini-bar" style={{ marginTop: 4 }}>

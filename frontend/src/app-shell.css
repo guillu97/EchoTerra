@@ -4619,3 +4619,17 @@ body {
   color: inherit;
   opacity: 0.85;
 }
+
+/* La nature de l'expédition, en tête de l'état de la ville (backend theme.go). */
+.ts-theme {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--s-2) var(--s-3);
+  margin-bottom: var(--s-3);
+  border-left: 3px solid var(--gold, #c9a227);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  background: var(--shade);
+  font-size: var(--t-sm);
+  line-height: var(--lh-body);
+}

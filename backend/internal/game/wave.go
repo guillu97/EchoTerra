@@ -341,6 +341,9 @@ func (g *GameState) processWave(now time.Time, safeTown bool) {
 	if g.Wave >= 2 {
 		g.Wave = 0
 		g.Day++
+		// LA SOIF (thirst.go) : posée au changement de jour sur qui n'a pas bu de la
+		// journée écoulée. Ne fait rien hors du thème désertique.
+		g.applyThirst()
 	}
 
 	besieging := g.besiegingCreatures()
@@ -391,7 +394,13 @@ func (g *GameState) processWave(now time.Time, safeTown bool) {
 	// A new half-day begins: surviving heroes recover their action points.
 	for _, h := range g.Heroes {
 		if h.HP > 0 {
-			h.PA = h.MaxPA
+			// La Soif se paie ICI, sur la journée qui commence : boire après coup ne
+			// rendrait rien si on l'appliquait à la volée, et la ration perdrait son
+			// intérêt. Voir thirst.go.
+			h.PA = h.MaxPA - thirstPenalty(h)
+			if h.PA < 1 {
+				h.PA = 1 // jamais bloqué : un assoiffé doit pouvoir marcher jusqu'au puits
+			}
 			h.RemoveState(StateFatigue)
 			h.RemoveState(StateTetanise)
 		}
@@ -410,7 +419,7 @@ func (g *GameState) processWave(now time.Time, safeTown bool) {
 
 	// The Well slowly refills between waves.
 	if w := g.buildingByID("well"); w != nil && w.Built && w.Capacity < w.MaxCapacity {
-		w.Capacity += 10
+		w.Capacity += g.wellRefill()
 		if w.Capacity > w.MaxCapacity {
 			w.Capacity = w.MaxCapacity
 		}
@@ -744,7 +753,7 @@ func (g *GameState) regrowOrchard() {
 			if t == nil || !t.Biome.Walkable() {
 				continue
 			}
-			if td, ok := Terrains[t.Biome]; !ok || !td.Searchable {
+			if td, ok := g.terrainFor(t.Biome); !ok || !td.Searchable {
 				continue
 			}
 			if t.Resources >= orchardCap {

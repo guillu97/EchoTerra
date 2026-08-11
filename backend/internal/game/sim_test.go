@@ -209,7 +209,7 @@ func TestBudgetCoversItsWavesEvenWithBots(t *testing.T) {
 	}
 	// Les rounds de bots suivent : douze vagues de monde, c'est douze fois ce qu'une
 	// vague contient de rounds — sinon la période n'est pas réellement rejouée.
-	if want := 12 * int(WaveInterval / BotCatchUpInterval); res.BotRounds < want-2 {
+	if want := 12 * int(WaveInterval/BotCatchUpInterval); res.BotRounds < want-2 {
 		t.Fatalf("BotRounds = %d, attendu ~%d (les bots doivent avoir joué la période)", res.BotRounds, want)
 	}
 

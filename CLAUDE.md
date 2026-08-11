@@ -638,6 +638,31 @@ d'une spécialité). ⚠ **le plancher de survie se vérifie THÈME PAR THÈME**
 un thème non simulé serait une punition au hasard. `GET /api/themes`, `themeId` dans les résumés de
 salon, colonne `theme` au classement. Tests : `game/theme_test.go`, `worldgen_test.go`.
 
+**LA CONTRAINTE D'UN THÈME — LA SOIF** (`game/thirst.go`, 2026-08-11) — un thème qui ne serait
+qu'une palette s'userait en deux expéditions ; chacun porte donc **UNE** contrainte de survie, encadrée
+par six règles (`RETENTION-PLAN.md` §8) : brancher un système qui EXISTE, être collective et se régler
+en ville, se payer en PA ou en matériaux (donc en concurrence avec la défense), être ANNONCÉE, ne
+jamais piéger un absent, et **passer le plancher de survie**. ⚠ **`thirst.go` N'INVENTE RIEN, IL
+ALLUME** : `StateSoif` était déclaré, retiré par la boisson / le Jus de fruit / l'Élixir de givre,
+consulté par les bots — et **posé par personne**. Tout le sous-système de l'eau (rations du puits,
+`Hero.DrewWaterDay`, capacités 50/75/112, recharge par vague, et jusqu'à `dailyWaterAllowance` de la
+Cuisine niv.2) pendait à un état qui n'arrivait jamais, et le puits n'était qu'un distributeur gratuit
+de +6 PA. Le thème **Désertique** le branche : `applyThirst()` pose la Soif **au changement de JOUR**
+(pas à chaque vague : « qui n'a pas bu de la journée » est une phrase que le joueur peut se dire) sur
+qui n'a pas bu, `thirstPA` 2 se paie **à la régénération** (jamais en PV — elle ralentit, elle ne tue
+pas) avec un **plancher de 1 PA** (un assoiffé doit pouvoir marcher jusqu'au puits), la recharge du
+puits tombe à `WellRefill` 4 contre 10, et **la Palmeraie (le biome FORÊT) rend de l'eau**
+(`ThemeDef.ExtraDrops`) — l'oasis est là où sont les palmiers, et le thème les a justement éloignés :
+le même biome porte alors le bois ET l'eau, destination disputée. ⚠ `ExtraDrops` **AJOUTE**, n'enlève
+jamais (un thème ne peut pas couper une ville de son bois) et `terrainFor()` **copie** la table (muter
+`Terrains` ferait boire toutes les parties) ; ⚠ **toute lecture de `Terrains` qui décide de ce qu'on
+TROUVE passe par `terrainFor`** — fouille manuelle, fouille auto, ET `biomeSupplies` des bots, sinon
+l'IA ignore l'eau de la palmeraie sur la carte même qui en dépend. Les bots boivent dès qu'ils portent
+de quoi (`botConsumeClearing`) et l'eau entre dans `botShoppingList`. **Mesuré** : 148 héros-vagues
+assoiffés sur 3 parties désertiques (0 en tempéré), 28 puisées au puits ; survie **médiane identique**
+au thème témoin sur 8 graines (17 vagues) — la contrainte change ce qu'on FAIT, pas la difficulté.
+Tests : `thirst_test.go`.
+
 **⚠ LA NEIGE N'EXISTAIT DANS AUCUNE PARTIE** (corrigé 2026-08-11) — les seuils du Studio donnent un
 biome par niveau de hauteur et la neige exige le niveau 6, or le **lissage** (`genMaxStep` 1) rabote
 les sommets : niveau maximum réellement produit = **5**, mesuré sur 8 graines × 4 tailles de carte

@@ -652,10 +652,20 @@ func (g *GameState) botShoppingList() map[string]bool {
 			}
 		}
 	}
+	// L'EAU EST UN MATÉRIAU SUR UNE CARTE QUI A SOIF (thirst.go). Sans cette ligne, un
+	// récolteur n'a aucune raison d'aller jusqu'à la palmeraie : rien dans la liste de
+	// courses ne la réclame, et l'équipe traîne la Soif — donc deux PA en moins par
+	// héros et par jour — au milieu d'une carte qui porte de quoi boire.
+	if g.Theme().Thirst && g.storageQty(WaterRation) < len(g.Heroes) {
+		need[WaterRation] = true
+	}
 	return need
 }
 
 // terrainDroppable reports whether ANY terrain can drop this item.
+//
+// ⚠ ne connaît PAS les ajouts d'un thème : c'est voulu, il ne filtre que les matériaux
+// de chantier, et l'eau entre dans la liste par sa propre porte (voir botShoppingList).
 func terrainDroppable(name string) bool {
 	for _, td := range Terrains {
 		for _, d := range td.Drops {
@@ -668,8 +678,12 @@ func terrainDroppable(name string) bool {
 }
 
 // biomeSupplies reports whether searching this biome can drop one of the wanted items.
-func biomeSupplies(b Biome, want map[string]bool) bool {
-	for _, d := range Terrains[b].Drops {
+// ⚠ passe par terrainFor et non par Terrains : le THÈME ajoute des trouvailles (l'eau
+// de la palmeraie en désert), et un bot aveugle à ces lignes n'irait jamais chercher ce
+// que la carte a de particulier — c'est-à-dire la contrainte du thème.
+func (g *GameState) biomeSupplies(b Biome, want map[string]bool) bool {
+	td, _ := g.terrainFor(b)
+	for _, d := range td.Drops {
 		if want[d.Name] {
 			return true
 		}
@@ -712,7 +726,8 @@ func (g *GameState) botSupplyKnown(want map[string]bool) bool {
 		if !t.Discovered || !t.Biome.Walkable() || t.Resources <= 0 {
 			continue
 		}
-		for _, d := range Terrains[t.Biome].Drops {
+		td, _ := g.terrainFor(t.Biome)
+		for _, d := range td.Drops {
 			if want[d.Name] {
 				sourced[d.Name] = true
 			}
@@ -760,7 +775,7 @@ func (g *GameState) botGoalWorthKeeping(h *Hero) bool {
 	if t == nil || !t.Discovered || !t.Biome.Walkable() || t.MonsterID != "" {
 		return false
 	}
-	return t.Resources > 0 || biomeSupplies(t.Biome, g.botShoppingList())
+	return t.Resources > 0 || g.biomeSupplies(t.Biome, g.botShoppingList())
 }
 
 func (g *GameState) botPickGatherTarget(h *Hero) (int, int, bool) {
@@ -822,7 +837,7 @@ func (g *GameState) botTileWorthCamping(h *Hero) bool {
 	if t == nil || !t.Biome.Walkable() {
 		return false
 	}
-	return biomeSupplies(t.Biome, g.botShoppingList())
+	return g.biomeSupplies(t.Biome, g.botShoppingList())
 }
 
 // botDefensiveOrder is the order bots pour labour into the town's protection. The
@@ -1191,7 +1206,7 @@ func (g *GameState) pickResourceTile(h *Hero) (int, int, bool) {
 			if t == nil || !t.Discovered || !t.Biome.Walkable() || t.MonsterID != "" {
 				continue
 			}
-			supplies := biomeSupplies(t.Biome, want)
+			supplies := g.biomeSupplies(t.Biome, want)
 			// An EXHAUSTED tile is not a dead tile: searching it still turns up a real
 			// resource a quarter of the time (see depletedFindPct). That trickle is worth
 			// working when it is the only stone in reach — but only then.
@@ -1214,7 +1229,7 @@ func (g *GameState) pickResourceTile(h *Hero) (int, int, bool) {
 			// material the Bank has NONE of outranks one it merely wants more of, by
 			// enough to send a hero past the near forest to the far quarry.
 			switch {
-			case biomeSupplies(t.Biome, crit):
+			case g.biomeSupplies(t.Biome, crit):
 				score -= 45
 			case supplies:
 				score -= 12
@@ -1426,6 +1441,12 @@ func (g *GameState) botUseItem(h *Hero) bool {
 			return true
 		}
 	}
+	// LA SOIF (thème désertique, thirst.go) : elle coûte deux PA par jour tant qu'elle
+	// dure, donc on boit DÈS qu'on porte de quoi — attendre d'être à sec, c'est payer la
+	// pénalité toute la journée avec la gourde à la ceinture.
+	if h.HasState(StateSoif) && g.botConsumeClearing(h, StateSoif) {
+		return true
+	}
 	// À court de PA : un plat rend la fin de la journée. On garde toutefois de quoi se
 	// cacher — la réserve de dissimulation est la règle qui tient tout le reste.
 	if h.PA <= 1 && h.PA < h.MaxPA {
@@ -1434,6 +1455,22 @@ func (g *GameState) botUseItem(h *Hero) bool {
 		}
 	}
 	return false
+}
+
+// botConsumeClearing consomme le premier objet capable de retirer cet état (le sac
+// d'abord, la réserve commune si l'on est en ville — voir botConsumeBest).
+func (g *GameState) botConsumeClearing(h *Hero, state string) bool {
+	return g.botConsumeBest(h, func(e ItemEffect) int {
+		if e.ClearsAll {
+			return 1
+		}
+		for _, s := range e.Clears {
+			if s == state {
+				return 1
+			}
+		}
+		return 0
+	})
 }
 
 // botConsumeBest consomme, parmi le sac, l'objet qui rend le PLUS selon `value` — sans

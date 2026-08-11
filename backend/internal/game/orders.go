@@ -218,6 +218,29 @@ func (g *GameState) BuildOrders() []TownOrder {
 			f.Tower, f.Scouts, f.Precision), false)
 	}
 
+	// 1-bis. LA SOIF (thème désertique) : une contrainte de thème doit être ANNONCÉE,
+	// sinon c'est une punition (RETENTION-PLAN.md §8, règle 4). On dit qui a soif ET où
+	// se trouve l'eau, parce que sur cette carte elle ne coule pas de source.
+	if g.Theme().Thirst {
+		thirsty := 0
+		for _, h := range g.Heroes {
+			if h.HP > 0 && h.HasState(StateSoif) {
+				thirsty++
+			}
+		}
+		if thirsty > 0 {
+			well := g.buildingByID("well")
+			switch {
+			case well != nil && well.Built && well.Capacity > 0:
+				add("thirst", "💧", fmt.Sprintf("%d héros ont soif (−%d PA par jour) — le puits tient encore %d rations",
+					thirsty, thirstPA, well.Capacity), thirsty > len(g.Heroes)/2)
+			default:
+				add("thirst", "💧", fmt.Sprintf("%d héros ont soif (−%d PA par jour) et le puits est à sec — il faut rapporter de l'eau",
+					thirsty, thirstPA), true)
+			}
+		}
+	}
+
 	// 2. Le portail ouvert : la plus grosse fuite de défense du jeu, et la moins chère
 	// à colmater (1 PA).
 	if b := g.buildingByID("gate"); b != nil && b.Built && b.Open {

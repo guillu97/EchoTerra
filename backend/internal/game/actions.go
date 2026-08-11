@@ -227,7 +227,7 @@ func (g *GameState) SearchTile(heroID string) (*Item, error) {
 	if t == nil {
 		return nil, ActionError{"case invalide"}
 	}
-	td, ok := Terrains[t.Biome]
+	td, ok := g.terrainFor(t.Biome)
 	if !ok || !td.Searchable {
 		return nil, ActionError{"ce terrain n'a rien à fouiller"}
 	}
