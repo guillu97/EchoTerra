@@ -111,7 +111,16 @@ function LobbyForms() {
                     <span className="lobby-row-main">
                       <span className="lobby-row-icon">{started ? "⚔️" : lobbyIcon(l.name)}</span>
                       <span className="lobby-row-text">
-                        <span className="lobby-row-name">{l.name}</span>
+                        <span className="lobby-row-name">
+                          {l.name}
+                          {/* La NATURE de la carte : c'est elle qui distingue cette
+                              expédition de la précédente (backend theme.go). */}
+                          {l.theme && l.theme.id !== "tempere" && (
+                            <span className="lobby-theme" title={l.theme.tagline}>
+                              {l.theme.emoji} {l.theme.name}
+                            </span>
+                          )}
+                        </span>
                         <span className="lobby-row-status">{status}</span>
                       </span>
                     </span>

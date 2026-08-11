@@ -157,6 +157,8 @@ backend/
     weapons.go                  ARCHÉTYPES d'arme + leurs TECHNIQUES de combat, SwapWeapon (action `swap`)
     monsters.go                 NewMonster, MonsterSpecies
     townnames.go                NewTownName: noms de ville générés (Town.Name, posé au worldgen)
+    theme.go                    LES EXPÉDITIONS THÉMATIQUES: ThemeDef/Themes/PickTheme (tiré de la
+                                graine), biome dominant, libellés de terrain, peau des ruines
     *_test.go                   worldgen, combat, tetanise, build (TestBuildConsumesBankMaterials), evolve
   internal/balance/balance.go   SIMULATION DE PARTIE headless (Run/Report/Table) — l'instrument
                                 d'équilibrage ; balance_test.go = garde-fou SurvivalFloor
@@ -616,6 +618,36 @@ parcelle plantée. ⚠ `buildingModelKey` (townLayout.ts) reste l'indirection : 
 `if (!geom) continue`, donc un bâtiment INVISIBLE et incliquable.
 Tests : `specialties_test.go`.
 
+**LES EXPÉDITIONS THÉMATIQUES** (`game/theme.go` + `worldgen.applyThemeBias`, 2026-08-11) — trois
+NATURES de carte tirées de la graine (**Tempéré** le témoin sans biais, **Nordique**, **Désertique**),
+réponse au trou R5 de `RETENTION-PLAN.md` : rien ne distinguait l'expédition n°4 de la n°1. ⚠ **un
+thème est une PEAU et un BIAIS, jamais un jeu différent** : les six biomes gardent leurs identifiants
+ET leur rôle économique (3 = le bois, 4 = la pierre) — `Terrains`, `Species.Biomes`, `ruinDefs`,
+`ensureNearbyBiomes` et `botShoppingList` (qui cherche littéralement « Bois » et « Pierre ») sont tous
+indexés dessus, donc un désert SANS forêt serait une partie sans bois, donc sans chantier. **La
+palmeraie du désert EST le biome forêt.** Corollaire : **le renommage est de la PRÉSENTATION** —
+`Item.Name` et `Ruin.Type` ne changent JAMAIS (recettes, bots, modèle voxel les lisent) ; seuls les
+libellés bougent (`GameState.BiomeLabel`, `ThemeDef.RuinNames`). « Dominant » veut dire **autour de la
+VILLE** : `applyThemeBias` convertit avec une probabilité décroissant avec la distance (portée = la
+moitié de la carte), donc au loin la carte redevient elle-même — la variété devient lointaine, donc
+elle se mérite. ⚠ **DEUX GARDE-FOUS** : `ensureNearbyBiomes` passe APRÈS et l'emporte (bois et pierre
+à portée quel que soit le thème — sinon on rejoue la famine déjà mesurée deux fois), et **aucun biome
+présent ne peut disparaître** (`SeedRuins` pose une ruine par biome et chaque ruine porte le plan
+d'une spécialité). ⚠ **le plancher de survie se vérifie THÈME PAR THÈME** (`balance.Config{Theme}`,
+`cmd/balance -themes`, `TestEveryThemeHoldsTheFloor`) : un thème se TIRE, personne ne le choisit, donc
+un thème non simulé serait une punition au hasard. `GET /api/themes`, `themeId` dans les résumés de
+salon, colonne `theme` au classement. Tests : `game/theme_test.go`, `worldgen_test.go`.
+
+**⚠ LA NEIGE N'EXISTAIT DANS AUCUNE PARTIE** (corrigé 2026-08-11) — les seuils du Studio donnent un
+biome par niveau de hauteur et la neige exige le niveau 6, or le **lissage** (`genMaxStep` 1) rabote
+les sommets : niveau maximum réellement produit = **5**, mesuré sur 8 graines × 4 tailles de carte
+(zéro tuile de neige de 40² à 134²). Donc la **Tour gelée** ne naissait jamais et le **Plan de la
+Caserne**, qu'elle est SEULE à donner, était inatteignable — un bâtiment du catalogue absent de toutes
+les parties, sans qu'aucun test n'échoue. `snowCaps` coiffe les sommets ISOLÉS du niveau maximum,
+`ensureSnowCap` garantit au moins une tuile (le point culminant du gisement de montagne) sur les
+cartes molles. ⚠ ne pas « corriger » en baissant le seuil de la neige : elle volerait tout son terrain
+à la montagne.
+
 **Ruines-donjons** (`ruins.go`, 2026-07-19) — 5 bâtiments en ruine PAR BIOME semés au worldgen
 (`SeedRuins`, déterministe, 1/biome, Chebyshev ≥ 3 de la ville) : Épave (sable 8 PA), Ferme
 (prairie 8), Sanctuaire (forêt 10), Mine (montagne 12), Tour gelée (neige 12). `GameState.Ruins`
@@ -894,6 +926,7 @@ POST /api/games/{id}/heroes/{h}/ruin/explore      fouille le donjon déblayé (2
 POST /api/games/{id}/heroes/{h}/evolve            {classId} -> GameState (applies class bonuses)
 GET  /api/classes                                 [] ClassDef catalog (tier 1+2 classes)
 GET  /api/mapskills                               [] MapSkillDef (compétences de carte par classe)
+GET  /api/themes                                  [] ThemeDef — les NATURES d'expédition (theme.go)
 POST /api/games/{id}/heroes/{h}/combat/start
 GET  /api/games/{id}/combat/{c}
 POST /api/games/{id}/combat/{c}/action            {unitId, action: move|attack|skill|defend|push|flee|item|swap|end,

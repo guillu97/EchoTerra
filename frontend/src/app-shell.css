@@ -4606,3 +4606,16 @@ body {
   background: linear-gradient(180deg, #d1a11a, #9c6f06);
   color: #fff8e0;
 }
+
+/* La nature d'une expédition dans la liste des salons (backend theme.go). */
+.lobby-theme {
+  margin-left: var(--s-2);
+  padding: 1px var(--s-2);
+  border-radius: var(--r-pill);
+  font-size: var(--t-xs);
+  font-weight: 600;
+  white-space: nowrap;
+  background: var(--shade);
+  color: inherit;
+  opacity: 0.85;
+}

@@ -75,6 +75,10 @@ func (g *GameState) RevealVision() {
 func (g *GameState) ClientView() *GameState {
 	cp := *g
 	cp.Seed = 0
+	// Le catalogue du thème voyage avec la partie (dérivé, jamais persisté — le blob
+	// est écrit depuis `g`, où le champ reste nil). Le client n'a donc rien à charger
+	// pour afficher « ❄️ Nordique » ni pour nommer les terrains.
+	cp.ThemeInfo = g.Theme()
 	// Le retard restant : posé ICI et nulle part ailleurs, donc jamais persisté (le
 	// blob est écrit depuis `g`, où le champ reste faux). Voir CatchUpPending.
 	cp.CatchUp = g.CatchUpPending(time.Now())

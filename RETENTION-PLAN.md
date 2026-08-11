@@ -425,7 +425,7 @@ place, sans code neuf :
 
 | Lot | Contenu | Coût | Ce qu'on voit |
 |---|---|---|---|
-| **1 · l'ossature** | `game/theme.go` (`ThemeDef`, `Themes`, `GameState.ThemeID` tiré de la graine), seuils de biome paramétrés, noms de biomes, `ruinDefs` par thème, pondération d'espèces, `balance.Config{Theme}` + sweep par thème | **faible**, backend pur, **aucun asset** | des cartes reconnaissables, des ruines différentes, le thème au salon et dans le classement |
+| **1 · l'ossature** — ✅ **LIVRÉ** (2026-08-11) | `game/theme.go` (`ThemeDef`, `Themes`, `GameState.ThemeID` tiré de la graine), biais de biome autour de la ville, noms de terrains, peau des ruines, `GET /api/themes`, colonne `theme` au classement, `balance.Config{Theme}` + `cmd/balance -themes` + `TestEveryThemeHoldsTheFloor` | **faible**, backend pur, **aucun asset** | des cartes reconnaissables, des ruines différentes, le thème au salon et dans le classement |
 | **2 · la peau** | remap de palette au chargement `.vox`, palette de biomes (`game/render.ts`), libellés d'objets/biomes côté client, halle sommitale par thème | **moyen**, front | la ville et la carte changent de caractère |
 | **3 · le contenu** | props par thème (`gen-props.mjs`), modèle de pyramide/sphinx/drakkar, 1 arme + 1 recette par thème, 1 espèce par thème | **élevé et incrémental** — c'est de l'art, il se livre thème par thème | le thème devient un lieu |
 
@@ -540,7 +540,11 @@ sphinx, harpies et araignées), puis — quand les deux premiers auront prouvé 
 1. ~~**R1 + R2 — le récit de fin de partie.**~~ ✅ **LIVRÉ le 2026-08-11.** Le registre s'affiche en
    ville et à la chute, la promesse du mémorial est dite, et la relance ramène dans une vraie
    expédition.
-2. **P9 lot 1 — l'ossature des thèmes.** Backend pur, sans asset, validé par `cmd/balance`.
+2. ~~**P9 lot 1 — l'ossature des thèmes.**~~ ✅ **LIVRÉ le 2026-08-11.** Trois thèmes tirés de la
+   graine, plancher de survie vérifié thème par thème (17-20 vagues à 4 joueurs, contre 17-20 pour la
+   carte de référence). Au passage, deux bugs que le sondage a mis au jour : **la neige n'existait
+   dans AUCUNE partie** (le lissage plafonne le relief au niveau 5, la neige exigeait le niveau 6),
+   donc la Tour gelée et le **Plan de la Caserne** qu'elle seule donne étaient inatteignables.
 3. **R3 — l'instrumentation.** Une table d'activité, puis J3/J7 par expédition. Sans elle, la suite
    de ce document reste une opinion.
 4. **P9 lots 2 et 3** — la peau puis le contenu, thème par thème.

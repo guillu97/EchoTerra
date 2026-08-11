@@ -6,6 +6,64 @@
 
 ---
 
+## 2026-08-11 (110) — Les expéditions thématiques : l'ossature (P9 lot 1)
+
+`RETENTION-PLAN.md` §8 mis en code. **Un thème est une PEAU et un BIAIS, jamais un jeu différent** :
+les six biomes gardent leurs identifiants ET leur rôle économique (3 = le bois, 4 = la pierre), le
+thème change ce qu'ils sont à l'écran et leurs proportions AUTOUR DE LA VILLE.
+
+**Ce qui est livré** (backend pur, aucun asset) :
+- `game/theme.go` : `ThemeDef`, catalogue de trois natures (**Tempéré** — le témoin, sans biais —
+  **Nordique**, **Désertique**), `PickTheme(seed)` (même graine, même thème ; mélange de la graine
+  pour que trois parties créées à la suite ne tombent pas sur le même), `GameState.ThemeID`,
+  `BiomeLabel` (« Taïga », « Palmeraie »). ⚠ le renommage est de la PRÉSENTATION : `Item.Name` et
+  `Ruin.Type` ne bougent JAMAIS (les recettes, `botShoppingList` et le modèle voxel les lisent).
+- `worldgen.applyThemeBias` : conversion vers le biome dominant avec une probabilité **décroissant
+  avec la distance au bourg** (portée = la moitié de la carte) — au loin la carte redevient
+  elle-même. Mesuré sur 60² : 168/289 tuiles de neige dans le rayon 8 en nordique, 176-189 de sable
+  en désertique, et le lointain inchangé à quelques tuiles près.
+- **Deux garde-fous, testés** : `ensureNearbyBiomes` passe APRÈS et l'emporte (bois et pierre à
+  portée quel que soit le thème), et aucun biome présent ne peut disparaître — sinon `SeedRuins`
+  saute un biome et le plan de spécialité qu'il porte disparaît de la partie.
+- Peau des ruines par thème (Pyramide ensablée, Sphinx enseveli, Drakkar échoué…), `GET /api/themes`,
+  `themeId` dans les résumés de salon, **colonne `theme` au classement**, et côté client le thème
+  s'affiche dans la liste des expéditions et sur les lignes du classement.
+- `balance.Config{Theme}` + `cmd/balance -themes` + **`TestEveryThemeHoldsTheFloor`** : le plancher
+  vaut pour CHAQUE thème, aux deux bouts de l'échelle (solo et grande expédition). Un thème se TIRE,
+  personne ne le choisit : un thème non simulé serait une punition au hasard. ⚠ le test vérifie aussi
+  `len(Snapshots)` — sans quoi il passait à vide si la partie ne démarrait pas.
+
+**Deux bugs que le sondage a mis au jour, tous deux préexistants.**
+
+1. **La NEIGE n'existait dans AUCUNE partie.** Les seuils du Studio donnent un biome par niveau de
+   hauteur et la neige exige le niveau 6 — or le lissage (`genMaxStep` 1) rabote les sommets et le
+   niveau 6 n'est jamais atteint. Mesuré sur 8 graines × 4 tailles : **zéro** tuile de neige, de 40²
+   à 134², niveau maximum réellement produit = 5. Conséquence : la **Tour gelée** ne naissait jamais,
+   et le **Plan de la Caserne**, qu'elle est SEULE à donner, était inatteignable — un bâtiment du
+   catalogue absent de toutes les parties, sans que rien n'échoue nulle part. Correctif à la source
+   (`snowCaps` + `ensureSnowCap`) : on coiffe les sommets isolés, et à défaut le point culminant du
+   gisement de montagne. La montagne passe de 16 à 13 tuiles sur 60² — sans effet sur l'économie, la
+   neige rendant de la Pierre comme elle.
+2. **`TestEnsureNearbyBiomes` confondait la ressource et l'un de ses gisements** : il exigeait une
+   MONTAGNE près de la ville, quand le code garantit une SOURCE DE PIERRE (montagne **ou** neige,
+   comptées ensemble). Il tombait dès qu'une carte nordique servait la même pierre sous la neige.
+   Réécrit, et **balayé sur les trois thèmes** : c'est exactement la garantie qu'un thème pourrait
+   casser.
+
+**Vérifié.** `go test ./...` (tout vert, dont les nouveaux `theme_test.go`, les trois tests de
+worldgen et le plancher par thème) · `npx tsc -b` · `npm run build` · `test:endgame` 8/8,
+`test:reconnect` 8/8, `test:perf` 13/13, `test:map-tap` 3/3 · en conditions réelles : six parties
+solo d'affilée tirent les trois thèmes, une partie d'AVANT les thèmes (sans `themeId`) continue de
+tourner en tempéré. Médianes de survie à 4 joueurs, 3 graines : tempéré 17·20·20, nordique 18·18·20+,
+désertique 17·18·19 — même bande, plancher (12) largement tenu.
+
+**À faire ensuite** : le lot 2 (la peau — palette voxel par thème, props, halle sommitale) ; à l'œil,
+la carte désertique se lit déjà, la nordique moins (la neige est pâle et les props restent ceux du
+monde tempéré). Puis les CONTRAINTES de §8 : la Soif enfin posée pour le désert, le froid et le
+brasier pour le nordique.
+
+---
+
 ## 2026-08-11 (109) — Le récit de fin de partie : ce qu'on emporte d'une ville tombée
 
 Suite directe de l'entrée 108 (R1+R2 du plan de rétention). Après sept à neuf jours réels de survie

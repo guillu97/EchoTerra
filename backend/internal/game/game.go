@@ -22,6 +22,27 @@ const (
 // Walkable reports whether a hero may stand on this biome on the global map.
 func (b Biome) Walkable() bool { return b != BiomeWater }
 
+// Label rend le nom ORDINAIRE du terrain. Un thème le rhabille (GameState.BiomeLabel
+// → « Taïga », « Dunes ») sans jamais toucher au biome lui-même : le renommage est de
+// la présentation, cf. theme.go.
+func (b Biome) Label() string {
+	switch b {
+	case BiomeWater:
+		return "Eau"
+	case BiomeSand:
+		return "Sable"
+	case BiomeGrass:
+		return "Prairie"
+	case BiomeForest:
+		return "Forêt"
+	case BiomeMountain:
+		return "Montagne"
+	case BiomeSnow:
+		return "Neige"
+	}
+	return "Terrain"
+}
+
 // Stats are the six physical competences from the GDD.
 type Stats struct {
 	Force      int `json:"force"`
@@ -158,16 +179,25 @@ type Monster struct {
 
 // GameState is the full persisted state of one game (one cooperative session).
 type GameState struct {
-	ID       string              `json:"id"`
-	Name     string              `json:"name,omitempty"` // lobby display name ("Partie de Guillaume")
-	Seed     int64               `json:"seed"`
-	Width    int                 `json:"width"`
-	Height   int                 `json:"height"`
-	Tiles    []Tile              `json:"tiles"` // row-major, length Width*Height
-	Heroes   []*Hero             `json:"heroes"`
-	Monsters map[string]*Monster `json:"monsters"`
-	Day      int                 `json:"day"`
-	Wave     int                 `json:"wave"`
+	ID   string `json:"id"`
+	Name string `json:"name,omitempty"` // lobby display name ("Partie de Guillaume")
+	Seed int64  `json:"seed"`
+	// ThemeID est la NATURE de cette expédition (theme.go) : le biome qui entoure la
+	// ville, les noms des terrains, la peau des ruines. Tiré de la graine au worldgen
+	// et jamais modifié ensuite. Vide = tempéré (parties d'avant les thèmes).
+	ThemeID string `json:"themeId,omitempty"`
+	// ThemeInfo est le catalogue de CE thème, posé par ClientView seulement (dérivé,
+	// jamais persisté) : le client n'a pas à tenir une copie du catalogue qui
+	// divergerait au premier ajout. (Le champ ne s'appelle pas `Theme` parce que
+	// l'accesseur de jeu, lui, s'appelle g.Theme().)
+	ThemeInfo *ThemeDef           `json:"theme,omitempty"`
+	Width     int                 `json:"width"`
+	Height    int                 `json:"height"`
+	Tiles     []Tile              `json:"tiles"` // row-major, length Width*Height
+	Heroes    []*Hero             `json:"heroes"`
+	Monsters  map[string]*Monster `json:"monsters"`
+	Day       int                 `json:"day"`
+	Wave      int                 `json:"wave"`
 	// Lobby / multiplayer (see lobby.go). A game is created in status "lobby" and only
 	// becomes "active" once the host launches it with at least MinPlayers players.
 	JoinCode   string `json:"joinCode,omitempty"`   // short shareable code to join the lobby

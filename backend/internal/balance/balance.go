@@ -30,6 +30,11 @@ type Config struct {
 	Height  int
 	Players int // bot players; each fields game.HeroesPerPlayer heroes
 	Waves   int // how many waves to simulate before stopping
+	// Theme force la NATURE de l'expédition (game.Themes) au lieu de la tirer de la
+	// graine. C'est la raison d'être de worldgen.WithTheme : un thème dont la
+	// contrainte n'a pas été simulée est une partie perdue d'avance pour ceux qui le
+	// tirent, donc le plancher de survie doit être vérifié THÈME PAR THÈME.
+	Theme string
 }
 
 func (c Config) withDefaults() Config {
@@ -93,6 +98,7 @@ type Snapshot struct {
 type Report struct {
 	Config    Config     `json:"config"`
 	TownName  string     `json:"townName"`
+	Theme     string     `json:"theme"` // thème RÉELLEMENT tiré (Config.Theme peut être vide)
 	Snapshots []Snapshot `json:"snapshots"`
 	GameOver  bool       `json:"gameOver"`
 	DiedAt    int        `json:"diedAt"` // wave number the town fell on (0 = survived)
@@ -130,7 +136,7 @@ func run(cfg Config) (*game.GameState, Report) {
 	// verdicts différents à la même question, ce qui a coûté deux faux positifs.
 	game.SeedRNG(cfg.Seed)
 
-	g := worldgen.NewLobby(cfg.Width, cfg.Height, cfg.Seed, "Simulation", 1, cfg.Players)
+	g := worldgen.NewLobby(cfg.Width, cfg.Height, cfg.Seed, "Simulation", 1, cfg.Players, worldgen.WithTheme(cfg.Theme))
 	now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
 
 	host, err := g.AddPlayer("Bot 1", now)
@@ -147,7 +153,7 @@ func run(cfg Config) (*game.GameState, Report) {
 		return g, Report{Config: cfg}
 	}
 
-	rep := Report{Config: cfg, TownName: g.Town.Name}
+	rep := Report{Config: cfg, TownName: g.Town.Name, Theme: g.ThemeID}
 	started := time.Now()
 	// Generous budget: nobody is waiting on this, and a truncated catch-up would
 	// silently change the very balance we are measuring.

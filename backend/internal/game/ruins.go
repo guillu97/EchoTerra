@@ -275,8 +275,22 @@ func (g *GameState) SeedRuins() {
 		}
 		i := cand[rng.Intn(len(cand))]
 		id := fmt.Sprintf("ruin-%s", def.Type)
+		// Le THÈME rhabille la ruine (« Pyramide ensablée » plutôt qu'« Épave
+		// ensablée ») — mais ni son TYPE, dont le client dérive son modèle voxel, ni
+		// sa table de butin, qui porte le plan d'une spécialité. Un thème rhabille,
+		// il ne redistribue pas : sinon un bâtiment deviendrait inatteignable selon
+		// le tirage (test TestEveryThemeGrantsEveryPlan).
+		name, icon := def.Name, def.Icon
+		if skin, ok := g.Theme().RuinNames[biome]; ok {
+			if skin.Name != "" {
+				name = skin.Name
+			}
+			if skin.Icon != "" {
+				icon = skin.Icon
+			}
+		}
 		g.Ruins[id] = &Ruin{
-			ID: id, Type: def.Type, Name: def.Name, Icon: def.Icon,
+			ID: id, Type: def.Type, Name: name, Icon: icon,
 			X: i % g.Width, Y: i / g.Width,
 			ClearPA: def.ClearPA, Charges: ruinCharges,
 		}

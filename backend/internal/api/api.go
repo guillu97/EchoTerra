@@ -188,6 +188,13 @@ func (s *Server) Router() http.Handler {
 		writeJSON(w, http.StatusOK, game.Classes)
 	})
 
+	// Catalogue des NATURES d'expédition (theme.go). Une partie porte déjà le sien
+	// dans son payload ; cette route sert la liste, pour l'écran des salons (« ❄️
+	// Nordique ») et le classement, où l'on parle de parties qu'on ne joue pas.
+	r.Get("/api/themes", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, game.Themes)
+	})
+
 	// Classement des villes. ?mode=solo|public|private restreint à un type de partie
 	// (les trois ne se comparent pas) ; sans mode, tout est classé ensemble.
 	//
@@ -417,6 +424,10 @@ type gameSummary struct {
 	// pour embarquer » au lieu d'afficher un salon qui n'en est plus un.
 	JoinOpen      bool `json:"joinOpen"`
 	JoinWavesLeft int  `json:"joinWavesLeft"`
+	// La NATURE de l'expédition (theme.go) : c'est ce qui distingue une expédition
+	// d'une autre dans la liste, donc ce qui donne envie d'en relancer une.
+	ThemeID string         `json:"themeId,omitempty"`
+	Theme   *game.ThemeDef `json:"theme,omitempty"`
 }
 
 // summarize omits the join code on purpose: private lobbies are joined by sharing
@@ -439,6 +450,7 @@ func summarize(gs *game.GameState) gameSummary {
 		Players: players, MinPlayers: gs.MinPlayers, MaxPlayers: gs.MaxPlayers,
 		Day: gs.Day, WaveNumber: gs.WaveNumber, CreatedAt: gs.CreatedAt,
 		JoinOpen: gs.JoinOpen(), JoinWavesLeft: left,
+		ThemeID: gs.ThemeID, Theme: gs.Theme(),
 	}
 }
 

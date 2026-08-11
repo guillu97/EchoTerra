@@ -6,6 +6,7 @@ package worldgen
 import (
 	"math"
 	"math/rand"
+	"sort"
 	"time"
 
 	"github.com/aquilax/go-perlin"
@@ -143,10 +144,14 @@ func GenerateTiles(width, height int, seed int64) ([]game.Tile, []float64) {
 		}
 	}
 	smoothLevels(levels, width, height)
+	snow := snowCaps(levels, width, height)
 
 	for i, lvl := range levels {
 		hm[i] = float64(lvl) / float64(genMaxHeight)
 		b := biomeFromLevel(lvl)
+		if snow[i] {
+			b = game.BiomeSnow
+		}
 		// Tile richness (number of successful searches) comes from the ⛰️ Terrains
 		// tab: plains/forest 3–6, mountain/snow 1–3, water none.
 		res := 0
@@ -156,6 +161,70 @@ func GenerateTiles(width, height int, seed int64) ([]game.Tile, []float64) {
 		tiles[i] = game.Tile{Biome: b, Height: lvl, Resources: res}
 	}
 	return tiles, hm
+}
+
+// snowCaps coiffe de NEIGE les sommets du relief.
+//
+// ⚠ LA NEIGE N'EXISTAIT PAS. Les seuils du Studio donnent un biome par niveau de
+// hauteur (0-1 eau, 2 sable, 3 prairie, 4 forêt, 5 montagne, 6 neige) — or le LISSAGE
+// (genMaxStep 1, qui interdit qu'un pic touche une plaine) rabote systématiquement les
+// sommets et le niveau 6 n'est JAMAIS atteint. Mesuré sur 8 graines et quatre tailles
+// de carte : **zéro** tuile de neige, de 40² à 134², niveau maximum réellement produit
+// = 5. Le biome, sa Tour gelée et le Plan de la Caserne qu'elle est SEULE à donner
+// étaient donc du code mort — un bâtiment du catalogue inatteignable dans toutes les
+// parties, sans que rien n'échoue nulle part.
+//
+// Le correctif garde le mécanisme de rareté intact (une spécialité par biome, cf.
+// ruins.go) : on ne baisse pas le seuil de la neige, qui volerait tout son terrain à
+// la montagne ; on coiffe les SOMMETS ISOLÉS — une tuile au niveau maximum dont les
+// quatre voisines orthogonales sont strictement plus basses. Ça donne une poignée de
+// tuiles (mesuré : 0,6 à 11 selon la taille), et la montagne garde l'essentiel de son
+// terrain. La neige rend de la pierre comme la montagne (Terrains), donc l'économie de
+// la ville ne bouge pas.
+//
+// ⚠ AU MOINS UNE : sur une petite carte les sommets isolés peuvent manquer, et la
+// Caserne redeviendrait introuvable. On coiffe alors la première tuile du niveau
+// maximum (ordre d'index = déterministe).
+func snowCaps(levels []int, width, height int) []bool {
+	snow := make([]bool, len(levels))
+	maxLvl := 0
+	for _, l := range levels {
+		if l > maxLvl {
+			maxLvl = l
+		}
+	}
+	if maxLvl < 5 {
+		return snow // relief trop mou pour porter des neiges éternelles
+	}
+	first, capped := -1, 0
+	for i, l := range levels {
+		if l != maxLvl {
+			continue
+		}
+		if first < 0 {
+			first = i
+		}
+		x, y := i%width, i/width
+		isolated := true
+		for _, d := range [][2]int{{1, 0}, {-1, 0}, {0, 1}, {0, -1}} {
+			nx, ny := x+d[0], y+d[1]
+			if nx < 0 || ny < 0 || nx >= width || ny >= height {
+				continue // le bord de carte ne compte pas comme un voisin plus haut
+			}
+			if levels[ny*width+nx] >= l {
+				isolated = false
+				break
+			}
+		}
+		if isolated {
+			snow[i] = true
+			capped++
+		}
+	}
+	if capped == 0 && first >= 0 {
+		snow[first] = true
+	}
+	return snow
 }
 
 // findTown returns the walkable (grass-preferred) tile closest to the map center.
@@ -325,9 +394,185 @@ func absW(v int) int {
 	return v
 }
 
+// ensureSnowCap garantit qu'il reste au moins une tuile de NEIGE sur la carte, même
+// quand le relief n'a produit aucun vrai sommet.
+//
+// snowCaps ne coiffe que les sommets du niveau maximum, et une carte molle n'en a pas :
+// mesuré sur 40², les graines 4 et 6 plafonnent au niveau 4 (aucune montagne naturelle,
+// c'est ensureNearbyBiomes qui creuse le gisement). Sans neige, pas de Tour gelée, donc
+// pas de Plan de la Caserne — le bâtiment redevient inatteignable, ce que ce correctif
+// entend justement supprimer. On coiffe donc le point culminant du gisement de
+// montagne, ce qui garde la neige ACCROCHÉE à la roche au lieu de la poser au hasard.
+//
+// Déterministe (balayage en ordre de tuile) et ne coûte qu'UNE tuile, prise le plus
+// loin possible du bourg — la ruine qu'elle porte doit rester un voyage (SeedRuins
+// exige Chebyshev ≥ 3).
+func ensureSnowCap(gs *game.GameState) {
+	best := -1
+	bestScore := -1
+	for i, t := range gs.Tiles {
+		if t.Biome == game.BiomeSnow {
+			return // la carte a déjà ses neiges
+		}
+		if t.Biome != game.BiomeMountain {
+			continue
+		}
+		x, y := i%gs.Width, i/gs.Width
+		d := absW(x-gs.Town.X) + absW(y-gs.Town.Y)
+		if maxW(absW(x-gs.Town.X), absW(y-gs.Town.Y)) < 3 {
+			continue
+		}
+		if score := t.Height*1000 + d; score > bestScore {
+			best, bestScore = i, score
+		}
+	}
+	if best < 0 {
+		return
+	}
+	gs.Tiles[best].Biome = game.BiomeSnow
+	if td, ok := game.Terrains[game.BiomeSnow]; ok && td.ResourcesMax > 0 {
+		// Richesse déterministe : la moyenne du biome, pas un tirage — cette tuile est
+		// posée par une garantie, pas par le hasard du monde.
+		gs.Tiles[best].Resources = (td.ResourcesMin + td.ResourcesMax) / 2
+	}
+}
+
+func maxW(a, b int) int {
+	if b > a {
+		return b
+	}
+	return a
+}
+
+// --- thèmes d'expédition ------------------------------------------------------------
+//
+// « Dominant » ne veut PAS dire « monochrome » : le thème décide du biome qui entoure
+// la VILLE, pas du monde entier. Le biais décroît avec la distance au bourg, si bien
+// qu'au loin la carte redevient elle-même — avec ses montagnes, ses forêts et ses lacs.
+// C'est voulu : la variété devient lointaine, donc elle se mérite (« il faut descendre
+// au sud pour trouver du sable, donc l'épave, donc le Plan du Cartographe »), et le
+// thème devient un moteur d'exploration.
+//
+// ⚠ DEUX GARDE-FOUS, et ils ne sont pas négociables :
+//  1. la GARANTIE DE GISEMENT l'emporte sur le thème — applyThemeBias tourne AVANT
+//     ensureNearbyBiomes, qui creuse ensuite ses quotas de forêt et de montagne comme
+//     si de rien n'était. Une carte nordique, c'est de la neige à perte de vue PLUS un
+//     bosquet et une carrière garantis. Sans ça on rejoue la famine déjà mesurée deux
+//     fois (banque à zéro bois, aucun chantier, défaite arithmétique) ;
+//  2. aucun biome PRÉSENT ne peut disparaître (keepBiomesAlive) : SeedRuins pose une
+//     ruine par biome présent et chaque ruine porte le plan d'une spécialité — noyer
+//     un biome sous le sable ferait disparaître un bâtiment de la partie.
+const (
+	themeMinKeep = 8 // tuiles minimum conservées par biome que la carte possédait déjà
+)
+
+// applyThemeBias convertit une partie des tuiles vers le biome dominant du thème, avec
+// une probabilité maximale au centre et nulle au bord du rayon. L'EAU n'est jamais
+// convertie (elle porte les côtes, la cascade et la praticabilité que le reste du
+// générateur suppose).
+func applyThemeBias(gs *game.GameState, th *game.ThemeDef) {
+	if th == nil || th.Bias <= 0 {
+		return
+	}
+	w, h := gs.Width, gs.Height
+	radius := float64(w)
+	if float64(h) > radius {
+		radius = float64(h)
+	}
+	radius /= 2 // la moitié de la carte : au-delà, le monde est à lui-même
+	if radius <= 0 {
+		return
+	}
+	rng := rand.New(rand.NewSource(gs.Seed ^ 0x5468656d)) // "Them"
+	res := func(b game.Biome) int {
+		if td, ok := game.Terrains[b]; ok && td.ResourcesMax > 0 {
+			return td.ResourcesMin + rng.Intn(td.ResourcesMax-td.ResourcesMin+1)
+		}
+		return 0
+	}
+	before := map[game.Biome]int{}
+	for _, t := range gs.Tiles {
+		before[t.Biome]++
+	}
+	// converted garde ce qu'on a transformé, DU PLUS PROCHE AU PLUS LOIN de la ville :
+	// keepBiomesAlive rendra les plus lointaines en premier, pour que le cœur du thème
+	// reste pur.
+	type conv struct {
+		idx  int
+		from game.Biome
+		dist float64
+	}
+	var converted []conv
+	for i := range gs.Tiles {
+		t := &gs.Tiles[i]
+		if t.Biome == game.BiomeWater || t.Biome == th.Dominant {
+			continue
+		}
+		x, y := i%w, i/w
+		d := math.Hypot(float64(x-gs.Town.X), float64(y-gs.Town.Y))
+		p := th.Bias * (1 - d/radius)
+		if p <= 0 || rng.Float64() >= p {
+			continue
+		}
+		converted = append(converted, conv{i, t.Biome, d})
+		t.Biome = th.Dominant
+		t.Resources = res(th.Dominant)
+	}
+	sort.Slice(converted, func(i, j int) bool { return converted[i].dist < converted[j].dist })
+	// Garde-fou 2 : rendre ce qu'il faut pour qu'aucun biome ne disparaisse.
+	after := map[game.Biome]int{}
+	for _, t := range gs.Tiles {
+		after[t.Biome]++
+	}
+	for b, n := range before {
+		if b == game.BiomeWater || b == th.Dominant || n == 0 {
+			continue
+		}
+		want := themeMinKeep
+		if n < want {
+			want = n // un biome déjà rare le reste : on ne fabrique pas ce qui n'était pas là
+		}
+		for i := len(converted) - 1; i >= 0 && after[b] < want; i-- {
+			c := converted[i]
+			if c.from != b {
+				continue
+			}
+			gs.Tiles[c.idx].Biome = b
+			gs.Tiles[c.idx].Resources = res(b)
+			after[b]++
+			after[th.Dominant]--
+		}
+	}
+}
+
+// Option paramètre la génération d'un monde. Une seule aujourd'hui — le THÈME — et
+// elle existe pour que la simulation d'équilibrage puisse balayer les thèmes un par un
+// (`cmd/balance -theme nordique`) : en jeu, le thème se tire de la graine et ne se
+// choisit pas.
+type Option func(*genOpts)
+
+type genOpts struct{ theme *game.ThemeDef }
+
+// WithTheme impose le thème au lieu de le tirer de la graine (outillage, tests).
+func WithTheme(id string) Option {
+	return func(o *genOpts) {
+		if id != "" {
+			o.theme = game.ThemeByID(id)
+		}
+	}
+}
+
+func resolveOpts(seed int64, opts []Option) genOpts {
+	o := genOpts{theme: game.PickTheme(seed)}
+	for _, f := range opts {
+		f(&o)
+	}
+	return o
+}
+
 // newWorld builds the shared skeleton of a game: generated world, town at the center
 // plain, default buildings, seeded monsters — but no heroes, players, or status yet.
-func newWorld(width, height int, seed int64) *game.GameState {
+func newWorld(width, height int, seed int64, theme *game.ThemeDef) *game.GameState {
 	// (Pas de rand.Seed : c'est un no-op depuis Go 1.24. Chaque étape qui tire au sort
 	// reçoit un générateur semé par la graine — c'est ce qui rend enfin vraie la
 	// promesse « même graine, même monde ».)
@@ -348,10 +593,15 @@ func newWorld(width, height int, seed int64) *game.GameState {
 	}
 	gs.Town.Name = game.NewTownName()
 	gs.Town.X, gs.Town.Y = tx, ty
-	// Accès aux biomes : garantit une forêt (bois) et une montagne (pierre)
-	// atteignables près de la ville — sinon les matériaux de base sont hors de
-	// portée et on ne peut jamais amorcer la construction.
+	// La NATURE de l'expédition (theme.go), tirée de la graine. Le biais habille les
+	// abords de la ville de son biome dominant…
+	gs.ThemeID = theme.ID
+	applyThemeBias(gs, theme)
+	// …puis la garantie passe APRÈS et l'emporte : quel que soit le thème, la ville
+	// doit trouver du bois et de la pierre à portée de héros, sinon les matériaux de
+	// base sont hors d'atteinte et on ne peut jamais amorcer la construction.
 	ensureNearbyBiomes(gs)
+	ensureSnowCap(gs)
 	gs.Town.HP, gs.Town.MaxHP = 100, 100
 	gs.Town.Buildings = game.DefaultBuildings()
 	gs.Town.Storage = []game.Item{}
@@ -368,7 +618,7 @@ func newWorld(width, height int, seed int64) *game.GameState {
 // NewLobby builds a game in "lobby" status: the world exists but no hero is spawned
 // and no wave is scheduled — players join (AddPlayer) then the host launches it
 // (StartGame) once at least minPlayers have joined.
-func NewLobby(width, height int, seed int64, name string, minPlayers, maxPlayers int) *game.GameState {
+func NewLobby(width, height int, seed int64, name string, minPlayers, maxPlayers int, opts ...Option) *game.GameState {
 	if maxPlayers < 1 {
 		maxPlayers = 4
 	}
@@ -388,7 +638,7 @@ func NewLobby(width, height int, seed int64, name string, minPlayers, maxPlayers
 		width = SizeForPlayers(maxPlayers)
 		height = width
 	}
-	gs := newWorld(width, height, seed)
+	gs := newWorld(width, height, seed, resolveOpts(seed, opts).theme)
 	gs.Name = name
 	gs.Status = game.StatusLobby
 	gs.JoinCode = game.NewJoinCode()
@@ -401,8 +651,8 @@ func NewLobby(width, height int, seed int64, name string, minPlayers, maxPlayers
 // NewGame builds a fresh, ready-to-play solo GameState: generated world, town at the
 // center plain, three heroes spawned on the town, and a few monsters seeded nearby.
 // (Legacy/dev path — the multiplayer flow goes through NewLobby.)
-func NewGame(width, height int, seed int64) *game.GameState {
-	gs := newWorld(width, height, seed)
+func NewGame(width, height int, seed int64, opts ...Option) *game.GameState {
+	gs := newWorld(width, height, seed, resolveOpts(seed, opts).theme)
 	gs.MinPlayers, gs.MaxPlayers = 1, 3
 	gs.Status = "active"
 	gs.StartedAt = time.Now()

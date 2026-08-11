@@ -74,6 +74,13 @@ func Open(dsn string) (*Store, error) {
 	if _, err := db.Exec(`ALTER TABLE leaderboard ADD COLUMN season TEXT NOT NULL DEFAULT ''`); err != nil && !alreadyExists(err) {
 		return nil, fmt.Errorf("migrate leaderboard season: %w", err)
 	}
+	// Thème d'expédition (theme.go) : deux villes de natures différentes ne se lisent
+	// pas de la même façon, donc le tableau doit dire laquelle est laquelle. Les
+	// lignes d'avant portent '' — elles sont tempérées par construction, mais on ne le
+	// DEVINE pas : on les laisse sans thème.
+	if _, err := db.Exec(`ALTER TABLE leaderboard ADD COLUMN theme TEXT NOT NULL DEFAULT ''`); err != nil && !alreadyExists(err) {
+		return nil, fmt.Errorf("migrate leaderboard theme: %w", err)
+	}
 	if err := s.migrateAuth(); err != nil {
 		return nil, err
 	}
@@ -94,6 +101,7 @@ type ScoreEntry struct {
 	GameName       string    `json:"gameName"`
 	Mode           string    `json:"mode"`   // "solo" | "public" | "private"
 	Season         string    `json:"season"` // "2026-08" ; "" = ligne d'avant les saisons
+	Theme          string    `json:"theme"`  // nature de l'expédition ; "" = ligne d'avant les thèmes
 	Players        []string  `json:"players"`
 	Days           int       `json:"days"`
 	Waves          int       `json:"waves"`
@@ -124,14 +132,14 @@ func (s *Store) saveScore(gs *game.GameState) error {
 		gameOver = 1
 	}
 	_, err = s.db.Exec(s.rebind(`INSERT INTO leaderboard
-		(game_id, town_name, game_name, mode, season, players, days, waves, monsters_killed, game_over, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		(game_id, town_name, game_name, mode, season, theme, players, days, waves, monsters_killed, game_over, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(game_id) DO UPDATE SET
 			town_name=excluded.town_name, game_name=excluded.game_name, mode=excluded.mode,
-			season=excluded.season, players=excluded.players, days=excluded.days,
+			season=excluded.season, theme=excluded.theme, players=excluded.players, days=excluded.days,
 			waves=excluded.waves, monsters_killed=excluded.monsters_killed,
 			game_over=excluded.game_over, updated_at=excluded.updated_at`),
-		gs.ID, gs.Town.Name, gs.Name, gs.LeaderboardMode(), gs.Season(), string(blob),
+		gs.ID, gs.Town.Name, gs.Name, gs.LeaderboardMode(), gs.Season(), gs.ThemeID, string(blob),
 		gs.Day, gs.WaveNumber, gs.MonstersKilled, gameOver, time.Now().Unix())
 	return err
 }
@@ -145,7 +153,7 @@ func (s *Store) FallenTowns(limit int) ([]ScoreEntry, error) {
 	if limit <= 0 {
 		limit = 10
 	}
-	rows, err := s.db.Query(s.rebind(`SELECT game_id, town_name, game_name, mode, season, players,
+	rows, err := s.db.Query(s.rebind(`SELECT game_id, town_name, game_name, mode, season, theme, players,
 		days, waves, monsters_killed, game_over, updated_at
 		FROM leaderboard WHERE game_over = 1 ORDER BY updated_at DESC LIMIT ?`), limit)
 	if err != nil {
@@ -168,7 +176,7 @@ func (s *Store) Leaderboard(mode, season string, limit int) ([]ScoreEntry, error
 	if limit <= 0 {
 		limit = 50
 	}
-	query := `SELECT game_id, town_name, game_name, mode, season, players,
+	query := `SELECT game_id, town_name, game_name, mode, season, theme, players,
 		days, waves, monsters_killed, game_over, updated_at
 		FROM leaderboard`
 	where, args := []string{}, []any{}
@@ -207,7 +215,7 @@ func scanScores(rows *sql.Rows) ([]ScoreEntry, error) {
 		var players string
 		var gameOver int
 		var updated int64
-		if err := rows.Scan(&e.GameID, &e.TownName, &e.GameName, &e.Mode, &e.Season, &players,
+		if err := rows.Scan(&e.GameID, &e.TownName, &e.GameName, &e.Mode, &e.Season, &e.Theme, &players,
 			&e.Days, &e.Waves, &e.MonstersKilled, &gameOver, &updated); err != nil {
 			return nil, err
 		}

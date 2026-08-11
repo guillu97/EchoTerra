@@ -9,6 +9,13 @@ const MEDALS = ["🥇", "🥈", "🥉"];
 // Les onglets du classement. Les trois natures de partie ne se comparent pas (un
 // run solo avec 4 bots ne joue pas comme une expédition publique à quatre humains),
 // donc chaque onglet interroge le serveur avec son ?mode= ; "" = tout confondu.
+// Les natures d'expédition (backend theme.go), pour le badge de ligne. Le tempéré n'a
+// pas de badge : c'est la carte ordinaire, et l'annoncer n'apprendrait rien.
+const THEME_BADGE: Record<string, string> = {
+  nordique: "❄️ Nordique",
+  desertique: "🏜️ Désertique",
+};
+
 const TABS: { mode: LeaderboardMode | ""; label: string; icon: string; hint: string }[] = [
   { mode: "", label: "Toutes", icon: "🏆", hint: "Toutes les villes, tous types de partie confondus." },
   { mode: "solo", label: "Solo", icon: "⚔️", hint: "Villes des parties solo (un joueur et ses bots)." },
@@ -145,6 +152,11 @@ export function LeaderboardScreen() {
                       </span>
                       {/* Le badge de mode n'a de sens que dans l'onglet « Toutes ». */}
                       {tab === "" && <span className="lb-mode">{MODE_BADGE[e.mode]}</span>}
+                      {/* La NATURE de la carte : deux villes de thèmes différents
+                          n'ont pas affronté le même monde, le tableau doit le dire. */}
+                      {e.theme && e.theme !== "tempere" && (
+                        <span className="lb-mode">{THEME_BADGE[e.theme] ?? e.theme}</span>
+                      )}
                       {e.players.length > 0 && (
                         <span className="lb-players">👥 {e.players.join(", ")}</span>
                       )}

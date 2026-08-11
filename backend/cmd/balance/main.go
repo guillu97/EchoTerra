@@ -18,6 +18,7 @@ import (
 	"sort"
 
 	"echoterra/internal/balance"
+	"echoterra/internal/game"
 )
 
 func main() {
@@ -29,34 +30,51 @@ func main() {
 	detail := flag.Bool("detail", false, "afficher la courbe vague par vague de chaque partie")
 	sweep := flag.Bool("sweep", false, "balayer 1→6 joueurs-IA au lieu d'une seule config")
 	asJSON := flag.Bool("json", false, "sortie JSON (rapports complets)")
+	theme := flag.String("theme", "", "forcer le thème (tempere|nordique|desertique ; vide = tiré de la graine)")
+	themeSweep := flag.Bool("themes", false, "balayer TOUS les thèmes au lieu d'un seul")
 	flag.Parse()
 
 	configs := []int{*players}
 	if *sweep {
 		configs = []int{1, 2, 4, 8, 12, 20}
 	}
+	// Les THÈMES se balaient comme les effectifs : un thème est livrable quand son
+	// plancher de survie tient, pas quand sa carte est jolie (RETENTION-PLAN.md §8).
+	themes := []string{*theme}
+	if *themeSweep {
+		themes = nil
+		for _, t := range game.Themes {
+			themes = append(themes, t.ID)
+		}
+	}
 
 	var all []balance.Report
-	for _, p := range configs {
-		var reports []balance.Report
-		for i := 0; i < *seeds; i++ {
-			reports = append(reports, balance.Run(balance.Config{
-				Seed: *seed0 + int64(i), Width: *size, Height: *size, Players: p, Waves: *waves,
-			}))
-		}
-		all = append(all, reports...)
-		if *asJSON {
-			continue
-		}
-		fmt.Printf("\n\033[1m=== %d joueur(s)-IA · %d héros · %d graines · %d vagues visées ===\033[0m\n",
-			p, p*3, *seeds, *waves)
-		for _, r := range reports {
-			fmt.Printf("  seed %-4d %s\n", r.Config.Seed, r.Verdict())
-			if *detail {
-				fmt.Print(r.Table())
+	for _, th := range themes {
+		for _, p := range configs {
+			var reports []balance.Report
+			for i := 0; i < *seeds; i++ {
+				reports = append(reports, balance.Run(balance.Config{
+					Seed: *seed0 + int64(i), Width: *size, Height: *size, Players: p, Waves: *waves, Theme: th,
+				}))
 			}
+			all = append(all, reports...)
+			if *asJSON {
+				continue
+			}
+			label := th
+			if label == "" {
+				label = "tiré de la graine"
+			}
+			fmt.Printf("\n\033[1m=== %s · %d joueur(s)-IA · %d héros · %d graines · %d vagues visées ===\033[0m\n",
+				label, p, p*3, *seeds, *waves)
+			for _, r := range reports {
+				fmt.Printf("  seed %-4d [%s] %s\n", r.Config.Seed, r.Theme, r.Verdict())
+				if *detail {
+					fmt.Print(r.Table())
+				}
+			}
+			fmt.Print(summary(reports, *waves))
 		}
-		fmt.Print(summary(reports, *waves))
 	}
 
 	if *asJSON {

@@ -416,6 +416,21 @@ export interface GameSummary {
   // une partie déjà en cours — un salon vaut 0 parce qu'il n'a pas encore commencé.
   joinOpen: boolean;
   joinWavesLeft: number;
+  // La NATURE de l'expédition (backend theme.go) : c'est ce qui distingue une carte
+  // d'une autre. Absent sur une partie d'avant les thèmes.
+  themeId?: string;
+  theme?: Theme;
+}
+
+// Une NATURE d'expédition. Un thème est une PEAU et un BIAIS : il décide du biome qui
+// entoure la ville et du nom des terrains, jamais des règles (voir backend theme.go).
+export interface Theme {
+  id: string;
+  name: string;
+  emoji: string;
+  tagline: string;
+  dominant: number; // biome dominant autour de la ville
+  biomeNames?: Record<string, string>;
 }
 
 // Nature d'une partie au classement : les trois ne se comparent pas (un run solo
@@ -436,6 +451,7 @@ export interface ScoreEntry {
   gameOver: boolean;
   updatedAt: string;
   season: string; // "" pour les villes d'avant les saisons (hors concours)
+  theme: string; // nature de l'expédition ; "" pour les villes d'avant les thèmes
 }
 
 export interface GameState {
@@ -458,6 +474,8 @@ export interface GameState {
   catchUp?: boolean;
   status: "lobby" | "active" | "gameover";
   joinCode?: string;
+  themeId?: string; // nature de l'expédition (theme.go) ; absent = tempéré
+  theme?: Theme; // catalogue du thème, posé par ClientView — rien à charger côté client
   visibility?: "private" | "public"; // absent/"private" = player-created; "public" = server-created, auto-starts
   solo?: boolean; // partie solo (1 humain + bots) — classée à part au leaderboard
   minPlayers: number;

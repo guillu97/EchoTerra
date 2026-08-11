@@ -36,6 +36,46 @@ func TestTownSurvivesTheFirstWaves(t *testing.T) {
 	}
 }
 
+// TestEveryThemeHoldsTheFloor : le plancher vaut pour CHAQUE thème, pas seulement pour
+// la carte tempérée.
+//
+// C'est le garde-fou qui rend les expéditions thématiques livrables (RETENTION-PLAN.md
+// §8). Un thème déplace les biomes autour de la ville — donc les gisements, donc les
+// espèces qui apparaissent, donc l'économie entière de la partie. Un thème dont on n'a
+// pas mesuré la survie est une partie perdue d'avance pour ceux qui le tirent, et comme
+// le thème se TIRE (personne ne le choisit), ce serait une punition au hasard.
+//
+// On balaie les deux extrémités de l'échelle (solo et grande expédition) : c'est là que
+// les défauts d'économie se voient, le milieu étant toujours le cas le plus confortable.
+func TestEveryThemeHoldsTheFloor(t *testing.T) {
+	if testing.Short() {
+		t.Skip("simulation complète — ignorée en -short")
+	}
+	for _, theme := range []string{"tempere", "nordique", "desertique"} {
+		for _, players := range []int{1, 8} {
+			for _, seed := range []int64{5, 6} {
+				rep := Run(Config{Seed: seed, Players: players, Waves: SurvivalFloor, Theme: theme})
+				if rep.Theme != theme {
+					t.Fatalf("thème %s demandé, %s obtenu — worldgen.WithTheme ne prend pas", theme, rep.Theme)
+				}
+				// ⚠ SANS CETTE LIGNE LE TEST PASSE À VIDE : run() rend un rapport
+				// vierge quand la partie n'a pas pu démarrer (GameOver faux, zéro
+				// instantané), et « la ville n'est pas tombée » serait vrai d'une
+				// partie qui n'a jamais eu lieu.
+				if len(rep.Snapshots) < SurvivalFloor {
+					t.Errorf("thème %s, %d joueur(s), seed %d : %d vagues simulées sur %d",
+						theme, players, seed, len(rep.Snapshots), SurvivalFloor)
+					continue
+				}
+				if rep.GameOver {
+					t.Errorf("thème %s, %d joueur(s), seed %d : %s", theme, players, seed, rep.Verdict())
+					t.Logf("%s", rep.Table())
+				}
+			}
+		}
+	}
+}
+
 // TestBigExpeditionsGoFurther: vingt joueurs doivent aller PLUS LOIN qu'un seul.
 //
 // Ça n'a rien d'automatique — c'est même l'inverse qui était vrai. Le plafond de
