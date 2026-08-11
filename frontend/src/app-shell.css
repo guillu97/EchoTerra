@@ -4260,3 +4260,246 @@ body {
   flex-wrap: wrap;
   gap: var(--s-2);
 }
+
+/* ===== BARRE D'ACTION DU COMBAT (components/CombatControls.tsx) =============
+   Trois rangs : qui joue / quoi faire / sur qui. Elle remplace la pile de
+   `.line` où toutes les actions avaient le même poids visuel.
+
+   La palette reste celle de l'arène (verre nuit) et NON le parchemin des barres
+   de carte : le combat est une scène à part, et l'œil doit rester sur la grille.
+   Les seules couleurs franches marquent ce qui coûte quelque chose — rouge pour
+   frapper, doré pour l'arme, ⏻ pour « ça termine le tour ». */
+.cbt-bar {
+  background: var(--glass-2);
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  color: #fff;
+  padding: var(--s-2) var(--s-2) calc(var(--s-2) + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+/* Rang 1 — qui joue, avec quoi. */
+.cbt-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  flex-wrap: wrap;
+  font-size: var(--t-xs);
+}
+.cbt-round {
+  color: #9fb2c9;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.cbt-who {
+  font-weight: 700;
+  font-size: var(--t-sm);
+}
+.cbt-who.mine {
+  color: #ffe066;
+}
+/* Barre de PV du combattant actif : le fond porte le texte, le fill est dessous. */
+.cbt-hp {
+  position: relative;
+  min-width: 88px;
+  height: 16px;
+  border-radius: var(--r-pill);
+  background: rgba(0, 0, 0, 0.42);
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.cbt-hp i {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: linear-gradient(180deg, #6fd47f, #37a04f);
+}
+.cbt-hp b {
+  position: relative;
+  font-size: 11px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.75);
+}
+/* L'ARME AU POING — le renseignement que la barre n'affichait nulle part. */
+.cbt-weapon {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px var(--s-2);
+  border-radius: var(--r-pill);
+  background: rgba(255, 214, 102, 0.14);
+  border: 1px solid rgba(255, 214, 102, 0.4);
+  color: #ffe9ad;
+}
+.cbt-reach {
+  font-style: normal;
+  font-size: 10px;
+  opacity: 0.85;
+}
+.cbt-timer {
+  margin-left: auto;
+  color: #ffd166;
+  font-weight: 700;
+}
+.cbt-timer.urgent {
+  color: #ff6b5e;
+}
+.cbt-hint {
+  font-size: var(--t-xs);
+  color: #9fb2c9;
+}
+.cbt-hint.warn {
+  color: #ffb454;
+}
+
+/* Rang 2 — les actions. Icône au-dessus, libellé dessous : au doigt on vise
+   l'icône, à l'œil on lit le mot. Défilement horizontal plutôt qu'un retour à
+   la ligne qui ferait grandir la barre et manger l'arène. */
+.cbt-actions {
+  display: flex;
+  gap: var(--s-1);
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+}
+.cbt-actions::-webkit-scrollbar {
+  display: none;
+}
+.cbt-act {
+  position: relative;
+  flex: 0 0 auto;
+  min-width: 62px;
+  min-height: var(--tap);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  padding: 4px 6px;
+  font-size: 17px;
+  line-height: 1.1;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: var(--r-md);
+  cursor: pointer;
+}
+.cbt-act span {
+  font-size: 10px;
+  opacity: 0.9;
+  white-space: nowrap;
+}
+.cbt-act:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.cbt-act.on {
+  border-color: #ffe066;
+  background: rgba(255, 224, 102, 0.2);
+  box-shadow: 0 0 0 1px rgba(255, 224, 102, 0.35) inset;
+}
+.cbt-act.atk.on {
+  border-color: #ff8a7a;
+  background: rgba(224, 82, 63, 0.3);
+  box-shadow: none;
+}
+/* Compétence de CLASSE (violet) vs technique d'ARME (doré) — deux origines,
+   deux accents, même liste et même indexation côté serveur. */
+.cbt-act.skill {
+  border-color: rgba(178, 138, 255, 0.45);
+}
+.cbt-act.wpn {
+  border-color: rgba(255, 214, 102, 0.55);
+  background: rgba(255, 214, 102, 0.1);
+}
+.cbt-act.end {
+  margin-left: auto;
+}
+/* ⏻ = cette action termine le tour. */
+.cbt-end {
+  position: absolute;
+  top: 2px;
+  right: 4px;
+  font-style: normal;
+  font-size: 9px;
+  opacity: 0.65;
+}
+.cbt-n {
+  position: absolute;
+  top: 2px;
+  right: 4px;
+  font-style: normal;
+  font-size: 9px;
+  padding: 0 4px;
+  border-radius: var(--r-pill);
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Tiroirs objets / armes. */
+.cbt-drawer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-1);
+}
+.cbt-drawer-note {
+  width: 100%;
+  font-size: var(--t-xs);
+  color: #9fb2c9;
+}
+.cbt-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 4px var(--s-2);
+  font-size: var(--t-xs);
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+.cbt-pick .heal {
+  font-style: normal;
+  color: #9fe3b0;
+}
+.cbt-pick .tech {
+  font-style: normal;
+  color: #ffe9ad;
+}
+
+/* Rang 3 — les cibles. La fourchette vient du SERVEUR ; « ☠️ » signale un coup
+   dont le MINIMUM annoncé suffit déjà à tuer. */
+.cbt-targets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-1);
+}
+.cbt-target {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 4px var(--s-2);
+  font-size: var(--t-xs);
+  color: #fff;
+  background: linear-gradient(180deg, #e0523f, var(--red-2));
+  border: none;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+.cbt-target:disabled {
+  opacity: 0.45;
+}
+.cbt-target em {
+  font-style: normal;
+  opacity: 0.8;
+  font-size: 11px;
+}
+.cbt-target.lethal {
+  background: linear-gradient(180deg, #d1a11a, #9c6f06);
+  color: #fff8e0;
+}

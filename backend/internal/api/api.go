@@ -1572,9 +1572,12 @@ func (s *Server) combatAction(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	var err error
-	if body.Action == "item" {
+	switch {
+	case body.Action == "item":
 		err = c.UseItem(gs, body.UnitID, body.Item) // touche le sac du héros → besoin de gs
-	} else {
+	case body.Action == "swap":
+		err = c.SwapWeapon(gs, body.UnitID, body.Item) // idem : l'arme sort du sac
+	default:
 		err = c.PlayerAction(body.UnitID, body.Action, body.X, body.Y, body.TargetID, body.SkillIdx)
 	}
 	if err != nil {
@@ -1637,6 +1640,13 @@ func combatResponse(gs *game.GameState, c *game.Combat) map[string]any {
 			// Liste COMPLÈTE des compétences iso du héros (une par bouton) — chacune
 			// avec ses cibles et fourchettes prêtes à afficher.
 			isoSkills := c.HeroSkills(cur)
+			// La TECHNIQUE D'ARME ferme la liste (game.HeroSkills) : le client la
+			// distingue par ce drapeau pour la présenter avec l'arme et non avec la
+			// classe — même liste, même indexation, deux origines.
+			techIdx := -1
+			if _, ok := game.WeaponTechniqueOf(cur.WeaponName); ok {
+				techIdx = len(isoSkills) - 1
+			}
 			skills := make([]map[string]any, 0, len(isoSkills))
 			for i := range isoSkills {
 				s := isoSkills[i]
@@ -1647,6 +1657,7 @@ func combatResponse(gs *game.GameState, c *game.Combat) map[string]any {
 					"targets":   idsOf(tgts),
 					"estimates": estimatesOf(c, cur, &s, tgts),
 					"selfCast":  s.SelfShield || s.BuffAllies,
+					"weapon":    i == techIdx,
 				})
 			}
 			resp["current"] = map[string]any{
@@ -1663,6 +1674,9 @@ func combatResponse(gs *game.GameState, c *game.Combat) map[string]any {
 				// Lot C3 : cibles de Poussée + objets du sac utilisables en combat.
 				"pushTargets": idsOf(c.PushTargets(cur)),
 				"items":       usableItemsOf(gs, cur),
+				// Les ARMES du sac qu'on peut dégainer à la place de celle qu'on tient
+				// (coûte l'action du tour — voir game.SwapWeapon).
+				"swaps": swappableWeaponsOf(gs, cur),
 			}
 		}
 		// Télégraphie (lot C2) : cases menacées par chaque ennemi vivant depuis sa
@@ -1697,6 +1711,31 @@ func usableItemsOf(gs *game.GameState, cur *game.CombatUnit) []map[string]any {
 	return out
 }
 
+// swappableWeaponsOf lists the weapons in the acting hero's bag — those it could
+// draw INSTEAD of the one in hand, at the cost of its action (game.SwapWeapon).
+func swappableWeaponsOf(gs *game.GameState, cur *game.CombatUnit) []map[string]any {
+	out := []map[string]any{}
+	h := gs.HeroByID(cur.RefID)
+	if h == nil {
+		return out
+	}
+	for _, it := range h.Inventory {
+		if it.Qty <= 0 || it.Name == cur.WeaponName {
+			continue
+		}
+		def, ok := game.EquipableItem(it.Name)
+		if !ok || def.Slot != game.SlotWeapon {
+			continue
+		}
+		e := map[string]any{"name": it.Name, "kind": def.Weapon, "desc": def.Desc}
+		if tech, ok := game.WeaponTechniqueOf(it.Name); ok {
+			e["technique"] = tech.Name
+		}
+		out = append(out, e)
+	}
+	return out
+}
+
 // estimatesOf maps target unit id -> {min,max} predicted damage of atk.
 func estimatesOf(c *game.Combat, att *game.CombatUnit, atk *game.AttackDef, targets []*game.CombatUnit) map[string]map[string]int {
 	out := map[string]map[string]int{}
@@ -1707,7 +1746,7 @@ func estimatesOf(c *game.Combat, att *game.CombatUnit, atk *game.AttackDef, targ
 		lo, hi := c.EstimateDamage(att, t, atk)
 		e := map[string]int{"min": lo, "max": hi}
 		// Télégraphie C4 : attaque de dos (🗡 +25 %) / cible à couvert (🛡 −25 %).
-		if rear, cover := c.EstimateFlags(att, t); rear {
+		if rear, cover := c.EstimateFlags(att, t, atk); rear {
 			e["rear"] = 1
 		} else if cover {
 			e["cover"] = 1

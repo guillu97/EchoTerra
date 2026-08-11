@@ -50,18 +50,22 @@ type EquipDef struct {
 	RangedStat string `json:"rangedStat,omitempty"`
 	// VsCursed : bonus de dégâts contre les créatures maudites (loups-garous) — l'argent
 	// des légendes. Le seul effet conditionnel, et il vient du texte de la recette.
-	VsCursed int    `json:"vsCursed,omitempty"`
-	Desc     string `json:"desc"`
+	VsCursed int `json:"vsCursed,omitempty"`
+	// Weapon : l'ARCHÉTYPE (weapons.go) — épée, dague, lance, arc, bâton. C'est lui qui
+	// porte la TECHNIQUE de combat de l'arme, donc l'action supplémentaire qu'elle donne.
+	// Vide sur un équipement qui n'est pas une arme.
+	Weapon string `json:"weapon,omitempty"`
+	Desc   string `json:"desc"`
 }
 
 // Equipment : le catalogue de ce qui se PORTE. Les valeurs reprennent les effets
 // annoncés par les recettes de forge (craft.go) — c'est le contrat que le joueur a lu.
 var Equipment = map[string]EquipDef{
-	"Lame de fer":       {Slot: SlotWeapon, Force: 3, Desc: "+3 force au combat"},
-	"Dague en croc":     {Slot: SlotWeapon, Force: 2, Desc: "+2 force au combat"},
-	"Lame d'argent":     {Slot: SlotWeapon, Force: 2, VsCursed: 4, Desc: "+2 force, +4 contre les créatures maudites"},
-	"Arc sylvestre":     {Slot: SlotWeapon, Dexterite: 2, Reach: 3, RangedStat: "dexterite", Desc: "attaque à portée 3, +2 dextérité"},
-	"Lance de sanglier": {Slot: SlotWeapon, Force: 3, Reach: 2, Desc: "+3 force, attaque à portée 2"},
+	"Lame de fer":       {Slot: SlotWeapon, Weapon: ArchSword, Force: 3, Desc: "+3 force au combat"},
+	"Dague en croc":     {Slot: SlotWeapon, Weapon: ArchDagger, Force: 2, Desc: "+2 force au combat"},
+	"Lame d'argent":     {Slot: SlotWeapon, Weapon: ArchSword, Force: 2, VsCursed: 4, Desc: "+2 force, +4 contre les créatures maudites"},
+	"Arc sylvestre":     {Slot: SlotWeapon, Weapon: ArchBow, Dexterite: 2, Reach: 3, RangedStat: "dexterite", Desc: "attaque à portée 3, +2 dextérité"},
+	"Lance de sanglier": {Slot: SlotWeapon, Weapon: ArchSpear, Force: 3, Reach: 2, Desc: "+3 force, attaque à portée 2"},
 
 	"Cape de plumes": {Slot: SlotGear, Agilite: 2, Desc: "+2 agilité (déplacement, initiative)"},
 	"Cape de garou":  {Slot: SlotGear, Endurance: 2, Desc: "+2 endurance (encaisse mieux)"},

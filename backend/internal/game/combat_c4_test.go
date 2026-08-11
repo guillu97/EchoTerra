@@ -129,7 +129,7 @@ func TestCoverReducesRangedDamage(t *testing.T) {
 	mu.FX, mu.FY = 0, -1
 	loM0, _ := c.EstimateDamage(hu, mu, &base)
 	_ = loM0 // la couverture ne s'applique qu'à distance>1 — vérifié par dmgMods
-	if _, num, den := c.dmgMods(hu, mu); num != den {
+	if _, num, den := c.dmgMods(hu, mu, &base); num != den {
 		t.Fatalf("melee against a faced attacker should have no multiplier: %d/%d", num, den)
 	}
 }

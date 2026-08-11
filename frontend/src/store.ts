@@ -330,6 +330,7 @@ interface StoreState {
   combatDefend: () => Promise<void>; // 🛡️ -50% subis jusqu'au prochain tour (C3)
   combatFlee: () => Promise<void>; // 🏃 fuir depuis le bord bas (C3)
   combatUseItem: (name: string) => Promise<void>; // 🧪 consommer un objet du sac (C3)
+  combatSwapWeapon: (name: string) => Promise<void>; // 🔁 dégainer une autre arme (coûte le tour)
   endTurn: () => Promise<void>;
   returnToMap: () => void;
   pushLog: (msg: string) => void;
@@ -1554,6 +1555,22 @@ export const useStore = create<StoreState>((set, get) => {
         const resp = await api.combatAction(game.id, combat.id, {
           unitId: current.unitId,
           action: "item",
+          item: name,
+          playerId,
+        });
+        set({ combatMode: "move" });
+        applyCombat(resp);
+      }),
+
+    // Dégainer une autre arme du sac (game.SwapWeapon) : ça COÛTE le tour, comme
+    // consommer un objet — c'est le prix de porter deux registres de combat.
+    combatSwapWeapon: (name) =>
+      withBusy(async () => {
+        const { game, combat, current, playerId } = get();
+        if (!game || !combat || !current) return;
+        const resp = await api.combatAction(game.id, combat.id, {
+          unitId: current.unitId,
+          action: "swap",
           item: name,
           playerId,
         });

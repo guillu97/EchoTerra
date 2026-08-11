@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "test:perf": "node tests/perf/voxel-perf.mjs",
     "test:perf:voxel": "node tests/perf/voxel-perf.mjs",
-    "test:map-tap": "node tests/map-tap.mjs"
+    "test:map-tap": "node tests/map-tap.mjs",
+    "test:combat-ui": "node tests/combat-ui.mjs"
   },
   "dependencies": {
     "react": "^18.3.1",

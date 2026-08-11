@@ -1,0 +1,297 @@
+// LA BARRE D'ACTION DU COMBAT.
+//
+// Ce qu'elle remplace : une pile de `.line` où douze petits boutons gris se
+// suivaient sans hiérarchie — l'attaque, les compétences, Défendre, chaque potion,
+// Fuir, Fin du tour, tous du même poids visuel. Impossible de voir d'un coup d'œil
+// ce que le héros tient, ce qu'il peut atteindre, ni ce qui va coûter le tour.
+//
+// Trois rangs, et un seul message par rang :
+//   1. QUI JOUE — nom, PV, l'ARME au poing (weapons.go) et le minuteur.
+//   2. QUOI FAIRE — les actions, groupées : frapper / techniques / se protéger /
+//      objets / se replier. Celles qui TERMINENT LE TOUR portent un point ⏻.
+//   3. SUR QUI — les cibles du mode armé, avec la fourchette de dégâts servie par
+//      le serveur (le client ne calcule jamais un dégât).
+//
+// ⚠ LA TECHNIQUE D'ARME EST DANS LA MÊME LISTE que les compétences de classe
+// (`current.skills`, drapeau `weapon`) : même indexation `skillIdx` côté serveur,
+// mais un ACCENT différent — la classe dit ce que le héros sait, l'arme dit avec
+// quoi. Les présenter pareil effacerait justement ce que ce lot ajoute.
+
+import { useEffect, useState } from "react";
+import { useStore } from "../store";
+import { useTurnRemaining } from "../useWave";
+
+// Icône par archétype d'arme (weapons.go). Mains nues = poing.
+const WEAPON_ICON: Record<string, string> = {
+  epee: "🗡️",
+  dague: "🔪",
+  lance: "🔱",
+  arc: "🏹",
+  baton: "🪄",
+};
+export function weaponIcon(kind?: string): string {
+  return (kind && WEAPON_ICON[kind]) || "✊";
+}
+
+export function CombatControls() {
+  const {
+    combat, current, combatMode, combatSkillIdx, setCombatMode, selectCombatSkill, combatUnitClick,
+    combatDefend, combatFlee, combatUseItem, combatSwapWeapon, endTurn, busy, game, playerId,
+  } = useStore();
+  // Tiroirs : les objets et les armes du sac ne méritent pas une rangée
+  // permanente — on ne s'en sert qu'à un moment précis du combat.
+  const [drawer, setDrawer] = useState<"" | "items" | "swap">("");
+
+  const curUnit = combat?.units.find((u) => u.id === current?.unitId);
+  const ended = !combat || combat.status !== "active";
+  const legacy = (game?.players?.length ?? 0) === 0;
+  const myTurn = !!curUnit && curUnit.side === "hero" && (legacy || !curUnit.ownerId || curUnit.ownerId === playerId);
+  const skills = current?.skills ?? [];
+  const activeSkill = combatMode === "skill" ? skills[combatSkillIdx] : undefined;
+  const targetList =
+    combatMode === "skill"
+      ? activeSkill?.targets ?? []
+      : combatMode === "push"
+        ? current?.pushTargets ?? []
+        : current?.attackTargets ?? [];
+  const estimates = combatMode === "skill" ? activeSkill?.estimates : current?.attackEstimates;
+  const onBottomEdge = !!curUnit && curUnit.y === (combat?.gridH ?? 1) - 1;
+  const turnLeft = useTurnRemaining(combat ?? undefined);
+  const items = current?.items ?? [];
+  const swaps = current?.swaps ?? [];
+
+  // Raccourcis clavier — le combat est tour par tour, donc au clavier il se joue
+  // vite ; au doigt rien ne change. Échap désarme le mode courant.
+  useEffect(() => {
+    if (ended || !myTurn) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const el = document.activeElement as HTMLElement | null;
+      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
+      const k = e.key.toLowerCase();
+      if (k === "a") setCombatMode("attack");
+      else if (k === "e") setCombatMode("push");
+      else if (k === "d") void combatDefend();
+      else if (k === "escape") setCombatMode("move");
+      else if (k === " " || k === "enter") void endTurn();
+      else if (k >= "1" && k <= "9") {
+        const sk = skills[Number(k) - 1];
+        if (sk) selectCombatSkill(sk.idx);
+      } else return;
+      e.preventDefault();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [ended, myTurn, skills, setCombatMode, selectCombatSkill, combatDefend, endTurn]);
+
+  if (!combat) return null;
+
+  // Rang 1 — qui joue, avec quoi.
+  const header = (
+    <div className="cbt-head">
+      <span className="cbt-round">Round {combat.round}</span>
+      {curUnit && (
+        <>
+          <span className={`cbt-who ${myTurn ? "mine" : ""}`}>
+            {curUnit.side === "hero" ? "🧑" : "👹"} {curUnit.name}
+          </span>
+          <span className="cbt-hp">
+            <i style={{ width: `${Math.max(0, Math.min(100, (curUnit.hp / Math.max(1, curUnit.maxHp)) * 100))}%` }} />
+            <b>{Math.max(0, curUnit.hp)}/{curUnit.maxHp}</b>
+          </span>
+          {curUnit.side === "hero" && (
+            <span
+              className="cbt-weapon"
+              title={
+                curUnit.weaponName
+                  ? `${curUnit.weaponName}${curUnit.reach ? ` · portée ${curUnit.reach}` : ""}${curUnit.armor ? ` · armure ${curUnit.armor}` : ""}`
+                  : "Mains nues — aucune technique d'arme"
+              }
+            >
+              {weaponIcon(curUnit.weaponKind)} {curUnit.weaponName || "Mains nues"}
+              {!!curUnit.reach && curUnit.reach > 1 && <i className="cbt-reach">⇢{curUnit.reach}</i>}
+            </span>
+          )}
+        </>
+      )}
+      {turnLeft !== null && (
+        <span className={`cbt-timer ${turnLeft <= 10 ? "urgent" : ""}`}>⏱ {turnLeft}s</span>
+      )}
+    </div>
+  );
+
+  if (ended) return <div className="cbt-bar">{header}</div>;
+
+  if (curUnit && curUnit.side !== "hero") {
+    return (
+      <div className="cbt-bar">
+        {header}
+        <div className="cbt-hint">L'ennemi agit…</div>
+      </div>
+    );
+  }
+  if (curUnit && !myTurn) {
+    return (
+      <div className="cbt-bar">
+        {header}
+        <div className="cbt-hint">⏳ Tour d'un autre joueur…</div>
+      </div>
+    );
+  }
+  if (!curUnit) return <div className="cbt-bar">{header}</div>;
+
+  return (
+    <div className="cbt-bar">
+      {header}
+      {!!combat.reinforceAt && !combat.reinforceDone && combat.round === combat.reinforceAt - 1 && (
+        <div className="cbt-hint warn">👹 Des renforts ennemis surgiront au prochain round !</div>
+      )}
+
+      {/* Rang 2 — les actions. `end` = termine le tour (pastille ⏻). */}
+      <div className="cbt-actions">
+        <button
+          className={`cbt-act atk ${combatMode === "attack" ? "on" : ""}`}
+          disabled={busy}
+          title={`Attaque de base${curUnit.reach && curUnit.reach > 1 ? ` — portée ${curUnit.reach} (arme)` : " — au contact"} [A]`}
+          onClick={() => { setDrawer(""); setCombatMode("attack"); }}
+        >
+          ⚔️<span>Attaque</span>
+        </button>
+
+        {skills.map((sk, i) => (
+          <button
+            key={sk.idx}
+            className={`cbt-act ${sk.weapon ? "wpn" : "skill"} ${combatMode === "skill" && combatSkillIdx === sk.idx ? "on" : ""}`}
+            disabled={busy || (!sk.selfCast && sk.targets.length === 0)}
+            title={`${sk.skill.desc || sk.skill.name}${sk.weapon ? ` — technique de ${curUnit.weaponName}` : ""}${
+              !sk.selfCast && sk.targets.length === 0 ? " — aucune cible à portée" : ""
+            } [${i + 1}]`}
+            onClick={() => { setDrawer(""); selectCombatSkill(sk.idx); }}
+          >
+            {sk.weapon ? weaponIcon(curUnit.weaponKind) : "✨"}
+            <span>{sk.skill.name}</span>
+            {sk.selfCast && <i className="cbt-end">⏻</i>}
+          </button>
+        ))}
+
+        <button
+          className={`cbt-act ${combatMode === "push" ? "on" : ""}`}
+          disabled={busy || (current?.pushTargets ?? []).length === 0}
+          title="Pousser un ennemi d'une case : collision 2 dégâts, eau = piégé, chute ≥2 = +2 [E]"
+          onClick={() => { setDrawer(""); setCombatMode("push"); }}
+        >
+          👐<span>Pousser</span>
+        </button>
+
+        <button
+          className="cbt-act def"
+          disabled={busy}
+          title="-50 % de dégâts subis jusqu'à ton prochain tour (termine le tour) [D]"
+          onClick={() => void combatDefend()}
+        >
+          🛡️<span>Défendre</span><i className="cbt-end">⏻</i>
+        </button>
+
+        {items.length > 0 && (
+          <button
+            className={`cbt-act ${drawer === "items" ? "on" : ""}`}
+            disabled={busy}
+            title="Consommer un objet du sac (termine le tour)"
+            onClick={() => setDrawer(drawer === "items" ? "" : "items")}
+          >
+            🧪<span>Objets</span><i className="cbt-n">{items.length}</i>
+          </button>
+        )}
+
+        {swaps.length > 0 && (
+          <button
+            className={`cbt-act ${drawer === "swap" ? "on" : ""}`}
+            disabled={busy}
+            title="Dégainer une autre arme du sac (termine le tour)"
+            onClick={() => setDrawer(drawer === "swap" ? "" : "swap")}
+          >
+            🔁<span>Arme</span><i className="cbt-n">{swaps.length}</i>
+          </button>
+        )}
+
+        <button
+          className="cbt-act"
+          disabled={busy || !onBottomEdge}
+          title={onBottomEdge ? "Quitter le combat par le bord bas — pas de butin, le pack reste" : "Rejoins le bord bas de l'arène pour fuir"}
+          onClick={() => void combatFlee()}
+        >
+          🏃<span>Fuir</span><i className="cbt-end">⏻</i>
+        </button>
+
+        <button className="cbt-act end" disabled={busy} title="Fin du tour [Espace]" onClick={() => void endTurn()}>
+          ⏭<span>Fin</span>
+        </button>
+      </div>
+
+      {/* Tiroir OBJETS / ARMES — ouvert à la demande, jamais en permanence. */}
+      {drawer === "items" && (
+        <div className="cbt-drawer">
+          {items.map((it) => (
+            <button key={it.name} className="cbt-pick" disabled={busy} onClick={() => { setDrawer(""); void combatUseItem(it.name); }}>
+              🧪 {it.name} ×{it.qty} <i className="heal">+{it.heal} PV</i>
+            </button>
+          ))}
+        </div>
+      )}
+      {drawer === "swap" && (
+        <div className="cbt-drawer">
+          <div className="cbt-drawer-note">Changer d'arme coûte le tour — mais change ta technique.</div>
+          {swaps.map((w) => (
+            <button key={w.name} className="cbt-pick" disabled={busy} onClick={() => { setDrawer(""); void combatSwapWeapon(w.name); }}>
+              {weaponIcon(w.kind)} {w.name}
+              {w.technique && <i className="tech">✨ {w.technique}</i>}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Rang 3 — les cibles du mode armé. */}
+      {(combatMode === "attack" || combatMode === "skill" || combatMode === "push") && (
+        <div className="cbt-targets">
+          {targetList.length > 0 ? (
+            targetList.map((id) => {
+              const u = combat.units.find((x) => x.id === id);
+              const est = combatMode === "push" ? undefined : estimates?.[id];
+              const lethal = !!est && !!u && est.min >= u.hp;
+              return (
+                <button
+                  key={id}
+                  className={`cbt-target ${lethal ? "lethal" : ""}`}
+                  disabled={busy}
+                  title={
+                    est?.rear
+                      ? "Attaque de dos : +25 %, ignore la couverture"
+                      : est?.cover
+                        ? "Cible à couvert : −25 % à distance"
+                        : ""
+                  }
+                  onClick={() => combatUnitClick(id)}
+                >
+                  <b>{combatMode === "push" ? "👐" : lethal ? "☠️" : "🎯"} {u?.name}</b>
+                  {u && <em>{Math.max(0, u.hp)}/{u.maxHp}</em>}
+                  {est && (
+                    <i className="dmg-est">
+                      {est.rear ? "🗡" : est.cover ? "🛡" : ""}
+                      {est.min === est.max ? `−${est.min}` : `−${est.min}…${est.max}`}
+                    </i>
+                  )}
+                </button>
+              );
+            })
+          ) : (
+            <span className="cbt-hint">
+              {combatMode === "push"
+                ? "Aucun ennemi aligné à portée de poussée."
+                : "Aucune cible à portée — déplace-toi (cases vertes)."}
+            </span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}

@@ -156,6 +156,12 @@ type AttackDef struct {
 	Absorb     bool   `json:"absorb,omitempty"`     // attacker heals half the damage dealt
 	SelfShield bool   `json:"selfShield,omitempty"` // -50% damage taken until the attacker's next turn
 	BuffAllies bool   `json:"buffAllies,omitempty"` // +2 force to adjacent allies
+	// Push : la cible frappée est repoussée d'une case dans l'axe (mêmes règles que
+	// l'action Poussée — collision, chute, eau). Identité de la LANCE (weapons.go).
+	Push bool `json:"push,omitempty"`
+	// IgnoreCover : le tir passe par-dessus l'obstacle qui protège la cible (la
+	// pénalité de couverture −25 % ne s'applique pas). Identité de l'ARC.
+	IgnoreCover bool `json:"ignoreCover,omitempty"`
 }
 
 // maxReach is the farthest cell of the targeting grid (for AI approach).

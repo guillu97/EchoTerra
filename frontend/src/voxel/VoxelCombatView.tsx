@@ -42,6 +42,12 @@ const CRING_GEOM = new THREE.RingGeometry(0.3, 0.4, 24).rotateX(-Math.PI / 2);
 const CEDGE_GEOM = new THREE.RingGeometry(0.6, 0.67, 4).rotateZ(Math.PI / 4).rotateX(-Math.PI / 2);
 // Flèche d'orientation (Facing, lot C4) : petit triangle au bord de la case,
 // pointant là où l'unité regarde — l'arc arrière prend +25 %.
+// PROJECTILES (spawnShots) — géométries et matériaux PARTAGÉS : un tir en crée
+// plusieurs par action, en allouer à chaque fois fuirait comme les overlays.
+const SHOT_ARROW_GEOM = new THREE.CylinderGeometry(0.035, 0.035, 0.5, 4).rotateX(Math.PI / 2);
+const SHOT_BOLT_GEOM = new THREE.IcosahedronGeometry(0.11, 0);
+const SHOT_ARROW_MAT = new THREE.MeshBasicMaterial({ color: 0xf3e2b0 });
+const SHOT_BOLT_MAT = new THREE.MeshBasicMaterial({ color: 0xffb454 });
 const FACING_GEOM = (() => {
   const sh = new THREE.Shape();
   sh.moveTo(0.2, 0);
@@ -52,7 +58,19 @@ const FACING_GEOM = (() => {
 })();
 import { makeLabel } from "./labels";
 import { ALL_CHAR_KEYS, CharLibrary } from "./characters";
+import type { Weapon } from "./rig";
 import { UnitAnimator } from "./unitAnim";
+
+// Archétype d'arme serveur (weapons.go) → geste d'attaque du rig. Les armes de
+// mêlée (épée, dague, lance) partagent le fauchage ; seuls l'arc et le bâton ont
+// leur propre geste. `undefined` = pas d'arme connue → le rig garde le geste
+// déduit de sa classe.
+function rigWeapon(kind?: string): Weapon | undefined {
+  if (kind === "arc") return "bow";
+  if (kind === "baton") return "staff";
+  if (kind) return "melee";
+  return undefined;
+}
 
 class CombatWorld {
   smooth = new SmoothTerrain(); // sol en PENTES VOXEL lissées (comme la carte) — plus de gros cubes
@@ -79,6 +97,7 @@ class CombatWorld {
   lastSeq = -1; // dernier combat.seq animé (diff → dégâts flottants)
   pendingActor?: { unitId: string; kind: "attack" | "skill" }; // acteur de l'action du joueur, en attente du prochain render
   private fxAnims: { sprite: THREE.Sprite; x: number; y0: number; z: number; start: number; dur: number }[] = [];
+  private shots: { mesh: THREE.Mesh; from: THREE.Vector3; to: THREE.Vector3; start: number; dur: number; spin: boolean }[] = [];
   private fxRaf = 0;
 
   skyTex: THREE.Texture;
@@ -144,6 +163,48 @@ class CombatWorld {
       }
     }
     if (actor) this.animator.trigger(actor, kind);
+    if (actor) this.spawnShots(actor, hits);
+  }
+
+  /**
+   * LE TRAIT QUI PART — un projectile voxel qui vole de l'attaquant à chaque
+   * cible, en cloche.
+   *
+   * Pourquoi : un tir à trois cases n'était RIEN à l'écran. Le tireur mimait son
+   * geste, la cible reculait, et entre les deux le vide — donc rien ne disait au
+   * joueur d'où venait le coup ni qu'une portée d'arme était en jeu. C'est le
+   * seul retour visuel qui rende une attaque à distance lisible sans texte, et
+   * il suit l'ARME : flèche pour un arc, éclat pour le reste.
+   *
+   * ⚠ mêlée EXCLUE (distance ≤ 1) : sur une case voisine le trait serait un
+   * scintillement, et le lunge du rig dit déjà tout.
+   */
+  spawnShots(actorId: string, hits: CombatHit[]) {
+    const c = this.combat;
+    if (!c || !hits.length) return;
+    const att = c.units.find((u) => u.id === actorId);
+    if (!att) return;
+    const arrow = att.side === "hero" && att.weaponKind === "arc";
+    const now = performance.now();
+    const seen = new Set<string>();
+    for (const h of hits) {
+      if (h.unitId === actorId || seen.has(h.unitId)) continue;
+      seen.add(h.unitId);
+      const def = c.units.find((u) => u.id === h.unitId);
+      if (!def) continue;
+      const dist = Math.abs(def.x - att.x) + Math.abs(def.y - att.y);
+      if (dist <= 1) continue; // au contact : le lunge suffit
+      const from = new THREE.Vector3(att.x, this.surfaceY(att.x, att.y) + 0.55, att.y);
+      const to = new THREE.Vector3(def.x, this.surfaceY(def.x, def.y) + 0.5, def.y);
+      const mesh = new THREE.Mesh(arrow ? SHOT_ARROW_GEOM : SHOT_BOLT_GEOM, arrow ? SHOT_ARROW_MAT : SHOT_BOLT_MAT);
+      mesh.layers.enable(BLOOM_LAYER); // l'éclat rayonne en mode beauté
+      mesh.position.copy(from);
+      if (arrow) mesh.lookAt(to); // la flèche pointe là où elle va
+      this.fx.add(mesh);
+      // une flèche ne tournoie pas : elle est ORIENTÉE une fois. L'éclat, si.
+      this.shots.push({ mesh, from, to, start: now, dur: 120 + dist * 45, spin: !arrow });
+    }
+    if (!this.fxRaf && this.shots.length) this.tickFx();
   }
 
   /** Unités passées de vivantes (prev) à vaincues (now) → rig qui s'effondre. */
@@ -155,7 +216,7 @@ class CombatWorld {
       const after = now.units.find((x) => x.id === u.id);
       if (after && after.hp > 0 && !after.fled) continue; // toujours en vie
       const tex = u.side === "hero" ? (u.appearance || heroTexKey(u.kind)) : monsterTexKey(u.kind, u.appearance);
-      const rig = tex ? this.chars.makeRig(tex) : undefined;
+      const rig = tex ? this.chars.makeRig(tex, rigWeapon(u.weaponKind)) : undefined;
       if (!rig) continue;
       const span = u.size && u.size > 1 ? u.size : 1;
       rig.root.scale.multiplyScalar(span);
@@ -222,8 +283,21 @@ class CombatWorld {
       keep.push(a);
     }
     this.fxAnims = keep;
+    const flying: typeof this.shots = [];
+    for (const sh of this.shots) {
+      const t = (now - sh.start) / sh.dur;
+      if (t >= 1) {
+        this.fx.remove(sh.mesh);
+        continue; // géométrie et matériau sont PARTAGÉS : rien à libérer ici
+      }
+      sh.mesh.position.lerpVectors(sh.from, sh.to, t);
+      sh.mesh.position.y += Math.sin(t * Math.PI) * 0.7; // la cloche
+      if (sh.spin) sh.mesh.rotation.z += 0.4;
+      flying.push(sh);
+    }
+    this.shots = flying;
     this.engine.invalidate();
-    this.fxRaf = this.fxAnims.length ? requestAnimationFrame(this.tickFx) : 0;
+    this.fxRaf = this.fxAnims.length || this.shots.length ? requestAnimationFrame(this.tickFx) : 0;
   };
   texture(url: string): THREE.Texture {
     let t = this.textures.get(url);
@@ -461,7 +535,9 @@ class CombatWorld {
       // leur sens de déplacement/d'attaque. Le modèle regarde +Z au repos, donc
       // atan2(fx, fy) le tourne vers (fx,fy) ; à défaut de cap, il fait face caméra.
       const faceY = u.fx || u.fy ? Math.atan2(u.fx, u.fy) : this.engine.azimuthNow;
-      const rig = tex ? this.chars.makeRig(tex) : undefined;
+      // Le GESTE d'attaque suit l'ARME PORTÉE (weapons.go) et non la classe :
+      // à l'arc on arme la corde, au bâton on pousse, sinon on fauche.
+      const rig = tex ? this.chars.makeRig(tex, rigWeapon(u.weaponKind)) : undefined;
       if (rig) {
         rig.root.position.set(ux, top, uy);
         rig.root.rotation.y = faceY;

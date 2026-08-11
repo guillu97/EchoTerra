@@ -6,6 +6,75 @@
 
 ---
 
+## 2026-08-11 (106) — Les armes font le combat, et la barre d'action se lit
+
+**La demande** : « gérer les combats en fonction des armes que l'on a » et améliorer grandement le
+combat — visuel, actions possibles, UI/UX.
+
+**L'état des lieux honnête.** L'équipement livré la veille donnait des CHIFFRES (force, dextérité) et,
+pour deux armes, une portée. Mais dans l'arène, un héros à l'arc et un héros à l'épée jouaient le même
+tour avec les mêmes boutons : Attaque, les compétences de sa CLASSE, Défendre. L'arme changeait la
+VALEUR d'une attaque, jamais la FAÇON de la jouer. Et la barre d'action était une pile de `.line` où
+douze boutons gris avaient tous le même poids visuel — sans jamais dire ce que le héros tenait.
+
+**Ce qui est fait.**
+
+1. **Archétypes + techniques** (`weapons.go`). Chaque arme du catalogue porte un archétype
+   (`epee | dague | lance | arc | baton`) et l'archétype apporte UNE action de combat de plus, à qui
+   la porte, quelle que soit sa classe : Fauchage (épée, frappe la case visée et ses quatre voisines),
+   Coup bas (dague, 30 % Stun), Estoc (lance, portée 2 + repousse), Tir en cloche (arc, portée 2-4,
+   ignore la couverture, inutilisable au contact), Balayage (bâton, Root). Deux champs nouveaux
+   d'`AttackDef` : `Push` et `IgnoreCover`.
+   - ⚠ l'archétype vient du CATALOGUE, pas d'un `switch` sur le nom : une arme ajoutée à `Equipment`
+     hérite de sa technique sans qu'on touche au combat.
+   - ⚠ **aucune pénalité aux mains nues**. La technique est un gain, pas une taxe — sanctionner
+     l'absence d'arme sanctionnerait toutes les premières vagues, c'est-à-dire le début de chaque
+     partie.
+   - ⚠ **aucune technique n'est strictement meilleure que l'attaque de base** : le Fauchage ne gagne
+     rien sur une cible isolée, l'Estoc peut ÉLOIGNER la cible qu'on voulait finir, la cloche ne vise
+     pas au contact. C'est le choix situationnel qui fait le tour de jeu, pas un bouton « plus fort ».
+2. **Changer d'arme EN COMBAT** (`SwapWeapon`, action `swap`) — et ça coûte le TOUR. Porter l'arc et
+   l'épée, c'est accepter d'en perdre un quand la mêlée se ferme ; sans ce coût, on garderait toujours
+   l'arme optimale et l'archétype cesserait d'être un choix. ⚠ la mise à jour de l'unité se fait en
+   DELTA et jamais par recalcul depuis le héros : un +2 force gagné pendant le combat (Hurlement de
+   Meute) serait effacé.
+3. **UNE seule liste de compétences** (`Combat.HeroSkills` : classe puis technique, technique en
+   dernier). `PlayerAction` l'indexe par le même `skillIdx` que le client. Le piège évité : deux
+   listes construites chacune de son côté auraient lancé la MAUVAISE capacité sans erreur ni trace.
+   Le payload marque la technique d'un drapeau `weapon` — même liste, deux accents.
+4. **La barre d'action** (`components/CombatControls.tsx`, sortie de `MapTab`). Trois rangs et un seul
+   message par rang : qui joue (nom, PV, **l'arme au poing**, minuteur) / quoi faire (les actions,
+   icône au-dessus, libellé dessous, ⏻ sur celles qui terminent le tour, doré pour l'arme et violet
+   pour la classe) / sur qui (les cibles, avec la fourchette servie par le serveur, ☠️ quand le
+   minimum annoncé tue déjà). Objets et armes passent en TIROIRS. Raccourcis clavier A / E / D /
+   1-9 / Espace / Échap.
+5. **Le visuel suit l'arme** : le geste du rig vient de l'arme PORTÉE et non de la classe (`makeRig(key,
+   weapon)` — à l'arc on arme la corde), et un **projectile** vole de l'attaquant à la cible pour toute
+   attaque à distance (flèche pour un arc, éclat sinon, en cloche ; mêlée exclue). Avant, un tir à
+   trois cases n'était RIEN à l'écran : le tireur mimait, la cible reculait, et entre les deux le vide.
+   ⚠ seul le GESTE suit l'arme, pas le modèle tenu — celui-ci est cuit dans le `.vox` du personnage.
+6. **Une divergence supprimée** : `CombatHeal` avait sa propre table de quatre objets, figée au lot C3.
+   Elle listait « Baies », qui n'est le nom d'AUCUN objet du jeu (c'est « Baie sauvage ») — une entrée
+   morte —, pendant que l'Élixir de sève et le Baume de gelée ne s'utilisaient pas au combat alors
+   qu'ils soignent. Elle est désormais DÉRIVÉE d'`ItemEffects`.
+
+**Fonctionnel (vérifié).** `go test ./... -count=2` vert · `go vet` propre · `tsc -b` + `npm run build`
+verts · `npm run test:combat-ui` **7/7** dans un vrai navigateur (barre montée, arme annoncée, un
+bouton par compétence servie, clavier) + capture d'écran · `api/weapons_test.go` suit le contrat de
+bout en bout (l'arme arrive au payload, la technique ferme la liste, `skillIdx` joue BIEN celle-là,
+la seconde arme du sac est proposée avec sa technique). **Médianes de survie 15 · 17 · 20 · 21 · 22 ·
+23** pour 1 · 2 · 4 · 8 · 12 · 20 joueurs (avant : 15 · 17 · 19 · 21 · 22 · 23) — l'IA joue elle aussi
+la technique de l'arme qu'elle ramasse.
+
+**Mesuré et écarté** : faire choisir à l'IA la MEILLEURE de toutes ses compétences (et non des deux
+candidates classe/arme) — ça changeait le choix des classes à deux compétences, le chasseur passant
+sur sa Flèche perçante à la grille de ciblage bien plus étroite. Ce lot-ci n'a pas à rendre l'IA plus
+maligne.
+
+**À faire ensuite** : l'art d'arme (le modèle tenu ne change pas encore avec l'arme équipée) ; les
+monstres n'ont pas d'équipement ; les bots ne FORGENT toujours pas, donc en partie 100 % IA les armes
+ne viennent que du butin.
+
 ## 2026-08-10 (105) — Les monstres respiraient plus : un cadenceur d'idle, réglable
 
 **Le symptôme** (signalé par Guillaume) : sur la carte, les monstres sont figés tant que rien ne bouge.

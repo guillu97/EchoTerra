@@ -46,6 +46,11 @@ type CombatUnit struct {
 	Reach      int    `json:"reach,omitempty"`      // portée de l'attaque de base (0 = mêlée)
 	VsCursed   int    `json:"vsCursed,omitempty"`   // bonus contre les créatures maudites
 	RangedStat string `json:"rangedStat,omitempty"` // stat de dégâts d'une arme à distance
+	// L'ARME PORTÉE (weapons.go) : son nom pour l'interface, son ARCHÉTYPE pour la
+	// technique de combat qu'elle donne ET pour le modèle voxel tenu par le rig — un
+	// héros à l'arc ne doit pas faucher de l'épée.
+	WeaponName string `json:"weaponName,omitempty"`
+	WeaponKind string `json:"weaponKind,omitempty"`
 	// Size (lot C5) : côté de l'empreinte — 2 pour un BOSS (2×2 cases, une seule
 	// unité, ancre = coin haut-gauche X,Y). 0/1 = unité normale.
 	Size int `json:"size,omitempty"`
@@ -478,6 +483,7 @@ func NewCombat(gs *GameState, heroes []*Hero, monster *Monster, starterID string
 		u.Stats.Agilite += gear.Agilite
 		u.Stats.Endurance += gear.Endurance
 		u.Armor, u.Reach, u.VsCursed, u.RangedStat = armor, reach, vsCursed, rangedStat
+		u.WeaponName, u.WeaponKind = h.Weapon, WeaponArchetype(h.Weapon)
 		// L'agilité gagnée doit compter pour le DÉPLACEMENT : Move a été calculé au-dessus
 		// sur la statistique nue, une cape de plumes n'aurait rien changé.
 		u.Move = 2 + u.Stats.Agilite/3
@@ -747,11 +753,19 @@ func (c *Combat) HeroSkill(u *CombatUnit) AttackDef  { return heroSkillFor(u.Cla
 
 // HeroSkills lists every iso skill of a hero unit (empty for monsters) — the
 // combat UI renders one skill button per entry.
+//
+// ⚠ LA TECHNIQUE D'ARME EST LA DERNIÈRE DE LA LISTE (weapons.go) : classe d'abord,
+// arme ensuite. C'est CETTE fonction que PlayerAction indexe par `skillIdx`, donc
+// personne ne peut se désynchroniser du client — il n'y a qu'une liste.
 func (c *Combat) HeroSkills(u *CombatUnit) []AttackDef {
 	if u.Side != "hero" {
 		return nil
 	}
-	return heroIsoSkillsFor(u.ClassID)
+	out := heroIsoSkillsFor(u.ClassID)
+	if tech, ok := weaponTechnique(u.WeaponKind); ok {
+		out = append(out, tech)
+	}
+	return out
 }
 
 // baseAttackFor returns a unit's plain attack (heroes: melee; monsters: their
@@ -873,7 +887,7 @@ func (c *Combat) inCover(att, def *CombatUnit) bool {
 // EstimateDamage : bonus de hauteur GRADUÉ (+1 par niveau d'avantage, max +3 ;
 // −1 en contre-plongée) et multiplicateur (dos +25 % ; couverture −25 % à
 // distance, annulée par une attaque de dos).
-func (c *Combat) dmgMods(att, def *CombatUnit) (heightBonus, mulNum, mulDen int) {
+func (c *Combat) dmgMods(att, def *CombatUnit, atk *AttackDef) (heightBonus, mulNum, mulDen int) {
 	hd := c.heightAt(att.X, att.Y) - c.heightAt(def.X, def.Y)
 	if hd > 3 {
 		hd = 3
@@ -886,7 +900,10 @@ func (c *Combat) dmgMods(att, def *CombatUnit) (heightBonus, mulNum, mulDen int)
 	if rear {
 		mulNum, mulDen = mulNum*5, mulDen*4
 	}
-	if !rear && def.distTo(att.X, att.Y) > 1 && c.inCover(att, def) {
+	// L'ARC passe par-dessus l'abri (technique « Tir en cloche ») : la couverture
+	// ne s'applique pas. C'est le seul cas où l'ARME, et pas la position, annule un
+	// modificateur de terrain.
+	if !rear && !atk.IgnoreCover && def.distTo(att.X, att.Y) > 1 && c.inCover(att, def) {
 		mulNum, mulDen = mulNum*3, mulDen*4
 	}
 	return hd, mulNum, mulDen
@@ -894,9 +911,9 @@ func (c *Combat) dmgMods(att, def *CombatUnit) (heightBonus, mulNum, mulDen int)
 
 // EstimateFlags expose l'attaque de dos et la couverture effective pour la
 // télégraphie client (🗡 dos / 🛡 à couvert) — mêmes règles que dmgMods.
-func (c *Combat) EstimateFlags(att, def *CombatUnit) (rear, cover bool) {
+func (c *Combat) EstimateFlags(att, def *CombatUnit, atk *AttackDef) (rear, cover bool) {
 	rear = def.span() == 1 && c.isRearAttack(att, def)
-	cover = !rear && def.distTo(att.X, att.Y) > 1 && c.inCover(att, def)
+	cover = !rear && !atk.IgnoreCover && def.distTo(att.X, att.Y) > 1 && c.inCover(att, def)
 	return
 }
 
@@ -917,7 +934,7 @@ func (c *Combat) damageWith(att, def *CombatUnit, atk *AttackDef) int {
 	if atk.DmgDiv > 1 {
 		stat /= atk.DmgDiv
 	}
-	hd, num, den := c.dmgMods(att, def)
+	hd, num, den := c.dmgMods(att, def, atk)
 	d := stat + atk.Bonus + hd + randIntn(3) - def.Stats.Endurance/2 + att.cursedBonus(def)
 	if d < 1 {
 		d = 1
@@ -971,7 +988,7 @@ func (c *Combat) EstimateDamage(att, def *CombatUnit, atk *AttackDef) (int, int)
 	if atk.DmgDiv > 1 {
 		stat /= atk.DmgDiv
 	}
-	hd, num, den := c.dmgMods(att, def) // mêmes modificateurs C4 que damageWith
+	hd, num, den := c.dmgMods(att, def, atk) // mêmes modificateurs C4 que damageWith
 	base := stat + atk.Bonus + hd - def.Stats.Endurance/2 + att.cursedBonus(def)
 	clamp := func(d int) int {
 		if d < 1 {
@@ -1096,6 +1113,21 @@ func (c *Combat) performAttack(att *CombatUnit, atk *AttackDef, tx, ty int) {
 				def.addState("Root")
 				c.logf("%s est entravé (Root).", def.Name)
 			}
+			// La LANCE repousse (technique « Estoc », weapons.go) : mêmes règles que
+			// l'action Poussée — collision, chute, eau. ⚠ un boss ne bouge pas, et la
+			// direction se lit depuis l'ATTAQUANT (une zone d'effet écarte tout le
+			// monde du même souffle, pas chacun dans un sens différent).
+			if atk.Push && def.span() == 1 {
+				dx, dy := def.X-att.X, def.Y-att.Y
+				if absI(dx) >= absI(dy) {
+					dx, dy = signI(dx), 0
+				} else {
+					dx, dy = 0, signI(dy)
+				}
+				if dx != 0 || dy != 0 {
+					c.pushUnit(att, def, dx, dy)
+				}
+			}
 		} else {
 			c.logf("%s est vaincu.", def.Name)
 		}
@@ -1157,7 +1189,7 @@ func (c *Combat) PlayerAction(unitID, action string, tx, ty int, targetID string
 	case "attack", "skill":
 		atk := c.baseAttackFor(cur)
 		if action == "skill" {
-			skills := heroIsoSkillsFor(cur.ClassID)
+			skills := c.HeroSkills(cur) // classe + technique d'arme, MÊME liste que l'UI
 			idx := 0
 			if len(skillIdx) > 0 {
 				idx = skillIdx[0]
@@ -1303,17 +1335,16 @@ func (c *Combat) PushTargets(u *CombatUnit) []*CombatUnit {
 	return out
 }
 
-// combatConsumables : les objets du sac utilisables EN COMBAT (lot C3 — premier
-// pas du chantier « consommation d'objets » du design) et leurs PV rendus.
-var combatConsumables = map[string]int{
-	"Potion de soin": 5,
-	"Baume de gelée": 3,
-	"Ration d'eau":   2,
-	"Baies":          2,
-}
-
-// CombatHeal renvoie les PV rendus par un objet en combat (0 = inutilisable).
-func CombatHeal(name string) int { return combatConsumables[name] }
+// CombatHeal renvoie les PV rendus par un objet EN COMBAT (0 = inutilisable).
+//
+// ⚠ DÉRIVÉ DU CATALOGUE (items.go), plus jamais d'une liste à part. Le lot C3
+// avait figé sa propre table de quatre objets ; elle a divergé sans bruit — elle
+// listait « Baies », qui n'est le nom d'AUCUN objet du jeu (c'est « Baie
+// sauvage »), donc une entrée morte, pendant que l'Élixir de sève et le Baume de
+// gelée, eux, ne s'utilisaient pas au combat alors qu'ils soignent. Un objet qui
+// rend des PV les rend ici aussi ; ce qui ne rend que des PA (l'eau, les plats)
+// n'a rien à faire dans une bataille, où les PA n'existent pas.
+func CombatHeal(name string) int { return ItemEffects[name].HP }
 
 // UseItem (lot C3) : le héros consomme un objet de SON sac (1 action, termine le
 // tour). L'objet est retiré du sac immédiatement — le sac vit dans GameState,
@@ -1761,7 +1792,20 @@ func (c *Combat) heroAutoAct(u *CombatUnit) {
 	if target == nil {
 		return
 	}
+	// L'IA joue AUSSI la technique de l'arme portée (weapons.go) : sinon un héros
+	// équipé d'une lance se battrait mieux entre les mains d'un joueur qu'entre
+	// celles du serveur, et les combats auto-résolus des bots ignoreraient tout
+	// l'équipement qu'ils ramassent.
+	//
+	// ⚠ Deux candidates seulement — la compétence de classe (celle d'avant) et la
+	// technique d'arme — et la plus bonifiée l'emporte. Balayer TOUTE la liste
+	// changeait le choix des classes à deux compétences (le chasseur passait sur sa
+	// Flèche perçante, à la grille de ciblage bien plus étroite) : ce n'est pas ce
+	// lot-ci qui doit rendre l'IA plus maligne.
 	sk := heroSkillFor(u.ClassID)
+	if tech, ok := weaponTechnique(u.WeaponKind); ok && tech.DmgStat != "" && tech.Bonus > sk.Bonus {
+		sk = tech
+	}
 	atk := sk
 	if sk.DmgStat == "" { // defensive/self skill — the bot just swings instead
 		atk = c.baseAttackFor(u)

@@ -76,7 +76,9 @@ Verify: `go -C backend test ./...` · `npx tsc -b` (in frontend) · `npm run bui
 `npm run test:perf` (in frontend — budgets de chargement de l'onglet Map, voir §7; réutilise les dev
 servers s'ils tournent, sinon les démarre; Chromium requis: `PERF_BROWSER` ou Chrome installé) ·
 `npm run test:map-tap` (in frontend — **le picking de la carte** : taper un héros ouvre son menu et ne
-le déplace jamais, taper le sol déplace toujours; mêmes prérequis que `test:perf`).
+le déplace jamais, taper le sol déplace toujours; mêmes prérequis que `test:perf`) ·
+`npm run test:combat-ui` (in frontend — **la barre d'action du combat** : ses trois rangs, l'arme au
+poing, un bouton par compétence servie, les raccourcis clavier; mêmes prérequis).
 
 **Déploiement Vercel (gratuit)** — voir `DEPLOY.md`. Preset **Services** (`vercel.json`) : service
 `frontend` (root `frontend/`, Vite, statique CDN) + service `backend` (root `backend/`, le preset Go
@@ -132,6 +134,7 @@ backend/
     town.go                     TownBuilding, BuildReq, DefaultBuildings, buildMaterials, buildingCost,
                                 HeroesInTown/TownPA/spendFor/canPay, Bank storage helpers, TownAction
     craft.go                    Recipe, Recipes catalog, Craft (town vs field), hero-item helpers
+    weapons.go                  ARCHÉTYPES d'arme + leurs TECHNIQUES de combat, SwapWeapon (action `swap`)
     monsters.go                 NewMonster, MonsterSpecies
     townnames.go                NewTownName: noms de ville générés (Town.Name, posé au worldgen)
     *_test.go                   worldgen, combat, tetanise, build (TestBuildConsumesBankMaterials), evolve
@@ -160,6 +163,7 @@ frontend/src/
   components/                   TopBar, BottomNav, HeroChips, Logo, TownWorker(+useWorkerPA),
                                 TownStatus, GameOver, HeroOverlay, ItemGrid, MapHeroBar,
                                 HeroChip (LA pastille de héros, partagée par les 3 listes),
+                                CombatControls (LA barre d'action du combat : qui joue / quoi faire / sur qui),
                                 TownJournal, TownChat (messagerie, cf. §5)
   ui/                           Overlay.tsx (LA primitive de modale/feuille : Échap, piège à focus,
                                 retour du focus, role=dialog/aria-modal), Toasts.tsx (file aria-live),
@@ -724,6 +728,39 @@ trouvent (`botEquip`) mais ⚠ **NE FORGENT PAS** : mesuré, leur faire fabrique
 vagues aux grandes expéditions (le fer d'une lame est celui du portail niveau 3). Tests :
 `equipment_test.go`.
 
+**LES ARMES FONT LE COMBAT** (`weapons.go`, action combat `swap`, 2026-08-11) — l'équipement donnait
+des CHIFFRES et, pour deux armes, une portée ; mais au combat un héros à l'arc et un héros à l'épée
+jouaient le même tour avec les mêmes boutons. Chaque arme appartient désormais à un **ARCHÉTYPE**
+(`EquipDef.Weapon` : `epee | dague | lance | arc | baton`) et l'archétype porte une **TECHNIQUE** —
+une action de combat de plus, à qui la PORTE, quelle que soit sa classe : **Fauchage** (épée : frappe
+la case visée ET ses quatre voisines), **Coup bas** (dague : 30 % de Stun), **Estoc** (lance : portée 2
+et repousse), **Tir en cloche** (arc : portée 2-4, ignore la couverture, INUTILISABLE au contact),
+**Balayage** (bâton : Root). Deux champs nouveaux d'`AttackDef` les portent : `Push` (mêmes règles que
+l'action Poussée) et `IgnoreCover` (le seul cas où l'ARME, et non la position, annule un modificateur
+de terrain). ⚠ **l'archétype vient du CATALOGUE**, pas d'un `switch` sur le nom : une arme ajoutée à
+`Equipment` hérite de sa technique sans toucher au combat. ⚠ **AUCUNE PÉNALITÉ AUX MAINS NUES** — la
+technique est un GAIN, pas une taxe : punir l'absence d'arme punirait toutes les premières vagues.
+⚠ **une technique n'est jamais strictement meilleure que l'attaque de base** (le Fauchage ne gagne
+rien sur une cible isolée, l'Estoc peut ÉLOIGNER une cible qu'on voulait finir, la cloche ne vise pas
+au contact) : c'est ce choix situationnel qui fait le tour de jeu. ⚠ **`Combat.HeroSkills` est LA
+liste** (classe puis technique, technique en DERNIER) — `PlayerAction` l'indexe par le même `skillIdx`
+que le client, donc les deux ne peuvent pas diverger ; le payload marque la technique d'un drapeau
+`weapon` pour qu'elle s'affiche avec l'arme et non avec la classe.
+**CHANGER D'ARME EN COMBAT** (`SwapWeapon`, action `swap`, `current.swaps`) coûte **le tour** : porter
+l'arc ET l'épée, c'est accepter de perdre un tour à changer de registre quand la mêlée se ferme —
+sans ce coût on garderait toujours l'arme optimale et l'archétype ne serait plus un choix. ⚠ la mise
+à jour de l'unité se fait **EN DELTA** (`refreshWeapon`) et jamais en recalculant depuis le héros :
+un +2 force gagné pendant le combat (Hurlement de Meute) serait effacé par un recalcul. L'IA joue
+aussi la technique (`heroAutoAct`, la plus bonifiée des deux — balayer TOUTE la liste changeait le
+choix des classes à deux compétences). Côté client : `CombatUnit.weaponName/weaponKind` alimentent la
+pastille d'arme de la barre de combat, le **geste** du rig (`makeRig(key, weapon)` — l'arc arme la
+corde au lieu de faucher ; ⚠ seul le GESTE change, le modèle tenu est cuit dans le `.vox`) et le
+**projectile** (`spawnShots` : flèche pour un arc, éclat sinon, en cloche, mêlée exclue — un tir à
+trois cases n'était RIEN à l'écran). Tests : `game/weapons_test.go`, `api/weapons_test.go`,
+`frontend/tests/combat-ui.mjs`. ⚠ `CombatHeal` est désormais **dérivé d'`ItemEffects`** : le lot C3
+avait figé sa propre table de quatre objets, qui listait « Baies » (nom d'aucun objet du jeu) et
+ignorait l'Élixir de sève.
+
 **USAGE DES OBJETS** (`items.go`, `GET /api/items`, `POST /heroes/{h}/use`, 2026-08-10) — le
 catalogue portait 26 recettes dont les effets n'étaient QUE DU TEXTE : on cuisinait des ragoûts et
 des potions qui dormaient en Banque, et la seule remise en état d'un héros abîmé était de mourir puis
@@ -819,7 +856,11 @@ GET  /api/classes                                 [] ClassDef catalog (tier 1+2 
 GET  /api/mapskills                               [] MapSkillDef (compétences de carte par classe)
 POST /api/games/{id}/heroes/{h}/combat/start
 GET  /api/games/{id}/combat/{c}
-POST /api/games/{id}/combat/{c}/action            {unitId, action: move|attack|skill|defend|push|flee|item|end, x,y, targetId, skillIdx, item}
+POST /api/games/{id}/combat/{c}/action            {unitId, action: move|attack|skill|defend|push|flee|item|swap|end,
+                                                  x,y, targetId, skillIdx, item}
+                                                  skill: `skillIdx` indexe game.HeroSkills (classe puis
+                                                  TECHNIQUE D'ARME) ; swap: `item` = l'arme à dégainer
+                                                  (du sac, coûte le tour ; vide = ranger)
 ```
 
 ## 7. Frontend UX (decisions that matter)
@@ -1300,8 +1341,9 @@ setSpeed, setTurntable, state, engine}` — pilotable en headless (vérif Playwr
    tile; damage scales with précision/dextérité and thins `Monster.Count` (helps break Tétanisé) or destroys the
    pack. Radial-menu button 🔥; route `POST /heroes/{h}/fireball`; tests in `fireball_test.go`. (TODO: gate it to a
    Mage [MAP] class once the class-evolution system exists — currently every hero can cast it.)
-3. Combat **Defend/Guard** action (3rd button on mockup page 3). (Posture défensive du Gardien = déjà un
-   bouclier -50% ; un Defend générique pour tous reste à faire.)
+3. ✅ Combat **Defend/Guard** action (3rd button on mockup page 3) — LIVRÉ au lot C3 : action `defend`
+   pour TOUS (état `Bouclier`, −50 % subis jusqu'au prochain tour, termine le tour), bouton 🛡️ de la
+   barre de combat. (La Posture défensive du Gardien reste sa version « compétence de classe ».)
 3b. ✅ **Lobby multijoueur** (créer / rejoindre par code / attente `minPlayers` / lancement hôte,
    persisté SQLite) — DONE (2026-07-06, voir `journal.md`). ✅ Ownership serveur des héros par joueur,
    quitter/expulser un joueur, purge des salons abandonnés (même jour). ✅ 2026-07-07 : 1 joueur =

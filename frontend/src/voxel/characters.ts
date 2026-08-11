@@ -8,7 +8,7 @@ import * as THREE from "three";
 import { signacify } from "./signacMaterial";
 import { fetchVox } from "./vox";
 import { meshVoxModel } from "./mesher";
-import { splitRig, buildRig, disposeRiggedGeom, type Rig, type RiggedGeom } from "./rig";
+import { splitRig, buildRig, disposeRiggedGeom, type Rig, type RiggedGeom, type Weapon } from "./rig";
 
 export const HERO_HEIGHT = 0.6; // hauteur monde d'un héros (réduite 2× — retours utilisateur)
 
@@ -54,9 +54,20 @@ export class CharLibrary {
   }
 
   /** Rig animable (corps + membres pivotants) ou undefined si pas de modèle. */
-  makeRig(key: string): Rig | undefined {
+  /**
+   * Rig monté. `weapon` force le GESTE d'attaque selon l'arme réellement PORTÉE
+   * (weapons.go) au lieu de le déduire de la classe : un héros qui tire à trois
+   * cases ne doit pas faucher de l'épée.
+   *
+   * ⚠ le geste seul change, pas le MODÈLE tenu — celui-ci est cuit dans le .vox
+   * du personnage. Un pionnier qui dégaine un arc mime donc la corde avec sa
+   * lame en main : c'est le compromis assumé tant qu'il n'y a pas d'art par
+   * arme, et il vaut mieux que l'inverse (un tir à distance joué en moulinet).
+   */
+  makeRig(key: string, weapon?: Weapon): Rig | undefined {
     const rg = this.rigs.get(key);
-    return rg ? buildRig(rg) : undefined;
+    if (!rg) return undefined;
+    return buildRig(weapon && weapon !== rg.weapon ? { ...rg, weapon } : rg);
   }
 
   dispose() {

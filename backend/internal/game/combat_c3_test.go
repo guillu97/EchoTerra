@@ -158,15 +158,21 @@ func TestUseItemHealsAndConsumes(t *testing.T) {
 	if err := c.UseItem(gs, hu.ID, "Potion de soin"); err != nil {
 		t.Fatalf("use item: %v", err)
 	}
-	if hu.HP != 10 {
-		t.Fatalf("potion should heal +5, hp=%d", hu.HP)
+	// La valeur vient du CATALOGUE (items.go) — la lire ici plutôt que la recopier
+	// est ce qui empêche la table du combat de re-diverger (voir CombatHeal).
+	heal := CombatHeal("Potion de soin")
+	if heal <= 0 {
+		t.Fatal("a healing potion must be usable in combat")
+	}
+	if hu.HP != 5+heal {
+		t.Fatalf("potion should heal +%d, hp=%d", heal, hu.HP)
 	}
 	if got := heroItemQty(h, "Potion de soin"); got != 1 {
 		t.Fatalf("potion should be consumed from the bag, qty=%d", got)
 	}
 	found := false
 	for _, hit := range c.LastHits {
-		if hit.UnitID == hu.ID && hit.Kind == "heal" && hit.Amount == 5 {
+		if hit.UnitID == hu.ID && hit.Kind == "heal" && hit.Amount == heal {
 			found = true
 		}
 	}

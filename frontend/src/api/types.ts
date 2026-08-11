@@ -507,6 +507,10 @@ export interface CombatUnit {
   fx: number; // Facing (lot C4) : direction regardée — l'arc arrière prend +25 %
   fy: number;
   size?: number; // lot C5 : 2 = boss 2×2 (ancre = coin haut-gauche)
+  armor?: number; // équipement prêté : dégâts subis en moins
+  reach?: number; // portée de l'attaque de base (0 = mêlée)
+  weaponName?: string; // l'arme au poing (weapons.go)
+  weaponKind?: string; // son archétype : epee | dague | lance | arc | baton
 }
 
 // A combat ability with its GDD grids (mirrors backend AttackDef).
@@ -596,6 +600,15 @@ export interface CombatSkill {
   targets: string[];
   estimates?: Record<string, DamageEstimate>;
   selfCast: boolean; // capacité sur soi (ex. Posture défensive) — pas de cible
+  weapon?: boolean; // vient de l'ARME portée et non de la classe (weapons.go)
+}
+
+// Une arme du sac qu'on peut dégainer à la place de celle qu'on tient (coûte le tour).
+export interface CombatSwap {
+  name: string;
+  kind: string; // archétype
+  desc: string;
+  technique?: string; // le nom de la technique qu'elle apporte
 }
 
 export interface CombatCurrent {
@@ -609,6 +622,7 @@ export interface CombatCurrent {
   skillEstimates?: Record<string, DamageEstimate>;
   pushTargets?: string[]; // Poussée (C3) : ennemis alignés à portée
   items?: CombatItem[]; // objets consommables du sac du héros actif (C3)
+  swaps?: CombatSwap[]; // armes du sac qu'on peut dégainer (coûte l'action du tour)
 }
 
 // Compétence de carte par classe (catalogue /api/mapskills), remplace la boule de feu.
