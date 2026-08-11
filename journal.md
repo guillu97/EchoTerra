@@ -6,6 +6,48 @@
 
 ---
 
+## 2026-08-11 (108) — Point de rétention : ce que le plan a fermé, et les expéditions thématiques
+
+**Pas de code cette fois — un bilan.** `RETENTION-PLAN.md` gagne trois sections (§7 le bilan, §8 le
+système de thèmes, §9 l'ordre de bataille révisé).
+
+**Ce que j'ai vérifié dans le code plutôt que supposé.**
+- P1-P8 sont bien livrés, mais **T2 n'est fermé qu'à moitié** : `GameState.Contributions` est
+  calculé, sérialisé, typé dans `api/types.ts`… et **lu par aucun composant** (`grep -r contributions
+  frontend/src --include=*.tsx` → zéro). Le registre existe et personne ne le voit.
+- **La fin de partie est un cul-de-sac** : `GameOver.tsx` = un emoji, une phrase, deux boutons. Rien
+  du registre, rien de la chronique, et surtout « Nouvelle partie » appelle `newGame()` → `POST
+  /api/games`, la **partie solo legacy 22×22 sans joueurs**. Au seul instant où l'on sait que le
+  joueur est là, le jeu l'éjecte de sa boucle multijoueur.
+- **Toujours zéro instrumentation** (aucun `analytics`/`metrics`/`telemetry` côté backend) : le
+  chiffre J3/J7 réclamé par §5 du plan n'existe pas, donc tout le reste est encore de l'opinion.
+- Deux trous de plus : le délai avant la première partie (un seul salon public à la fois — bonne
+  règle, effet secondaire non voulu quand la population est faible), et surtout **rien ne distingue
+  l'expédition n°4 de la n°1**.
+
+**Les expéditions thématiques (idée de Guillaume) répondent à ce dernier point.** La conception tient
+en une contrainte : **un thème est une PEAU et un BIAIS, jamais un jeu différent** — les six biomes
+gardent leurs identifiants et leur RÔLE ÉCONOMIQUE (3 = le bois, 4 = la pierre), le thème change ce
+qu'ils sont à l'écran et leurs proportions. Tout le code est indexé par biome (`Terrains`,
+`Species.Biomes`, `ruinDefs`, `ensureNearbyBiomes`, `botShoppingList` qui cherche littéralement
+« Bois » et « Pierre ») : un désert SANS forêt serait une partie sans bois, donc sans chantier —
+exactement le piège déjà mesuré deux fois dans `biomeQuota`. La palmeraie du désert EST le biome
+forêt. ⚠ le renommage est donc de la **présentation** : `Item.Name` ne change jamais, le thème
+fournit une table de libellés côté client.
+
+Trois bonnes nouvelles pour le coût : `ruinDefs` est **déjà** une table biome → ruine (pyramide et
+sphinx s'y branchent sans mécanique nouvelle), le mesher lit `model.palette` **par modèle** (un thème
+peut n'être qu'un remap de palette au chargement, zéro `.vox` neuf), et `townLayout.ts` génère déjà
+la ville entière (palette + halle sommitale suffisent à la faire changer de caractère). D'où un
+découpage en trois lots dont le premier est **backend pur, sans le moindre asset**, et validé par
+`cmd/balance` (`SurvivalFloor` 12 doit tenir sur CHAQUE thème, sinon un thème est injouable).
+
+**À faire, dans cet ordre** (§9) : le récit de fin de partie (registre + mémorial promis + un bouton
+qui ramène dans une VRAIE expédition) → l'ossature des thèmes → l'instrumentation J3/J7 → la peau et
+le contenu des thèmes.
+
+---
+
 ## 2026-08-11 (107) — La reprise après une absence : le rattrapage, et la sortie d'une ville tombée
 
 **Le rapport** (capture à l'appui) : « une fois que le joueur se reconnecte à sa ville, j'ai le timer à
