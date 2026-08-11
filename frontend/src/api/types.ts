@@ -601,6 +601,7 @@ export interface CombatSkill {
   estimates?: Record<string, DamageEstimate>;
   selfCast: boolean; // capacité sur soi (ex. Posture défensive) — pas de cible
   weapon?: boolean; // vient de l'ARME portée et non de la classe (weapons.go)
+  cells?: [number, number][]; // cases VISABLES (grille de ciblage, bornes + LOS serveur)
 }
 
 // Une arme du sac qu'on peut dégainer à la place de celle qu'on tient (coûte le tour).
@@ -620,6 +621,7 @@ export interface CombatCurrent {
   skills?: CombatSkill[]; // toutes les compétences iso du héros actif
   attackEstimates?: Record<string, DamageEstimate>;
   skillEstimates?: Record<string, DamageEstimate>;
+  attackCells?: [number, number][]; // portée de l'attaque de base — l'ARME la change
   pushTargets?: string[]; // Poussée (C3) : ennemis alignés à portée
   items?: CombatItem[]; // objets consommables du sac du héros actif (C3)
   swaps?: CombatSwap[]; // armes du sac qu'on peut dégainer (coûte l'action du tour)

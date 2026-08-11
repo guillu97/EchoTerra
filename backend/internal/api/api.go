@@ -1658,6 +1658,10 @@ func combatResponse(gs *game.GameState, c *game.Combat) map[string]any {
 					"estimates": estimatesOf(c, cur, &s, tgts),
 					"selfCast":  s.SelfShield || s.BuffAllies,
 					"weapon":    i == techIdx,
+					// Les cases VISABLES de cette capacité : le client les peint au
+					// sol quand elle est armée (la portée se lit, elle ne se devine
+					// plus dans une liste de cibles).
+					"cells": c.AimCells(cur, &s),
 				})
 			}
 			resp["current"] = map[string]any{
@@ -1669,6 +1673,8 @@ func combatResponse(gs *game.GameState, c *game.Combat) map[string]any {
 				// Fourchettes de dégâts prévisualisées (lot C2) — calcul serveur.
 				"attackEstimates": estimatesOf(c, cur, &base, atkTargets),
 				"skillEstimates":  estimatesOf(c, cur, &sk, skTargets),
+				// Portée de l'attaque de BASE (celle que l'arme modifie) au sol.
+				"attackCells": c.AimCells(cur, &base),
 				// Compétences iso multiples (une par bouton).
 				"skills": skills,
 				// Lot C3 : cibles de Poussée + objets du sac utilisables en combat.

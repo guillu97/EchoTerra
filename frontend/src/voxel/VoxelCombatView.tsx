@@ -94,6 +94,7 @@ class CombatWorld {
   skillIdx = 0; // compétence iso armée (surbrillance des bonnes cibles)
   threats: CombatThreat[] = []; // cases menacées par ennemi (télégraphie C2)
   threatUnitId?: string;
+  aimUnitId?: string; // cible survolée : on y peint la zone d'impact du coup armé
   lastSeq = -1; // dernier combat.seq animé (diff → dégâts flottants)
   pendingActor?: { unitId: string; kind: "attack" | "skill" }; // acteur de l'action du joueur, en attente du prochain render
   private fxAnims: { sprite: THREE.Sprite; x: number; y0: number; z: number; start: number; dur: number }[] = [];
@@ -450,13 +451,16 @@ class CombatWorld {
     this.animator.beginFrame();
 
     const topOf = (x: number, y: number) => this.surfaceY(x, y);
-    const quad = (x: number, y: number, color: number, opacity: number) => {
+    // `lift` = à quelle hauteur au-dessus du sol poser le quad. Les couches se
+    // superposent SANS z-fighting : portée 0.012 < déplacement 0.02 < menace
+    // 0.028 < liseré de portée 0.035 < zone d'impact 0.045.
+    const quad = (x: number, y: number, color: number, opacity: number, lift = 0.02) => {
       const m = new THREE.Mesh(
         CQUAD_GEOM,
         new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false }),
       );
       m.userData.ownMat = true;
-      m.position.set(x, topOf(x, y) + 0.02, y);
+      m.position.set(x, topOf(x, y) + lift, y);
       this.overlays.add(m);
     };
     const ring = (x: number, y: number, color: number, scale = 1) => {
@@ -485,11 +489,55 @@ class CombatWorld {
       }
     }
 
+    // PORTÉE DU COUP ARMÉ (cases visables, servies par le serveur : bornes +
+    // ligne de vue). En ROUGE SOMBRE translucide, sous les cases de déplacement
+    // vertes — deux questions différentes, deux couleurs : « où puis-je aller »
+    // et « qu'est-ce que j'atteins d'ici ». C'est ce qui rend une arme lisible
+    // sans texte : la lance dessine une couronne à deux cases, l'arc une grande
+    // tache trouée par les rochers.
+    if (c.status === "active" && (this.mode === "attack" || this.mode === "skill")) {
+      const aim =
+        this.mode === "skill"
+          ? this.current?.skills?.[this.skillIdx]?.cells ?? []
+          : this.current?.attackCells ?? [];
+      // ⚠ une case peut être À LA FOIS accessible (vert) et frappable (rouge) —
+      // bouger ne termine pas le tour. Deux remplissages au MÊME niveau se
+      // battaient en z-fighting : le fond rouge passe donc SOUS le vert, et
+      // c'est un LISERÉ posé au-dessus qui porte l'information de portée. Une
+      // case verte cerclée de rouge se lit « j'y vais ou j'y frappe ».
+      for (const [ax, ay] of aim) {
+        quad(ax, ay, 0x8f2418, 0.4, 0.012);
+        const rim = new THREE.Mesh(
+          CEDGE_GEOM,
+          new THREE.MeshBasicMaterial({ color: 0xff5a4d, transparent: true, opacity: 0.9, depthWrite: false }),
+        );
+        rim.userData.ownMat = true;
+        rim.position.set(ax, topOf(ax, ay) + 0.035, ay);
+        this.overlays.add(rim);
+      }
+
+      // ZONE D'IMPACT sur la cible survolée : la case frappée + la grille de
+      // dégâts de la capacité. Le Fauchage éclabousse, l'attaque de base non —
+      // et ça ne se voyait nulle part AVANT de frapper.
+      const armed =
+        this.mode === "skill" ? this.current?.skills?.[this.skillIdx]?.skill : undefined;
+      const hit = this.aimUnitId ? c.units.find((u) => u.id === this.aimUnitId) : undefined;
+      if (hit) {
+        const zone = [{ dx: 0, dy: 0 }, ...(armed?.damage ?? [])];
+        for (const z of zone) {
+          const zx = hit.x + z.dx;
+          const zy = hit.y + z.dy;
+          if (zx < 0 || zy < 0 || zx >= c.gridW || zy >= c.gridH) continue;
+          quad(zx, zy, 0xff6a3d, 0.7, 0.045);
+        }
+      }
+    }
+
     // télégraphie (lot C2) : les cases menacées par l'ennemi sélectionné (tap
     // sur l'unité) en ORANGE — servies par le serveur, le client n'évalue rien.
     if (c.status === "active" && this.threatUnitId) {
       const threat = this.threats.find((t) => t.unitId === this.threatUnitId);
-      for (const [tx, ty] of threat?.cells ?? []) quad(tx, ty, 0xff8c3b, 0.48);
+      for (const [tx, ty] of threat?.cells ?? []) quad(tx, ty, 0xff8c3b, 0.48, 0.028);
     }
 
     // unités : billboards + barre de PV (sprites face caméra)
@@ -626,6 +674,7 @@ export function VoxelCombatView() {
         skillIdx?: number;
         threats?: CombatThreat[];
         threatUnitId?: string;
+        aimUnitId?: string;
       }) => {
         const changed = world.combat?.id !== p.combat.id;
         const prevUnits = changed ? [] : world.combat?.units ?? []; // pour diff des morts
@@ -635,6 +684,7 @@ export function VoxelCombatView() {
         world.skillIdx = p.skillIdx ?? 0;
         world.threats = p.threats ?? [];
         world.threatUnitId = p.threatUnitId;
+        world.aimUnitId = p.aimUnitId;
         if (changed) {
           world.fitted = false;
           world.lastSeq = p.combat.seq; // ne pas rejouer les coups d'un combat rechargé

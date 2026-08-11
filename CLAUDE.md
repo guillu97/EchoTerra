@@ -760,6 +760,19 @@ trois cases n'était RIEN à l'écran). Tests : `game/weapons_test.go`, `api/wea
 `frontend/tests/combat-ui.mjs`. ⚠ `CombatHeal` est désormais **dérivé d'`ItemEffects`** : le lot C3
 avait figé sa propre table de quatre objets, qui listait « Baies » (nom d'aucun objet du jeu) et
 ignorait l'Élixir de sève.
+**LA PORTÉE SE VOIT** (`Combat.AimCells`, `current.attackCells` + `skills[].cells`, 2026-08-11) — la
+portée d'une arme ne se lisait que dans une LISTE DE CIBLES : rien au sol ne disait « d'ici, la lance
+atteint deux cases » ni « ce rocher coupe mon tir ». `AimCells(u, atk)` rend les cases visables —
+grille de ciblage, bornes de l'arène et **ligne de vue**, exactement les règles de `canTarget`
+(⚠ recalculées côté client elles divergeraient au premier obstacle, et le joueur viserait une case
+que le serveur refuse ; test dédié dans les DEUX sens). Le client peint aussi la **ZONE D'IMPACT** de
+la cible SURVOLÉE (`store.aimUnitId`, `setAimUnit` sur `onPointerEnter`/`onFocus` des boutons de
+cible) à partir de `skill.damage` — le Fauchage éclabousse, l'attaque de base non, et ça ne se voyait
+qu'APRÈS avoir frappé. ⚠ **une case peut être à la fois accessible et frappable** (bouger ne termine
+pas le tour) : les deux remplissages au même niveau se battaient en z-fighting, d'où des COUCHES
+explicites dans `quad(..., lift)` — portée 0,012 < déplacement 0,02 < menace 0,028 < liseré de portée
+0,035 < zone d'impact 0,045 — et c'est un LISERÉ rouge, posé au-dessus, qui porte la portée sur une
+case verte.
 
 **USAGE DES OBJETS** (`items.go`, `GET /api/items`, `POST /heroes/{h}/use`, 2026-08-10) — le
 catalogue portait 26 recettes dont les effets n'étaient QUE DU TEXTE : on cuisinait des ragoûts et

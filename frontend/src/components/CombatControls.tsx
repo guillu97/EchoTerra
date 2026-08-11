@@ -37,6 +37,7 @@ export function CombatControls() {
   const {
     combat, current, combatMode, combatSkillIdx, setCombatMode, selectCombatSkill, combatUnitClick,
     combatDefend, combatFlee, combatUseItem, combatSwapWeapon, endTurn, busy, game, playerId,
+    setAimUnit,
   } = useStore();
   // Tiroirs : les objets et les armes du sac ne méritent pas une rangée
   // permanente — on ne s'en sert qu'à un moment précis du combat.
@@ -271,6 +272,13 @@ export function CombatControls() {
                         : ""
                   }
                   onClick={() => combatUnitClick(id)}
+                  // Survoler (ou tabuler jusqu'à) une cible peint dans l'arène la
+                  // ZONE que le coup va toucher : le Fauchage éclabousse, pas
+                  // l'attaque de base — et ça ne se voyait qu'après avoir frappé.
+                  onPointerEnter={() => setAimUnit(id)}
+                  onPointerLeave={() => setAimUnit(undefined)}
+                  onFocus={() => setAimUnit(id)}
+                  onBlur={() => setAimUnit(undefined)}
                 >
                   <b>{combatMode === "push" ? "👐" : lethal ? "☠️" : "🎯"} {u?.name}</b>
                   {u && <em>{Math.max(0, u.hp)}/{u.maxHp}</em>}

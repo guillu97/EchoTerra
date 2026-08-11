@@ -75,6 +75,18 @@ maligne.
 monstres n'ont pas d'équipement ; les bots ne FORGENT toujours pas, donc en partie 100 % IA les armes
 ne viennent que du butin.
 
+**Suite le même jour — la portée se VOIT.** Une arme qui change la portée ne servait à rien si la
+portée ne se lisait que dans une liste de cibles : rien au sol ne disait « d'ici, la lance atteint
+deux cases » ni « ce rocher coupe mon tir ». `Combat.AimCells` sert les cases visables (grille de
+ciblage + bornes + ligne de vue, EXACTEMENT les règles de `canTarget`) et l'arène les peint ; survoler
+une cible peint en plus la ZONE d'impact du coup armé, donc l'éclaboussure du Fauchage AVANT de
+frapper. ⚠ le test va dans les DEUX SENS — toute case peinte doit être acceptée par `canTarget`, et
+toute case acceptée doit être peinte : une portée affichée plus large que la réalité est pire que pas
+de portée du tout. ⚠ z-fighting : une case peut être à la fois accessible (vert) et frappable
+(rouge), puisque bouger ne termine pas le tour ; d'où des COUCHES explicites (`quad(..., lift)`) et
+un LISERÉ rouge posé au-dessus du vert. Vérifié : `test:combat-ui` 9/9, `test:map-tap` 3/3, captures
+à l'appui.
+
 ## 2026-08-10 (105) — Les monstres respiraient plus : un cadenceur d'idle, réglable
 
 **Le symptôme** (signalé par Guillaume) : sur la carte, les monstres sont figés tant que rien ne bouge.

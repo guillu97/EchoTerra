@@ -1047,6 +1047,40 @@ func (c *Combat) ThreatCells(u *CombatUnit) [][2]int {
 	return out
 }
 
+// AimCells renvoie les cases que `atk` peut VISER depuis la position de u : sa
+// grille de ciblage VERTE, ramenée en coordonnées d'arène, bornée à la grille et
+// — pour un tir — filtrée par la ligne de vue.
+//
+// Pourquoi le serveur et pas le client : c'est exactement la règle que
+// `canTarget` applique pour ACCEPTER une attaque (bornes + LOS depuis chaque
+// case de l'empreinte). Recalculée côté client, elle divergerait au premier
+// obstacle, et le joueur verrait une portée que le serveur refuse.
+//
+// C'est ce qui rend une ARME lisible sans texte : la lance dessine une couronne
+// à deux cases, l'arc une grande tache trouée par les rochers, l'épée quatre
+// cases. Avant, la portée d'une arme ne se lisait que dans une liste de cibles.
+func (c *Combat) AimCells(u *CombatUnit, atk *AttackDef) [][2]int {
+	out := [][2]int{}
+	if atk.SelfShield || atk.BuffAllies {
+		return out // capacité sur soi : rien à viser
+	}
+	seen := map[[2]int]bool{}
+	for _, fc := range u.footprint() {
+		for _, t := range atk.Targets {
+			x, y := fc[0]+t.DX, fc[1]+t.DY
+			if x < 0 || y < 0 || x >= c.GridW || y >= c.GridH || seen[[2]int{x, y}] {
+				continue
+			}
+			if manhattan(fc[0], fc[1], x, y) > 1 && !c.hasLOS(fc[0], fc[1], x, y) {
+				continue // on ne tire pas à travers un rocher
+			}
+			seen[[2]int{x, y}] = true
+			out = append(out, [2]int{x, y})
+		}
+	}
+	return out
+}
+
 // performAttack executes an AttackDef from att onto the struck cell (tx,ty): every
 // enemy in the damage zone (struck cell + the attack's red grid) takes damage and
 // effects. Self-targeted abilities (SelfShield/BuffAllies) ignore the target.

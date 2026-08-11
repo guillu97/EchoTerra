@@ -205,3 +205,67 @@ func TestWeaponTechniqueEstimateBracketsReality(t *testing.T) {
 		}
 	}
 }
+
+// LA PORTÉE SE VOIT (AimCells) — et ce qu'elle montre doit être EXACTEMENT ce
+// que le serveur accepte. Une portée peinte au sol plus large que la réalité
+// est pire que pas de portée du tout : le joueur vise une case et se fait
+// refuser.
+func TestAimCellsMatchWhatTheServerAccepts(t *testing.T) {
+	_, c, hu, mu := armedGame(t, "Lance de sanglier")
+	hu.X, hu.Y = 3, 3
+	base := c.baseAttackFor(hu)
+	cells := c.AimCells(hu, &base)
+	if len(cells) == 0 {
+		t.Fatal("une lance doit pouvoir viser quelque chose")
+	}
+	// toute case peinte doit être DANS l'arène et réellement ciblable
+	for _, cell := range cells {
+		if cell[0] < 0 || cell[1] < 0 || cell[0] >= c.GridW || cell[1] >= c.GridH {
+			t.Fatalf("case hors arène peinte : %v", cell)
+		}
+		mu.X, mu.Y = cell[0], cell[1]
+		if !c.canTarget(hu, &base, mu) {
+			t.Fatalf("case %v peinte mais refusée par canTarget", cell)
+		}
+	}
+	// … et réciproquement : une case ciblable doit être peinte.
+	painted := map[[2]int]bool{}
+	for _, cell := range cells {
+		painted[cell] = true
+	}
+	for y := 0; y < c.GridH; y++ {
+		for x := 0; x < c.GridW; x++ {
+			mu.X, mu.Y = x, y
+			if c.canTarget(hu, &base, mu) && !painted[[2]int{x, y}] {
+				t.Fatalf("case (%d,%d) ciblable mais NON peinte", x, y)
+			}
+		}
+	}
+}
+
+func TestAimCellsRespectLineOfSight(t *testing.T) {
+	_, c, hu, _ := armedGame(t, "Arc sylvestre")
+	hu.X, hu.Y = 3, 5
+	tech, _ := weaponTechnique(ArchBow)
+	before := len(c.AimCells(hu, &tech))
+	c.Cells[4*c.GridW+3].Blocked = true // un rocher juste devant, plein nord
+	after := c.AimCells(hu, &tech)
+	if len(after) >= before {
+		t.Fatalf("un obstacle doit RETIRER des cases visables : %d -> %d", before, len(after))
+	}
+	for _, cell := range after {
+		if cell[0] == 3 && cell[1] < 4 {
+			t.Fatalf("la colonne derrière le rocher ne doit plus être visable : %v", cell)
+		}
+	}
+}
+
+// Une capacité sur soi ne peint rien : il n'y a rien à viser.
+func TestAimCellsEmptyForSelfCast(t *testing.T) {
+	_, c, hu, _ := armedGame(t, "")
+	hu.ClassID = "gardien"
+	sk := heroSkillFor("gardien") // Posture défensive
+	if cells := c.AimCells(hu, &sk); len(cells) != 0 {
+		t.Fatalf("une capacité sur soi ne peint aucune case : %v", cells)
+	}
+}

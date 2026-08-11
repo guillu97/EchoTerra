@@ -232,6 +232,7 @@ interface StoreState {
   current?: CombatCurrent;
   combatThreats: CombatThreat[]; // cases menacées par ennemi (télégraphie C2)
   threatUnitId?: string; // ennemi dont on affiche la menace (tap sur l'unité)
+  aimUnitId?: string; // cible SURVOLÉE : l'arène y peint la zone d'impact du coup armé
   view: View;
   combatMode: CombatMode;
   combatSkillIdx: number; // compétence iso armée quand combatMode === "skill"
@@ -325,6 +326,7 @@ interface StoreState {
   combatTileClick: (x: number, y: number) => Promise<void>;
   combatUnitClick: (unitId: string) => Promise<void>;
   toggleThreat: (unitId: string) => void; // afficher/masquer les cases menacées d'un ennemi
+  setAimUnit: (unitId?: string) => void; // cible survolée : aperçu de la ZONE d'impact
   joinCombat: () => Promise<void>; // multijoueur : reprendre le contrôle de MES héros
   refreshCombat: () => Promise<void>; // poll du combat multijoueur (tours des autres)
   combatDefend: () => Promise<void>; // 🛡️ -50% subis jusqu'au prochain tour (C3)
@@ -448,7 +450,7 @@ export const useStore = create<StoreState>((set, get) => {
   let moveSeq = 0;
 
   const renderCombat = () => {
-    const { combat, current, combatMode, combatSkillIdx, combatThreats, threatUnitId } = get();
+    const { combat, current, combatMode, combatSkillIdx, combatThreats, threatUnitId, aimUnitId } = get();
     bus.emit(EV.ShowScene, "combat");
     bus.emit(EV.CombatRender, {
       combat,
@@ -457,6 +459,7 @@ export const useStore = create<StoreState>((set, get) => {
       skillIdx: combatSkillIdx,
       threats: combatThreats,
       threatUnitId,
+      aimUnitId,
     });
   };
 
@@ -475,6 +478,7 @@ export const useStore = create<StoreState>((set, get) => {
       game: resp.game,
       combatThreats: threats,
       threatUnitId: keepThreat ? get().threatUnitId : undefined,
+      aimUnitId: undefined, // l'aperçu de zone ne survit pas à un lot d'actions
     });
     resp.combat.log.slice(-3).forEach((l) => pushLog(l));
     if (resp.combat.status !== "active") {
@@ -1397,7 +1401,7 @@ export const useStore = create<StoreState>((set, get) => {
       }),
 
     setCombatMode: (m) => {
-      set({ combatMode: m });
+      set({ combatMode: m, aimUnitId: undefined }); // l'aperçu de zone appartient au mode
       renderCombat();
     },
 
@@ -1486,6 +1490,15 @@ export const useStore = create<StoreState>((set, get) => {
 
     toggleThreat: (unitId) => {
       set({ threatUnitId: get().threatUnitId === unitId ? undefined : unitId });
+      renderCombat();
+    },
+
+    // Survoler une cible peint la ZONE que le coup armé va réellement toucher
+    // (le Fauchage éclabousse, l'attaque de base non). Pas de redraw inutile :
+    // c'est appelé à chaque mouvement de souris sur la liste de cibles.
+    setAimUnit: (unitId) => {
+      if (get().aimUnitId === unitId) return;
+      set({ aimUnitId: unitId });
       renderCombat();
     },
 

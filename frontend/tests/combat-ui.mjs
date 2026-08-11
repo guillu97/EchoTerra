@@ -110,6 +110,27 @@ if (!started.ok) {
   );
   check("les actions de base sont là", ["Attaque", "Défendre", "Fin"].every((n) => seen.acts.includes(n)), seen.acts.join(" · "));
 
+  // LA PORTÉE SE VOIT : armer l'attaque doit peindre des cases au sol (servies
+  // par le serveur), et les compétences servies ont chacune les leurs.
+  const aim = await page.evaluate(() => {
+    const s = window.__eg.store.getState();
+    s.setCombatMode("attack");
+    const c = window.__eg.store.getState().current;
+    return {
+      attack: (c?.attackCells ?? []).length,
+      skills: (c?.skills ?? []).map((k) => ({ n: k.skill.name, cells: (k.cells ?? []).length, self: k.selfCast })),
+    };
+  });
+  await wait(400);
+  const painted = await page.evaluate(() => window.__vc?.world?.overlays?.children?.length ?? 0);
+  console.log("  portée:", JSON.stringify(aim), "overlays:", painted);
+  check("l'attaque de base a une portée servie", aim.attack > 0, `${aim.attack} cases`);
+  check(
+    "chaque compétence offensive a la sienne",
+    aim.skills.every((k) => k.self || k.cells > 0),
+    aim.skills.map((k) => `${k.n}:${k.cells}`).join(" · "),
+  );
+
   // Raccourci clavier : A arme le mode attaque, Échap le désarme.
   await page.keyboard.press("a");
   await wait(150);
