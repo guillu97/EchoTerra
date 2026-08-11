@@ -199,6 +199,7 @@ interface StoreState {
   heroOverlay?: string; // hero id whose character screen is open
   townStatusOpen: boolean; // town status panel overlay
   townJournalOpen: boolean; // town journal overlay (Panel building)
+  townLedgerOpen: boolean; // registre de contribution (Panel building) — cf. TownLedger.tsx
   chatOpen: boolean; // messagerie de la ville (feuille ✉️)
   chat: ChatMessage[]; // board content — served by its own gated route, never by the game payload
   chatSeen: number; // how many messages this device had seen (drives the unread pip)
@@ -257,6 +258,7 @@ interface StoreState {
   closeHero: () => void;
   toggleTownStatus: (open?: boolean) => void;
   toggleTownJournal: (open?: boolean) => void;
+  toggleTownLedger: (open?: boolean) => void;
   toggleChat: (open?: boolean) => void;
   dismissWaveCinema: () => void;
   refreshChat: () => Promise<void>; // sondage silencieux de la messagerie
@@ -667,6 +669,7 @@ export const useStore = create<StoreState>((set, get) => {
     settings: loadSettings(),
     townStatusOpen: false,
     townJournalOpen: false,
+    townLedgerOpen: false,
     chatOpen: false,
     chat: [],
     chatSeen: 0,
@@ -717,6 +720,8 @@ export const useStore = create<StoreState>((set, get) => {
       set((s) => ({ townStatusOpen: open === undefined ? !s.townStatusOpen : open })),
     toggleTownJournal: (open) =>
       set((s) => ({ townJournalOpen: open === undefined ? !s.townJournalOpen : open })),
+    toggleTownLedger: (open) =>
+      set((s) => ({ townLedgerOpen: open === undefined ? !s.townLedgerOpen : open })),
 
     toggleChat: (open) => {
       const next = open === undefined ? !get().chatOpen : open;

@@ -6,6 +6,47 @@
 
 ---
 
+## 2026-08-11 (109) — Le récit de fin de partie : ce qu'on emporte d'une ville tombée
+
+Suite directe de l'entrée 108 (R1+R2 du plan de rétention). Après sept à neuf jours réels de survie
+collective, l'écran de fin était **un emoji, une phrase et deux boutons**.
+
+**Trois manques, un seul écran.**
+
+1. **Le registre de contribution était invisible.** Le serveur le tient depuis P3
+   (`contribution.go`, six actions créditées), le sérialise (`contributions`), le type dans
+   `api/types.ts` — et **aucun composant ne le lisait**. `components/TownLedger.tsx` le sert
+   désormais aux DEUX endroits qui comptent : la feuille de ville (bouton « 🤝 Ce que la ville vous
+   doit » du Panneau) et le récit de fin. ⚠ `buildLedger()` est le **miroir de `GameState.Ledger()`**
+   et doit le rester : ordre d'ARRIVÉE, lignes à zéro comprises (leur absence dirait « il n'existe
+   pas »), orphelins triés par id, **aucun total et aucun tri par mérite** — trier installerait une
+   compétition entre coéquipiers dans un jeu qui se vend sur la survie de groupe. Les zéros sont tus
+   par ligne : une ligne pleine de « 0 » se lit comme un reproche.
+2. **La promesse des mémoriaux n'était pas dite.** Depuis P5 la ville tombée se dresse en ruines sur
+   les cartes suivantes, avec sa dernière vague et ses défenseurs — le serveur le fait, personne ne
+   le disait au joueur. C'est maintenant le dernier paragraphe du récit.
+3. **La relance éjectait le joueur de sa propre boucle.** « Nouvelle partie » appelait `newGame()`,
+   c'est-à-dire `POST /api/games` : la partie **solo legacy 22×22 sans joueurs**. Désormais une
+   partie solo propose de repartir en solo, une expédition renvoie vers les expéditions publiques
+   (et vers la connexion si le compte manque). ⚠ la carte scrolle (`max-height: 92dvh`) : un bouton
+   de sortie hors de l'écran recréerait le cul-de-sac corrigé la veille (entrée 107).
+
+**Vérifié.**
+- `npm run test:endgame` (nouveau, 8/8) : ma ligne, l'ordre d'arrivée malgré un registre injecté À
+  L'ENVERS du mérite, la ligne « rien encore » d'un joueur qui n'a rien fait, l'absence de tout
+  vocabulaire de classement, le mémorial nommé, la relance qui atteint le salon **avec zéro appel à
+  `POST /api/games`**, et le bouton solo d'une partie solo. **Le même test fait 1/8 sur le code
+  d'avant** (et ses locators sont tolérants exprès : un régresseur doit lire des FAIL, pas un
+  timeout Playwright au milieu du fichier).
+- `npx tsc -b`, `npm run build`, `test:reconnect` 8/8, `test:map-tap` 3/3, `test:combat-ui` 9/9,
+  `test:perf` 13/13. Vérifié à l'œil sur les deux fonds (carte sombre du récit, parchemin de la
+  feuille de ville).
+
+**À faire ensuite** : `RETENTION-PLAN.md` §9 — l'ossature des thèmes (lot 1, backend pur), puis
+l'instrumentation J3/J7.
+
+---
+
 ## 2026-08-11 (108) — Point de rétention : ce que le plan a fermé, et les expéditions thématiques
 
 **Pas de code cette fois — un bilan.** `RETENTION-PLAN.md` gagne trois sections (§7 le bilan, §8 le

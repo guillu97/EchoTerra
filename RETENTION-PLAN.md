@@ -280,7 +280,14 @@ serveur** :
 Mais les trous de §2 étaient ceux de la **session** et de la **fin de partie**. Un cran plus loin,
 cinq autres restent ouverts — tous vérifiés dans le code, pas supposés :
 
-### R1 — Le registre de contribution n'est affiché nulle part
+### R1 — Le registre de contribution n'est affiché nulle part — ✅ **LIVRÉ** (2026-08-11)
+
+> `components/TownLedger.tsx` : `buildLedger()` est le miroir de `GameState.Ledger()`
+> (ordre d'arrivée, lignes à zéro comprises, orphelins triés par id) et le MÊME
+> composant sert la feuille de ville (bouton « 🤝 Ce que la ville vous doit » du
+> Panneau) et le récit de fin de partie. Aucun total, aucun tri par mérite.
+> Test : `npm run test:endgame`.
+
 
 `GameState.Contributions` est calculé (`contribution.go`), sérialisé (`contributions` dans le payload,
 typé dans `api/types.ts`) et **aucun composant ne le lit** (`grep -r contributions frontend/src/**.tsx`
@@ -288,7 +295,14 @@ typé dans `api/types.ts`) et **aucun composant ne le lit** (`grep -r contributi
 moitié serveur est faite, la moitié qui produit l'effet ne l'est pas. C'est le meilleur rapport
 valeur/effort restant du document — la donnée existe, il manque une liste.
 
-### R2 — La fin de partie est un cul-de-sac
+### R2 — La fin de partie est un cul-de-sac — ✅ **LIVRÉ** (2026-08-11)
+
+> `components/GameOver.tsx` : vagues tenues / jours / créatures abattues, ce que
+> J'AI apporté, le registre de la ville, la promesse du mémorial (tenue par le
+> serveur depuis P5 et jamais dite au joueur), et une relance qui ramène là d'où
+> l'on vient — solo pour une partie solo, expéditions publiques sinon. Le bouton
+> qui appelait `newGame()` (la partie legacy 22×22) a disparu.
+
 
 `components/GameOver.tsx` : un emoji, une phrase (« tombée à la vague N »), deux boutons. Rien de ce
 que le joueur a fait pendant neuf jours, aucun lien vers sa chronique, aucun mémorial promis (« votre
@@ -523,10 +537,9 @@ sphinx, harpies et araignées), puis — quand les deux premiers auront prouvé 
 
 ## 9. Ordre de bataille révisé (2026-08-11)
 
-1. **R1 + R2 — le récit de fin de partie.** Afficher le registre (P3) en ville et surtout à la chute,
-   dire au joueur que sa ville va hanter les cartes suivantes, et remplacer « Nouvelle partie » par
-   *rejoindre une expédition* (le flux public/solo, pas la partie legacy 22×22). Petit code, et c'est
-   le seul instant où l'on tient le joueur à coup sûr.
+1. ~~**R1 + R2 — le récit de fin de partie.**~~ ✅ **LIVRÉ le 2026-08-11.** Le registre s'affiche en
+   ville et à la chute, la promesse du mémorial est dite, et la relance ramène dans une vraie
+   expédition.
 2. **P9 lot 1 — l'ossature des thèmes.** Backend pur, sans asset, validé par `cmd/balance`.
 3. **R3 — l'instrumentation.** Une table d'activité, puis J3/J7 par expédition. Sans elle, la suite
    de ce document reste une opinion.

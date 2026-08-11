@@ -81,7 +81,10 @@ le déplace jamais, taper le sol déplace toujours; mêmes prérequis que `test:
 poing, un bouton par compétence servie, les raccourcis clavier; mêmes prérequis) ·
 `npm run test:reconnect` (in frontend — **la reprise après une absence** : le rattrapage ne se joue pas
 sous les yeux du joueur (une seule cinématique, pas une toutes les 20 s) et une ville tombée rend la
-main au menu; mêmes prérequis).
+main au menu; mêmes prérequis) ·
+`npm run test:endgame` (in frontend — **le récit de fin de partie** : le registre de contribution dans
+l'ordre d'arrivée, la promesse du mémorial, et une relance qui ne repasse PAS par la partie legacy;
+mêmes prérequis).
 
 **Déploiement Vercel (gratuit)** — voir `DEPLOY.md`. Preset **Services** (`vercel.json`) : service
 `frontend` (root `frontend/`, Vite, statique CDN) + service `backend` (root `backend/`, le preset Go
@@ -181,7 +184,9 @@ frontend/src/
                                 TownStatus, GameOver, HeroOverlay, ItemGrid, MapHeroBar,
                                 HeroChip (LA pastille de héros, partagée par les 3 listes),
                                 CombatControls (LA barre d'action du combat : qui joue / quoi faire / sur qui),
-                                TownJournal, TownChat (messagerie, cf. §5)
+                                TownJournal, TownChat (messagerie, cf. §5),
+                                TownLedger (LE registre de contribution : la feuille de ville ET
+                                le récit de fin de partie lisent le même composant)
   ui/                           Overlay.tsx (LA primitive de modale/feuille : Échap, piège à focus,
                                 retour du focus, role=dialog/aria-modal), Toasts.tsx (file aria-live),
                                 ErrorBoundary.tsx (écran de secours au lieu d'un écran blanc)
@@ -1069,6 +1074,23 @@ test `TestServerWrittenSentencesUseFrenchBuildingNames`).
   `moveSeq` ignore une réponse doublée par un pas plus récent (sinon le héros reculait), et un échec
   resynchronise par `refreshGame()` plutôt que par un rollback à la main.
 - Server timer: `nextWaveAt` drives "Next wave in"; GameScreen polls every 20s so scheduler waves show up.
+- **LE RÉCIT DE FIN DE PARTIE** (`components/GameOver.tsx` + `components/TownLedger.tsx`, 2026-08-11) —
+  après sept à neuf jours de survie collective, l'écran de fin était un emoji, une phrase et deux
+  boutons (`RETENTION-PLAN.md` R1+R2). Il porte désormais **le registre de contribution**, resté
+  invisible depuis P3 : le serveur le calcule (`contribution.go`), le sérialise (`contributions`), le
+  type dans `api/types.ts` — et AUCUN composant ne le lisait. ⚠ `buildLedger()` est le **MIROIR de
+  `GameState.Ledger()`** : joueurs dans l'ORDRE D'ARRIVÉE (lignes à zéro comprises — leur absence
+  dirait « il n'existe pas »), puis les partis triés par id ; **jamais trié par mérite, aucun total,
+  aucun « meilleur joueur »** — trier installerait une compétition entre coéquipiers dans un jeu qui
+  se vend sur la survie de groupe. Le même composant sert la feuille de ville (bouton « 🤝 Ce que la
+  ville vous doit » du Panneau, `store.townLedgerOpen`) et le récit. L'écran annonce aussi que la
+  ville **hantera les cartes suivantes** (la promesse des mémoriaux P5, tenue par le serveur et que
+  personne ne disait au joueur). ⚠ **la relance ne repasse PLUS par `newGame()`** (`POST /api/games`,
+  la partie solo legacy 22×22 sans joueurs) : une partie solo propose de repartir en solo, une
+  expédition renvoie vers les expéditions publiques — au seul instant où l'on sait que le joueur est
+  là, le jeu l'éjectait de sa propre boucle multijoueur. La carte scrolle (`max-height: 92dvh`) :
+  un bouton de sortie hors de l'écran recréerait le cul-de-sac qu'on vient de supprimer. Test :
+  `npm run test:endgame` (échoue 7/8 sur le code d'avant).
 - **LE MOMENT DE LA VAGUE** (`components/WaveCinematic.tsx`, 2026-08-02) — la horde qui frappe était
   trois lignes de log, alors que c'est le battement du jeu ET le pire instant côté client : le serveur
   résout la vague (mesuré jusqu'à 1,3 s en local, plus en déploiement) puis des centaines de créatures

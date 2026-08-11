@@ -31,6 +31,7 @@ function BuildingMenu({ layout, b, onClose }: { layout: BuildingLayout; b: TownB
   const setTab = useStore((s) => s.setTab);
   const toggleTownStatus = useStore((s) => s.toggleTownStatus);
   const toggleTownJournal = useStore((s) => s.toggleTownJournal);
+  const toggleTownLedger = useStore((s) => s.toggleTownLedger);
   const toggleChat = useStore((s) => s.toggleChat);
   const busy = useStore((s) => s.busy);
   const game = useStore((s) => s.game);
@@ -193,6 +194,13 @@ function BuildingMenu({ layout, b, onClose }: { layout: BuildingLayout; b: TownB
             >
               <span>{flavor.label}</span>
               {flavor.cost > 0 && <span className="c">-{flavor.cost}</span>}
+            </button>
+          )}
+          {/* Le Panneau porte DEUX lectures : ce qui s'est passé (journal) et ce que
+              chacun a apporté (registre) — cf. TownLedger.tsx. */}
+          {layout.id === "panel" && (
+            <button onClick={() => { onClose(); toggleTownLedger(true); }}>
+              <span>🤝 Ce que la ville vous doit</span>
             </button>
           )}
           <button onClick={() => { onClose(); setTab("structure"); }}>

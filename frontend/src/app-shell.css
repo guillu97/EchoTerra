@@ -2704,11 +2704,16 @@ body {
   color: #fff;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--s-3);
   align-items: center;
-  padding: 24px;
-  width: 80%;
-  max-width: 360px;
+  padding: var(--s-5);
+  width: 88%;
+  max-width: 380px;
+  /* Le récit de fin de partie porte le registre : il peut dépasser la hauteur d'un
+     téléphone, et un bouton de sortie hors de l'écran remettrait le joueur dans le
+     cul-de-sac qu'on vient de supprimer. */
+  max-height: 92dvh;
+  overflow-y: auto;
 }
 .go-emoji {
   font-size: 72px;
@@ -2723,6 +2728,104 @@ body {
 }
 .go-card .pill {
   width: 100%;
+}
+
+/* --- le récit de fin de partie + le registre de contribution --------------- */
+.go-stats {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--s-2) var(--s-4);
+  font-size: var(--t-sm);
+  color: #cbd6e6;
+}
+.go-stats b {
+  color: #fff;
+}
+.go-block {
+  width: 100%;
+  text-align: left;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--r-md);
+  padding: var(--s-3);
+}
+.go-block h3 {
+  margin: 0 0 var(--s-2);
+  font-size: var(--t-sm);
+  color: #f0d9a8;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.go-memorial {
+  width: 100%;
+  text-align: left;
+  font-size: var(--t-sm);
+  line-height: var(--lh-body);
+  color: #cbd6e6;
+  border-left: 3px solid #f0d9a8;
+  padding: var(--s-2) var(--s-3);
+  background: rgba(240, 217, 168, 0.08);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+}
+.go-memorial b {
+  color: #f0d9a8;
+}
+/* Le registre : une ligne par joueur, dans l'ordre d'arrivée. Aucune mise en
+   évidence d'un « meilleur » — c'est délibéré (voir contribution.go). */
+.lg-intro {
+  font-size: var(--t-sm);
+  color: var(--ink-soft, #6b5a45);
+  margin-bottom: var(--s-3);
+  line-height: var(--lh-body);
+}
+.lg-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.lg-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--s-2);
+  border-radius: var(--r-sm);
+  background: rgba(255, 255, 255, 0.05);
+}
+.lg-row.mine {
+  background: rgba(240, 217, 168, 0.14);
+}
+.lg-name {
+  font-weight: 700;
+  font-size: var(--t-sm);
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+.lg-you {
+  font-size: var(--t-xs);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.75;
+}
+.lg-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-1) var(--s-3);
+  font-size: var(--t-sm);
+}
+.lg-none {
+  font-size: var(--t-xs);
+  opacity: 0.6;
+}
+.lg-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-1) var(--s-3);
+  margin-top: var(--s-3);
+  font-size: var(--t-xs);
+  opacity: 0.7;
 }
 
 /* =========================  worker / hero selection / stock  ============= */

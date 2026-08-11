@@ -10,6 +10,7 @@ import { CraftTab } from "../tabs/CraftTab";
 import { HeroOverlay } from "../components/HeroOverlay";
 import { TownStatus } from "../components/TownStatus";
 import { TownJournal } from "../components/TownJournal";
+import { TownLedger } from "../components/TownLedger";
 import { TownChat } from "../components/TownChat";
 import { WaveCinematic } from "../components/WaveCinematic";
 import { GameOver } from "../components/GameOver";
@@ -59,6 +60,7 @@ export function GameScreen() {
       <HeroOverlay />
       <TownStatus />
       <TownJournal />
+      <TownLedger />
       <TownChat />
       <WaveCinematic />
       <GameOver />
