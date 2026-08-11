@@ -189,3 +189,33 @@ func TestClientViewAnnouncesPendingCatchUp(t *testing.T) {
 		t.Fatalf("une partie terminée ne rattrape rien")
 	}
 }
+
+// UN BUDGET S'EXPRIME EN TEMPS DE MONDE, PAS EN COMPTES.
+//
+// Les trois horloges d'AdvanceTo n'avancent pas à la même cadence : un round de bots
+// par minute contre une vague toutes les dix. Budgétées par des comptes fixes, la plus
+// fine étrangle les autres — `{Waves: 24, BotRounds: 30}` n'avançait pas de 24 vagues
+// mais de trente minutes, soit TROIS. Le battement (une fois par heure en pratique)
+// perdait donc une demi-heure de monde à chaque passage, jusqu'au plafond de retard :
+// le joueur revenait toujours dans une ville en retard.
+func TestBudgetCoversItsWavesEvenWithBots(t *testing.T) {
+	start := time.Now().Add(-6 * time.Hour)
+	g := newSimGame(t, start, 2) // AVEC des bots : c'est leur horloge qui étranglait
+	now := time.Now()
+
+	res := g.AdvanceTo(now, SimBudget{Waves: 12})
+	if res.Waves != 12 {
+		t.Fatalf("un budget de 12 vagues doit jouer 12 vagues, pas %d (bots joués: %d)", res.Waves, res.BotRounds)
+	}
+	// Les rounds de bots suivent : douze vagues de monde, c'est douze fois ce qu'une
+	// vague contient de rounds — sinon la période n'est pas réellement rejouée.
+	if want := 12 * int(WaveInterval / BotCatchUpInterval); res.BotRounds < want-2 {
+		t.Fatalf("BotRounds = %d, attendu ~%d (les bots doivent avoir joué la période)", res.BotRounds, want)
+	}
+
+	// Un appelant peut toujours imposer ses compteurs (les tests le font).
+	g2 := newSimGame(t, start, 2)
+	if res := g2.AdvanceTo(now, SimBudget{Waves: 12, BotRounds: 3}); res.BotRounds != 3 {
+		t.Fatalf("un compteur explicite doit être respecté : %+v", res)
+	}
+}

@@ -101,10 +101,24 @@ rappeler ne rejoue rien), **reprenable** (budget épuisé ⇒ `Done:false`, les 
 avancées au-delà du joué, l'appel suivant continue) et **plafonné** (`CatchUpMaxBacklog`, 12 h,
 `ECHOTERRA_CATCHUP_HOURS` : au-delà les vagues manquées sont sautées et tracées au journal de la
 ville — sinon 3 jours d'oubli = des centaines de vagues et des dizaines de milliers de monstres).
-Trois appelants, même horloge : `POST /api/tick` (**le battement**, budget `TickBudget`), toute
-requête touchant une partie (`tick()`, budget `RequestBudget`, plus petit — un joueur attend), et le
-`waveScheduler` résident en dev. Le battement est appelé par **GitHub Actions toutes les 15 min**
-(`.github/workflows/heartbeat.yml`, gratuit sur repo public ; 15 et pas 5 min à cause du quota compute de Neon, cf. DEPLOY.md) + un **cron Vercel quotidien** en filet
+Quatre appelants, même horloge : `POST /api/tick` (**le battement**, budget `TickBudget`), toute
+requête touchant une partie (`tick()`, budget `RequestBudget`, plus petit — un joueur attend),
+`POST /{id}/catchup` (**le rattrapage demandé** par un joueur qui revient, budget `CatchUpBudget`,
+réponse = un RÉSUMÉ de quelques octets et non l'état complet) et le `waveScheduler` résident en dev.
+⚠ **UN BUDGET S'EXPRIME EN VAGUES, c'est-à-dire en TEMPS DE MONDE** : `SimBudget.resolve` déduit les
+deux autres compteurs (rounds de bots, fouilles) de ce nombre, parce que les trois horloges n'avancent
+PAS à la même cadence et que la plus fine ÉTRANGLE les deux autres si on la fixe à la main — mesuré,
+`{Waves: 24, BotRounds: 30}` n'avançait pas de 24 vagues mais de trente MINUTES (trois vagues à 10 min
+de vague), donc le battement perdait une demi-heure de monde à chaque passage, indéfiniment, jusqu'à ce
+que le plafond de 12 h absorbe la dérive en SAUTANT des vagues : le joueur revenait toujours dans une
+ville en retard. Coût mesuré une fois corrigé : 12 ms pour une requête de jeu, 53 ms pour un battement
+(8 joueurs, 13 h de retard). Un appelant peut toujours imposer ses compteurs (la simulation
+d'équilibrage le fait). Le battement est appelé par **GitHub Actions** (`*/15` dans
+`.github/workflows/heartbeat.yml`, gratuit sur repo public ; 15 et pas 5 min à cause du quota compute
+de Neon, cf. DEPLOY.md) — ⚠ **mais GitHub ne livre PAS un cron `*/15` toutes les 15 min** : mesuré sur
+30 exécutions consécutives, les écarts réels vont de **38 à 124 min** (médiane ~55), le cron des repos
+publics étant best-effort. Tout ce qui dépend de la cadence du battement doit donc supporter une heure
+de retard — d'où le budget en temps de monde ci-dessus. Plus un **cron Vercel quotidien** en filet
 (`vercel.json` ; le plan Hobby ne permet pas mieux qu'1×/jour) ; jeton `ECHOTERRA_TICK_TOKEN` (ou
 `CRON_SECRET`), sans jeton l'endpoint répond **503** en déploiement. Il écrit avec
 `store.SaveIfUnchanged` (colonne `rev`) : **il abandonne son rattrapage plutôt que d'écraser l'action
@@ -846,6 +860,11 @@ POST /api/games/{id}/bots                        {playerId} -> {game,player} (h�
 GET  /api/games/{id}                              (runs wave catch-up)
 GET  /api/games/{id}/world
 POST /api/games/{id}/advance                      force a wave (dev)
+POST /api/games/{id}/catchup                      RATTRAPAGE DEMANDÉ: avance CETTE partie (budget
+                                                  CatchUpBudget) et rend un RÉSUMÉ, pas l'état complet
+                                                  -> {done,waves,skipped?,waveNumber,townHp,status}
+                                                  (la boucle du retour tourne dessus; l'état complet
+                                                  n'est rechargé qu'une fois, à l'arrivée)
 POST /api/games/{id}/town/action                  {buildingId, action: build|restore|repair|use|water|toggle|revive|heal, points?, heroId?}
                                                   (repair = mur : PA + Pierre -> PV de la ville)
 POST /api/games/{id}/town/deposit                 deposit in-town heroes' loot into the Bank
@@ -1078,9 +1097,13 @@ test `TestServerWrittenSentencesUseFrenchBuildingNames`).
   reste, et le seul relanceur était le sondage de 20 s de `GameScreen` : la ville se faisait frapper
   **une vague toutes les 20 secondes**, minuteur figé à 0, une cinématique à chaque fois. Le serveur
   DIT désormais son retard — `ClientView` pose `catchUp` (dérivé : « une vague est due et n'a pas été
-  rejouée », donc rien à mémoriser ni à invalider, et rien de persisté) — et le client redemande
-  toutes les 600 ms en **accumulant** : une seule cinématique à l'arrivée, avec le cumul des vagues et
-  des dégâts (même règle qu'au retour de partie). ⚠ **borne dure** `CATCHUP_MAX_ROUNDS` : `catchUp` ne
+  rejouée », donc rien à mémoriser ni à invalider, et rien de persisté) — et le client enchaîne les
+  tours en **accumulant** : une seule cinématique à l'arrivée, avec le cumul des vagues et des dégâts
+  (même règle qu'au retour de partie). ⚠ **la boucle tourne sur `POST /{id}/catchup`, pas sur l'état
+  complet** : une carte explorée pèse des centaines de ko, et la retélécharger à chaque tour coûterait
+  des mégaoctets sur un téléphone pour n'afficher qu'UN rapport ; l'état complet n'est rechargé qu'aux
+  deux bouts (test dédié). La route échoue-t-elle (front du CDN plus récent que le backend) qu'on
+  retombe sur l'ancienne boucle en `getGame`. ⚠ **borne dure** `CATCHUP_MAX_ROUNDS` : `catchUp` ne
   retomberait jamais si l'intervalle de vague était réglé plus court que le temps d'une requête, et le
   client sonderait sans fin. La boucle s'arrête aussi en entrant en combat et sur erreur réseau —
   sinon `catchingUp` restait vrai SANS plus personne pour sonder. Pendant ce temps la TopBar affiche

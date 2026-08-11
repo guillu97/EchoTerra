@@ -56,12 +56,47 @@ un récap mais je ne peux pas revenir au menu. »
   contact) : une issue tirée aux dés, qui échouait environ une fois sur quatre sans que rien n'ait
   changé. Même règle que `seedForTest` — mesuré 12 passages d'affilée après.
 
+**Puis, en tirant le fil : POURQUOI y avait-il un retard à rattraper ?**
+
+Un battement toutes les 15 min devrait rendre les rattrapages invisibles. Deux mesures, deux
+surprises — et c'est la deuxième qui était le vrai bug.
+
+3. **GitHub ne livre pas un cron `*/15` toutes les 15 minutes.** Sur les 30 dernières exécutions du
+   workflow : écarts réels de **38 à 124 minutes**, médiane ~55 (le cron des repos publics est
+   best-effort et saute des créneaux sous charge). Aucune exécution en échec — le battement marche,
+   il passe simplement quatre fois moins souvent que ce que le fichier annonce. Tout ce qui dépend de
+   sa cadence doit donc supporter une heure de retard.
+
+4. **UN BUDGET DE SIMULATION S'EXPRIME EN TEMPS DE MONDE, PAS EN COMPTES.** `AdvanceTo` entrelace
+   trois horloges de cadences différentes (une vague / 10 min, un round de bots / 1 min, six fouilles
+   par vague et par héros posté). Budgétées par des comptes fixes, **la plus fine étrangle les
+   autres** : `TickBudget{Waves: 24, BotRounds: 30}` n'avançait pas de 24 vagues mais de TRENTE
+   MINUTES — trois vagues. Un battement horaire ne rattrapait donc que la moitié de l'heure écoulée :
+   le monde prenait du retard à CHAQUE passage, indéfiniment, jusqu'à ce que le plafond de 12 h
+   absorbe la dérive en SAUTANT des vagues. Le joueur revenait dans une ville systématiquement en
+   retard — le point 1 rendait ça supportable, il ne soignait pas la cause.
+   - `SimBudget.resolve` déduit maintenant rounds de bots et fouilles du nombre de VAGUES demandé
+     (0 = déduit ; un appelant peut toujours imposer ses compteurs, et la simulation d'équilibrage le
+     fait — ses résultats sont donc inchangés, vérifié : médiane 19 vagues à 4 joueurs).
+   - Coût mesuré une fois corrigé, sur 8 joueurs et 13 h de retard : **12 ms** pour une requête de
+     jeu, 33 ms pour un tour de rattrapage, 53 ms pour un battement. Le garde-fou ne coûtait rien à
+     personne ; il empêchait juste le monde d'avancer.
+
+5. **La boucle du client ne retélécharge plus la partie à chaque tour.** `POST /{id}/catchup` fait
+   avancer le monde et ne rend qu'un résumé de quelques octets ; l'état complet (des centaines de ko
+   sur une carte explorée) n'est rechargé qu'aux deux bouts. Sans ça, ma propre correction du point 1
+   aurait coûté plusieurs mégaoctets à un joueur qui revient sur son téléphone. Le budget de cette
+   route est trois fois celui d'une requête de jeu (le joueur attend le MONDE, pas un affichage), ce
+   qui divise d'autant le nombre d'allers-retours.
+
 **À faire / à surveiller.**
 - Le rattrapage reste borné par `CatchUpMaxBacklog` (12 h) : au-delà les vagues manquées sont sautées
   et tracées au journal de la ville. Le joueur ne l'apprend qu'en ouvrant le journal — une ligne dans
-  la cinématique de retour (« N vagues ont rôdé sans attaquer ») serait plus honnête.
-- Si le battement de 15 min tourne bien en production, un retour ne devrait AVOIR presque rien à
-  rattraper : voir des rattrapages longs côté joueur est un signal à regarder du côté du cron.
+  la cinématique de retour (« N vagues ont rôdé sans attaquer ») serait plus honnête. La route de
+  rattrapage rend déjà `skipped`, il ne manque que l'affichage.
+- Le cron GitHub étant best-effort, la seule façon d'avoir un battement vraiment régulier serait un
+  pinger externe. Ce n'est plus urgent maintenant qu'un passage rattrape quatre heures de monde au
+  lieu d'une demi-heure, mais c'est à savoir avant de régler `ECHOTERRA_WAVE_SECONDS` très bas.
 
 ---
 

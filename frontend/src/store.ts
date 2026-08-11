@@ -434,7 +434,7 @@ export const useStore = create<StoreState>((set, get) => {
   // yeux au lieu d'avoir déjà eu lieu. On relance donc tout de suite, et on
   // ACCUMULE : la cinématique n'est ouverte qu'à l'arrivée, une seule fois, avec
   // le total (même règle qu'au retour de partie, cf. waveCinemaOnEnter).
-  const CATCHUP_POLL_MS = 600;
+  const CATCHUP_POLL_MS = 250;
   // ⚠ BORNE DURE. `catchUp` dit « il reste des vagues dues » : si l'intervalle de
   // vague était réglé plus court que le temps de traiter une requête, la condition
   // ne retomberait JAMAIS et le client sonderait indéfiniment toutes les 600 ms.
@@ -451,7 +451,25 @@ export const useStore = create<StoreState>((set, get) => {
     catchUpRounds = 0;
     if (get().catchingUp) set({ catchingUp: false });
   };
-  // Relance le sondage tout de suite (et signale le rattrapage à l'interface).
+  // UN tour de rattrapage : on fait avancer le monde par la route LÉGÈRE (elle ne
+  // rend qu'un résumé) et on recommence tant qu'il reste du retard. L'état complet
+  // de la partie — des centaines de ko sur une carte explorée — n'est rechargé
+  // qu'une fois, à l'arrivée, par `refreshGame` : c'est lui qui ouvre la cinématique.
+  //
+  // Si la route échoue (réseau, ou un front servi par le CDN plus récent que le
+  // backend), on retombe sur `refreshGame`, qui verra `catchUp` et reprogrammera —
+  // c'est-à-dire l'ancienne boucle, en plus lourd mais fonctionnelle.
+  const catchUpRound = async (gameId: string) => {
+    try {
+      const res = await api.catchUp(gameId);
+      if (!res.done && get().game?.id === gameId && scheduleCatchUpPoll(gameId)) return;
+    } catch {
+      /* on laisse refreshGame décider de la suite */
+    }
+    await get().refreshGame();
+  };
+
+  // Relance le rattrapage tout de suite (et le signale à l'interface).
   // Renvoie false quand la borne est atteinte : l'appelant reprend le cours normal.
   const scheduleCatchUpPoll = (gameId: string): boolean => {
     if (++catchUpRounds > CATCHUP_MAX_ROUNDS) return false;
@@ -459,9 +477,9 @@ export const useStore = create<StoreState>((set, get) => {
     if (catchUpTimer) clearTimeout(catchUpTimer);
     catchUpTimer = setTimeout(() => {
       catchUpTimer = null;
-      // La partie a pu être quittée entre-temps : on ne réveille pas un sondage
+      // La partie a pu être quittée entre-temps : on ne réveille pas une boucle
       // sur un état qui n'est plus à l'écran.
-      if (get().game?.id === gameId && get().appScreen === "game") void get().refreshGame();
+      if (get().game?.id === gameId && get().appScreen === "game") void catchUpRound(gameId);
       else stopCatchUp();
     }, CATCHUP_POLL_MS);
     return true;

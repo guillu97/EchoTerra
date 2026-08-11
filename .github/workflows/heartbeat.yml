@@ -17,6 +17,14 @@ name: Battement (tick)
 
 on:
   schedule:
+    # ⚠ MESURÉ (2026-08-11, 30 exécutions consécutives) : GitHub ne livre PAS ce
+    # `*/15`. Les écarts réels vont de 38 à 124 minutes, médiane ~55 — le cron des
+    # repos publics est best-effort et saute des créneaux sous charge. Aucune
+    # exécution en échec : le battement marche, il passe simplement ~4× moins
+    # souvent que ce que cette ligne annonce. Tout ce qui dépend de sa cadence doit
+    # donc supporter UNE HEURE de retard ; c'est pourquoi un budget de simulation
+    # s'exprime en temps de monde et non en comptes (game.SimBudget.resolve).
+    #
     # Toutes les 15 minutes. Ce n'est PAS un compromis sur la simulation : AdvanceTo
     # rejoue les vagues à LEUR heure prévue, pas à l'heure de l'appel — l'histoire de
     # la ville reste exacte, elle est seulement révélée un peu plus tard si personne

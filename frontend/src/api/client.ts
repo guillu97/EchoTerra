@@ -1,4 +1,5 @@
 import type {
+  CatchUpResult,
   ChatMessage,
   Chronicle,
   ClassDef,
@@ -228,6 +229,12 @@ export const api = {
 
   advance: (gameId: string, safe = false) =>
     req<GameState>("POST", `/api/games/${gameId}/advance`, { safe }),
+
+  // Rattrapage DEMANDÉ : fait avancer le monde et ne rend qu'un RÉSUMÉ (backend
+  // api/catchup.go). C'est ce qu'on appelle en boucle au retour d'une absence —
+  // recharger l'état complet à chaque tour coûterait des centaines de ko par tour
+  // pour n'afficher qu'un rapport à la fin.
+  catchUp: (gameId: string) => req<CatchUpResult>("POST", `/api/games/${gameId}/catchup`),
 
   revealFog: (gameId: string, on: boolean) =>
     req<GameState>("POST", `/api/games/${gameId}/reveal`, { on }),

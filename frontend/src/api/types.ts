@@ -387,6 +387,19 @@ export interface Chronicle {
 
 // Lightweight game listing DTO returned by GET /api/games. Join codes are never
 // listed (private lobbies are joined by sharing their code out-of-band).
+// Compte rendu d'UN tour de rattrapage (POST /{id}/catchup, backend api/catchup.go).
+// Volontairement maigre : la boucle du retour tourne là-dessus, et ne recharge l'état
+// complet de la partie qu'une fois, à l'arrivée.
+export interface CatchUpResult {
+  done: boolean; // plus rien à rattraper
+  waves: number; // vagues rejouées par CET appel
+  skipped?: number; // vagues sautées (au-delà du plafond de retard, 12 h)
+  waveNumber: number;
+  townHp: number;
+  status: "lobby" | "active" | "gameover";
+  nextWaveAt?: string;
+}
+
 export interface GameSummary {
   id: string;
   name: string;

@@ -52,9 +52,13 @@ await page.evaluate(() => window.__eg.store.setState({ appScreen: "game", tab: "
 
 // --- 1. le rattrapage ------------------------------------------------------
 //
-// On simule un serveur EN RETARD : trois réponses qui portent `catchUp` (une vague
-// de plus à chaque fois, 10 PV de moins), puis une quatrième qui annonce le monde à
-// jour. C'est exactement le contrat que la boucle du client consomme.
+// On simule un serveur EN RETARD. Le contrat qu'on défend ici est double :
+//   - le client fait avancer le monde par la route LÉGÈRE (POST /catchup) et ne
+//     recharge l'état complet qu'UNE fois, à l'arrivée — une carte explorée pèse
+//     des centaines de ko, la retélécharger à chaque tour coûterait des mégaoctets
+//     sur un téléphone pour n'afficher qu'un rapport ;
+//   - il n'ouvre RIEN tant que le rattrapage n'est pas fini, puis une seule
+//     cinématique portant le cumul.
 await page.evaluate(() => {
   const st = window.__eg.store.getState();
   const g = structuredClone(st.game);
@@ -67,60 +71,68 @@ await page.evaluate(() => {
   };
   window.__eg.store.setState({ game: g });
 
-  const seq = [
-    { wave: 11, hp: 90, catchUp: true },
-    { wave: 12, hp: 80, catchUp: true },
-    { wave: 13, hp: 70, catchUp: true },
-    { wave: 14, hp: 60, catchUp: false }, // rattrapé
-  ];
-  const probe = { calls: [], cinemaWhilePending: 0 };
+  const ROUNDS = 3; // le serveur met trois tours à rattraper son retard
+  const probe = { gets: 0, posts: 0, round: 0, cinemaWhilePending: 0 };
   window.__catch = probe;
   const orig = window.fetch.bind(window);
-  let n = 0;
+  const json = (body) =>
+    new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
+
   window.fetch = async (input, init) => {
     const url = typeof input === "string" ? input : input.url;
     const method = (init?.method ?? "GET").toUpperCase();
+    // Un tour de rattrapage : le monde avance d'une vague, la ville perd 10 PV.
+    if (method === "POST" && /\/api\/games\/[^/?]+\/catchup$/.test(url)) {
+      probe.posts++;
+      probe.round = Math.min(probe.round + 1, ROUNDS);
+      if (window.__eg.store.getState().waveCinema) probe.cinemaWhilePending++;
+      return json({
+        done: probe.round >= ROUNDS, waves: 1, waveNumber: 10 + probe.round,
+        townHp: 100 - 10 * probe.round, status: "active",
+      });
+    }
     if (method !== "GET" || !/\/api\/games\/[^/?]+$/.test(url)) return orig(input, init);
     const res = await orig(input, init);
     const body = await res.clone().json();
-    const step = seq[Math.min(n, seq.length - 1)];
-    n++;
-    probe.calls.push(Date.now());
-    // Une cinématique ouverte AVANT la fin du rattrapage = le bug d'origine.
-    if (window.__eg.store.getState().waveCinema && n < seq.length) probe.cinemaWhilePending++;
+    probe.gets++;
+    if (window.__eg.store.getState().waveCinema && probe.round < ROUNDS) probe.cinemaWhilePending++;
+    const r = probe.round;
     body.status = "active";
-    body.catchUp = step.catchUp;
-    body.waveNumber = step.wave;
-    body.town.hp = step.hp;
+    body.catchUp = r < ROUNDS; // le serveur annonce son retard tant qu'il en a
+    body.waveNumber = 10 + r;
+    body.town.hp = 100 - 10 * r;
     body.lastWave = {
-      wave: step.wave, day: 5 + Math.floor(step.wave / 2), hordePower: 40, defense: 20,
-      townDamage: 10, townHpAfter: step.hp, buildingsHit: [], heroesHit: [],
-      monstersSpawned: 3, at: new Date().toISOString(), gameOver: false,
+      wave: 10 + r, day: 5, hordePower: 40, defense: 20, townDamage: 10,
+      townHpAfter: 100 - 10 * r, buildingsHit: [], heroesHit: [], monstersSpawned: 3,
+      at: new Date().toISOString(), gameOver: false,
     };
-    return new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
+    return json(body);
   };
 });
 
 const t0 = Date.now();
 await page.evaluate(() => window.__eg.store.getState().refreshGame());
-await waitState(page, () => window.__catch.calls.length >= 4, 15000, "les 4 tours de rattrapage");
-await wait(400);
+await waitState(page, () => window.__catch.round >= 3 && !window.__eg.store.getState().catchingUp, 15000, "fin du rattrapage");
+await wait(300);
 const catchUp = await page.evaluate(() => {
   const s = window.__eg.store.getState();
   const c = window.__catch;
   return {
-    calls: c.calls.length,
-    span: c.calls.length > 1 ? c.calls[c.calls.length - 1] - c.calls[0] : 0,
-    cinemaWhilePending: c.cinemaWhilePending,
+    gets: c.gets, posts: c.posts, cinemaWhilePending: c.cinemaWhilePending,
     cinema: s.waveCinema && { wave: s.waveCinema.report.wave, waves: s.waveCinema.waves, dmg: s.waveCinema.townDamage },
     catchingUp: s.catchingUp,
   };
 });
 
 check(
-  "le client redemande TOUT DE SUITE tant que le serveur est en retard (pas le sondage de 20 s)",
-  catchUp.calls >= 4 && catchUp.span < 8000,
-  `${catchUp.calls} requêtes en ${catchUp.span}ms (${Date.now() - t0}ms au total)`,
+  "le client enchaîne les tours TOUT DE SUITE (pas le sondage de 20 s)",
+  catchUp.posts >= 3 && Date.now() - t0 < 10000,
+  `${catchUp.posts} tours de rattrapage en ${Date.now() - t0}ms`,
+);
+check(
+  "l'état complet n'est rechargé qu'aux deux bouts (payload mobile)",
+  catchUp.gets <= 2,
+  `${catchUp.gets} chargement(s) de la partie pour ${catchUp.posts} tours`,
 );
 check(
   "aucune cinématique pendant le rattrapage",
@@ -129,7 +141,7 @@ check(
 );
 check(
   "UNE seule cinématique à l'arrivée, avec le cumul des vagues et des dégâts",
-  !!catchUp.cinema && catchUp.cinema.wave === 14 && catchUp.cinema.waves === 4 && catchUp.cinema.dmg === 40,
+  !!catchUp.cinema && catchUp.cinema.wave === 13 && catchUp.cinema.waves === 3 && catchUp.cinema.dmg === 30,
   catchUp.cinema ? `vague ${catchUp.cinema.wave} · ${catchUp.cinema.waves} vagues · −${catchUp.cinema.dmg} PV` : "aucune",
 );
 check("l'indicateur de rattrapage retombe", catchUp.catchingUp === false, `catchingUp=${catchUp.catchingUp}`);

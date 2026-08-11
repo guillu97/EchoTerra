@@ -281,6 +281,8 @@ func (s *Server) Router() http.Handler {
 			r.Post("/bots", s.addBot)
 			r.Get("/world", s.getWorld)
 			r.Post("/advance", s.advance)
+			// Rattrapage DEMANDÉ : avance le monde et ne rend qu'un résumé (catchup.go).
+			r.Post("/catchup", s.catchUpGame)
 			r.Post("/reveal", s.reveal)
 			r.Post("/town/action", s.townAction)
 			r.Post("/town/deposit", s.townDeposit)

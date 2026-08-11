@@ -39,19 +39,74 @@ var CatchUpMaxBacklog = 12 * time.Hour
 // SimBudget borne le travail d'UN appel. Le rattrapage restant n'est pas perdu : les
 // horloges ne sont pas avancées au-delà de ce qui a été joué, donc l'appel suivant
 // reprend exactement où celui-ci s'est arrêté (voir SimResult.Done).
+//
+// ⚠ **UN BUDGET S'EXPRIME EN VAGUES**, c'est-à-dire en TEMPS DE MONDE : les deux autres
+// compteurs se déduisent (`resolve`) sauf si l'appelant les impose. Les fixer à la main
+// est le piège documenté juste en dessous.
 type SimBudget struct {
 	Waves     int // vagues résolues au maximum
-	BotRounds int // rounds de bots joués au maximum
-	Forages   int // fouilles automatiques jouées au maximum
+	BotRounds int // rounds de bots joués au maximum (0 = déduit des vagues)
+	Forages   int // fouilles automatiques jouées au maximum (0 = déduit des vagues)
+}
+
+// forageRoundsPerWave : une période de vague vaut SIX fouilles automatiques par héros
+// posté (miroir de ForageInterval = WaveInterval/6, cf. forage.go).
+const forageRoundsPerWave = 6
+
+// resolve complète un budget partiel. LES TROIS HORLOGES D'AdvanceTo DOIVENT COUVRIR
+// LA MÊME PÉRIODE DE MONDE : budgétées par des comptes fixes, la plus fine ÉTRANGLE
+// les deux autres, et l'appel s'arrête bien avant d'avoir joué ses vagues.
+//
+// Mesuré : avec des vagues de 10 min et un round de bots par minute,
+// `TickBudget{Waves: 24, BotRounds: 30}` n'avançait pas de 24 vagues mais de TRENTE
+// MINUTES — trois vagues. Le battement tourne en pratique une fois par heure
+// (GitHub Actions livre un cron `*/15` en ~55-90 min, mesuré sur 30 exécutions) : le
+// monde perdait donc une demi-heure à chaque passage, indéfiniment, jusqu'à ce que le
+// plafond de retard (12 h) rattrape la dérive en SAUTANT des vagues. Le joueur
+// revenait dans une ville systématiquement en retard — la boucle de rattrapage du
+// client ne fait que rendre ça supportable, elle ne soigne pas la cause.
+func (b SimBudget) resolve(g *GameState) SimBudget {
+	if b.Waves <= 0 {
+		return b
+	}
+	if b.BotRounds <= 0 {
+		per := 1
+		if BotCatchUpInterval > 0 && WaveInterval > BotCatchUpInterval {
+			per = int(WaveInterval / BotCatchUpInterval)
+		}
+		b.BotRounds = b.Waves * per
+	}
+	if b.Forages <= 0 {
+		foragers := 0
+		if g != nil {
+			for _, h := range g.Heroes {
+				if h.Foraging() {
+					foragers++
+				}
+			}
+		}
+		if foragers < 1 {
+			foragers = 1
+		}
+		b.Forages = b.Waves * forageRoundsPerWave * foragers
+	}
+	return b
 }
 
 // RequestBudget est le budget d'une requête de JEU : petit, car un joueur attend sa
 // réponse. Le reste du retard sera absorbé par les requêtes/battements suivants.
-var RequestBudget = SimBudget{Waves: 4, BotRounds: 6, Forages: 24}
+var RequestBudget = SimBudget{Waves: 4}
 
 // TickBudget est le budget du BATTEMENT (cron) : personne n'attend, on peut rattraper
 // franchement. Le balayage complet reste borné par son échéance (voir api/tick.go).
-var TickBudget = SimBudget{Waves: 24, BotRounds: 30, Forages: 200}
+var TickBudget = SimBudget{Waves: 24}
+
+// CatchUpBudget est le budget du RATTRAPAGE DEMANDÉ (POST /{id}/catchup) : un joueur
+// attend, mais il attend le MONDE et pas un affichage — et la réponse est un résumé
+// de quelques octets, pas l'état complet. On peut donc taper trois fois plus fort
+// qu'une requête de jeu ordinaire, ce qui divise d'autant le nombre d'allers-retours
+// nécessaires pour revenir dans sa ville.
+var CatchUpBudget = SimBudget{Waves: 12}
 
 // SimResult décrit ce qu'un rattrapage a réellement joué.
 type SimResult struct {
@@ -71,6 +126,7 @@ func (g *GameState) AdvanceTo(now time.Time, b SimBudget) SimResult {
 	if g == nil {
 		return res
 	}
+	b = b.resolve(g) // les trois horloges couvrent la même période de monde
 	// L'HORLOGE DE LA SIMULATION. Un rattrapage rejoue des instants PASSÉS : ce qu'une
 	// action y planifie (la fouille automatique) doit partir de l'instant rejoué, pas de
 	// l'heure qu'il est. Sans cela un round de bots joué à T-3 h posait sa prochaine
