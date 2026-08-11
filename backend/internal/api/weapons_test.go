@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"testing"
+	"time"
 
 	"echoterra/internal/game"
 )
@@ -16,6 +17,14 @@ import (
 // indexent la MÊME liste ; si les deux divergeaient, le joueur lancerait une
 // autre capacité que celle qu'il a tapée — sans erreur, sans trace.
 func TestCombatPayloadServesTheWeaponTechnique(t *testing.T) {
+	// ⚠ ON SÈME. Ce test attend que la horde entre dans la fourchette de l'arc
+	// (2-4 cases : le « Tir en cloche » ne vise pas au contact) — une issue tirée
+	// aux dés : placement de l'arène, initiative, chemin choisi par l'IA. Sans
+	// graine il échouait environ une fois sur quatre, sans que rien n'ait changé.
+	// Même règle que seedForTest dans le paquet game.
+	game.SeedRNG(20260811)
+	t.Cleanup(func() { game.SeedRNG(time.Now().UnixNano()) })
+
 	s := newTestServer(t)
 	rec := postJSON(t, s, "/api/games", map[string]any{"width": 22, "height": 22, "seed": 20260811})
 	var gs game.GameState

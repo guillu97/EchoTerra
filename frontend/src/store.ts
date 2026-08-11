@@ -207,6 +207,11 @@ interface StoreState {
   // vagues sont tombées pendant une absence ; `townDamage` est le cumul réel
   // (PV de la ville avant/après), pas seulement celui du dernier rapport.
   waveCinema: { report: WaveReport; waves: number; townDamage: number } | null;
+  // RATTRAPAGE EN COURS : le serveur a encore des vagues dues (payload `catchUp`).
+  // Tant que c'est vrai, le minuteur de vague n'a plus de sens (il est à 0 par
+  // construction) et la barre du haut le dit, au lieu d'afficher « 00:00 » sur un
+  // monde qui, lui, est en train de bouger.
+  catchingUp: boolean;
   cheatOpen: boolean;
   townHeroId?: string; // preferred hero paying for town work
   recipes: Recipe[];
@@ -419,6 +424,49 @@ export const useStore = create<StoreState>((set, get) => {
     set({ waveCinema: { report, waves: Math.max(1, waves), townDamage: Math.max(0, townDamage) } });
   };
 
+  // LE RATTRAPAGE. Une requête de joueur ne rejoue qu'une poignée de vagues
+  // (game.RequestBudget : quelqu'un attend la réponse), donc au retour d'une
+  // absence le serveur en garde en réserve et le dit — `game.catchUp`.
+  //
+  // Sans cette boucle, le seul relanceur était le sondage de 20 s de GameScreen :
+  // le joueur voyait sa ville frappée UNE VAGUE TOUTES LES 20 SECONDES, minuteur
+  // figé à 0, une cinématique à chaque fois — le rattrapage se jouait sous ses
+  // yeux au lieu d'avoir déjà eu lieu. On relance donc tout de suite, et on
+  // ACCUMULE : la cinématique n'est ouverte qu'à l'arrivée, une seule fois, avec
+  // le total (même règle qu'au retour de partie, cf. waveCinemaOnEnter).
+  const CATCHUP_POLL_MS = 600;
+  // ⚠ BORNE DURE. `catchUp` dit « il reste des vagues dues » : si l'intervalle de
+  // vague était réglé plus court que le temps de traiter une requête, la condition
+  // ne retomberait JAMAIS et le client sonderait indéfiniment toutes les 600 ms.
+  // Au-delà de cette borne on rend la main au sondage ordinaire de 20 s — le monde
+  // avance quand même (battement + requêtes), on cesse juste de courir après lui.
+  const CATCHUP_MAX_ROUNDS = 60;
+  let catchUpBase: { wave: number; hp: number } | null = null; // état AVANT le rattrapage
+  let catchUpTimer: ReturnType<typeof setTimeout> | null = null;
+  let catchUpRounds = 0;
+  const stopCatchUp = () => {
+    if (catchUpTimer) clearTimeout(catchUpTimer);
+    catchUpTimer = null;
+    catchUpBase = null;
+    catchUpRounds = 0;
+    if (get().catchingUp) set({ catchingUp: false });
+  };
+  // Relance le sondage tout de suite (et signale le rattrapage à l'interface).
+  // Renvoie false quand la borne est atteinte : l'appelant reprend le cours normal.
+  const scheduleCatchUpPoll = (gameId: string): boolean => {
+    if (++catchUpRounds > CATCHUP_MAX_ROUNDS) return false;
+    if (!get().catchingUp) set({ catchingUp: true });
+    if (catchUpTimer) clearTimeout(catchUpTimer);
+    catchUpTimer = setTimeout(() => {
+      catchUpTimer = null;
+      // La partie a pu être quittée entre-temps : on ne réveille pas un sondage
+      // sur un état qui n'est plus à l'écran.
+      if (get().game?.id === gameId && get().appScreen === "game") void get().refreshGame();
+      else stopCatchUp();
+    }, CATCHUP_POLL_MS);
+    return true;
+  };
+
   // À la reprise d'une partie : les vagues tombées pendant l'absence sont déjà
   // dans l'état chargé, il n'y a donc RIEN à diffé­rencier — c'est la trace locale
   // qui dit ce que ce joueur a déjà vu. Une seule cinématique pour tout le
@@ -426,8 +474,18 @@ export const useStore = create<StoreState>((set, get) => {
   const waveCinemaOnEnter = () => {
     const g = get().game;
     const lw = g?.lastWave;
-    if (!g || !lw) return;
+    if (!g) return;
     const seen = loadWaveSeen(g.id);
+    // Le serveur n'a pas fini de rejouer l'absence : rien à montrer MAINTENANT
+    // (le bilan serait incomplet, et la suite arriverait derrière). On mémorise
+    // le point de départ — la trace locale, donc le tout début de l'absence — et
+    // la boucle de rattrapage ouvrira UNE cinématique quand le monde sera à jour.
+    if (g.catchUp && g.status === "active") {
+      catchUpBase = seen ?? { wave: lw?.wave ?? 0, hp: g.town.hp };
+      scheduleCatchUpPoll(g.id);
+      return;
+    }
+    if (!lw) return;
     if (!seen) {
       // Première ouverture sur cet appareil : on prend acte sans rien jouer (on
       // ne sait pas ce que le joueur a déjà vu ailleurs).
@@ -595,6 +653,7 @@ export const useStore = create<StoreState>((set, get) => {
     chat: [],
     chatSeen: 0,
     waveCinema: null,
+    catchingUp: false,
     cheatOpen: false,
     recipes: [],
     classes: [],
@@ -1361,12 +1420,22 @@ export const useStore = create<StoreState>((set, get) => {
 
     refreshGame: async () => {
       const { game, view } = get();
-      if (!game || view === "combat") return;
+      if (!game) return;
+      if (view === "combat") {
+        // On ne raconte pas les vagues à quelqu'un qui joue son tour. La boucle
+        // s'arrête ici plutôt que de tourner à vide : le sondage ordinaire la
+        // relancera à la sortie de l'arène (le serveur annonce toujours son retard).
+        stopCatchUp();
+        return;
+      }
       try {
         const next = await api.getGame(game.id);
         const prevWave = game.lastWave?.wave ?? 0;
         const prevHp = game.town.hp;
         set({ game: next });
+        // Le serveur a-t-il fini de rejouer le temps écoulé ? Tant que non, on ne
+        // montre rien : on note d'où l'on part et on relance aussitôt.
+        const pending = !!next.catchUp && next.status === "active";
         if (next.lastWave && next.lastWave.wave > prevWave) {
           const lw = next.lastWave;
           pushLog(`🌊 Vague ${lw.wave} : -${lw.townDamage} PV ville (déf ${lw.defense} / horde ${lw.hordePower}).`);
@@ -1379,11 +1448,24 @@ export const useStore = create<StoreState>((set, get) => {
             pushLog(`⚔️ Hors ville : ${hit.map((h) => `${h.name} ${h.delta}`).join(", ")}.`);
           }
           if (lw.gameOver) pushLog("💀 La ville est tombée…");
-          openWaveCinema(lw, lw.wave - prevWave, prevHp - next.town.hp);
+          if (!catchUpBase) catchUpBase = { wave: prevWave, hp: prevHp };
+        }
+        if (!pending || !scheduleCatchUpPoll(next.id)) {
+          // Rattrapé (ou borne atteinte) : c'est ICI, et une seule fois, qu'on
+          // raconte au joueur ce qui est tombé sur sa ville.
+          const base = catchUpBase;
+          stopCatchUp();
+          const lw = next.lastWave;
+          if (base && lw && lw.wave > base.wave) {
+            openWaveCinema(lw, lw.wave - base.wave, base.hp - next.town.hp);
+          }
         }
         renderMap();
       } catch {
-        /* ignore polling errors */
+        // Sondage en échec (réseau, réveil de la fonction) : on coupe la boucle
+        // rapide. Sans ça `catchingUp` restait vrai SANS plus personne pour
+        // sonder — la barre du haut affichait « Rattrapage… » indéfiniment.
+        stopCatchUp();
       }
     },
 

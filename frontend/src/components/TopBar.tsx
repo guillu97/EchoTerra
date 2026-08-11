@@ -38,6 +38,7 @@ export function TopBar() {
   const hpClass = hpPct > 60 ? "" : hpPct > 30 ? "warn" : "alert";
   const inTown = heroesInTown(game, playerId).length > 0;
   const waveRemaining = useWaveRemaining(game);
+  const catchingUp = useStore((s) => s.catchingUp);
 
   // My team's cumulated PA (all heroes in a multi game, every hero in legacy solo).
   const myIds = game?.players?.find((p) => p.id === playerId)?.heroIds;
@@ -90,11 +91,18 @@ export function TopBar() {
               : "Prochaine vague — état de la ville"
           }
         >
-          🌊 {formatHMS(waveRemaining)}
+          {/* Le monde est en train de rattraper les vagues de l'absence : le
+              minuteur est à 0 par construction et ne veut plus rien dire. On le
+              dit, au lieu d'afficher « 00:00 » pendant que la ville se fait
+              frapper (voir store.refreshGame / game.CatchUpPending). */}
+          {catchingUp ? <>⏳ Rattrapage…</> : <>🌊 {formatHMS(waveRemaining)}</>}
           {/* Les dégâts ATTENDUS en FOURCHETTE, pas le numéro de vague : c'est le
               chiffre sur lequel le joueur peut agir, et son imprécision est elle-même
               une information (elle se paie en Tour de guet et en observateurs). */}
-          {game.town.forecast && game.town.forecast.damageMax > 0 && (
+          {/* Pendant le rattrapage, la prévision porte sur une vague qui n'est pas
+              la prochaine que le joueur verra tomber : on la tait (et la barre
+              reste courte sur un téléphone). */}
+          {!catchingUp && game.town.forecast && game.town.forecast.damageMax > 0 && (
             <i className="wave-dmg">
               −{game.town.forecast.damageMin}
               {game.town.forecast.damageMax !== game.town.forecast.damageMin &&

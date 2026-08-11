@@ -1,5 +1,7 @@
 package game
 
+import "time"
+
 // Fog of war. Tiles start hidden and are permanently revealed once a hero has seen
 // them; the revealed set lives on GameState (one shared world) so every player sees
 // the same explored map. The town and its immediate surroundings start revealed.
@@ -73,6 +75,9 @@ func (g *GameState) RevealVision() {
 func (g *GameState) ClientView() *GameState {
 	cp := *g
 	cp.Seed = 0
+	// Le retard restant : posé ICI et nulle part ailleurs, donc jamais persisté (le
+	// blob est écrit depuis `g`, où le champ reste faux). Voir CatchUpPending.
+	cp.CatchUp = g.CatchUpPending(time.Now())
 	// The messaging board never rides the game payload: who may READ it depends on
 	// the requesting player (in town, or the Poste built — see chat.go) and this
 	// function has no idea who is asking. Only the count survives, so the ✉️ button

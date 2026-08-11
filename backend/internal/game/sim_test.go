@@ -140,3 +140,52 @@ func TestAdvanceToIgnoresLobbies(t *testing.T) {
 		t.Fatalf("salon touché: wave=%d hp=%d", g.WaveNumber, g.Town.HP)
 	}
 }
+
+// LE RETARD SE DIT AU CLIENT. Une requête de joueur ne rejoue qu'un petit nombre de
+// vagues (RequestBudget), donc au retour d'une absence il en reste. Sans signal, le
+// client sondait toutes les 20 s et voyait la ville se faire frapper une vague à la
+// fois, minuteur figé à 0 ; avec lui, il redemande tout de suite et n'affiche QU'UNE
+// cinématique à l'arrivée.
+func TestClientViewAnnouncesPendingCatchUp(t *testing.T) {
+	// ⚠ l'horloge doit être la VRAIE : ClientView lit time.Now() (c'est le payload
+	// d'une requête réelle, pas un rejeu). Un « now » synthétique en avance sur
+	// l'horloge du test ferait mentir le drapeau dans les deux sens.
+	start := time.Now().Add(-(4*WaveInterval + WaveInterval/2))
+	g := newSimGame(t, start, 0)
+	now := time.Now() // quatre vagues dues
+
+	res := g.AdvanceTo(now, SimBudget{Waves: 2})
+	if res.Done {
+		t.Fatalf("le budget devait être épuisé: %+v", res)
+	}
+	if !g.CatchUpPending(now) {
+		t.Fatalf("retard restant non signalé (nextWaveAt=%v now=%v)", g.NextWaveAt, now)
+	}
+	if !g.ClientView().CatchUp {
+		t.Fatalf("le payload client doit porter catchUp tant qu'il reste des vagues dues")
+	}
+
+	// Rattrapage terminé : plus de signal (sinon le client sonderait sans fin).
+	if res := g.AdvanceTo(now, SimBudget{Waves: 10}); !res.Done {
+		t.Fatalf("second passage inachevé: %+v", res)
+	}
+	if g.Status == StatusActive {
+		if g.CatchUpPending(now) || g.ClientView().CatchUp {
+			t.Fatalf("plus rien de dû, catchUp doit retomber (nextWaveAt=%v now=%v)", g.NextWaveAt, now)
+		}
+	}
+
+	// Le drapeau est DÉRIVÉ et vit sur la seule copie client : l'état persisté ne
+	// doit jamais le porter (il serait rechargé à faux au prochain démarrage).
+	if g.CatchUp {
+		t.Fatalf("catchUp ne doit jamais être posé sur l'état de vérité")
+	}
+
+	// Une ville tombée n'a plus rien à rattraper.
+	dead := newSimGame(t, start, 0)
+	dead.Status = StatusGameOver
+	dead.NextWaveAt = start.Add(-time.Hour)
+	if dead.CatchUpPending(now) || dead.ClientView().CatchUp {
+		t.Fatalf("une partie terminée ne rattrape rien")
+	}
+}

@@ -41,6 +41,18 @@ function WaveCinematicRun({ cinema }: { cinema: NonNullable<ReturnType<typeof us
     return () => clearTimeout(t);
   }, []);
 
+  // Échap ferme, comme toute modale (ui/Overlay) — deuxième sortie, au cas où le
+  // bouton serait hors écran sur un très petit téléphone.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (phase === "strike") setPhase("report");
+      else dismiss();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [phase, dismiss]);
+
   const { report: r, waves, townDamage } = cinema;
   // ⚠ Go sérialise une slice vide en `null`, pas en `[]` : lire `.length`
   // directement sur ces deux champs plantait le rendu dès qu'une vague ne
@@ -130,13 +142,16 @@ function WaveCinematicRun({ cinema }: { cinema: NonNullable<ReturnType<typeof us
             )}
           </ul>
 
-          {r.gameOver ? (
-            <div className="wc-fallen">💀 La ville est tombée.</div>
-          ) : (
-            <button className="pill red wc-go" onClick={dismiss} autoFocus>
-              Continuer
-            </button>
-          )}
+          {/* ⚠ IL FAUT TOUJOURS UNE SORTIE. La ville tombée n'affichait QUE la
+              ligne « La ville est tombée » : plus aucun bouton, et cette
+              cinématique passe au-dessus de tout (--z-modal-top, au-dessus de
+              l'écran de fin) — le joueur restait bloqué sur son rapport, sans
+              retour au menu ni nouvelle partie. Le rapport de la dernière vague
+              se lit, PUIS on rend la main. */}
+          {r.gameOver && <div className="wc-fallen">💀 La ville est tombée.</div>}
+          <button className="pill red wc-go" onClick={dismiss} autoFocus>
+            {r.gameOver ? "Voir le bilan" : "Continuer"}
+          </button>
         </div>
       )}
     </div>

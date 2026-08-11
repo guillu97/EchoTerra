@@ -189,6 +189,13 @@ type GameState struct {
 	NextWaveAt time.Time `json:"nextWaveAt"`         // when the next wave hits the town
 	LastBotAt  time.Time `json:"lastBotAt,omitzero"` // last lazy bot round (serverless catch-up, see bots.go)
 	Status     string    `json:"status"`             // "lobby" | "active" | "gameover"
+	// CatchUp dit au client que le monde N'EST PAS À JOUR : des vagues restent dues
+	// que la requête n'a pas eu le budget de rejouer (game.RequestBudget — un joueur
+	// attend sa réponse). Purement DÉRIVÉ et posé sur la seule copie envoyée au
+	// client (ClientView) : rien n'est stocké, le champ ne sort jamais du payload.
+	// Sans lui, le client sondait toutes les 20 s et voyait le rattrapage tomber une
+	// vague à la fois, minuteur figé à 0 — voir CatchUpPending.
+	CatchUp bool `json:"catchUp,omitempty"`
 	// Rev is the store revision this state was loaded at — persistence bookkeeping,
 	// never serialized into the blob nor sent to clients (see store.SaveIfUnchanged).
 	Rev      int64       `json:"-"`

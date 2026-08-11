@@ -6,6 +6,65 @@
 
 ---
 
+## 2026-08-11 (107) — La reprise après une absence : le rattrapage, et la sortie d'une ville tombée
+
+**Le rapport** (capture à l'appui) : « une fois que le joueur se reconnecte à sa ville, j'ai le timer à
+0 et les vagues qui se déclenchent les unes après les autres avec 20 secondes d'écart, et à la fin j'ai
+un récap mais je ne peux pas revenir au menu. »
+
+**Deux bugs, une seule scène.**
+
+1. **Le rattrapage se jouait SOUS LES YEUX du joueur.** Une requête de jeu ne rejoue qu'une poignée de
+   vagues (`game.RequestBudget`, 4 : quelqu'un attend la réponse) et le reste attend le prochain
+   appel — or le seul relanceur côté client était le sondage de 20 s de `GameScreen`. D'où très
+   exactement ce qui est décrit : une vague toutes les vingt secondes, minuteur à 0 (`nextWaveAt` est
+   dans le passé pendant tout le rattrapage), une cinématique à chaque fois. Le monde faisait son
+   travail ; c'est le CLIENT qui le regardait par le trou de la serrure.
+   - Le serveur DIT maintenant son retard : `GameState.CatchUpPending(now)` (« une vague est due et
+     n'a pas été rejouée ») posé sur la seule copie client par `ClientView` → champ `catchUp`.
+     ⚠ **dérivé de l'horloge** : rien à mémoriser, rien à invalider, et rien de persisté (le blob est
+     écrit depuis l'état de vérité, où le champ reste faux).
+   - Le client redemande alors toutes les 600 ms et **accumule** : aucune cinématique pendant le
+     rattrapage, UNE seule à l'arrivée, avec le cumul des vagues et des dégâts — la règle qui existait
+     déjà pour le retour de partie (`waveCinemaOnEnter`), qui délègue désormais à la même boucle.
+   - ⚠ **borne dure** (`CATCHUP_MAX_ROUNDS` 60) : si l'intervalle de vague était réglé plus court que
+     le temps de traiter une requête, `catchUp` ne retomberait JAMAIS et le client sonderait sans fin.
+     Au-delà, on rend la main au sondage ordinaire. La boucle s'arrête aussi en entrant en combat et
+     **sur erreur réseau** — sans quoi `catchingUp` restait vrai sans plus personne pour sonder, et la
+     barre du haut affichait « Rattrapage… » pour toujours.
+   - La TopBar affiche « ⏳ Rattrapage… » à la place d'un minuteur à 00:00 qui ne veut plus rien dire
+     (et tait la prévision de dégâts, qui porte sur une vague que le joueur ne verra pas tomber).
+
+2. **La ville tombée était un CUL-DE-SAC.** Le rapport de vague affichait, en cas de game over, la
+   seule ligne « 💀 La ville est tombée. » — et AUCUN bouton. Comme la cinématique passe au-dessus de
+   tout (`--z-modal-top`, donc au-dessus de l'écran de fin à z-index 80), les boutons « Nouvelle
+   partie » et « Menu principal » existaient bel et bien, recouverts. Le bouton de sortie est
+   désormais inconditionnel (« Voir le bilan » sur une fin de partie, « Continuer » sinon) et Échap
+   ferme aussi. Mesuré sur l'ancien code : **0 bouton** dans le rapport d'une ville tombée.
+
+**Vérifié.**
+- `go test ./...` (backend) — dont `TestClientViewAnnouncesPendingCatchUp` (le drapeau monte, retombe,
+  et ne touche jamais l'état persisté) et `api/catchup_test.go` (le payload le porte ET le rattrapage
+  CONVERGE en un nombre borné d'appels — c'est le contrat que consomme la boucle du client).
+- `npm run test:reconnect` (nouveau, 7/7) : 4 requêtes en ~2 s au lieu d'une toutes les 20 s, zéro
+  cinématique prématurée, une seule à l'arrivée portant les 4 vagues et les −40 PV, puis le rapport
+  d'une ville tombée qui se ferme et découvre le bilan, « Menu principal » ramenant au titre. Le même
+  test **échoue sur le code d'avant** (timeout sur le rattrapage ; 0 bouton sur la fin de partie).
+- `npx tsc -b`, `npm run build`, `test:perf` 13/13, `test:map-tap` 3/3, `test:combat-ui` 9/9.
+- Au passage : `TestCombatPayloadServesTheWeaponTechnique` (entrée 106) **SÈME** désormais son hasard.
+  Il attend que la horde entre dans la fourchette de l'arc (le « Tir en cloche » ne vise pas au
+  contact) : une issue tirée aux dés, qui échouait environ une fois sur quatre sans que rien n'ait
+  changé. Même règle que `seedForTest` — mesuré 12 passages d'affilée après.
+
+**À faire / à surveiller.**
+- Le rattrapage reste borné par `CatchUpMaxBacklog` (12 h) : au-delà les vagues manquées sont sautées
+  et tracées au journal de la ville. Le joueur ne l'apprend qu'en ouvrant le journal — une ligne dans
+  la cinématique de retour (« N vagues ont rôdé sans attaquer ») serait plus honnête.
+- Si le battement de 15 min tourne bien en production, un retour ne devrait AVOIR presque rien à
+  rattraper : voir des rattrapages longs côté joueur est un signal à regarder du côté du cron.
+
+---
+
 ## 2026-08-11 (106) — Les armes font le combat, et la barre d'action se lit
 
 **La demande** : « gérer les combats en fonction des armes que l'on a » et améliorer grandement le

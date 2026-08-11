@@ -165,6 +165,20 @@ func (g *GameState) AdvanceTo(now time.Time, b SimBudget) SimResult {
 	return res
 }
 
+// CatchUpPending dit si le monde doit ENCORE avancer : une vague est due et n'a pas
+// été rejouée. Appelé APRÈS AdvanceTo, c'est exactement « le budget de cette requête
+// n'a pas suffi, il reste du retard » — la seule chose que le client ait besoin de
+// savoir pour redemander tout de suite au lieu d'attendre son sondage de 20 s.
+//
+// Dérivé de l'horloge, donc rien à mémoriser ni à invalider : si NextWaveAt est dans
+// le passé alors que la partie tourne, c'est qu'une vague est due.
+func (g *GameState) CatchUpPending(now time.Time) bool {
+	if g == nil || g.Status != StatusActive || g.NextWaveAt.IsZero() {
+		return false
+	}
+	return now.After(g.NextWaveAt)
+}
+
 // trimBacklog applique le plafond de retard : si la prochaine vague est due depuis
 // plus de CatchUpMaxBacklog, les vagues antérieures à la fenêtre sont SAUTÉES (elles
 // ne sont pas jouées) et l'oubli est tracé dans le journal de la ville. Renvoie le

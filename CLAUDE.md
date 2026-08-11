@@ -78,7 +78,10 @@ servers s'ils tournent, sinon les démarre; Chromium requis: `PERF_BROWSER` ou C
 `npm run test:map-tap` (in frontend — **le picking de la carte** : taper un héros ouvre son menu et ne
 le déplace jamais, taper le sol déplace toujours; mêmes prérequis que `test:perf`) ·
 `npm run test:combat-ui` (in frontend — **la barre d'action du combat** : ses trois rangs, l'arme au
-poing, un bouton par compétence servie, les raccourcis clavier; mêmes prérequis).
+poing, un bouton par compétence servie, les raccourcis clavier; mêmes prérequis) ·
+`npm run test:reconnect` (in frontend — **la reprise après une absence** : le rattrapage ne se joue pas
+sous les yeux du joueur (une seule cinématique, pas une toutes les 20 s) et une ville tombée rend la
+main au menu; mêmes prérequis).
 
 **Déploiement Vercel (gratuit)** — voir `DEPLOY.md`. Preset **Services** (`vercel.json`) : service
 `frontend` (root `frontend/`, Vite, statique CDN) + service `backend` (root `backend/`, le preset Go
@@ -1064,7 +1067,25 @@ test `TestServerWrittenSentencesUseFrenchBuildingNames`).
   ⚠ `WaveReport.buildingsHit/heroesHit` étaient `nil` côté Go, donc `null` en JSON : lire `.length`
   dessus plantait le rendu (et, dans `refreshGame`, l'exception avalée par le `catch` sautait le
   `renderMap()`). Les slices sont désormais initialisées côté serveur, et le client garde un `?? []`
-  pour les rapports déjà enregistrés.
+  pour les rapports déjà enregistrés. ⚠ **IL FAUT TOUJOURS UNE SORTIE** : une ville TOMBÉE n'affichait
+  que la ligne « La ville est tombée » sans aucun bouton — or la cinématique passe au-dessus de tout
+  (`--z-modal-top`, donc au-dessus de `.gameover` à z-index 80) : le joueur restait bloqué sur son
+  rapport, sans retour au menu ni nouvelle partie (rapporté 2026-08-11). Le bouton est désormais
+  INCONDITIONNEL (« Voir le bilan » / « Continuer ») et Échap ferme aussi.
+- **LE RATTRAPAGE NE SE JOUE PAS SOUS LES YEUX DU JOUEUR** (`game.CatchUpPending` → payload `catchUp`,
+  boucle dans `store.refreshGame`, 2026-08-11) — une requête de jeu ne rejoue qu'un petit nombre de
+  vagues (`game.RequestBudget` : quelqu'un attend la réponse), donc au retour d'une absence il en
+  reste, et le seul relanceur était le sondage de 20 s de `GameScreen` : la ville se faisait frapper
+  **une vague toutes les 20 secondes**, minuteur figé à 0, une cinématique à chaque fois. Le serveur
+  DIT désormais son retard — `ClientView` pose `catchUp` (dérivé : « une vague est due et n'a pas été
+  rejouée », donc rien à mémoriser ni à invalider, et rien de persisté) — et le client redemande
+  toutes les 600 ms en **accumulant** : une seule cinématique à l'arrivée, avec le cumul des vagues et
+  des dégâts (même règle qu'au retour de partie). ⚠ **borne dure** `CATCHUP_MAX_ROUNDS` : `catchUp` ne
+  retomberait jamais si l'intervalle de vague était réglé plus court que le temps d'une requête, et le
+  client sonderait sans fin. La boucle s'arrête aussi en entrant en combat et sur erreur réseau —
+  sinon `catchingUp` restait vrai SANS plus personne pour sonder. Pendant ce temps la TopBar affiche
+  « ⏳ Rattrapage… » au lieu d'un minuteur à 00:00 qui ne veut plus rien dire. Tests :
+  `game/sim_test.go`, `api/catchup_test.go`, `frontend/tests/reconnect.mjs` (`npm run test:reconnect`).
 
 ## 7a-bis. Chantier VOXEL (2026-07-17 — voir `VOXEL-PLAN.md`, branche `claude/voxel-map-mobile-2blara`)
 

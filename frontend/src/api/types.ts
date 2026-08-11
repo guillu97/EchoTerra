@@ -438,6 +438,11 @@ export interface GameState {
   wave: number;
   waveNumber: number;
   nextWaveAt: string;
+  // Le serveur n'est PAS à jour : des vagues restent dues qu'il n'a pas eu le
+  // budget de rejouer dans cette requête (game.RequestBudget). Le client
+  // redemande alors tout de suite au lieu d'attendre son sondage de 20 s — voir
+  // `refreshGame` dans store.ts. Absent = le monde est à l'heure.
+  catchUp?: boolean;
   status: "lobby" | "active" | "gameover";
   joinCode?: string;
   visibility?: "private" | "public"; // absent/"private" = player-created; "public" = server-created, auto-starts
