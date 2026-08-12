@@ -97,7 +97,13 @@ function snowTexture(): THREE.CanvasTexture {
   return SNOW_TEX;
 }
 // Props « arbres » : montés d'un cran sur la carte pour dépasser les personnages.
-const TREE_IDS = new Set(["tree-green", "tree-pink", "pine", "pine-snow", "dead-tree", "palm", "cactus"]);
+// ⚠ PAS LE CACTUS. Son modèle avait DÉJÀ été épaissi et allongé dans sa grille
+// pour ne pas se lire comme une touffe d'herbe, et il portait en plus la plus
+// grosse échelle de scatter du désert : cumulé au coup de pouce des arbres, le
+// saguaro sortait à 1,67 tuile de haut — PLUS GRAND QU'UN SAPIN (1,36) et aussi
+// large que lui. Trois corrections empilées pour un seul problème ; on n'en garde
+// qu'une, celle qui est dans le modèle.
+const TREE_IDS = new Set(["tree-green", "tree-pink", "pine", "pine-snow", "dead-tree", "palm"]);
 // Échelle relative des monstres par apparence (× la taille de base d'un perso) :
 // une limace est petite, un élémentaire/loup imposant, un boss massif.
 const MONSTER_SCALE: Record<string, number> = {

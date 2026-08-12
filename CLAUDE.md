@@ -686,7 +686,13 @@ comme le reste des props : `node scripts/voxel/gen-props.mjs cactus palm bones r
 CLI évite de réécrire les 216 fichiers). ⚠ **LE MESHER NORMALISE SUR LA LARGEUR DE GRILLE** : un modèle
 étroit dans la grille 20×20×30 reste petit à l'écran quel que soit son `scale` de scatter — un premier
 cactus de 3 cellules de large se lisait comme une touffe d'herbe, il a fallu l'épaissir à 5 ET monter
-son échelle de placement. ⚠ une couronne de palmier PLATE se lit comme un champignon : c'est la
+son échelle de placement. ⚠⚠ **UNE TAILLE À L'ÉCRAN EST UN PRODUIT DE TROIS FACTEURS** — remplissage
+du modèle dans sa grille × `scale` du scatter × coup de pouce `TREE_IDS` de VoxelMapView — et corriger
+« il est trop petit » sur les trois à la fois donne un géant : le saguaro est sorti à **1,67 tuile de
+haut, plus grand qu'un sapin (1,36) et aussi large**. Un prop n'a le droit qu'à UNE correction
+d'échelle, et elle se VÉRIFIE en tuiles (extension du modèle ÷ `sx`, × scale × boost) et non à l'œil
+sur une capture — le cactus n'est plus dans `TREE_IDS` (ce boost sert à faire dominer les ARBRES) et
+tient désormais 0,97 tuile, sous le palmier (1,16). ⚠ une couronne de palmier PLATE se lit comme un champignon : c'est la
 retombée quadratique des palmes et leur largeur de deux voxels près du cœur qui font le palmier.
 ⚠⚠ **`PROP_KEYS` (scatter.ts) EST CE QUE LA CARTE CHARGE** : un prop semé par les tables mais absent
 de cette liste n'est jamais téléchargé — `propsLib.get` rend `undefined`, la pose fait `continue`, et

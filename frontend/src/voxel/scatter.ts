@@ -161,7 +161,7 @@ export function scatterProps(src: ScatterSource): PropPlacement[] {
         if (skin.desert) {
           // LES DUNES DU THÈME : saguaros et carcasses, les deux silhouettes qui
           // n'existent nulle part ailleurs (gen-props.mjs, lot 3).
-          if (h(231) < 0.10) plant(x, y, "cactus", 236, 0.95);
+          if (h(231) < 0.10) plant(x, y, "cactus", 236, 0.88);
           if (h(232) < 0.045) plant(x, y, "bones", 237, 0.6);
           if (f.nearWater && h(233) < 0.25) plant(x, y, "palm", 238, 0.6); // l'oasis
         }
@@ -187,7 +187,7 @@ export function scatterProps(src: ScatterSource): PropPlacement[] {
           else if (r < 0.10) plant(x, y, "olive", 80, 0.5);
           if (h(93) < 0.12) plant(x, y, "dune-grass", 98, 0.32);
           if (h(94) < 0.08) plant(x, y, "brambles", 99, 0.38);
-          if (h(95) < 0.05) plant(x, y, "cactus", 101, 0.85);
+          if (h(95) < 0.05) plant(x, y, "cactus", 101, 0.8);
         } else if (r < 0.06) plant(x, y, "tree-pink", 70, 0.55);
         else if (r < 0.14) plant(x, y, "tree-green", 80, 0.5);
         if (h(90) < 0.05) plant(x, y, "rock", 95, 0.5);

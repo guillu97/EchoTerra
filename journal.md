@@ -53,6 +53,14 @@ doit suivre la caméra**, la projection dimétrique à 30° rejetant un nuage à
 `test:combat-ui` 9/9 · `test:reconnect` 8/8 · `test:endgame` 8/8 · `go test ./...` vert ·
 `tsc -b` + `npm run build`.
 
+**Dans la foulée — les cactus géants.** Guillaume les repère sur les captures : le saguaro sortait à
+**1,67 tuile de haut, plus grand qu'un sapin (1,36) et aussi large**. Cause : une taille à l'écran est
+le PRODUIT de trois facteurs (remplissage du modèle dans sa grille × `scale` du scatter × coup de pouce
+`TREE_IDS`), et j'avais corrigé « il est trop petit » sur les trois à la fois — l'épaississement du
+modèle, la plus grosse échelle du désert, et l'inscription dans la liste des arbres. On n'en garde
+qu'une : le cactus quitte `TREE_IDS` (ce boost sert à faire dominer les ARBRES) et son échelle
+redescend d'un cran → **0,97 tuile**, sous le palmier (1,16). Vérifié en tuiles, pas à l'œil.
+
 **À faire.** Rien de bloquant. Si un quatrième thème arrive, sa météo est une entrée de plus dans
 `makeWeather` et `weatherPropKeys` — et il faudra la MESURER, pas la relire.
 
