@@ -222,7 +222,11 @@ export class VoxelEngine {
     if (mesh.isMesh && !this.bloomLayers.test(mesh.layers)) {
       this.savedMat.push({ obj: mesh, mat: mesh.material });
       mesh.material = this.darkMat;
-    } else if ((obj as THREE.Sprite).isSprite && obj.visible) {
+    } else if (((obj as THREE.Sprite).isSprite || (obj as THREE.Points).isPoints) && obj.visible) {
+      // ⚠ les nuages de POINTS (neige de weather.ts) n'ont pas `isMesh` : sans ce
+      // cas ils traversaient la passe bloom avec leur matériau normal, donc chaque
+      // flocon devenait une source de lueur et la carte nordique se voilait de
+      // blanc en mode cinématique. Même traitement que les billboards : masqués.
       this.hiddenSprites.push(obj as THREE.Sprite);
       obj.visible = false;
     }
@@ -529,6 +533,12 @@ export class VoxelEngine {
   get elevationPx(): number {
     return this.zoom * Math.sin(ELEVATION);
   }
+
+  /** largeur/hauteur de la vue en px CSS — avec `zoom` (px par unité monde), elles
+   *  donnent l'étendue de monde réellement à l'écran. La météo (weather.ts) s'en
+   *  sert pour tenir une densité de flocons constante quel que soit le zoom. */
+  get viewWidth(): number { return this.cssW; }
+  get viewHeight(): number { return this.cssH; }
 
   /** azimut caméra courant (rad) — pour orienter les modèles face caméra */
   get azimuthNow(): number {

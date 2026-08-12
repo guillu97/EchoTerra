@@ -29,6 +29,7 @@ import { VoxelControls } from "./controls";
 import { BlockLibrary } from "./terrain";
 import { SmoothTerrain, setTerrainTheme } from "./smoothTerrain";
 import { makeClouds, type Clouds } from "./clouds";
+import { makeWeather, weatherPropKeys, WeatherLayer } from "./weather";
 import { makeLabel } from "./labels";
 import { ALL_CHAR_KEYS, CharLibrary } from "./characters";
 import { UnitAnimator } from "./unitAnim";
@@ -110,8 +111,12 @@ export function VoxelTownView({
     const animator = new UnitAnimator(engine, undefined, {
       idleFps: useStore.getState().settings.idleAnimFps,
     });
+    // météo du thème, cadencée par son propre réglage (0 = la couche n'existe pas)
+    const weather = new WeatherLayer(engine, useStore.getState().settings.weatherFps);
     const unsubAnim = useStore.subscribe((s, prev) => {
       if (s.settings.idleAnimFps !== prev.settings.idleAnimFps) animator.setIdleFps(s.settings.idleAnimFps);
+      if (s.settings.weatherFps !== prev.settings.weatherFps)
+        weather.setFps(s.settings.weatherFps, () => buildWeather());
     });
     // LOD 16³ aussi pour la ville : 575 cellules × 32³ pesaient 6,1 M tris —
     // en 16³ le style voxel reste lisible de près et le budget retombe ~4×.
@@ -269,6 +274,23 @@ export function VoxelTownView({
       engine.refreshShadows(); // bâtiments changés → passe d'ombres à re-rendre
     };
     let clouds: Clouds | null = null;
+    // LA MÉTÉO DU THÈME (weather.ts) : il neige aussi SUR LA VILLE. Sans ça un bourg
+    // nordique restait au sec pendant qu'il neigeait sur la carte, à un tap de
+    // distance — on lit ça comme un bug, pas comme un choix. Fonction nommée : c'est
+    // aussi elle que le réglage rappelle quand on RALLUME la couche (à « Aucun »
+    // elle n'était pas figée, elle n'existait pas).
+    const buildWeather = () => {
+      const g = useStore.getState().game;
+      weather.rebuild(`${g?.themeId ?? ""}:${g?.id ?? ""}`, () =>
+        makeWeather(g?.themeId, propsLib, {
+          cx: layout.center, cy: layout.center,
+          span: layout.size + 10,
+          seed: 4242,
+          groundAt: (x, z) => smooth.heightAt(x, z),
+          view: () => ({ x: engine.target.x, z: engine.target.z, w: engine.viewWidth, h: engine.viewHeight, ppu: engine.zoom }),
+        }),
+      );
+    };
     void propsLib
       .load(["bld-well", "bld-panel", "bld-bank", "bld-workshop", "bld-gate", "bld-tower",
              "bld-townhall", "bld-kitchen", "bld-wall", "bld-recyclerie", "bld-poste", "bld-chantier",
@@ -276,7 +298,7 @@ export function VoxelTownView({
              "bld-infirmerie", "bld-cartographe", "bld-armurerie", "bld-caserne", "bld-verger",
              "bld-gate-door-l", "bld-gate-door-r", "cloud", ...TOWN_DECOR_PROPS,
              // …plus ce que CE thème ajoute (rien en tempéré : aucun octet de plus).
-             ...themedKeysFor(game?.themeId)])
+             ...themedKeysFor(game?.themeId), ...weatherPropKeys(game?.themeId)])
       .then(() => {
         drawBuildings();
         // nuages au-dessus de la ville : plus hauts, plus lents que la carte
@@ -288,6 +310,7 @@ export function VoxelTownView({
           groundAt: () => GROUND, // niveau de la place — la tache glisse sur l'herbe
         });
         engine.scene.add(clouds.group);
+        buildWeather();
       });
 
     // animation CONTINUE des nuages + ouverture des vantaux tant que le Home est
@@ -465,6 +488,7 @@ export function VoxelTownView({
       unsubAnim();
       cancelAnimationFrame(raf);
       animator.dispose();
+      weather.dispose();
       chars.dispose();
       clouds?.dispose();
       controls.dispose();

@@ -216,6 +216,55 @@ function runeStone(seed) {
   return fin(g);
 }
 
+// VIRE-VENT (tumbleweed) — le seul prop du jeu qui ne soit pas posé mais ROULÉ
+// (voxel/weather.ts). Deux contraintes le dessinent :
+//
+//  1. il est CENTRÉ dans sa grille en hauteur, rayon R et centre à z = R, si bien que
+//     son centre géométrique tombe pile à `R/20` unité monde au-dessus du sol. C'est ce
+//     qui permet de le faire tourner sur lui-même sans le voir flotter ni s'enfoncer —
+//     un modèle posé « base à z=0 » comme tous les autres roulerait autour de son pied.
+//  2. il doit rester une BOULE AJOURÉE. Un ellipsoïde plein se lit comme un caillou ;
+//     c'est le vide entre les brindilles qui fait le buisson sec. On dessine donc des
+//     « cerceaux » — des cercles tracés dans des plans d'orientation ALÉATOIRE UNIFORME
+//     sur la sphère. ⚠ un premier jet tirait deux angles d'Euler indépendants dans
+//     [0,π) : ça n'échantillonne PAS la sphère uniformément (l'extension verticale
+//     retombait à ~0,63 de l'horizontale) et le buisson sortait aplati, lu comme une
+//     brique dorée. Et les cerceaux se tracent en voxels FINS (`setFine`) : à la
+//     résolution grossière une brindille fait 1,5 voxel d'épaisseur pour 10 de rayon,
+//     donc les cerceaux se soudent et la boule redevient pleine.
+function tumbleweed(seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz, FINE);
+  const rnd = makeRng(seed);
+  const straw = [166, 134, 96]; // paille sèche — chroma 43, au-dessus du seuil violet
+  const C = Math.round(g.fsx / 2); // centre fin en X/Y
+  const RF = 13; // rayon FIN ; le centre est posé à la MÊME altitude (invariant 1)
+  for (let i = 0; i < 13; i++) {
+    // normale du plan du cerceau, uniforme sur la sphère (z uniforme + azimut)
+    const nz = rnd() * 2 - 1, na = rnd() * Math.PI * 2, s = Math.sqrt(1 - nz * nz);
+    const n = [s * Math.cos(na), s * Math.sin(na), nz];
+    // base orthonormée du plan
+    const up = Math.abs(n[2]) > 0.9 ? [1, 0, 0] : [0, 0, 1];
+    const u = norm3(cross3(n, up));
+    const v = cross3(n, u);
+    const r = RF * (0.68 + rnd() * 0.34);
+    const tint = shade(straw, 0.82 + rnd() * 0.34);
+    const steps = Math.round(r * 7);
+    for (let t = 0; t < steps; t++) {
+      const th = (t / steps) * Math.PI * 2;
+      const co = Math.cos(th) * r, si = Math.sin(th) * r;
+      g.setFine(
+        C + Math.round(u[0] * co + v[0] * si),
+        C + Math.round(u[1] * co + v[1] * si),
+        RF + Math.round(u[2] * co + v[2] * si),
+        tint,
+      );
+    }
+  }
+  return fin(g);
+}
+const cross3 = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+const norm3 = (a) => { const l = Math.hypot(...a) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
+
 function rock(seed) {
   const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz, FINE);
   const rnd = makeRng(seed);
@@ -2296,6 +2345,8 @@ async function main() {
     { id: "palm", make: (v) => palm(3011 + v * 77) },
     { id: "bones", make: (v) => bones(3021 + v * 77) },
     { id: "rune-stone", make: (v) => runeStone(3031 + v * 77) },
+    // LA MÉTÉO DES THÈMES (voxel/weather.ts) : le vire-vent roule, il n'est pas semé.
+    { id: "tumbleweed", make: (v) => tumbleweed(3041 + v * 77) },
     // Les modèles PROPRES À UN THÈME. ⚠ leur clé est `<base>-<theme>` et le client ne
     // la demande QUE si elle figure dans son registre (voxel/themeModels.ts) : une clé
     // absente rendrait le bâtiment ou la ruine INVISIBLE, pas « par défaut ».

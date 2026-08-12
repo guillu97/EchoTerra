@@ -12,7 +12,8 @@
     "test:map-tap": "node tests/map-tap.mjs",
     "test:combat-ui": "node tests/combat-ui.mjs",
     "test:reconnect": "node tests/reconnect.mjs",
-    "test:endgame": "node tests/endgame.mjs"
+    "test:endgame": "node tests/endgame.mjs",
+    "test:weather": "node tests/weather.mjs"
   },
   "dependencies": {
     "react": "^18.3.1",

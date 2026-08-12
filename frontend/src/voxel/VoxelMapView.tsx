@@ -25,6 +25,7 @@ import { SmoothTerrain, setTerrainTheme } from "./smoothTerrain";
 import { themedKey, themedKeysFor } from "./themeModels";
 import { PROP_KEYS, scatterProps } from "./scatter";
 import { buildCascade, findCascadeSite, type Cascade } from "./cascade";
+import { makeWeather, weatherPropKeys, WeatherLayer } from "./weather";
 import { ALL_CHAR_KEYS, CharLibrary, setRigOpacity } from "./characters";
 import { UnitAnimator } from "./unitAnim";
 import { makeLabel } from "./labels";
@@ -162,9 +163,15 @@ class MapWorld {
   sunTick?: () => void;
   sunTimer: ReturnType<typeof setInterval> | undefined;
   libReady = false;
+  /** ⚠ la bibliothèque de props est-elle chargée ? La météo en dépend (nuages,
+   *  vire-vents) et `BlockLibrary.get` rend `undefined` sans erreur : construite
+   *  trop tôt, la couche existait mais était VIDE, et sa clé l'empêchait ensuite
+   *  d'être rebâtie — un ciel couvert silencieusement absent (mesuré : 0 nuage). */
+  propsReady = false;
   terrain: THREE.Group | null = null;
   terrainKey = "";
   themedFor = ""; // thème dont les modèles propres sont déjà chargés
+  weatherFor = ""; // thème dont les modèles de MÉTÉO sont arrivés
   // terrain CONTINU (settings.voxelSmooth) : surface lissée + brume en blocs
   smooth = new SmoothTerrain();
   smoothMode = true;
@@ -180,6 +187,10 @@ class MapWorld {
   eagle: { mesh: THREE.InstancedMesh; x: number; z: number; h: number; scale: number; angle: number } | null = null;
   // cascade (lot D4) : rideau shader sur une falaise bord d'eau, 1/carte si la géo s'y prête
   cascade: Cascade | null = null;
+  // LA MÉTÉO DU THÈME (weather.ts) : neige + ciel couvert au nord, vire-vents au
+  // sud. Réglable, et à « Aucun » la couche n'existe pas — c'est la seule façon de
+  // garder la promesse « la carte est 100 % on-demand ».
+  weather: WeatherLayer;
   lookup = new Map<THREE.Object3D, TerrainCell[]>();
   overlays = new THREE.Group(); // losanges/danger/anneau — reconstruits à chaque render
   sprites = new THREE.Group(); // billboards héros/monstres/ville
@@ -202,6 +213,7 @@ class MapWorld {
     this.animator = new UnitAnimator(engine, undefined, {
       idleFps: useStore.getState().settings.idleAnimFps,
     });
+    this.weather = new WeatherLayer(engine, useStore.getState().settings.weatherFps);
     engine.scene.add(this.overlays);
     engine.scene.add(this.sprites);
     void this.lib
@@ -218,12 +230,13 @@ class MapWorld {
       .then((p) => { this.palettes = p; this.terrainKey = ""; this.draw(); })
       .catch(() => undefined);
     void this.propsLib.load([
-      ...PROP_KEYS, "olive", "cloud",
+      ...PROP_KEYS, "olive",
       // la case ville rend un village miniature (mairie + portail + muraille),
       // les mêmes modèles que l'onglet Ville — plus le temple grec d'avant
       "bld-townhall", "bld-gate", "bld-wall",
       "site-ferme", "site-epave", "site-sanctuaire", "site-mine", "site-tour",
     ]).then(() => {
+      this.propsReady = true;
       this.terrainKey = "";
       this.draw();
     });
@@ -252,7 +265,47 @@ class MapWorld {
     return Math.min(1, Math.max(0, 1 - remaining / period));
   }
 
+  /** (Re)construit la météo pour la partie courante. Appelée au draw et quand le
+   *  réglage rallume la couche. La CLÉ résume tout ce dont la météo dépend — sans
+   *  elle on rebâtirait des milliers de flocons à chaque redessin de la carte. */
+  syncWeather() {
+    const game = this.game;
+    const theme = game?.themeId ?? "";
+    // ⚠ on n'entre PAS avant que les modèles soient là : `BlockLibrary.get` rend
+    // `undefined` sans rien signaler, et une couche construite trop tôt reste
+    // VIDE pour de bon (sa clé l'empêche d'être rebâtie) — mesuré : 0 nuage.
+    if (!game || !this.propsReady || this.weatherFor !== theme) return;
+    this.weather.rebuild(`${theme}:${game.id}:${game.width}x${game.height}`, () =>
+      makeWeather(theme, this.propsLib, {
+        cx: (game.width - 1) / 2,
+        cy: (game.height - 1) / 2,
+        // marge : les vire-vents entrent et sortent hors du regard, et le pont de
+        // nuages déborde des bords plutôt que de s'arrêter net sur la carte.
+        span: Math.max(game.width, game.height) + 10,
+        seed: strSeed(game.id),
+        groundAt: (x, z) => this.smooth.heightAt(x, z),
+        // Un vire-vent ne roule ni hors carte, ni sur l'eau, ni sur le brouillard.
+        passable: (x, z) => {
+          const t = this.tileAtWorld(game, x, z);
+          return !!t?.discovered && t.biome !== 0;
+        },
+        view: () => ({
+          x: this.engine.target.x, z: this.engine.target.z,
+          w: this.engine.viewWidth, h: this.engine.viewHeight, ppu: this.engine.zoom,
+        }),
+      }),
+    );
+  }
+
+  /** tuile sous une position monde, ou undefined hors carte */
+  private tileAtWorld(game: GameState, x: number, z: number) {
+    const tx = Math.round(x), ty = Math.round(z);
+    if (tx < 0 || ty < 0 || tx >= game.width || ty >= game.height) return undefined;
+    return game.tiles[ty * game.width + tx];
+  }
+
   dispose() {
+    this.weather.dispose();
     this.animator.dispose();
     this.lib.dispose();
     this.chars.dispose();
@@ -422,8 +475,12 @@ class MapWorld {
     // pas télécharger un octet de plus. Une seule fois par thème, puis on redessine.
     if (this.themedFor !== (game.themeId ?? "")) {
       this.themedFor = game.themeId ?? "";
-      const keys = themedKeysFor(game.themeId);
-      if (keys.length) void this.propsLib.load(keys).then(() => this.draw());
+      // …et ce que sa MÉTÉO réclame (weather.ts) : le pont de nuages du nord, les
+      // vire-vents du sud. Même règle — une carte tempérée n'en télécharge aucun.
+      const keys = [...themedKeysFor(game.themeId), ...weatherPropKeys(game.themeId)];
+      const forTheme = this.themedFor;
+      if (keys.length) void this.propsLib.load(keys).then(() => { this.weatherFor = forTheme; this.draw(); });
+      else this.weatherFor = forTheme;
     }
 
     // --- terrain (re-instancié seulement quand la découverte/partie change) ----
@@ -483,6 +540,10 @@ class MapWorld {
       }
       this.terrainKey = key;
     }
+
+    // météo du thème : construite une fois par partie (la clé la protège des
+    // redessins), rien du tout en tempéré ou si le joueur l'a coupée.
+    this.syncWeather();
 
     // --- overlays + billboards (reconstruits à chaque render, ~dizaines) -------
     clearOwned(this.overlays);
@@ -818,9 +879,12 @@ class MapWorld {
   }
 }
 
-// Pas de nuages ici (retour 2026-07-19 : la boucle continue sur la scène LOURDE
-// lagait sur téléphone) — la carte est 100 % on-demand ; les nuages vivent sur
-// la vue VILLE, légère.
+// Pas de nuages PERMANENTS ici (retour 2026-07-19 : la boucle continue sur la
+// scène LOURDE lagait sur téléphone) — la carte est 100 % on-demand ; les nuages
+// vivent sur la vue VILLE, légère. La seule exception est la MÉTÉO D'UN THÈME
+// (weather.ts) : elle apporte son pont de nuages avec la neige du nord, mais
+// c'est un effet OPTIONNEL, cadencé, absent des cartes tempérées et supprimable
+// d'un tap (Paramètres → « Effets de météo »).
 //
 // `active` = l'onglet Map est-il celui qu'on regarde ? La vue reste MONTÉE toute
 // la partie (démonter le moteur rendait l'ouverture de l'onglet interminable) et
@@ -862,6 +926,10 @@ export function VoxelMapView({ active = true }: { active?: boolean }) {
         engine.setSignac(s.settings.voxelSignac, s.settings.signacStrength);
       if (s.settings.idleAnimFps !== prev.settings.idleAnimFps)
         world.animator.setIdleFps(s.settings.idleAnimFps);
+      if (s.settings.weatherFps !== prev.settings.weatherFps)
+        // rallumer demande une RECONSTRUCTION : à « Aucun » la couche n'était pas
+        // figée, elle n'existait pas (cf. l'en-tête de weather.ts).
+        world.weather.setFps(s.settings.weatherFps, () => world.syncWeather());
     });
 
     const off = bus.on(
@@ -924,6 +992,7 @@ export function VoxelMapView({ active = true }: { active?: boolean }) {
     const world = worldRef.current;
     if (!world) return;
     world.animator.setActive(active);
+    world.weather.setActive(active);
     clearInterval(world.sunTimer);
     if (active) {
       world.sunTick?.();
@@ -964,6 +1033,13 @@ export function VoxelMapView({ active = true }: { active?: boolean }) {
 }
 
 const UP = new THREE.Vector3(0, 1, 0);
+/** graine numérique stable tirée de l'id de partie (la seed serveur est masquée
+ *  par le fog) — même vent d'une session à l'autre pour une même expédition. */
+function strSeed(s: string): number {
+  let h = 2166136261 >>> 0;
+  for (let i = 0; i < s.length; i++) h = ((h ^ s.charCodeAt(i)) * 16777619) >>> 0;
+  return h % 100000;
+}
 const PROP_MAT = signacify(new THREE.MeshLambertMaterial({ vertexColors: true }));
 // matériau des objets LUMINEUX (lucioles, cristaux, givre) : self-lit (Basic) →
 // couleurs pleines, luit dans la pénombre, et alimente le bloom sélectif.

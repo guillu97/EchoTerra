@@ -6,6 +6,58 @@
 
 ---
 
+## 2026-08-12 (119) — Animer les biomes : la neige, le ciel et les vire-vents
+
+Demande de Guillaume : « animer les biomes — neige qui tombe (avec nuages cohérents), tumbleweeds
+dans le désert, avec option désactivable ».
+
+**Ce qui manquait.** Un thème avait sa palette, ses props, ses modèles, ses armes et sa contrainte de
+survie — et pas un pixel de mouvement. Une carte nordique était un paysage d'hiver PARFAITEMENT figé.
+
+**Livré** (`frontend/src/voxel/weather.ts`, réglage « Effets de météo ») : **nordique** = neige +
+pont de nuages ; **désertique** = vire-vents qui roulent ; **tempéré** = rien, et pas un octet
+téléchargé. Sur la carte ET dans la ville — un bourg nordique au sec pendant qu'il neige à un tap de
+distance se lit comme un bug. Nouveau modèle voxel `tumbleweed`.
+
+**La « cohérence » demandée est un VENT PARTAGÉ** (`windOf(seed)`) : le pont de nuages, l'inclinaison
+de la chute et la course des vire-vents ont le même cap. C'est ça qu'on voit — pas la simple présence
+de nuages. Le test le mesure sur le DÉPLACEMENT réel des nuages, pas en relisant la constante des deux
+côtés (cos = 1,000).
+
+**L'interrupteur ne fige pas, il SUPPRIME.** À « Aucun » la couche n'est pas construite : aucune
+géométrie, aucune boucle, aucun redraw (mesuré : 0 en 3 s). C'était non négociable — les nuages
+avaient DÉJÀ été retirés de la carte une fois pour la batterie (2026-07-19) et `test:perf` interdit
+toute boucle continue au repos. Les autres crans cadencent la boucle comme le fait déjà l'idle des
+personnages. Zéro CPU par flocon : tout est dans le vertex shader.
+
+⚠ **TROIS PANNES SILENCIEUSES, aucune détectable en lisant le code.** C'est l'entrée à retenir.
+1. **Le ciel était vide.** Le pont de nuages était construit avant que `BlockLibrary` ait chargé :
+   `get` rend `undefined`, la pose fait `continue`, la couche EXISTE mais ne contient rien — et sa
+   clé de cache l'empêche ensuite d'être rebâtie. Mesuré : **0 nuage**. Exactement le piège déjà
+   documenté pour `PROP_KEYS`, sous une autre forme.
+2. **La neige tombait ailleurs.** Semée sur la CARTE, alors que la vue n'en couvre qu'une dizaine
+   d'unités sur 50 à 140 : **moins de 5 %** des flocons étaient à l'image. La colonne suit désormais
+   le regard, et la densité À L'ÉCRAN est tenue constante en ne dessinant qu'un préfixe du nuage de
+   points (`setDrawRange`) — sinon dézoomer noie la carte et zoomer efface la neige.
+3. **Aucun vire-vent n'a jamais roulé.** Ils ne roulent que sur une case DÉCOUVERTE (ni sur l'eau, ni
+   sur la nappe de brume — essayé : ça se lit comme un objet en lévitation), or on connaît une
+   cinquantaine de cases sur 1600 en début de partie. Mesuré : **0,00 à l'écran en moyenne sur
+   quarante secondes**. Couloir resserré à la mesure de la vue → **2,1**.
+
+Et deux réglages trouvés à l'œil sur capture : un **flocon blanc sur un ciel blanc est invisible**
+(la moitié d'une carte est de la brume presque blanche) — il lui faut un bord froid ; et le **ciel
+doit suivre la caméra**, la projection dimétrique à 30° rejetant un nuage à 15 unités d'altitude
+~26 unités au-dessus d'une vue qui n'en couvre qu'une vingtaine.
+
+**Vérifié.** `npm run test:weather` 16/16 (neuf) · `test:perf` 13/13 · `test:map-tap` 3/3 ·
+`test:combat-ui` 9/9 · `test:reconnect` 8/8 · `test:endgame` 8/8 · `go test ./...` vert ·
+`tsc -b` + `npm run build`.
+
+**À faire.** Rien de bloquant. Si un quatrième thème arrive, sa météo est une entrée de plus dans
+`makeWeather` et `weatherPropKeys` — et il faudra la MESURER, pas la relire.
+
+---
+
 ## 2026-08-12 (118) — L'escorte de départ : plus jamais de salle d'attente (R4)
 
 Le plan disait de ne traiter R4 qu'une fois les chiffres lus. Guillaume tranche, et il a raison : en

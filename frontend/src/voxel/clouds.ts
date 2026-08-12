@@ -58,10 +58,14 @@ export function makeClouds(
     seed: number;
     /** hauteur du sol sous (x,z) — les ombres factices s'y posent */
     groundAt?: (x: number, z: number) => number;
+    /** cap du vent imposé (rad). La météo d'un thème (weather.ts) le partage entre
+     *  le pont de nuages, la chute des flocons et les vire-vents : c'est là que se
+     *  voit la cohérence. Absent = cap dérivé de la graine, comme avant. */
+    wind?: number;
   },
 ): Clouds {
   const group = new THREE.Group();
-  const wind = h01(1, opts.seed) * Math.PI * 2; // cap général du vent, par partie
+  const wind = opts.wind ?? h01(1, opts.seed) * Math.PI * 2; // cap général du vent, par partie
   const items: { mesh: THREE.Mesh; blob: THREE.Mesh | null; i: number; speed: number; off: number; dirX: number; dirZ: number; perX: number; perZ: number; lap: number }[] = [];
   const blobMat = new THREE.MeshBasicMaterial({ map: blobTexture(), transparent: true, depthWrite: false });
   for (let i = 0; i < opts.count; i++) {

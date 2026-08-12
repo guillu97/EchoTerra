@@ -147,6 +147,13 @@ export interface Settings {
    *  de la scène, donc c'est bien une fréquence d'affichage qu'on règle ici.
    *  Ne borne QUE l'idle : un pas, une attaque, une mort gardent le plein rAF. */
   idleAnimFps: 0 | 8 | 15 | 30;
+  /** Cadence des EFFETS DE MÉTÉO d'un thème (neige nordique + ciel couvert,
+   *  vire-vents du désert — voir voxel/weather.ts), en images/s.
+   *  ⚠ 0 ne fige pas l'effet : il ne l'existe PAS. La couche n'est pas
+   *  construite, aucune géométrie n'est créée, aucune image n'est demandée — la
+   *  carte reste le rendu 100 % on-demand qu'elle doit être sur téléphone.
+   *  Un thème sans météo (tempéré) ne coûte rien quel que soit ce réglage. */
+  weatherFps: 0 | 8 | 15 | 30;
   renderPreset?: number; // marqueur de migration des défauts de rendu (voir RENDER_PRESET)
 }
 
@@ -166,6 +173,7 @@ const DEFAULT_SETTINGS: Settings = {
   voxelSignac: false, // opt-in : c'est un parti pris pictural fort, pas un défaut
   signacStrength: 0.6,
   idleAnimFps: 15, // les monstres respirent sur la carte, sans y brûler la batterie
+  weatherFps: 15, // il neige sur le nord et le désert roule ses vire-vents — coupable d'un tap
 
   renderPreset: RENDER_PRESET,
 };

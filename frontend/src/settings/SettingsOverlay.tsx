@@ -14,6 +14,14 @@ const IDLE_ANIM_OPTS: { v: Settings["idleAnimFps"]; label: string }[] = [
   { v: 15, label: "Fluide" },
   { v: 30, label: "Max" },
 ];
+// Effets de météo d'un thème (neige + ciel couvert au nord, vire-vents au désert).
+// ⚠ « Aucun » ne fige pas l'effet : il ne le construit pas du tout. Voir voxel/weather.ts.
+const WEATHER_OPTS: { v: Settings["weatherFps"]; label: string }[] = [
+  { v: 0, label: "Aucun" },
+  { v: 8, label: "Éco" },
+  { v: 15, label: "Fluide" },
+  { v: 30, label: "Max" },
+];
 
 function Banner({ title }: { title: string }) {
   return (
@@ -110,6 +118,26 @@ export function SettingsOverlay() {
           « Figée » les immobilise tant que rien ne bouge — la carte ne se redessine plus du tout au
           repos, c'est le réglage le plus économe en batterie. Les déplacements, attaques et morts
           restent toujours pleinement animés.
+        </span>
+      </div>
+      <div className="row">
+        <span className="lbl">Effets de météo</span>
+        <div className="seg">
+          {WEATHER_OPTS.map((o) => (
+            <button
+              key={o.v}
+              className={settings.weatherFps === o.v ? "on" : ""}
+              onClick={() => updateSettings({ weatherFps: o.v })}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+        <span className="hint">
+          Ce que le climat d'une expédition fait bouger : la neige qui tombe sous un ciel couvert
+          en pays nordique, les vire-vents qui roulent au désert. « Aucun » ne les fige pas — il les
+          supprime : plus une image demandée, plus un objet dans la scène. Une expédition tempérée
+          n'a pas de météo et ne coûte rien quel que soit ce réglage.
         </span>
       </div>
       <div className="row">

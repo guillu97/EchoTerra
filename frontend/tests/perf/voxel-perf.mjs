@@ -76,7 +76,12 @@ check("aucun .vox téléchargé deux fois", payload.dupes === 0, `${payload.dupe
 // personnages », cf. voxel/unitAnim.ts) : on mesure les deux bouts du contrat —
 // « Figée » (0) doit rendre la carte 100 % on-demand, et une cadence choisie doit
 // être TENUE (ni ignorée, ni dépassée jusqu'à la fréquence de l'écran).
-await page.evaluate(() => window.__eg.store.getState().updateSettings({ idleAnimFps: 0 }));
+// ⚠ on coupe AUSSI la météo des thèmes : `newGame()` tire une expédition au
+// hasard, donc une carte sur trois est nordique ou désertique et porte une
+// couche animée (voxel/weather.ts). Le contrat mesuré ici est celui de la carte
+// AU REPOS, tout effet d'ambiance éteint ; la météo a sa propre suite
+// (`npm run test:weather`), qui vérifie qu'à « Aucun » elle ne coûte rien.
+await page.evaluate(() => window.__eg.store.getState().updateSettings({ idleAnimFps: 0, weatherFps: 0 }));
 await wait(400);
 const f0 = await page.evaluate(() => window.__vm.engine.frames);
 await wait(3000);
@@ -99,7 +104,14 @@ check("animation au repos cadencée (≤15 fps demandés)", fps > 0.5 && fps <= 
 // on la LAISSE tourner : le test « hors de l'onglet Map » plus bas doit prouver
 // que quitter l'onglet coupe l'animation même quand elle est active.
 
-check("pas de nuages sur la carte (retour perf mobile)", await page.evaluate(() => !window.__vm.world.clouds), "clouds absent");
+// Pas de nuages PERMANENTS sur la carte (retour perf mobile 2026-07-19) : la seule
+// exception est la météo d'un thème, qui est OPTIONNELLE — ici elle est coupée,
+// donc la scène ne doit porter aucune couche d'ambiance.
+check(
+  "pas de nuages sur la carte (retour perf mobile)",
+  await page.evaluate(() => !window.__vm.world.clouds && !window.__vm.world.weather.current),
+  "clouds absent, météo coupée absente",
+);
 
 // --- pas de fuite : géométries stables à travers les redraws -----------------
 // Baseline prise ICI (après ~6s de vie) : les bibliothèques de persos/props

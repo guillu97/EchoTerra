@@ -84,7 +84,10 @@ sous les yeux du joueur (une seule cinématique, pas une toutes les 20 s) et une
 main au menu; mêmes prérequis) ·
 `npm run test:endgame` (in frontend — **le récit de fin de partie** : le registre de contribution dans
 l'ordre d'arrivée, la promesse du mémorial, et une relance qui ne repasse PAS par la partie legacy;
-mêmes prérequis).
+mêmes prérequis) ·
+`npm run test:weather` (in frontend — **la météo des thèmes** : neige + pont de nuages au nord portés
+par le MÊME vent, vire-vents qui roulent VRAIMENT à l'écran au sud, rien du tout en tempéré, et
+« Aucun » qui SUPPRIME la couche au lieu de la figer; mêmes prérequis).
 
 **Déploiement Vercel (gratuit)** — voir `DEPLOY.md`. Preset **Services** (`vercel.json`) : service
 `frontend` (root `frontend/`, Vite, statique CDN) + service `backend` (root `backend/`, le preset Go
@@ -738,6 +741,42 @@ bougent PAS (ce sont des points d'intérêt, pas du décor). ⚠ réglé À L'Œ
 que les seules taches sombres sont les conifères, c'est le CONTRASTE qui fait la saison, pas la
 désaturation.
 
+**LA MÉTÉO D'UN THÈME** (`voxel/weather.ts`, réglage `settings.weatherFps`, 2026-08-12) — la peau et
+les modèles rendaient un thème reconnaissable, mais IMMOBILE : une carte nordique était un paysage
+d'hiver parfaitement figé, un désert une étendue qui ne respirait pas. **Nordique** = la neige tombe
+sous un **ciel couvert** ; **désertique** = des **vire-vents** roulent en travers du regard ;
+**tempéré** = rien (et pas un octet téléchargé — `weatherPropKeys` charge les modèles PAR THÈME).
+⚠ **la « cohérence » demandée est un VENT PARTAGÉ** (`windOf(seed)`) : le pont de nuages, l'inclinaison
+de la chute et la course des vire-vents ont le même cap — c'est ça qu'on voit, pas la simple présence
+de nuages (test dédié, qui le mesure sur le DÉPLACEMENT réel des nuages et non en relisant la constante
+des deux côtés). ⚠ **« Aucun » (0 img/s) NE FIGE PAS, IL SUPPRIME** : aucune géométrie, aucune boucle,
+aucun redraw — même contrat que « Figée » côté personnages, et la seule façon honnête de tenir « la
+carte est 100 % on-demand » (les nuages en avaient déjà été retirés une fois pour la batterie en
+2026-07-19) ; rallumer RECONSTRUIT. Les autres crans cadencent la boucle
+(`setTimeout(1000/fps)` → rAF), jamais la fréquence de l'écran. Zéro CPU par flocon : chute, dérive et
+rebouclage sont dans le VERTEX SHADER, une uniforme de temps par frame.
+⚠⚠ **TROIS PANNES SILENCIEUSES, toutes trouvées à la MESURE et aucune détectable en lisant le code** —
+(1) le pont de nuages construit avant que `BlockLibrary` ait chargé : `get` rend `undefined`, la pose
+fait `continue`, la couche EXISTE mais est vide, et sa clé l'empêche d'être rebâtie (0 nuage) — d'où
+`propsReady`/`weatherFor` ; (2) la colonne de neige semée sur la CARTE : la vue ne couvre qu'une
+dizaine d'unités sur 50 à 140, donc <5 % des flocons étaient à l'image — elle **suit le regard**
+(boîte de 72, recentrage à hystérésis) et tient une **densité à l'écran constante** en ne dessinant
+qu'un PRÉFIXE du nuage de points (`setDrawRange`, les positions venant d'un hachage un préfixe reste
+uniforme) ; (3) les vire-vents en voies larges : ils ne roulent que sur une case DÉCOUVERTE (jamais sur
+l'eau ni sur la nappe de brume — essayé, ça se lit comme un objet en lévitation), or on ne connaît
+qu'une cinquantaine de cases sur 1600 en début de partie → **0,00 vire-vent à l'écran en moyenne** ;
+couloir resserré à la mesure de la vue → 2,1. ⚠ **le ciel SUIT LA CAMÉRA (parallaxe 1)** : la
+projection étant dimétrique à 30°, un nuage à 15 unités d'altitude se projette ~26 unités plus haut à
+l'écran, très au-dessus d'une vue qui n'en couvre qu'une vingtaine. ⚠ **un flocon blanc sur un ciel
+blanc est invisible** (la moitié d'une carte est de la brume presque blanche) — d'où le flocon à deux
+tons, cœur clair et **bord froid**. ⚠ **rien de la météo n'est pickable** (`engine.pick` raycaste la
+scène ENTIÈRE : un nuage volerait les taps de la carte) et **les Points sont masqués pendant la passe
+bloom** (ils n'ont pas `isMesh`, donc `darkenNonBloomed` les laissait passer et chaque flocon devenait
+une source de lueur). Modèle `tumbleweed` (`gen-props.mjs`) : boule AJOURÉE de cerceaux tracés en
+voxels FINS dans des plans d'orientation uniforme sur la sphère — deux angles d'Euler indépendants
+donnent une boule APLATIE, et à la résolution grossière les cerceaux se soudent en brique ; centrée en
+hauteur sur son rayon pour rouler sans flotter. Tests : `npm run test:weather`.
+
 **LA CONTRAINTE D'UN THÈME — LA SOIF** (`game/thirst.go`, 2026-08-11) — un thème qui ne serait
 qu'une palette s'userait en deux expéditions ; chacun porte donc **UNE** contrainte de survie, encadrée
 par six règles (`RETENTION-PLAN.md` §8) : brancher un système qui EXISTE, être collective et se régler
@@ -1375,7 +1414,11 @@ pas à la fréquence de l'écran — un rendu on-demand qui reste on-demand, où
 redraws/s la respiration a le droit de coûter. ⚠ le cadenceur ne borne QUE l'idle : un pas, une attaque,
 une mort gardent le plein rAF (`ensureLoop(urgent)` coupe court à l'attente). `setActive(false)` coupe
 tout quand l'onglet Map est quitté. Vérifié par `npm run test:perf` (« Figée » = 0 redraw en 3 s ;
-cadence tenue sous son plafond ; 0 redraw hors de l'onglet même animation active). ⚠ le budget de perf compte `engine.frames` (un par REDRAW) et non
+cadence tenue sous son plafond ; 0 redraw hors de l'onglet même animation active). ⚠ **la MÉTÉO d'un
+thème** (`voxel/weather.ts`, §5) rejoue exactement ce contrat sur son propre réglage
+(`settings.weatherFps`, Paramètres → « Effets de météo ») — à ceci près qu'à « Aucun » elle ne se fige
+pas, elle n'est pas CONSTRUITE ; et `test:perf` coupe désormais les DEUX réglages avant de mesurer la
+carte au repos, `newGame()` tirant une expédition au hasard donc une carte sur trois avec météo. ⚠ le budget de perf compte `engine.frames` (un par REDRAW) et non
 `renderer.info.render.frame` (un par appel GL) : depuis que le mode beauté est le défaut, la passe bloom
 fait ~17 appels pour un seul redraw. `CharLibrary.makeRig(key)` (géométries découpées en cache) +
 `setRigOpacity` (héros des autres, translucides). Carte : rigs face caméra (idle + marche au pas) ; Combat :
