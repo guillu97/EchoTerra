@@ -21,7 +21,7 @@ import { heroTexKey, libUrl, monsterTexKey } from "../assets";
 import { BLOOM_LAYER, clearOwned, VoxelEngine } from "./engine";
 import { VoxelControls } from "./controls";
 import { BlockLibrary, buildTerrain, type TerrainCell } from "./terrain";
-import { SmoothTerrain } from "./smoothTerrain";
+import { SmoothTerrain, setTerrainTheme } from "./smoothTerrain";
 import { PROP_KEYS, scatterProps } from "./scatter";
 import { buildCascade, findCascadeSite, type Cascade } from "./cascade";
 import { ALL_CHAR_KEYS, CharLibrary, setRigOpacity } from "./characters";
@@ -267,7 +267,7 @@ class MapWorld {
     const items = new Map<string, { mats: THREE.Matrix4[]; phase?: "day" | "night" }>();
     const placements = scatterProps({
       width: game.width, height: game.height, tiles: game.tiles,
-      townX: game.town.x, townY: game.town.y, seedStr: game.id,
+      townX: game.town.x, townY: game.town.y, seedStr: game.id, theme: game.themeId,
     });
     for (const p of placements) {
       // Les ARBRES sont montés d'un cran pour dominer les personnages (échelle
@@ -454,6 +454,10 @@ class MapWorld {
         this.cascade = null;
       }
       if (this.smoothMode) {
+        // LA PEAU DU THÈME (backend theme.go) : la palette de terrain suit la nature
+        // de l'expédition. Posée AVANT la construction — sans elle, une carte
+        // nordique n'est qu'une carte ordinaire avec des taches blanches.
+        setTerrainTheme(game.themeId);
         engine.scene.add(this.smooth.build(game, this.palettes, renderHeight));
         this.props = this.buildProps(game);
         engine.scene.add(this.props);

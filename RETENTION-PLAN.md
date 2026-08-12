@@ -426,7 +426,7 @@ place, sans code neuf :
 | Lot | Contenu | Coût | Ce qu'on voit |
 |---|---|---|---|
 | **1 · l'ossature** — ✅ **LIVRÉ** (2026-08-11) | `game/theme.go` (`ThemeDef`, `Themes`, `GameState.ThemeID` tiré de la graine), biais de biome autour de la ville, noms de terrains, peau des ruines, `GET /api/themes`, colonne `theme` au classement, `balance.Config{Theme}` + `cmd/balance -themes` + `TestEveryThemeHoldsTheFloor` | **faible**, backend pur, **aucun asset** | des cartes reconnaissables, des ruines différentes, le thème au salon et dans le classement |
-| **2 · la peau** | remap de palette au chargement `.vox`, palette de biomes (`game/render.ts`), libellés d'objets/biomes côté client, halle sommitale par thème | **moyen**, front | la ville et la carte changent de caractère |
+| **2 · la peau** — ✅ **LIVRÉ** (2026-08-12) | palette de terrain par thème (`THEME_PALETTES`, carte ET sols de ville) + végétation par thème (`scatter.ts`) | **moyen**, front | la ville et la carte changent de caractère |
 | **3 · le contenu** | props par thème (`gen-props.mjs`), modèle de pyramide/sphinx/drakkar, 1 arme + 1 recette par thème, 1 espèce par thème | **élevé et incrémental** — c'est de l'art, il se livre thème par thème | le thème devient un lieu |
 
 Le lot 1 seul suffit à répondre à R5 et il est testable par la simulation. Les lots 2 et 3 peuvent
@@ -547,6 +547,10 @@ sphinx, harpies et araignées), puis — quand les deux premiers auront prouvé 
    donc la Tour gelée et le **Plan de la Caserne** qu'elle seule donne étaient inatteignables.
 3. **R3 — l'instrumentation.** Une table d'activité, puis J3/J7 par expédition. Sans elle, la suite
    de ce document reste une opinion.
-4. **P9 lots 2 et 3** — la peau puis le contenu, thème par thème.
+4. ~~**P9 lot 2 — la peau.**~~ ✅ **LIVRÉ le 2026-08-12** (palette de terrain et végétation par
+   thème ; les sols de ville étant dans la même table, le tertre change d'air sans qu'on touche à un
+   modèle de bâtiment). Reste le **lot 3** : les modèles propres à chaque thème (cactus, ossements,
+   drakkar, pyramide, halle sommitale) et une arme + une recette par expédition — de l'art, livrable
+   thème par thème.
 5. **R4 — le temps avant la première partie.** À traiter quand on saura, par R3, s'il coûte
    réellement des joueurs.

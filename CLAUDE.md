@@ -638,6 +638,25 @@ d'une spécialité). ⚠ **le plancher de survie se vérifie THÈME PAR THÈME**
 un thème non simulé serait une punition au hasard. `GET /api/themes`, `themeId` dans les résumés de
 salon, colonne `theme` au classement. Tests : `game/theme_test.go`, `worldgen_test.go`.
 
+**LA PEAU D'UN THÈME** (`voxel/smoothTerrain.ts` `THEME_PALETTES` + `voxel/scatter.ts`, 2026-08-11) —
+le biais de biomes change ce qui pousse autour de la ville ; la **palette de terrain** change l'humeur
+de TOUTE la carte, y compris des biomes que le thème n'a pas déplacés — sans elle, une carte nordique
+n'est qu'une carte ordinaire avec des taches blanches (mesuré à l'œil, c'est exactement ce qu'elle
+donnait). `setTerrainTheme(themeId)` est posé AVANT chaque construction de terrain (carte ET ville) :
+un module-level plutôt qu'un paramètre traversant, parce que les trois vues bâtissent leur terrain à
+des moments différents. ⚠ **on ne remplace que les tons qu'un thème a une raison de changer** — ce qui
+n'est pas listé garde la palette de référence, donc un thème ne peut pas rendre la carte illisible par
+omission. ⚠ **les codes 6..9 sont les SOLS DE VILLE** (`SOIL` dans townLayout.ts) : les rhabiller fait
+prendre au tertre l'air du pays **sans toucher à un seul modèle de bâtiment** — c'est ce qui rend la
+ville nordique blanche et la ville désertique ocre pour trois lignes de couleurs. La **végétation**
+suit aussi (`themeSkin` dans scatter.ts) : taïga de conifères et bosquets givrés au nord, arbres morts
+/ oliviers / épineux au sud, en réutilisant les props qui existaient déjà (`pine-snow`, `frost-tree`,
+`snowdrift`, `dead-tree`, `olive`, `brambles`, `dune-grass`) ; les repères de carte et les ruines ne
+bougent PAS (ce sont des points d'intérêt, pas du décor). ⚠ réglé À L'ŒIL SUR CAPTURE : un premier jet
+« vert éteint » pour le nord donnait une forêt terne — l'hiver se lit quand tout est clair et bleuté et
+que les seules taches sombres sont les conifères, c'est le CONTRASTE qui fait la saison, pas la
+désaturation.
+
 **LA CONTRAINTE D'UN THÈME — LA SOIF** (`game/thirst.go`, 2026-08-11) — un thème qui ne serait
 qu'une palette s'userait en deux expéditions ; chacun porte donc **UNE** contrainte de survie, encadrée
 par six règles (`RETENTION-PLAN.md` §8) : brancher un système qui EXISTE, être collective et se régler

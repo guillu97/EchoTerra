@@ -6,6 +6,47 @@
 
 ---
 
+## 2026-08-12 (113) — La peau des thèmes : une carte qui se reconnaît au premier coup d'œil
+
+Lot 2 du plan P9. Les thèmes avaient leur monde (entrée 110) et leurs contraintes (111, 112) ; il leur
+manquait d'être RECONNAISSABLES — la carte nordique était verte, avec des taches blanches.
+
+**La palette de terrain suit le thème** (`smoothTerrain.ts`, `THEME_PALETTES`). C'est le levier à plus
+fort effet du lot : le biais de biomes change ce qui pousse autour de la ville, la palette change
+l'humeur de TOUTE la carte, y compris des biomes que le thème n'a pas déplacés. `setTerrainTheme()`
+est posé avant chaque construction de terrain — un module-level plutôt qu'un paramètre traversant,
+parce que les trois vues (carte, ville, combat) bâtissent leur terrain à des moments différents et que
+faire descendre le thème dans chaque signature aurait touché tout le chemin de rendu pour une table de
+couleurs. ⚠ on ne remplace QUE les tons qu'un thème a une raison de changer : ce qui n'est pas listé
+garde la palette de référence, donc un thème ne peut pas rendre la carte illisible par omission.
+
+⚠ **LES SOLS DE VILLE SONT DANS LA MÊME TABLE** (codes 6..9, `SOIL` de townLayout.ts) : les rhabiller
+fait prendre au tertre l'air du pays **sans toucher à un seul modèle de bâtiment**. Trois lignes de
+couleurs, et le bourg nordique est blanc de givre quand le désertique est ocre — là où repeindre les
+`.vox` aurait demandé de régénérer tout le catalogue.
+
+**La végétation suit aussi** (`scatter.ts`, `themeSkin`), en réutilisant les props qui existaient
+déjà : taïga de conifères, bosquets givrés et congères au nord ; arbres morts, oliviers, épineux et
+herbes de dune au sud. ⚠ les repères de carte et les ruines ne bougent pas — ce sont des points
+d'intérêt, pas du décor.
+
+⚠ **RÉGLÉ À L'ŒIL, SUR CAPTURE, ET LE PREMIER JET ÉTAIT MAUVAIS.** Une palette nordique « vert éteint »
+donnait une forêt terne : la carte ne disait pas « hiver », elle disait « couleurs fatiguées ». L'hiver
+se lit quand TOUT est clair et bleuté et que les seules taches sombres sont les conifères — c'est le
+contraste qui fait la saison, pas la désaturation. Le désert, lui, est tombé juste du premier coup
+(sable chaud, oliviers, mesas de grès).
+
+**Vérifié.** `npx tsc -b`, `npm run build`, `test:perf` 13/13 (les props par thème ne coûtent rien au
+budget), `test:map-tap` 3/3, `test:combat-ui` 9/9, `test:endgame` 8/8, `test:reconnect` 8/8. Contrôle
+à l'œil sur les trois thèmes, carte ET ville, avec le mélange de biomes mesuré en parallèle (166 cases
+de névé sur les 289 du rayon 8 en nordique, 146 de dunes en désertique).
+
+**Ce qui reste au lot 3** : les modèles eux-mêmes — un cactus, des ossements, un drakkar, une pyramide
+et une halle sommitale par thème, plus une arme et une recette propres à chaque expédition. C'est de
+l'art, et il se livre thème par thème sans jamais bloquer le jeu.
+
+---
+
 ## 2026-08-11 (112) — Le froid : la contrainte nordique, et deux réglages trouvés à la mesure
 
 Deuxième contrainte de thème (`game/cold.go`), en deux faces : **dehors la neige, dedans le feu**.

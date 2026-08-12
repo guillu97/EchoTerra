@@ -59,6 +59,62 @@ const DIORAMA: Record<number, [number, number, number][]> = {
   9: [[196, 188, 170], [182, 174, 156]], // dallage de pierre (esplanade)
 };
 const CLIFF: [number, number, number] = [212, 192, 152]; // pierre des marches, plus chaude
+
+// --- LA PEAU D'UN THÈME (backend theme.go) -------------------------------------
+//
+// C'est ICI qu'une expédition thématique se reconnaît au premier coup d'œil. Le
+// biais de biomes (worldgen.applyThemeBias) change ce qui pousse autour de la
+// ville ; la palette change l'HUMEUR DE TOUTE LA CARTE, y compris des biomes que
+// le thème n'a pas déplacés — sinon une carte nordique n'est qu'une carte
+// ordinaire avec des taches blanches, ce qui est exactement ce qu'elle donnait.
+//
+// ⚠ On ne remplace QUE les tons qu'un thème a une raison de changer : ce qui
+// n'est pas listé garde la palette de référence, donc un thème ne peut pas
+// rendre la carte illisible par omission. Les codes 6..9 sont les SOLS DE VILLE
+// (voir SOIL dans townLayout.ts) : les rhabiller fait prendre au tertre l'air du
+// pays, sans toucher à un seul modèle de bâtiment.
+const THEME_PALETTES: Record<string, Record<number, [number, number, number][]>> = {
+  // ⚠ RÉGLÉ À L'ŒIL, SUR CAPTURE. Un premier jet « vert éteint » donnait une forêt
+  // terne : la carte ne disait pas « hiver », elle disait « couleurs fatiguées ».
+  // L'hiver se lit quand TOUT est clair et bleuté et que les seules taches sombres
+  // sont les conifères — c'est le contraste qui fait la saison, pas la désaturation.
+  nordique: {
+    0: [[64, 104, 150], [52, 90, 134]], // eaux noires et froides
+    1: [[222, 220, 214], [208, 206, 200]], // grève de galets gris
+    2: [[196, 210, 202], [180, 196, 188]], // lande gelée : herbe poudrée de givre
+    3: [[78, 112, 96], [66, 98, 84]], // taïga : conifères sombres et bleutés
+    4: [[168, 176, 196], [152, 160, 182]], // fjord rocheux, gris bleuté
+    5: [[240, 246, 255], [222, 232, 250]], // névé : blanc franc, tiré vers le bleu
+    6: [[198, 212, 202], [182, 198, 188]], // herbe du tertre, givrée
+    7: [[140, 128, 120], [126, 115, 108]], // terre battue gelée
+    8: [[210, 216, 222], [196, 203, 210]], // plaine sous le gel
+  },
+  desertique: {
+    0: [[86, 190, 186], [70, 172, 170]], // oasis turquoise
+    1: [[238, 205, 138], [228, 192, 122]], // dunes, un cran plus chaudes
+    2: [[196, 186, 112], [182, 172, 100]], // steppe aride : l'herbe a jauni
+    3: [[142, 168, 82], [128, 154, 70]], // palmeraie : vert franc mais poussiéreux
+    4: [[206, 168, 124], [192, 154, 110]], // falaise de grès
+    5: [[244, 240, 226], [232, 228, 214]], // désert de sel
+    6: [[184, 172, 108], [170, 158, 96]], // herbe rase brûlée par le soleil
+    7: [[172, 138, 96], [158, 126, 86]], // sable damé
+    8: [[204, 182, 128], [190, 168, 116]],
+  },
+};
+
+// La palette EN COURS. Un module-level plutôt qu'un paramètre traversant : les
+// trois vues (carte, ville, combat) construisent leur terrain à des moments
+// différents, et faire descendre le thème dans chaque signature aurait touché
+// tout le chemin de rendu pour une table de couleurs.
+let PALETTE: Record<number, [number, number, number][]> = DIORAMA;
+
+// setTerrainTheme pose la palette d'un thème (identifiant vide/inconnu = celle de
+// référence). À appeler AVANT de construire un terrain — les vues le font à chaque
+// rendu, donc changer de partie change de peau sans rien recharger.
+export function setTerrainTheme(themeId: string | undefined): void {
+  const skin = themeId ? THEME_PALETTES[themeId] : undefined;
+  PALETTE = skin ? { ...DIORAMA, ...skin } : DIORAMA;
+}
 const UNDISCOVERED: [number, number, number] = [225, 227, 244]; // sous la brume
 
 // ombrage voxel par face (mêmes valeurs douces que le mesher des blocs)
@@ -180,7 +236,7 @@ export class SmoothTerrain {
     const tileColor = (tx: number, ty: number): [number, number, number] => {
       const t = tileAt(tx, ty);
       if (!t?.discovered) return UNDISCOVERED;
-      const shades = DIORAMA[t.biome] ?? DIORAMA[2];
+      const shades = PALETTE[t.biome] ?? PALETTE[2];
       const k = rollNoise(tx * 1.7 + 40, ty * 1.7 + 40);
       return [
         shades[0][0] + (shades[1][0] - shades[0][0]) * k,

@@ -27,7 +27,7 @@ import { durColor } from "../tabs/HomeTab";
 import { clearOwned, VoxelEngine } from "./engine";
 import { VoxelControls } from "./controls";
 import { BlockLibrary } from "./terrain";
-import { SmoothTerrain } from "./smoothTerrain";
+import { SmoothTerrain, setTerrainTheme } from "./smoothTerrain";
 import { makeClouds, type Clouds } from "./clouds";
 import { makeLabel } from "./labels";
 import { ALL_CHAR_KEYS, CharLibrary } from "./characters";
@@ -381,6 +381,10 @@ export function VoxelTownView({
     };
 
     // construction du terrain lissé + cadrage sur le village
+    // ⚠ la peau du thème vaut aussi pour le tertre : les sols de ville (codes 6..9)
+    // sont dans la même table, donc le bourg prend l'air du pays sans qu'on touche à
+    // un seul modèle de bâtiment.
+    setTerrainTheme(game?.themeId);
     let terrain: THREE.Mesh | null = null;
     {
       terrain = smooth.build(

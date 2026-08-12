@@ -31,6 +31,8 @@ export type ScatterSource = {
   townY: number;
   /** identifiant stable de la partie (game.id — la seed est masquée par le fog serveur) */
   seedStr: string;
+  /** NATURE de l'expédition (backend theme.go). Vide/absent = tempéré. */
+  theme?: string;
 };
 export type PropPlacement = {
   id: string;
@@ -70,6 +72,18 @@ type TileFlags = {
   summit: boolean; // plus haut que tous ses voisins découverts (et relief ≥ 2)
   openMeadow: boolean; // prairie sans voisin forêt
 };
+
+// LA VÉGÉTATION SUIT LE THÈME (backend theme.go). Le biais de biomes change ce
+// qu'il y a autour de la ville ; ces surcharges changent ce qui POUSSE sur les
+// biomes que le thème n'a pas déplacés — une lande gelée ne porte pas les mêmes
+// arbres qu'une prairie, une steppe aride non plus.
+//
+// ⚠ On ne remplace que ce qui a une raison de changer, et on ne touche NI aux
+// repères de carte NI aux ruines : ce sont des points d'intérêt, pas du décor.
+const themeSkin = (theme: string | undefined) => ({
+  nordic: theme === "nordique",
+  desert: theme === "desertique",
+});
 
 export function scatterProps(src: ScatterSource): PropPlacement[] {
   const { width, height, tiles, townX, townY } = src;
@@ -124,6 +138,7 @@ export function scatterProps(src: ScatterSource): PropPlacement[] {
       // restent dégagés (le parvis + la couronne d'oliviers occupent la place)
       if (Math.max(Math.abs(x - townX), Math.abs(y - townY)) <= 1) continue;
       const f = flagsOf(x, y, t);
+      const skin = themeSkin(src.theme);
       const h = (s: number) => h01(x, y, s);
       // nappes basse fréquence (hautes herbes de prairie) : cellules 3×3
       const inPatch = h01(Math.floor(x / 3), Math.floor(y / 3), 700) < 0.4;
@@ -142,7 +157,20 @@ export function scatterProps(src: ScatterSource): PropPlacement[] {
         if (h(610) < (f.nearWater ? 0.05 : 0.02)) plant(x, y, "crab", 615, 0.32, "day");
       } else if (t.biome === 2) { // prairie : nappes d'herbes, baies, ponctuation
         const r = h(60);
-        if (r < 0.06) plant(x, y, "tree-pink", 70, 0.55);
+        if (skin.nordic) {
+          // LANDE GELÉE : plus d'arbres en fleurs, des bosquets givrés et des
+          // congères qui débordent du névé voisin.
+          if (r < 0.05) plant(x, y, "frost-tree", 70, 0.5);
+          else if (r < 0.11) plant(x, y, "pine-snow", 80, 0.5);
+          if (h(91) < 0.09) plant(x, y, "frost-bush", 96, 0.4);
+          if (h(92) < 0.07) plant(x, y, "snowdrift", 97, 0.45);
+        } else if (skin.desert) {
+          // STEPPE ARIDE : ce qui reste debout est mort ou épineux.
+          if (r < 0.05) plant(x, y, "dead-tree", 70, 0.5);
+          else if (r < 0.10) plant(x, y, "olive", 80, 0.5);
+          if (h(93) < 0.12) plant(x, y, "dune-grass", 98, 0.32);
+          if (h(94) < 0.08) plant(x, y, "brambles", 99, 0.38);
+        } else if (r < 0.06) plant(x, y, "tree-pink", 70, 0.55);
         else if (r < 0.14) plant(x, y, "tree-green", 80, 0.5);
         if (h(90) < 0.05) plant(x, y, "rock", 95, 0.5);
         if (h(120) < 0.55) plant(x, y, "grass-tuft", 125, 0.32);
@@ -170,9 +198,21 @@ export function scatterProps(src: ScatterSource): PropPlacement[] {
           }
         }
       } else if (t.biome === 3) { // forêt : sous-bois dense (lore Dryade)
-        plant(x, y, "tree-green", 10, 0.62);
-        if (h(20) < 0.5) plant(x, y, "tree-green", 30, 0.5);
-        if (h(40) < 0.12) plant(x, y, "tree-pink", 50, 0.55);
+        if (skin.nordic) {
+          // TAÏGA : conifères serrés, sous-bois givré.
+          plant(x, y, "pine", 10, 0.62);
+          if (h(20) < 0.5) plant(x, y, "pine-snow", 30, 0.55);
+          if (h(40) < 0.14) plant(x, y, "frost-tree", 50, 0.5);
+        } else if (skin.desert) {
+          // PALMERAIE : l'oasis du thème (c'est ELLE qui rend l'eau, thirst.go).
+          plant(x, y, "olive", 10, 0.62);
+          if (h(20) < 0.45) plant(x, y, "tree-green", 30, 0.5);
+          if (h(40) < 0.12) plant(x, y, "reed", 50, 0.42);
+        } else {
+          plant(x, y, "tree-green", 10, 0.62);
+          if (h(20) < 0.5) plant(x, y, "tree-green", 30, 0.5);
+          if (h(40) < 0.12) plant(x, y, "tree-pink", 50, 0.55);
+        }
         if (h(110) < 0.4) plant(x, y, "grass-tuft", 115, 0.3);
         if (h(310) < 0.13) plant(x, y, "mushroom", 315, 0.33);
         if (h(320) < 0.16) plant(x, y, "fern", 325, 0.36);
@@ -182,7 +222,9 @@ export function scatterProps(src: ScatterSource): PropPlacement[] {
         if (h(660) < 0.02) plant(x, y, "web", 665, 0.4); // annonce l'Araignée Cristalline
       } else if (t.biome === 4) { // montagne : éboulis au pied des falaises, cristaux, cairns aux sommets
         if (h(99) < 0.3) plant(x, y, "rock", 100, 0.65);
-        if (h(150) < 0.3) plant(x, y, "pine", 155, 0.62);
+        if (skin.desert) {
+          if (h(150) < 0.12) plant(x, y, "dead-tree", 155, 0.55); // rien ne pousse sur le grès
+        } else if (h(150) < 0.3) plant(x, y, skin.nordic ? "pine-snow" : "pine", 155, 0.62);
         if (h(350) < (f.cliffFoot ? 0.35 : 0.04)) plant(x, y, "scree", 355, 0.5);
         if (h(360) < 0.045) plant(x, y, "crystal", 365, 0.45);
         if (h(370) < (f.summit ? 0.3 : 0.015)) plant(x, y, "cairn", 375, 0.45);
