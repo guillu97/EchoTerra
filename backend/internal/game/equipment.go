@@ -66,6 +66,14 @@ var Equipment = map[string]EquipDef{
 	"Lame d'argent":     {Slot: SlotWeapon, Weapon: ArchSword, Force: 2, VsCursed: 4, Desc: "+2 force, +4 contre les créatures maudites"},
 	"Arc sylvestre":     {Slot: SlotWeapon, Weapon: ArchBow, Dexterite: 2, Reach: 3, RangedStat: "dexterite", Desc: "attaque à portée 3, +2 dextérité"},
 	"Lance de sanglier": {Slot: SlotWeapon, Weapon: ArchSpear, Force: 3, Reach: 2, Desc: "+3 force, attaque à portée 2"},
+	// LES ARMES D'UN THÈME (theme.go, lot 3). ⚠ RÈGLE : un thème donne un AUTRE CHEMIN
+	// vers une puissance qui existe déjà, jamais une puissance de plus. Le khopesh vaut
+	// exactement la Lame de fer mais se forge avec le verre des dunes quand le fer
+	// manque ; le harpon vaut une Lance de sanglier à un point de force près, et surtout
+	// il se forge avec le givre du nord au lieu d'exiger la défense d'un BOSS. Ce qu'un
+	// thème change, c'est l'accès — pas le plafond.
+	"Khopesh de verre": {Slot: SlotWeapon, Weapon: ArchSword, Force: 3, Desc: "+3 force au combat (verre des dunes)"},
+	"Harpon de givre":  {Slot: SlotWeapon, Weapon: ArchSpear, Force: 2, Reach: 2, Desc: "+2 force, attaque à portée 2"},
 
 	"Cape de plumes": {Slot: SlotGear, Agilite: 2, Desc: "+2 agilité (déplacement, initiative)"},
 	"Cape de garou":  {Slot: SlotGear, Endurance: 2, Desc: "+2 endurance (encaisse mieux)"},

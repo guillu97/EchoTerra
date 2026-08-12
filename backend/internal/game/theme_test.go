@@ -107,3 +107,69 @@ func TestEveryBuildingPlanDropsSomewhere(t *testing.T) {
 		}
 	}
 }
+
+// LES ARMES D'UN THÈME (equipment.go + craft.go, lot 3).
+//
+// ⚠ RÈGLE : un thème donne un AUTRE CHEMIN vers une puissance qui existe déjà, jamais
+// une puissance de plus. Ce test tient la règle : aucune arme de thème ne doit dépasser
+// la meilleure arme ordinaire de son archétype.
+func TestThemeWeaponsAreLateralNotStronger(t *testing.T) {
+	themed := map[string]bool{"Khopesh de verre": true, "Harpon de givre": true}
+	best := map[string]int{} // archétype -> meilleure force ORDINAIRE
+	for name, e := range Equipment {
+		if e.Weapon == "" || themed[name] {
+			continue
+		}
+		if e.Force > best[e.Weapon] {
+			best[e.Weapon] = e.Force
+		}
+	}
+	for name := range themed {
+		e, ok := Equipment[name]
+		if !ok {
+			t.Fatalf("%q n'est pas au catalogue d'équipement", name)
+		}
+		if e.Force > best[e.Weapon] {
+			t.Errorf("%q donne %d de force, la meilleure arme ordinaire de son archétype en donne %d — un thème ne doit pas relever le plafond",
+				name, e.Force, best[e.Weapon])
+		}
+		// …et elle doit être FORGEABLE : une arme sans recette n'existe pas.
+		found := false
+		for _, r := range Recipes {
+			if r.Name == name {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("%q n'a aucune recette", name)
+		}
+	}
+}
+
+// Le matériau d'une arme de thème ne tombe QUE là où le thème le fournit : c'est ce qui
+// la rend plausible sur sa carte sans qu'un seul `if theme ==` figure dans le craft.
+func TestThemeWeaponMaterialComesFromItsLand(t *testing.T) {
+	has := func(theme string, b Biome, item string) bool {
+		g := &GameState{ThemeID: theme}
+		td, _ := g.terrainFor(b)
+		for _, d := range td.Drops {
+			if d.Name == item {
+				return true
+			}
+		}
+		return false
+	}
+	if !has("desertique", BiomeSand, "Verre du désert") {
+		t.Error("le verre des dunes doit tomber sur le sable désertique")
+	}
+	for _, theme := range []string{ThemeTempere, "nordique"} {
+		if has(theme, BiomeSand, "Verre du désert") {
+			t.Errorf("thème %s : le verre du désert ne devrait pas exister ici", theme)
+		}
+	}
+	// Le givre, lui, vient de la NEIGE — présente partout mais rare hors du nord (voir
+	// worldgen.snowCaps) : le harpon se forge donc surtout là où il a du sens.
+	if !has(ThemeTempere, BiomeSnow, "Givre éternel") {
+		t.Error("le givre éternel doit rester une trouvaille de neige, quel que soit le thème")
+	}
+}

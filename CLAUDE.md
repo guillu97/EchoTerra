@@ -655,6 +655,17 @@ tombé). Y ajouter tout nouveau prop, et le vérifier en comptant les `.vox` ré
 plutôt qu'à l'œil sur une capture — `brambles`, semé depuis le lot D2, n'avait jamais poussé nulle
 part pour cette raison.
 
+**LES ARMES D'UN THÈME** (`equipment.go` + `craft.go`, 2026-08-12) — ⚠ **UN THÈME DONNE UN AUTRE
+CHEMIN VERS UNE PUISSANCE QUI EXISTE DÉJÀ, JAMAIS UNE PUISSANCE DE PLUS** (test
+`TestThemeWeaponsAreLateralNotStronger` : aucune arme de thème ne dépasse la meilleure arme ordinaire
+de son archétype). Le **Khopesh de verre** (désert, épée) vaut exactement la Lame de fer mais se forge
+avec le verre des dunes quand le fer manque ; le **Harpon de givre** (nord, lance) vaut une Lance de
+sanglier à un point de force près, et surtout il se forge avec du givre au lieu d'exiger la défense
+d'un BOSS. Ce qu'un thème change, c'est l'ACCÈS, pas le plafond. ⚠ **aucun `if theme ==` dans le
+craft** : c'est le MATÉRIAU qui gate — le « Verre du désert » (fulgurite) ne tombe que sur le sable
+d'une carte désertique (`ThemeDef.ExtraDrops`), le Givre éternel demande de la neige. Gater par la
+matière garde le catalogue lisible et n'invente aucune règle.
+
 **LES MODÈLES PROPRES À UN THÈME** (`voxel/themeModels.ts`, 2026-08-12) — un thème peut donner sa
 silhouette à un bâtiment ou à une ruine : la **halle sommitale** du bourg (toit-terrasse à parapet en
 désert, là où il ne pleut jamais ; chaume sombre coiffé de neige au nord — la recette `bldTownhall`

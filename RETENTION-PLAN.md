@@ -427,7 +427,7 @@ place, sans code neuf :
 |---|---|---|---|
 | **1 · l'ossature** — ✅ **LIVRÉ** (2026-08-11) | `game/theme.go` (`ThemeDef`, `Themes`, `GameState.ThemeID` tiré de la graine), biais de biome autour de la ville, noms de terrains, peau des ruines, `GET /api/themes`, colonne `theme` au classement, `balance.Config{Theme}` + `cmd/balance -themes` + `TestEveryThemeHoldsTheFloor` | **faible**, backend pur, **aucun asset** | des cartes reconnaissables, des ruines différentes, le thème au salon et dans le classement |
 | **2 · la peau** — ✅ **LIVRÉ** (2026-08-12) | palette de terrain par thème (`THEME_PALETTES`, carte ET sols de ville) + végétation par thème (`scatter.ts`) | **moyen**, front | la ville et la carte changent de caractère |
-| **3 · le contenu** | props par thème (`gen-props.mjs`), modèle de pyramide/sphinx/drakkar, 1 arme + 1 recette par thème, 1 espèce par thème | **élevé et incrémental** — c'est de l'art, il se livre thème par thème | le thème devient un lieu |
+| **3 · le contenu** — ✅ **LIVRÉ** (2026-08-12) | props par thème (cactus, palmier, ossements, pierre runique), halle sommitale et donjon de sable par thème, 1 arme + 1 recette par thème | **élevé et incrémental** — c'est de l'art, il s'est livré thème par thème | le thème devient un lieu |
 
 Le lot 1 seul suffit à répondre à R5 et il est testable par la simulation. Les lots 2 et 3 peuvent
 suivre thème par thème sans jamais bloquer le jeu.

@@ -166,8 +166,10 @@ var Themes = []ThemeDef{
 			// thème l'a mise loin.
 			BiomeForest: {{"eau", "Ration d'eau", 1, 4}},
 			// Une gorgée trouvée dans les dunes, rarement : de quoi rentrer, pas de quoi
-			// s'installer.
-			BiomeSand: {{"eau", "Ration d'eau", 1, 1}},
+			// s'installer. Et le VERRE DU DÉSERT, la fulgurite laissée par la foudre
+			// dans le sable — la matière du khopesh (craft.go), et la seule chose que
+			// cette terre offre qu'aucune autre n'a.
+			BiomeSand: {{"eau", "Ration d'eau", 1, 1}, {"minerai", "Verre du désert", 1, 1}},
 		},
 		BiomeNames: map[Biome]string{
 			BiomeWater:    "Oasis",

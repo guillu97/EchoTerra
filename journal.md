@@ -6,6 +6,38 @@
 
 ---
 
+## 2026-08-12 (116) — Les armes d'un thème, et P9 est complet
+
+Dernier morceau du lot 3 : une arme par expédition, avec une règle qui vaut d'être écrite en toutes
+lettres — **un thème donne un AUTRE CHEMIN vers une puissance qui existe déjà, jamais une puissance de
+plus.**
+
+- **Khopesh de verre** (désert, archétype épée) : exactement la force d'une Lame de fer, mais forgé
+  avec le verre des dunes quand le fer manque.
+- **Harpon de givre** (nord, archétype lance) : une Lance de sanglier à un point de force près — et
+  surtout, il se forge avec du givre au lieu d'exiger la **défense d'un BOSS**. C'est là que le thème
+  change quelque chose : l'ACCÈS, pas le plafond.
+
+⚠ **Aucun `if theme ==` dans le craft.** C'est le MATÉRIAU qui gate : le « Verre du désert » (la
+fulgurite laissée par la foudre dans le sable) ne tombe que sur les dunes d'une carte désertique via
+`ThemeDef.ExtraDrops`, et le Givre éternel demande de la neige — rare partout ailleurs depuis
+`snowCaps`. Gater par la matière garde le catalogue lisible et n'invente aucune règle nouvelle ; et
+comme les recettes et l'équipement sont servis par leurs routes, le client n'a pas eu une ligne à
+changer.
+
+**Deux gardes permanents** (`theme_test.go`) : aucune arme de thème ne dépasse la meilleure arme
+ordinaire de son archétype et chacune a bien une recette ; et le matériau d'une arme de thème ne tombe
+que là où ce thème le fournit.
+
+**Vérifié.** `go test ./...` tout vert · `cmd/balance -themes` : médianes 19 · 17 · 16 sur trois
+graines (tempéré · nordique · désertique), c'est-à-dire la même bande qu'avant — les bots ne forgent
+pas, donc l'ajout ne pouvait pas déplacer la survie, et c'est bien ce qu'on mesure.
+
+**P9 est complet** : ossature, contraintes, peau, contenu. `RETENTION-PLAN.md` §8 est entièrement
+livré.
+
+---
+
 ## 2026-08-12 (115) — La halle et la pyramide : des modèles qui appartiennent à un thème
 
 Suite du lot 3. Deux modèles qui portent le thème là où le joueur regarde le plus : le **sommet du

@@ -79,6 +79,17 @@ var Recipes = []Recipe{
 		Ingredients: []Item{{"objet", "Bois", 2}, {"objet", "Soie cristalline", 1}}, Effects: "Arme à distance : attaque portée 3 en combat"},
 	{ID: "boar_lance", Name: "Lance de sanglier", Category: "forge", Building: "workshop", BuildingLevel: 2, OutputType: "arme", PACost: 2,
 		Ingredients: []Item{{"animal", "Défense de sanglier", 1}, {"objet", "Bois", 2}}, Effects: "+3 force, portée 2 (relique du Roi Gobelin)"},
+	// LES ARMES D'UN THÈME (theme.go) : un AUTRE CHEMIN vers une puissance connue, pas
+	// une puissance de plus (voir Equipment). Elles ne sont gatées par aucun test de
+	// thème — c'est leur MATÉRIAU qui les rend plausibles là où le thème le fournit :
+	// le verre des dunes ne tombe que sur le sable d'une carte désertique
+	// (ThemeDef.ExtraDrops), le givre éternel demande de la neige, et une carte
+	// tempérée en porte trois tuiles. Gater par la matière plutôt que par un `if
+	// theme ==` garde le catalogue lisible et n'invente aucune règle nouvelle.
+	{ID: "glass_khopesh", Name: "Khopesh de verre", Category: "forge", Building: "workshop", BuildingLevel: 2, OutputType: "arme", PACost: 2,
+		Ingredients: []Item{{"minerai", "Verre du désert", 2}, {"objet", "Bois", 1}}, Effects: "+3 force en combat (lame de verre volcanique)"},
+	{ID: "frost_harpoon", Name: "Harpon de givre", Category: "forge", Building: "workshop", BuildingLevel: 2, OutputType: "arme", PACost: 2,
+		Ingredients: []Item{{"minerai", "Givre éternel", 2}, {"objet", "Bois", 2}}, Effects: "+2 force, portée 2 — le fer de lance des grèves gelées"},
 	{ID: "feather_cloak", Name: "Cape de plumes", Category: "forge", Building: "workshop", BuildingLevel: 2, OutputType: "arme", PACost: 2,
 		Ingredients: []Item{{"animal", "Plume de harpie", 3}, {"objet", "Cuir", 1}}, Effects: "Équipement : +2 agilité (esquive)"},
 	{ID: "werewolf_cloak", Name: "Cape de garou", Category: "forge", Building: "workshop", BuildingLevel: 2, OutputType: "arme", PACost: 2,
