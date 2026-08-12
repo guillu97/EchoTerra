@@ -95,7 +95,7 @@ function snowTexture(): THREE.CanvasTexture {
   return SNOW_TEX;
 }
 // Props « arbres » : montés d'un cran sur la carte pour dépasser les personnages.
-const TREE_IDS = new Set(["tree-green", "tree-pink", "pine", "pine-snow", "dead-tree"]);
+const TREE_IDS = new Set(["tree-green", "tree-pink", "pine", "pine-snow", "dead-tree", "palm", "cactus"]);
 // Échelle relative des monstres par apparence (× la taille de base d'un perso) :
 // une limace est petite, un élémentaire/loup imposant, un boss massif.
 const MONSTER_SCALE: Record<string, number> = {

@@ -6,6 +6,40 @@
 
 ---
 
+## 2026-08-12 (114) — Les silhouettes d'un thème (P9 lot 3, première livraison)
+
+La palette donnait l'humeur (entrée 113) ; il manquait des formes qui n'existent nulle part ailleurs.
+Le désert, surtout : sa steppe empruntait les oliviers et les arbres morts du monde tempéré, faute de
+mieux.
+
+**Quatre modèles procéduraux** dans `gen-props.mjs`, générés sans ComfyUI comme tout le reste :
+`cactus` (saguaro à deux bras, fleur au sommet une fois sur deux), `palm` (tronc courbé, sept palmes
+retombantes, régime de dattes), `bones` (crâne à demi enseveli et cage thoracique), `rune-stone`
+(stèle gravée, pour le nord). Branchés dans `scatter.ts` : cactus et ossements sur les dunes, palmiers
+dans la palmeraie — c'est-à-dire à l'endroit exact où le thème envoie chercher l'eau (thirst.go), donc
+celui qu'il faut reconnaître de loin.
+
+⚠ **Deux pièges d'échelle, tous deux vus SUR CAPTURE et pas dans le code.**
+
+1. **Le mesher normalise sur la LARGEUR DE GRILLE.** Un modèle étroit dans la grille 20×20×30 reste
+   petit à l'écran quel que soit son `scale` de placement : le premier cactus, 3 cellules de large et
+   15 de haut, se lisait comme une touffe d'herbe au zoom de jeu. Il a fallu l'épaissir à 5 cellules,
+   le monter à 21-26 de haut ET augmenter son échelle de scatter. C'est contre-intuitif — on croit
+   régler une taille en changeant `scale`, alors que la proportion se joue dans la grille.
+2. **Une couronne de palmier plate se lit comme un champignon.** C'est la retombée quadratique des
+   palmes, et leur largeur de deux voxels près du cœur, qui font le palmier ; un squelette de branches
+   d'un voxel disparaît au dézoom.
+
+**Vérifié.** `npm run build`, `test:perf` 13/13 (les nouveaux props ne touchent ni au budget de
+triangles ni au poids du payload voxel), `test:map-tap` 3/3, catalogue d'assets reconstruit (612
+entrées). Contrôle à l'œil au zoom de jeu sur une carte désertique tirée au sort.
+
+**Ce qui reste au lot 3** : une halle sommitale par thème (le sommet du tertre), un modèle de ruine
+propre à chaque expédition (pyramide, drakkar), et une arme + une recette par thème — latérales,
+jamais supérieures.
+
+---
+
 ## 2026-08-12 (113) — La peau des thèmes : une carte qui se reconnaît au premier coup d'œil
 
 Lot 2 du plan P9. Les thèmes avaient leur monde (entrée 110) et leurs contraintes (111, 112) ; il leur

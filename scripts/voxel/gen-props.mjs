@@ -96,6 +96,126 @@ function tree(canopy, seed) {
   return fin(g);
 }
 
+// --- LOT 3 DES THÈMES : les modèles propres à une expédition (theme.go) -------------
+//
+// Le désert n'avait AUCUN modèle à lui : sa steppe empruntait les oliviers et les arbres
+// morts du monde tempéré, faute de mieux. Trois silhouettes suffisent à le rendre
+// reconnaissable, parce qu'elles n'existent nulle part ailleurs.
+//
+// ⚠ chroma ≥ ~40 sur les grandes surfaces (voir l'avertissement de `shade` en tête de
+// fichier) : un vert de cactus désaturé virerait au violet.
+
+// CACTUS (saguaro) : une colonne à côtes et deux bras levés — la silhouette la plus
+// reconnaissable du désert, lisible même en tout petit sur la carte.
+function cactus(seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz, FINE);
+  const rnd = makeRng(seed);
+  const cx = Math.round(SIZE.sx / 2), cy = Math.round(SIZE.sy / 2);
+  const green = [78, 148, 92];
+  // ⚠ ÉPAIS ET HAUT, sciemment. Le mesher normalise sur la LARGEUR DE GRILLE : un
+  // modèle étroit dans une grille de 20 reste petit à l'écran quel que soit son
+  // `scale`. Un premier jet à 3 cellules de large et 15 de haut se lisait comme une
+  // touffe d'herbe — mesuré à l'œil sur capture, au zoom de jeu.
+  const h = 21 + Math.floor(rnd() * 5);
+  for (let z = 0; z < h; z++) {
+    const c = shade(green, z % 3 === 0 ? 0.9 : 1.04);
+    g.box(cx - 2, cx + 2, cy - 2, cy + 2, z, z, c);
+  }
+  // bras : ils sortent du tronc puis se redressent
+  const arm = (dir, z0, len) => {
+    for (let k = 2; k <= 4; k++) g.box(cx + dir * k, cx + dir * k, cy - 1, cy + 1, z0, z0 + 1, shade(green, 0.96));
+    for (let z = z0; z < z0 + len; z++) {
+      g.box(cx + dir * 4, cx + dir * 5, cy - 1, cy + 1, z, z, shade(green, z % 3 === 0 ? 0.9 : 1.02));
+    }
+  };
+  arm(-1, 6 + Math.floor(rnd() * 2), 7 + Math.floor(rnd() * 4));
+  arm(1, 10 + Math.floor(rnd() * 2), 6 + Math.floor(rnd() * 4));
+  // fleur au sommet, une fois sur deux : la petite touche qui fait vivre la silhouette
+  if (rnd() < 0.5) g.box(cx - 2, cx + 2, cy - 2, cy + 2, h, h, [232, 120, 148]);
+  return fin(g);
+}
+
+// PALMIER : tronc élancé et LÉGÈREMENT COURBÉ (un palmier droit fait poteau télégraphe),
+// couronne de palmes retombantes. C'est l'arbre de la palmeraie — celle qui rend l'eau
+// sur un thème désertique (thirst.go), donc l'endroit où l'on va, donc celui qu'on doit
+// reconnaître de loin.
+function palm(seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz, FINE);
+  const rnd = makeRng(seed);
+  const cx = Math.round(SIZE.sx / 2), cy = Math.round(SIZE.sy / 2);
+  const wood = [150, 118, 82];
+  const frond = [96, 158, 72];
+  const h = 17 + Math.floor(rnd() * 4);
+  const lean = rnd() < 0.5 ? -1 : 1;
+  let tx = cx;
+  for (let z = 0; z < h; z++) {
+    if (z > 6 && z % 5 === 0) tx += lean; // la courbure, un cran tous les cinq étages
+    g.box(tx - 1, tx, cy - 1, cy, z, z, shade(wood, z % 2 ? 0.95 : 1.05));
+  }
+  // couronne : sept palmes larges qui partent du sommet et RETOMBENT — c'est la
+  // retombée qui fait le palmier ; une couronne plate se lit comme un champignon.
+  for (let i = 0; i < 7; i++) {
+    const a = (i / 7) * Math.PI * 2 + rnd() * 0.3;
+    for (let k = 1; k <= 7; k++) {
+      const px = tx + Math.round(Math.cos(a) * k);
+      const py = cy + Math.round(Math.sin(a) * k);
+      const pz = h + 2 - Math.floor((k * k) / 6); // retombée quadratique
+      const c = shade(frond, k > 4 ? 0.88 : 1.06);
+      g.set(px, py, pz, c);
+      // palme LARGE de deux voxels près du cœur : sans ça la couronne est un
+      // squelette de branches et disparaît au dézoom.
+      if (k <= 5) {
+        g.set(px + Math.round(-Math.sin(a)), py + Math.round(Math.cos(a)), pz, c);
+        g.set(px, py, pz + 1, shade(frond, 1.12));
+      }
+    }
+  }
+  // régime de dattes
+  if (rnd() < 0.6) g.box(tx - 1, tx, cy, cy, h - 1, h - 1, [178, 108, 60]);
+  return fin(g);
+}
+
+// OSSEMENTS : un crâne à demi enseveli et quelques côtes. Le marqueur qui dit « on ne
+// traverse pas ce désert impunément » — et il ne coûte rien au budget : trois poignées
+// de voxels posées au sol.
+function bones(seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz, FINE);
+  const rnd = makeRng(seed);
+  const cx = SIZE.sx / 2 - 0.5, cy = SIZE.sy / 2 - 0.5;
+  const bone = [226, 218, 196];
+  ellipsoid(g, cx - 1, cy, 1.2, 2.4, 2, 1.8, bone, rnd, 5); // crâne
+  g.box(Math.round(cx) + 1, Math.round(cx) + 2, Math.round(cy), Math.round(cy), 0, 0, shade(bone, 0.95)); // museau
+  for (let i = 0; i < 4; i++) { // cage thoracique
+    const bx = Math.round(cx) + 3 + i;
+    g.box(bx, bx, Math.round(cy) - 2, Math.round(cy) + 2, 0, 0, shade(bone, i % 2 ? 0.92 : 1.02));
+  }
+  return fin(g);
+}
+
+// PIERRE RUNIQUE : la stèle gravée du nord. Le menhir existait déjà, mais neutre ; ici
+// la face porte des entailles claires, et c'est ce qui la distingue d'un caillou dressé.
+function runeStone(seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz, FINE);
+  const rnd = makeRng(seed);
+  const cx = Math.round(SIZE.sx / 2), cy = Math.round(SIZE.sy / 2);
+  const stone = [150, 152, 164];
+  const h = 11 + Math.floor(rnd() * 4);
+  for (let z = 0; z < h; z++) {
+    const w = z > h - 3 ? 1 : 2; // sommet plus étroit
+    g.box(cx - w, cx + w, cy - 1, cy, z, z, shade(stone, z % 3 === 0 ? 0.94 : 1.03));
+  }
+  // gravures : des entailles claires sur la face avant
+  const carve = [212, 220, 232];
+  for (let i = 0; i < 4; i++) {
+    const z = 3 + i * 2;
+    if (z >= h - 1) break;
+    g.box(cx - 1, cx + (rnd() < 0.5 ? 0 : 1), cy - 1, cy - 1, z, z, carve);
+  }
+  // socle de neige tassée
+  ellipsoid(g, cx, cy, 0.2, 3.4, 2.6, 0.9, [236, 242, 250], rnd, 4);
+  return fin(g);
+}
+
 function rock(seed) {
   const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz, FINE);
   const rnd = makeRng(seed);
@@ -2095,6 +2215,11 @@ async function main() {
     { id: "ruin-column", make: (v) => ruinColumn(711 + v * 77) },
     { id: "ruin-slab", make: (v) => ruinSlab(721 + v * 77) },
     { id: "ruin-arch", make: (v) => ruinArch(731 + v * 77) },
+    // LOT 3 DES THÈMES — les silhouettes propres à une expédition (theme.go).
+    { id: "cactus", make: (v) => cactus(3001 + v * 77) },
+    { id: "palm", make: (v) => palm(3011 + v * 77) },
+    { id: "bones", make: (v) => bones(3021 + v * 77) },
+    { id: "rune-stone", make: (v) => runeStone(3031 + v * 77) },
   ];
   // Filtre CLI : `node scripts/voxel/gen-props.mjs house bld-wall` ne régénère
   // que ces ids. Sans argument, tout est régénéré (comportement historique).

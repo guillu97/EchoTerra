@@ -149,6 +149,13 @@ export function scatterProps(src: ScatterSource): PropPlacement[] {
         if (f.nearSand && h(220) < 0.05) plant(x, y, "driftwood", 225, 0.45);
         if (h(600) < 0.03) plant(x, y, "gull", 605, 0.45, "day");
       } else if (t.biome === 1) { // sable : ligne d'eau vivante, dunes sèches
+        if (skin.desert) {
+          // LES DUNES DU THÈME : saguaros et carcasses, les deux silhouettes qui
+          // n'existent nulle part ailleurs (gen-props.mjs, lot 3).
+          if (h(231) < 0.10) plant(x, y, "cactus", 236, 0.95);
+          if (h(232) < 0.045) plant(x, y, "bones", 237, 0.6);
+          if (f.nearWater && h(233) < 0.25) plant(x, y, "palm", 238, 0.6); // l'oasis
+        }
         if (h(230) < (f.nearWater ? 0.16 : 0.06)) plant(x, y, "shells", 235, 0.42);
         if (h(240) < 0.07) plant(x, y, "pebbles", 245, 0.45);
         if (f.nearWater && h(250) < 0.06) plant(x, y, "kelp", 255, 0.45);
@@ -164,12 +171,14 @@ export function scatterProps(src: ScatterSource): PropPlacement[] {
           else if (r < 0.11) plant(x, y, "pine-snow", 80, 0.5);
           if (h(91) < 0.09) plant(x, y, "frost-bush", 96, 0.4);
           if (h(92) < 0.07) plant(x, y, "snowdrift", 97, 0.45);
+          if (h(95) < 0.015) plant(x, y, "rune-stone", 102, 0.55); // stèle gravée, rare
         } else if (skin.desert) {
           // STEPPE ARIDE : ce qui reste debout est mort ou épineux.
           if (r < 0.05) plant(x, y, "dead-tree", 70, 0.5);
           else if (r < 0.10) plant(x, y, "olive", 80, 0.5);
           if (h(93) < 0.12) plant(x, y, "dune-grass", 98, 0.32);
           if (h(94) < 0.08) plant(x, y, "brambles", 99, 0.38);
+          if (h(95) < 0.05) plant(x, y, "cactus", 101, 0.85);
         } else if (r < 0.06) plant(x, y, "tree-pink", 70, 0.55);
         else if (r < 0.14) plant(x, y, "tree-green", 80, 0.5);
         if (h(90) < 0.05) plant(x, y, "rock", 95, 0.5);
@@ -204,9 +213,11 @@ export function scatterProps(src: ScatterSource): PropPlacement[] {
           if (h(20) < 0.5) plant(x, y, "pine-snow", 30, 0.55);
           if (h(40) < 0.14) plant(x, y, "frost-tree", 50, 0.5);
         } else if (skin.desert) {
-          // PALMERAIE : l'oasis du thème (c'est ELLE qui rend l'eau, thirst.go).
-          plant(x, y, "olive", 10, 0.62);
-          if (h(20) < 0.45) plant(x, y, "tree-green", 30, 0.5);
+          // PALMERAIE : l'oasis du thème (c'est ELLE qui rend l'eau, thirst.go), donc
+          // l'endroit où l'on va — donc celui qu'il faut reconnaître de loin.
+          plant(x, y, "palm", 10, 0.66);
+          if (h(20) < 0.45) plant(x, y, "palm", 30, 0.56);
+          if (h(25) < 0.3) plant(x, y, "olive", 35, 0.5);
           if (h(40) < 0.12) plant(x, y, "reed", 50, 0.42);
         } else {
           plant(x, y, "tree-green", 10, 0.62);
@@ -231,6 +242,7 @@ export function scatterProps(src: ScatterSource): PropPlacement[] {
         if (h(380) < 0.05) plant(x, y, "dead-tree", 385, 0.5);
       } else if (t.biome === 5) { // neige : congères, glace, arbres givrés
         if (h(160) < 0.35) plant(x, y, "pine-snow", 165, 0.6);
+        if (skin.nordic && h(161) < 0.012) plant(x, y, "rune-stone", 166, 0.55);
         if (h(390) < 0.11) plant(x, y, "snowdrift", 395, 0.5);
         if (h(400) < 0.05) plant(x, y, "ice-spike", 405, 0.45);
         if (h(410) < 0.06) plant(x, y, "frost-tree", 415, 0.5);

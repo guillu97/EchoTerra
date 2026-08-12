@@ -638,6 +638,17 @@ d'une spécialité). ⚠ **le plancher de survie se vérifie THÈME PAR THÈME**
 un thème non simulé serait une punition au hasard. `GET /api/themes`, `themeId` dans les résumés de
 salon, colonne `theme` au classement. Tests : `game/theme_test.go`, `worldgen_test.go`.
 
+**LES MODÈLES D'UN THÈME** (`scripts/voxel/gen-props.mjs`, 2026-08-12) — le désert n'avait AUCUN
+modèle à lui : sa steppe empruntait les oliviers et les arbres morts du monde tempéré. Quatre
+silhouettes procédurales suffisent (`cactus` saguaro à bras, `palm` au tronc courbé et à la couronne
+retombante, `bones` crâne à demi enseveli, `rune-stone` stèle gravée du nord), générées sans ComfyUI
+comme le reste des props : `node scripts/voxel/gen-props.mjs cactus palm bones rune-stone` (le filtre
+CLI évite de réécrire les 216 fichiers). ⚠ **LE MESHER NORMALISE SUR LA LARGEUR DE GRILLE** : un modèle
+étroit dans la grille 20×20×30 reste petit à l'écran quel que soit son `scale` de scatter — un premier
+cactus de 3 cellules de large se lisait comme une touffe d'herbe, il a fallu l'épaissir à 5 ET monter
+son échelle de placement. ⚠ une couronne de palmier PLATE se lit comme un champignon : c'est la
+retombée quadratique des palmes et leur largeur de deux voxels près du cœur qui font le palmier.
+
 **LA PEAU D'UN THÈME** (`voxel/smoothTerrain.ts` `THEME_PALETTES` + `voxel/scatter.ts`, 2026-08-11) —
 le biais de biomes change ce qui pousse autour de la ville ; la **palette de terrain** change l'humeur
 de TOUTE la carte, y compris des biomes que le thème n'a pas déplacés — sans elle, une carte nordique
