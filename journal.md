@@ -6,6 +6,47 @@
 
 ---
 
+## 2026-08-12 (115) — La halle et la pyramide : des modèles qui appartiennent à un thème
+
+Suite du lot 3. Deux modèles qui portent le thème là où le joueur regarde le plus : le **sommet du
+tertre** (le premier bâtiment qu'on voit en ouvrant la ville) et le **donjon de sable** (le voyage
+qu'on entreprend).
+
+- **Halle sommitale** : la recette `bldTownhall` est désormais PARAMÉTRÉE par une peau plutôt que
+  recopiée deux fois — la silhouette de Meduseld est celle de la civilisation, le thème n'en change
+  que la matière et la toiture. Désert : toit-terrasse à parapet et créneaux (là où il ne pleut
+  jamais, un toit très pentu n'a aucune raison d'être, et la silhouette change du tout au tout).
+  Nord : chaume sombre coiffé de neige, pierre bleutée, bannière froide.
+- **Donjon de sable** : `sitePyramide` (gradins de grès, pyramidion clair, escalier axial, dunes
+  accumulées au flanc) et `siteDrakkar` (deux extrémités relevées, proue sculptée, boucliers au bordé,
+  congère). ⚠ **même `Ruin.Type` serveur que l'épave** — donc même table de butin et même plan de
+  spécialité : un thème rhabille, il ne redistribue pas.
+
+**Le mécanisme, et pourquoi il est explicite.** `voxel/themeModels.ts` tient un REGISTRE des clés
+réellement générées ; `themedKey(base, theme)` rend la clé thématique si elle y figure, la base
+sinon. On ne dérive JAMAIS `<base>-<theme>` à l'aveugle : les modèles sont préchargés par liste, donc
+une clé sans fichier ne donne ni erreur ni repli — `get` rend `undefined`, la pose fait `continue`, et
+le bâtiment devient silencieusement invisible et incliquable. C'est le même piège que celui de
+`PROP_KEYS` (entrée 114), et il valait mieux le désamorcer par construction. La carte charge ces
+modèles **paresseusement** au premier dessin d'une partie : le constructeur ne connaît pas encore le
+thème, et une carte tempérée ne télécharge pas un octet de plus.
+
+⚠ **Un bug trouvé en vérifiant, et pas des moindres : la ville gardait la palette de la partie
+PRÉCÉDENTE.** `VoxelTownView` monte sa scène une seule fois (`useEffect(..., [])`) et son terrain lit
+le thème AU MONTAGE ; reprendre une autre expédition sans recharger la page laissait donc le tertre
+dans son ancien pays — mesuré en capture : un bourg nordique rendu en ocre désertique. Corrigé par une
+`key` par partie sur le composant (HomeTab), ce qui remonte la scène quand la partie change.
+
+**Vérifié.** `npx tsc -b`, `npm run build`, `test:perf` 13/13, `test:map-tap` 3/3, `test:endgame` 8/8,
+et un contrôle RÉSEAU par thème : `bld-townhall-<thème>` et `site-epave-<thème>` téléchargés, ruine de
+sable nommée « Pyramide ensablée » / « Drakkar échoué » côté serveur. ⚠ `test:perf` a FLANCHÉ une fois
+sur treize checks puis repassé trois fois d'affilée : instable, pas cassé — à surveiller.
+
+**Ce qui reste au lot 3** : une arme et une recette par thème (backend pur, latérales par
+construction).
+
+---
+
 ## 2026-08-12 (114) — Les silhouettes d'un thème (P9 lot 3, première livraison)
 
 La palette donnait l'humeur (entrée 113) ; il manquait des formes qui n'existent nulle part ailleurs.
@@ -44,9 +85,7 @@ lot D2, n'avait jamais poussé sur une seule carte** pour la même raison.
 `cactus, palm, bones, rune-stone, brambles, olive` tous téléchargés sur une carte désertique tirée au
 sort.
 
-**Ce qui reste au lot 3** : une halle sommitale par thème (le sommet du tertre), un modèle de ruine
-propre à chaque expédition (pyramide, drakkar), et une arme + une recette par thème — latérales,
-jamais supérieures.
+**Suite le même jour** : la halle sommitale et le donjon de sable, ci-dessus (entrée 115).
 
 ---
 

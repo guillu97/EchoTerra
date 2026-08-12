@@ -22,6 +22,7 @@ import { BLOOM_LAYER, clearOwned, VoxelEngine } from "./engine";
 import { VoxelControls } from "./controls";
 import { BlockLibrary, buildTerrain, type TerrainCell } from "./terrain";
 import { SmoothTerrain, setTerrainTheme } from "./smoothTerrain";
+import { themedKey, themedKeysFor } from "./themeModels";
 import { PROP_KEYS, scatterProps } from "./scatter";
 import { buildCascade, findCascadeSite, type Cascade } from "./cascade";
 import { ALL_CHAR_KEYS, CharLibrary, setRigOpacity } from "./characters";
@@ -163,6 +164,7 @@ class MapWorld {
   libReady = false;
   terrain: THREE.Group | null = null;
   terrainKey = "";
+  themedFor = ""; // thème dont les modèles propres sont déjà chargés
   // terrain CONTINU (settings.voxelSmooth) : surface lissée + brume en blocs
   smooth = new SmoothTerrain();
   smoothMode = true;
@@ -414,6 +416,15 @@ class MapWorld {
     const game = this.game;
     const engine = this.engine;
     if (!game || !this.libReady) return;
+
+    // Les modèles PROPRES AU THÈME (pyramide, drakkar, halle) ne se chargent qu'ici :
+    // le constructeur ne connaît pas encore la partie, et une carte tempérée ne doit
+    // pas télécharger un octet de plus. Une seule fois par thème, puis on redessine.
+    if (this.themedFor !== (game.themeId ?? "")) {
+      this.themedFor = game.themeId ?? "";
+      const keys = themedKeysFor(game.themeId);
+      if (keys.length) void this.propsLib.load(keys).then(() => this.draw());
+    }
 
     // --- terrain (re-instancié seulement quand la découverte/partie change) ----
     let discovered = 0;
@@ -683,7 +694,9 @@ class MapWorld {
     // doré discret pour signaler le point d'intérêt
     for (const id in game.ruins ?? {}) {
       const ru = game.ruins![id];
-      const geom = this.propsLib.get(`site-${ru.type}`, ru.cleared ? 1 : 0);
+      // La ruine prend la silhouette du thème quand il en a une (pyramide, drakkar) —
+      // par le REGISTRE, jamais par une clé dérivée à l'aveugle (themeModels.ts).
+      const geom = this.propsLib.get(themedKey(`site-${ru.type}`, game.themeId), ru.cleared ? 1 : 0);
       if (!geom) continue;
       const mesh = pickable(new THREE.Mesh(geom, PROP_MAT), { x: ru.x, y: ru.y });
       mesh.castShadow = mesh.receiveShadow = true;

@@ -655,6 +655,22 @@ tombé). Y ajouter tout nouveau prop, et le vérifier en comptant les `.vox` ré
 plutôt qu'à l'œil sur une capture — `brambles`, semé depuis le lot D2, n'avait jamais poussé nulle
 part pour cette raison.
 
+**LES MODÈLES PROPRES À UN THÈME** (`voxel/themeModels.ts`, 2026-08-12) — un thème peut donner sa
+silhouette à un bâtiment ou à une ruine : la **halle sommitale** du bourg (toit-terrasse à parapet en
+désert, là où il ne pleut jamais ; chaume sombre coiffé de neige au nord — la recette `bldTownhall`
+est PARAMÉTRÉE par une peau, on n'écrit pas deux bâtiments de plus) et le **donjon de sable**
+(`sitePyramide`, `siteDrakkar` — ⚠ même `Ruin.Type` serveur que l'épave, donc même table de butin et
+même plan de spécialité : un thème rhabille, il ne redistribue pas). La clé devient
+`<base>-<theme>`. ⚠ **LE REGISTRE EST EXPLICITE** (`themedKey`/`themedKeysFor`) : les modèles sont
+PRÉCHARGÉS par liste, donc demander une clé sans fichier ne produit ni erreur ni repli — `get` rend
+`undefined`, la pose fait `continue`, et le bâtiment est silencieusement INVISIBLE. On ne dérive donc
+jamais la clé à l'aveugle. La carte charge ces modèles PARESSEUSEMENT au premier dessin d'une partie
+(le constructeur ne connaît pas encore le thème, et une carte tempérée ne doit pas télécharger un
+octet de plus). ⚠ **`VoxelTownView` porte une `key` par partie** (HomeTab) : sa scène est montée une
+seule fois (`useEffect(..., [])`) et son terrain lit le thème AU MONTAGE — sans cette clé, reprendre
+une autre expédition sans recharger la page garde la palette de la précédente (mesuré : un bourg
+nordique rendu en ocre désertique).
+
 **LA PEAU D'UN THÈME** (`voxel/smoothTerrain.ts` `THEME_PALETTES` + `voxel/scatter.ts`, 2026-08-11) —
 le biais de biomes change ce qui pousse autour de la ville ; la **palette de terrain** change l'humeur
 de TOUTE la carte, y compris des biomes que le thème n'a pas déplacés — sans elle, une carte nordique

@@ -267,7 +267,16 @@ export function HomeTab() {
             (2026-07-29) : maintenir deux moteurs obligeait le plan à rester
             compatible d'une grille de cases, ce qui interdisait précisément la
             géométrie polaire et le terrain lissé. */}
-        <VoxelTownView selected={selected} onBuildingClick={onBuildingClick} onClear={() => setSelected(null)} />
+        {/* ⚠ `key` PAR PARTIE : la scène de la ville est montée UNE fois
+            (`useEffect(..., [])`) et son terrain lit le thème AU MONTAGE. Sans cette
+            clé, reprendre une autre expédition sans recharger la page garde la palette
+            de la précédente — mesuré : un bourg nordique rendu en ocre désertique. */}
+        <VoxelTownView
+          key={game?.id ?? "none"}
+          selected={selected}
+          onBuildingClick={onBuildingClick}
+          onClear={() => setSelected(null)}
+        />
       </div>
 
       {sel && selState && selState.built && (

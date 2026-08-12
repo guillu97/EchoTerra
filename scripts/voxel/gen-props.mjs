@@ -1096,6 +1096,54 @@ function siteEpave(cleared, seed) {
   return fin(g);
 }
 
+// DÉSERT — PYRAMIDE ENSABLÉE : la ruine de sable du thème désertique (theme.go). Même
+// TYPE serveur que l'épave (`site-epave`, donc même table de butin et même plan de
+// spécialité) : un thème rhabille, il ne redistribue pas. Seul le modèle change.
+function sitePyramide(cleared, seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz, FINE);
+  const rnd = makeRng(seed);
+  const sandstone = [216, 182, 126];
+  // gradins : sept degrés qui se referment vers le sommet
+  for (let k = 0; k < 7; k++) {
+    const m = 3 + k * 1.05;
+    g.box(m, 17 - m, m + 1, 18 - m, k * 1.35, k * 1.35 + 1.35, shade(sandstone, k % 2 ? 0.94 : 1.05));
+  }
+  // pyramidion clair au sommet
+  g.box(9, 11, 9.5, 11.5, 9.5, 10.4, shade([238, 216, 168], 1.06));
+  // escalier axial, face à l'entrée
+  for (let k = 0; k < 7; k++) g.box(9.2, 10.8, 3.4 + k * 0.9, 4.3 + k * 0.9, 0, k * 1.35 + 0.6, shade(sandstone, 0.9 + k * 0.02));
+  // dunes accumulées contre le flanc
+  ellipsoid(g, 4.5, 12, 0.6, 4.4, 4, 1.4, [232, 204, 150], rnd, 5);
+  if (cleared) openEntrance(g, 9.2, 10.8, 3.2, 3); else buryEntrance(g, rnd, 10, 4, 2.5);
+  return fin(g);
+}
+
+// NORD — DRAKKAR ÉCHOUÉ : la même épave, mais dressée sur la grève gelée, proue
+// sculptée et bouclier au bordé. (Même TYPE serveur que l'épave, cf. sitePyramide.)
+function siteDrakkar(cleared, seed) {
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz, FINE);
+  const rnd = makeRng(seed);
+  const hull = [118, 92, 68];
+  for (let x = 3; x <= 16; x++) {
+    const taper = x < 6 ? x - 3 : x > 13 ? 16 - x : 3;
+    const lift = Math.max(0, Math.abs(x - 9.5) - 3) * 0.9; // les DEUX extrémités relevées
+    g.box(x, x, 10 - taper, 10 + taper, Math.floor(lift), Math.floor(lift) + 2, shade(hull, 0.92 + (x % 3) * 0.05));
+    if (taper >= 2) {
+      g.box(x, x, 10 - taper, 10 - taper, Math.floor(lift) + 3, Math.floor(lift) + 4, shade(hull, 1.12));
+      g.box(x, x, 10 + taper, 10 + taper, Math.floor(lift) + 3, Math.floor(lift) + 4, shade(hull, 1.12));
+    }
+  }
+  // proue sculptée : un col qui monte et une tête
+  for (let k = 0; k < 5; k++) g.box(2.6 - k * 0.2, 3.4 - k * 0.2, 9.5, 10.5, 4 + k, 5 + k, shade(hull, 1.06));
+  g.box(1.8, 3.4, 9.3, 10.7, 8.6, 9.8, shade([146, 118, 88], 1.08));
+  // boucliers au bordé, un rouge un blanc
+  for (let i = 0; i < 4; i++) g.box(6 + i * 2.2, 7 + i * 2.2, 6.9, 7.1, 3.4, 4.4, i % 2 ? [186, 78, 66] : [226, 232, 240]);
+  g.box(9, 10, 9.5, 10.5, 4, 11, shade(hull, 0.85)); // mât brisé
+  ellipsoid(g, 13, 10, 0.7, 4, 3.4, 1, [232, 238, 246], rnd, 4); // congère au flanc
+  if (cleared) openEntrance(g, 11.6, 13.4, 7.4, 3); else buryEntrance(g, rnd, 12.5, 8, 2.5);
+  return fin(g);
+}
+
 // FORÊT — sanctuaire englouti : arche moussue + colonnes + dalle
 function siteSanctuaire(cleared, seed) {
   const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz, FINE);
@@ -1394,30 +1442,58 @@ function bldTower(seed) {
   return g;
 }
 
-function bldTownhall(seed) {
+// LA HALLE SOMMITALE PAR THÈME (theme.go, lot 3). C'est le bâtiment qu'on voit en
+// premier en ouvrant l'onglet Ville, donc celui qui dit le plus vite « où sommes-nous ».
+// ⚠ on PARAMÈTRE la recette au lieu d'en écrire deux autres : la silhouette de Meduseld
+// est celle de la civilisation, le thème n'en change que la matière et la toiture —
+// chaume doré en tempéré, toit-terrasse à parapet dans le désert (là où il ne pleut
+// jamais), chaume sombre coiffé de neige au nord.
+const HALL_SKINS = {
+  desertique: { stone: [214, 190, 148], timber: [166, 128, 92], wood: [184, 148, 106], thatch: [198, 124, 84], trim: [226, 190, 110], banner: [190, 140, 74], flat: true },
+  nordique: { stone: [176, 180, 192], timber: [72, 60, 52], wood: [104, 84, 66], thatch: [122, 100, 74], trim: [206, 214, 228], banner: [96, 124, 156], snow: true },
+};
+
+function bldTownhall(seed, skinId) {
   // MEDUSELD — la grande salle du tertre. Trois traits la font reconnaître, et
   // ce sont eux qu'on cherche : un SOUBASSEMENT de pierre avec un emmarchement
   // monumental, un corps en BOIS SOMBRE à poteaux, et surtout une toiture de
   // chaume DORÉ très pentue — c'est elle qu'on voit depuis la plaine.
   const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz, FINE);
   const rnd = makeRng(seed); void rnd;
+  const sk = HALL_SKINS[skinId] ?? {};
+  const stone = sk.stone ?? STONE_W, timber = sk.timber ?? TIMBER;
+  const wood = sk.wood ?? WOOD_W, thatch = sk.thatch ?? GOLD_THATCH;
+  const trim = sk.trim ?? TRIM_GOLD, banner = sk.banner ?? [92, 132, 92];
   // soubassement + esplanade
-  g.box(2.6, 17.4, 5.6, 16.2, 0, 2.2, shade(STONE_W, 0.9));
-  g.box(2.6, 17.4, 5.6, 16.2, 2.2, 2.5, shade(STONE_W, 1.05));
+  g.box(2.6, 17.4, 5.6, 16.2, 0, 2.2, shade(stone, 0.9));
+  g.box(2.6, 17.4, 5.6, 16.2, 2.2, 2.5, shade(stone, 1.05));
   // emmarchement monumental, face à la porte de la ville
   for (let k = 0; k < 5; k++)
-    g.box(7.6, 12.4, 3.4 + k * 0.45, 4.1 + k * 0.45, 0, 0.45 * (k + 1), shade(STONE_W, 0.93 + k * 0.025));
+    g.box(7.6, 12.4, 3.4 + k * 0.45, 4.1 + k * 0.45, 0, 0.45 * (k + 1), shade(stone, 0.93 + k * 0.025));
   // corps en bois sombre
-  g.box(4.6, 15.4, 6.6, 15.2, 2.5, 8.4, shade(TIMBER, 1.0));
-  for (const x of [4.6, 7.3, 12.4, 15.1]) g.box(x, x + 0.7, 6.2, 6.7, 2.5, 9.4, shade(WOOD_W, 1.02)); // poteaux
-  g.box(4.6, 15.4, 6.2, 6.7, 7.8, 8.5, shade(WOOD_W, 0.92)); // sablière
+  g.box(4.6, 15.4, 6.6, 15.2, 2.5, 8.4, shade(timber, 1.0));
+  for (const x of [4.6, 7.3, 12.4, 15.1]) g.box(x, x + 0.7, 6.2, 6.7, 2.5, 9.4, shade(wood, 1.02)); // poteaux
+  g.box(4.6, 15.4, 6.2, 6.7, 7.8, 8.5, shade(wood, 0.92)); // sablière
   g.box(8.4, 11.6, 6.1, 6.7, 2.5, 7.1, DARK_W); // grande porte
-  g.box(8, 12, 6.1, 6.6, 6.9, 7.6, shade(TRIM_GOLD, 0.96)); // linteau doré
+  g.box(8, 12, 6.1, 6.6, 6.9, 7.6, shade(trim, 0.96)); // linteau
   for (const x of [5.5, 13.3]) g.box(x, x + 1.3, 6.2, 6.7, 5.2, 7, [122, 186, 202]); // baies
-  // TOITURE dorée, très pentue
-  steepRoof(g, 4.7, 15.3, 6.9, 14.9, 8.4, GOLD_THATCH, 1.15, 1.15);
+  if (sk.flat) {
+    // DÉSERT : toit-terrasse à parapet. Là où il ne pleut jamais, un toit très pentu
+    // n'a aucune raison d'être — et la silhouette change du tout au tout, ce qui est
+    // le but : on reconnaît le pays avant de lire le nom de la ville.
+    g.box(4.4, 15.6, 6.7, 15.4, 8.4, 9.2, shade(thatch, 1.0));
+    for (const [a, b, c, d] of [[4.4, 15.6, 6.7, 7.2], [4.4, 15.6, 14.9, 15.4], [4.4, 4.9, 6.7, 15.4], [15.1, 15.6, 6.7, 15.4]])
+      g.box(a, b, c, d, 9.2, 10.4, shade(stone, 1.06)); // parapet
+    for (let x = 5; x < 15.5; x += 2.2) g.box(x, x + 0.6, 6.7, 7.2, 10.4, 11, shade(stone, 0.94)); // créneaux
+  } else {
+    steepRoof(g, 4.7, 15.3, 6.9, 14.9, 8.4, thatch, 1.15, 1.15);
+    if (sk.snow) {
+      // NORD : le faîte et le haut des pentes portent la neige de la nuit.
+      steepRoof(g, 4.9, 15.1, 8.3, 13.5, 10.4, [238, 244, 252], 1.15, 0.6);
+    }
+  }
   // faîte + épis
-  g.box(9.4, 10.6, 5.6, 16.2, 13, 13.6, shade(TRIM_GOLD, 0.92));
+  g.box(9.4, 10.6, 5.6, 16.2, 13, 13.6, shade(trim, 0.92));
   // pignons CROISÉS des deux côtés : les « cornes » qui signent une halle
   // rohirrique. Deux poutres qui montent des avant-toits et se croisent
   // au-dessus du faîte.
@@ -1428,14 +1504,14 @@ function bldTownhall(seed) {
     for (let k = 0; k < 7; k++) {
       const z = 11.2 + k * 0.55;
       const off = 2 - k * 0.31;
-      g.box(9.7 - off, 10.3 - off, y, y + 0.6, z, z + 0.6, shade(WOOD_W, 1.08));
-      g.box(9.7 + off, 10.3 + off, y, y + 0.6, z, z + 0.6, shade(WOOD_W, 1.08));
+      g.box(9.7 - off, 10.3 - off, y, y + 0.6, z, z + 0.6, shade(wood, 1.08));
+      g.box(9.7 + off, 10.3 + off, y, y + 0.6, z, z + 0.6, shade(wood, 1.08));
     }
-    g.box(8.9, 9.5, y, y + 0.6, 15.1, 15.6, shade(TRIM_GOLD, 0.95));
-    g.box(10.5, 11.1, y, y + 0.6, 15.1, 15.6, shade(TRIM_GOLD, 0.95));
+    g.box(8.9, 9.5, y, y + 0.6, 15.1, 15.6, shade(trim, 0.95));
+    g.box(10.5, 11.1, y, y + 0.6, 15.1, 15.6, shade(trim, 0.95));
   }
-  // bannières vertes de part et d'autre de l'entrée
-  for (const x of [6.6, 12.8]) g.box(x, x + 0.9, 5.9, 6.1, 3.4, 6.6, shade([92, 132, 92], 1.0));
+  // bannières de part et d'autre de l'entrée
+  for (const x of [6.6, 12.8]) g.box(x, x + 0.9, 5.9, 6.1, 3.4, 6.6, shade(banner, 1.0));
   return g;
 }
 
@@ -2220,6 +2296,19 @@ async function main() {
     { id: "palm", make: (v) => palm(3011 + v * 77) },
     { id: "bones", make: (v) => bones(3021 + v * 77) },
     { id: "rune-stone", make: (v) => runeStone(3031 + v * 77) },
+    // Les modèles PROPRES À UN THÈME. ⚠ leur clé est `<base>-<theme>` et le client ne
+    // la demande QUE si elle figure dans son registre (voxel/themeModels.ts) : une clé
+    // absente rendrait le bâtiment ou la ruine INVISIBLE, pas « par défaut ».
+    { id: "site-epave-desertique", make: (v) => sitePyramide(v > 0, 3101) },
+    { id: "site-epave-nordique", make: (v) => siteDrakkar(v > 0, 3111) },
+    ...["nordique", "desertique"].map((skin, si) => ({
+      id: `bld-townhall-${skin}`,
+      make: (v) => {
+        const g = bldTownhall(3201 + si * 31, skin);
+        damagePass(g, v === 0 ? 0 : v === 1 ? 0.35 : 0.68, 3301 + si * 31 + v * 7);
+        return fin(g);
+      },
+    })),
   ];
   // Filtre CLI : `node scripts/voxel/gen-props.mjs house bld-wall` ne régénère
   // que ces ids. Sans argument, tout est régénéré (comportement historique).

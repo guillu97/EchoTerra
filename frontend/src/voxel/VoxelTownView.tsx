@@ -33,6 +33,7 @@ import { makeLabel } from "./labels";
 import { ALL_CHAR_KEYS, CharLibrary } from "./characters";
 import { UnitAnimator } from "./unitAnim";
 import { buildTownLayout, buildingModelKey, TOWN_DECOR_PROPS, type TownPlot } from "./townLayout";
+import { themedKey, themedKeysFor } from "./themeModels";
 
 const HERO_KEYS = ALL_CHAR_KEYS.filter((k) => k.startsWith("char-"));
 
@@ -245,7 +246,12 @@ export function VoxelTownView({
           continue;
         }
 
-        const geom = b.built ? propsLib.get(buildingModelKey(pl.bid), variant) : propsLib.get("bld-chantier", 0);
+        // ⚠ la clé passe par le REGISTRE des modèles de thème : dériver
+        // `<clé>-<thème>` à l'aveugle rendrait le bâtiment invisible dès qu'un
+        // fichier manque (voir themeModels.ts).
+        const geom = b.built
+          ? propsLib.get(themedKey(buildingModelKey(pl.bid), game?.themeId), variant)
+          : propsLib.get("bld-chantier", 0);
         if (!geom) continue;
         const mesh = new THREE.Mesh(geom, BLD_MAT);
         mesh.castShadow = mesh.receiveShadow = true;
@@ -268,7 +274,9 @@ export function VoxelTownView({
              "bld-townhall", "bld-kitchen", "bld-wall", "bld-recyclerie", "bld-poste", "bld-chantier",
              // les cinq bâtiments de spécialité (design.go)
              "bld-infirmerie", "bld-cartographe", "bld-armurerie", "bld-caserne", "bld-verger",
-             "bld-gate-door-l", "bld-gate-door-r", "cloud", ...TOWN_DECOR_PROPS])
+             "bld-gate-door-l", "bld-gate-door-r", "cloud", ...TOWN_DECOR_PROPS,
+             // …plus ce que CE thème ajoute (rien en tempéré : aucun octet de plus).
+             ...themedKeysFor(game?.themeId)])
       .then(() => {
         drawBuildings();
         // nuages au-dessus de la ville : plus hauts, plus lents que la carte
