@@ -659,8 +659,19 @@ func (g *GameState) botShoppingList() map[string]bool {
 	if g.Theme().Thirst && g.storageQty(WaterRation) < len(g.Heroes) {
 		need[WaterRation] = true
 	}
+	// LE BOIS EST UN VIVRE SUR UNE CARTE QUI A FROID (cold.go) : les foyers en brûlent
+	// une unité par vague, et une ville qui n'en garde que pour ses chantiers gèle la
+	// nuit où le dernier madrier part dans la muraille.
+	if g.Theme().Cold && g.storageQty("Bois") < hearthReserve {
+		need["Bois"] = true
+	}
 	return need
 }
+
+// hearthReserve : le bois que les joueurs-IA gardent d'avance pour les foyers, en
+// nombre de nuits. Six = trois jours de jeu, de quoi traverser une expédition de
+// récolte sans que la ville gèle entre-temps.
+const hearthReserve = 6
 
 // terrainDroppable reports whether ANY terrain can drop this item.
 //

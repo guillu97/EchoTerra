@@ -64,6 +64,15 @@ type ThemeDef struct {
 	// par niveau, sa recharge et jusqu'à l'effet « rations +1 » de la Cuisine niveau 2
 	// pendaient à un état qui n'arrivait jamais.
 	Thirst bool `json:"thirst,omitempty"`
+	// Cold : les foyers de la ville brûlent du bois à chaque vague, et qui n'a pas
+	// d'abri GÈLE (cold.go). C'est la contrainte nordique : le bois qui chauffe est le
+	// bois qui bâtit.
+	Cold bool `json:"cold,omitempty"`
+	// Snowfall : la neige recouvre des cases et interrompt la fouille automatique
+	// (cold.go). Va de pair avec Cold, mais reste un drapeau séparé — les deux faces
+	// sont indépendantes, et pouvoir en éteindre une pour mesurer l'autre est
+	// exactement ce qui a permis de régler la première.
+	Snowfall bool `json:"snowfall,omitempty"`
 	// WellRefill remplace la recharge naturelle du puits entre deux vagues (0 = la
 	// valeur ordinaire, wellRefillDefault). En désert elle est basse : c'est ce qui
 	// force à ALLER CHERCHER l'eau au lieu d'attendre qu'elle revienne.
@@ -110,9 +119,22 @@ var Themes = []ThemeDef{
 		ID:       "nordique",
 		Name:     "Nordique",
 		Emoji:    "❄️",
-		Tagline:  "Le gel tient la plaine et la nuit tombe tôt. On bâtit entre deux congères.",
+		Tagline:  "Le gel tient la plaine : les foyers brûlent du bois chaque nuit, et la neige ensevelit ce qu'on récolte.",
 		Dominant: BiomeSnow,
 		Bias:     0.72,
+		// LA CONTRAINTE : le froid. Nourrir les foyers, ou geler.
+		Cold:     true,
+		Snowfall: true,
+		ExtraDrops: map[Biome][]DropDef{
+			// LE THÈME FINANCE SA PROPRE CONTRAINTE. Le bois est déjà la matière la
+			// plus disputée du jeu (mesuré : Banque à zéro bois sur les grandes
+			// cartes), le thème éloigne la forêt en enneigeant les abords, et voilà
+			// qu'on en brûle chaque nuit — sans contrepoids on ne crée pas une
+			// tension, on crée une défaite programmée. La taïga en donne donc
+			// davantage, et le charbon des montagnes reste le combustible de secours.
+			BiomeForest: {{"objet", "Bois", 1, 3}},
+			BiomeSnow:   {{"objet", "Bois", 1, 1}}, // bois mort sous la neige
+		},
 		BiomeNames: map[Biome]string{
 			BiomeWater:    "Eaux noires",
 			BiomeSand:     "Grève de galets",

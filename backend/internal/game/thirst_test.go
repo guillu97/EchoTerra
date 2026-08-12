@@ -17,6 +17,7 @@ func thirstGame(theme string, heroes int) *GameState {
 		g.Heroes = append(g.Heroes, &Hero{
 			ID: string(rune('a' + i)), Name: "H", X: 2, Y: 2,
 			PA: 6, MaxPA: 6, HP: 20, MaxHP: 20,
+			Bars: map[string]int{},
 		})
 	}
 	return g

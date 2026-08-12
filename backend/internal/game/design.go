@@ -96,9 +96,19 @@ var Terrains = map[Biome]TerrainDef{
 		{"minerai", "Minerai d'argent", 1, 1}, {"minerai", "Minerai d'or", 1, 1},
 		{"objet", "Plan de la Tour", 1, 1},
 	}},
-	BiomeSnow: {Searchable: true, ResourcesMin: 3, ResourcesMax: 6, Drops: []DropDef{
-		{"minerai", "Pierre", 2, 6}, {"minerai", "Minerai de fer", 1, 2},
-		{"minerai", "Minerai d'argent", 1, 1}, {"minerai", "Givre éternel", 1, 1},
+	// ⚠ LA NEIGE N'AVAIT JAMAIS ÉTÉ RÉGLÉE, parce qu'aucune carte n'en portait (le
+	// lissage plafonnait le relief sous son seuil — voir worldgen.snowCaps, 2026-08-11).
+	// Sa table recopiait donc la MONTAGNE : même richesse, même poids de Pierre. Le jour
+	// où un thème l'a rendue dominante autour de la ville, l'expédition nordique s'est
+	// retrouvée avec la carrière à sa porte — mesuré : 88 de pierre en banque contre 6
+	// en tempéré, et CINQ vagues de survie en plus, alors même que le froid la punissait
+	// en permanence. Or la pierre est la monnaie de la survie (murs ET réparation de la
+	// ville). Le sol gelé rend donc moins que la roche à ciel ouvert : c'est le même
+	// caillou sous la glace, il se ramasse plus mal.
+	BiomeSnow: {Searchable: true, ResourcesMin: 2, ResourcesMax: 4, Drops: []DropDef{
+		{"minerai", "Pierre", 1, 3}, {"minerai", "Minerai de fer", 1, 1},
+		{"minerai", "Minerai d'argent", 1, 1}, {"minerai", "Givre éternel", 1, 2},
+		{"objet", "Débris", 1, 2},
 	}},
 }
 

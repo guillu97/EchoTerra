@@ -1,6 +1,7 @@
 package game
 
 import (
+	"fmt"
 	"sort"
 	"time"
 )
@@ -388,6 +389,16 @@ func (g *GameState) processWave(now time.Time, safeTown bool) {
 	// mais avant que les héros dehors soient pris à partie.
 	g.runStandingOrders()
 
+	// LE FROID (cold.go) AVANT l'assaut : attackHeroesOutside consomme l'état Caché, et
+	// se cacher est justement ce qui abrite du gel.
+	if g.Theme().Cold {
+		lit := g.burnHearth()
+		g.applyCold(lit)
+		if !lit {
+			g.logTown(fmt.Sprintf("Plus rien à brûler : les foyers se sont éteints, la ville a gelé (−%d PA)", coldPA))
+		}
+	}
+
 	// Heroes caught outside the walls are attacked individually.
 	g.attackHeroesOutside(g.WaveNumber, r)
 
@@ -397,7 +408,7 @@ func (g *GameState) processWave(now time.Time, safeTown bool) {
 			// La Soif se paie ICI, sur la journée qui commence : boire après coup ne
 			// rendrait rien si on l'appliquait à la volée, et la ration perdrait son
 			// intérêt. Voir thirst.go.
-			h.PA = h.MaxPA - thirstPenalty(h)
+			h.PA = h.MaxPA - thirstPenalty(h) - coldPenalty(h)
 			if h.PA < 1 {
 				h.PA = 1 // jamais bloqué : un assoiffé doit pouvoir marcher jusqu'au puits
 			}
@@ -416,6 +427,10 @@ func (g *GameState) processWave(now time.Time, safeTown bool) {
 	// CARTE — les cases proches se vident, les héros marchent de plus en plus loin, et
 	// la ville s'étrangle sans que rien ne l'ait attaquée.
 	g.regrowOrchard()
+
+	// La neige du thème nordique (cold.go) : ce qui fond, puis ce qui tombe.
+	g.snowmelt()
+	g.snowfall()
 
 	// The Well slowly refills between waves.
 	if w := g.buildingByID("well"); w != nil && w.Built && w.Capacity < w.MaxCapacity {

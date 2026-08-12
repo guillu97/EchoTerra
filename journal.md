@@ -6,6 +6,64 @@
 
 ---
 
+## 2026-08-11 (112) — Le froid : la contrainte nordique, et deux réglages trouvés à la mesure
+
+Deuxième contrainte de thème (`game/cold.go`), en deux faces : **dehors la neige, dedans le feu**.
+
+- **La neige recouvre les cases** (`Tile.Covered`, chute + dégel à chaque vague) et **interrompt la
+  fouille AUTOMATIQUE**. C'est la face la plus intéressante : elle répond au seul reproche qu'on
+  puisse faire au campement (forage.go), qui est de se jouer tout seul une fois posé. ⚠ la fouille
+  MANUELLE rend son butin comme d'habitude **et déblaie la case** — le coût de la neige est de devoir
+  REVENIR, jamais une ressource perdue. Elle ne bloque pas le déplacement et ne blesse personne.
+- **Les foyers de la ville brûlent** une unité de combustible par vague, prise sur la Banque.
+  Éteints, tout le monde gèle (−2 PA au réveil, jamais de PV) ; allumés, les murs abritent — et **se
+  cacher aussi**, parce que se cacher c'est déjà avoir trouvé un abri. Le dilemme de Hordes gagne une
+  seconde raison de rentrer au lieu d'une mécanique de plus.
+
+⚠ **Pas de bâtiment neuf.** « Le brasier » a été conçu puis écarté : un bâtiment demande un modèle
+voxel, une parcelle dans le plan de ville, une entrée au catalogue et trois niveaux de design — et
+`buildingModelKey` transforme un modèle manquant en bâtiment INVISIBLE et incliquable. Les foyers
+d'une ville sont une fiction que le journal et l'ordre du jour portent très bien, pour exactement la
+même mécanique.
+
+**Trois choses que seule la mesure pouvait dire.**
+
+1. **La table de la NEIGE n'avait jamais été réglée** — et pour cause, aucune carte n'en portait
+   (entrée 110). Elle recopiait la MONTAGNE : même richesse, même poids de Pierre. Le jour où un thème
+   l'a rendue dominante autour de la ville, l'expédition nordique s'est retrouvée avec la carrière à
+   sa porte : **88 de pierre en banque contre 6 en tempéré, et CINQ vagues de survie EN PLUS** — alors
+   même que le froid la punissait en permanence. Or la pierre est la monnaie de la survie (murs ET
+   réparation de la ville). Le sol gelé rend désormais moins que la roche à ciel ouvert. ⚠ un thème
+   trop FACILE viole exactement la même règle qu'un thème trop dur.
+2. **Les foyers étaient éteints 46 nuits sur 48** avec le seul bois : la contrainte n'était plus un
+   choix mais un impôt permanent (284 héros-vagues gelés), parce que le bois part dans les chantiers à
+   mesure qu'il rentre et que le thème a justement éloigné la forêt. **On brûle donc les DÉBRIS
+   d'abord**, le bois ensuite, le charbon en dernier (il est le nerf de l'acier). Ça découple le feu
+   de l'économie de construction ET donne un second usage à un objet de rebut : 284 héros-vagues gelés
+   → **25**, le feu tient la plupart des nuits, et geler redevient un accident.
+3. **Il fallait le DÉGEL.** Sans lui la neige s'accumule indéfiniment — mesuré : 2787 cases couvertes
+   en fin de partie, soit un quart de la carte gelé pour toujours, ce qui n'est plus une météo mais
+   une amputation. Avec, la couverture trouve un équilibre et le joueur voit la neige aller et venir.
+
+**Résultat : médiane 17 vagues sur les TROIS thèmes** (8 graines, 4 joueurs) — tempéré [16-20],
+nordique [15-18], désertique [16-18]. Latéral, jamais supérieur.
+
+**Côté client** : les cases enneigées ont leur voile de congères sur la carte (même traitement que les
+cases épuisées : un aplat uniforme se confond avec le terrain, une texture se lit comme un marqueur),
+et la barre de héros explique la seule chose qu'on ne peut pas deviner — « la case est ensevelie,
+fouiller la dégage et relance la récolte ».
+
+**Vérifié.** `go test ./...` (dont `cold_test.go` et le plancher par thème) · `npx tsc -b` ·
+`npm run build` · `test:perf` 13/13, `test:map-tap` 3/3, `test:endgame` 8/8 · en jeu, sur une partie
+nordique tirée au sort : 347 cases enneigées, 15 héros gelés à 4/6 PA, « 🔥 Plus rien à brûler : la
+ville gèlera cette nuit » dans l'ordre du jour et dans le journal de la ville.
+
+**À faire ensuite** : le lot 2 — la peau (palette voxel par thème, props, halle sommitale). La carte
+nordique reste verte : c'est le dernier morceau qui manque pour qu'un thème se reconnaisse au premier
+coup d'œil.
+
+---
+
 ## 2026-08-11 (111) — La soif : la première CONTRAINTE de thème
 
 Suite de l'entrée 110. Un thème qui ne serait qu'une palette s'userait en deux expéditions : chacun

@@ -52,6 +52,9 @@ export interface Tile {
   monsterId?: string;
   ruinId?: string; // ruine-donjon posée sur la case (voir Ruin)
   discovered?: boolean; // fog of war: false until a hero has seen the tile (shared by all players)
+  // NEIGE FRAÎCHE (thème nordique, backend cold.go) : la case n'est plus récoltée
+  // automatiquement tant qu'un héros n'est pas revenu la fouiller.
+  covered?: boolean;
 }
 
 // Ruine-donjon : bâtiment en ruine par biome — chantier de déblayage collectif

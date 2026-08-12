@@ -233,6 +233,10 @@ func (g *GameState) SearchTile(heroID string) (*Item, error) {
 	}
 	h.PA--
 	h.Bars["collecte"]++
+	// Fouiller DÉBLAIE la neige fraîche (cold.go) : le butin reste celui du terrain,
+	// donc la neige ne coûte jamais une ressource — elle coûte le fait de devoir
+	// revenir, ce qui est exactement ce qu'on lui demande.
+	t.Covered = false
 	if h.PA == 0 {
 		h.AddState(StateFatigue)
 	}

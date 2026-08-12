@@ -663,6 +663,30 @@ assoiffés sur 3 parties désertiques (0 en tempéré), 28 puisées au puits ; s
 au thème témoin sur 8 graines (17 vagues) — la contrainte change ce qu'on FAIT, pas la difficulté.
 Tests : `thirst_test.go`.
 
+**LA CONTRAINTE NORDIQUE — LE FROID** (`game/cold.go`, 2026-08-11) — deux faces d'une même idée.
+**(1) LA NEIGE RECOUVRE LES CASES** (`Tile.Covered`, `snowfall`/`snowmelt` à chaque vague) et
+interrompt la **fouille AUTOMATIQUE** : c'est la réponse mécanique au seul reproche qu'on puisse faire
+au campement (forage.go), qui est de se jouer tout seul une fois posé. ⚠ la fouille MANUELLE rend son
+butin comme d'habitude **et déblaie la case** — le coût de la neige est de devoir REVENIR, jamais une
+ressource perdue ; elle ne bloque pas le déplacement et ne blesse personne (règle 5). ⚠ **il faut le
+DÉGEL** (`snowmeltDivisor` 8) : sans lui la couverture s'accumule indéfiniment — mesuré, 2787 cases
+gelées pour toujours, soit un quart de la carte amputé au lieu d'une météo. **(2) LES FOYERS BRÛLENT**
+(`burnHearth`, 1 unité/vague prise sur la Banque) : éteints, TOUT LE MONDE gèle (`StateGele`, −2 PA au
+réveil, jamais de PV) ; allumés, les murs abritent et **se cacher aussi** (1 PA — se cacher, c'est déjà
+avoir trouvé un abri, et ça réutilise une mécanique existante au lieu d'en ajouter une). ⚠ **ON BRÛLE
+LES DÉBRIS D'ABORD**, puis le bois, le charbon en dernier : avec le seul bois, mesuré, les foyers
+étaient éteints **46 nuits sur 48** — la contrainte n'était plus un choix mais un impôt permanent,
+parce que le bois part dans les chantiers à mesure qu'il rentre. Brûler les Débris DÉCOUPLE le feu de
+l'économie de construction et donne enfin un second usage à un objet de rebut (284 héros-vagues gelés
+→ 25). ⚠ **PAS DE BÂTIMENT NEUF** : « le brasier » a été conçu puis écarté (modèle voxel + parcelle +
+catalogue + 3 niveaux, et `buildingModelKey` rend INVISIBLE un bâtiment sans modèle) — les foyers d'une
+ville sont une fiction que le journal et l'ordre du jour portent très bien. ⚠ **la table de la NEIGE
+n'avait jamais été réglée** (aucune carte n'en portait) : elle recopiait la montagne, si bien qu'une
+carte nordique posait la carrière à la porte de la ville — 88 de pierre en banque contre 6 en tempéré,
+et CINQ vagues de survie en plus. Le sol gelé rend désormais moins que la roche (`Terrains[BiomeSnow]`
+2-4 ressources, Pierre poids 3). Résultat : **médiane 17 vagues sur les TROIS thèmes** (8 graines,
+4 joueurs) — latéral, jamais supérieur. Tests : `cold_test.go`.
+
 **⚠ LA NEIGE N'EXISTAIT DANS AUCUNE PARTIE** (corrigé 2026-08-11) — les seuils du Studio donnent un
 biome par niveau de hauteur et la neige exige le niveau 6, or le **lissage** (`genMaxStep` 1) rabote
 les sommets : niveau maximum réellement produit = **5**, mesuré sur 8 graines × 4 tailles de carte

@@ -65,6 +65,11 @@ func (g *GameState) canForage(h *Hero) bool {
 	if t == nil {
 		return false
 	}
+	// LA NEIGE FRAÎCHE interrompt le campement (cold.go) : c'est toute la mécanique —
+	// il faut revenir jouer pour dégager la case.
+	if t.Covered {
+		return false
+	}
 	td, ok := g.terrainFor(t.Biome)
 	return ok && td.Searchable
 }

@@ -70,6 +70,30 @@ function depletedTexture(): THREE.CanvasTexture {
   DEPLETED_TEX = new THREE.CanvasTexture(c);
   return DEPLETED_TEX;
 }
+// NEIGE FRAÎCHE (thème nordique, backend cold.go). Même problème et même réponse que
+// les cases épuisées : un aplat uniforme se confond avec le terrain ou noircit la
+// carte, une TEXTURE se lit comme un marqueur. Ici des congères claires en amas, assez
+// couvrantes pour qu'on comprenne que la case est ensevelie — c'est ce qui explique au
+// joueur pourquoi sa fouille automatique s'est arrêtée là.
+let SNOW_TEX: THREE.CanvasTexture | null = null;
+function snowTexture(): THREE.CanvasTexture {
+  if (SNOW_TEX) return SNOW_TEX;
+  const S = 96;
+  const c = document.createElement("canvas");
+  c.width = c.height = S;
+  const g = c.getContext("2d")!;
+  let seed = 4242; // PRNG figé : la congère doit être identique d'une session à l'autre
+  const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
+  for (let i = 0; i < 26; i++) {
+    const x = rnd() * S, y = rnd() * S, r = 8 + rnd() * 14;
+    g.fillStyle = rnd() < 0.4 ? "rgba(226,236,248,0.95)" : "rgba(248,251,255,0.9)";
+    g.beginPath();
+    g.ellipse(x, y, r, r * (0.5 + rnd() * 0.4), rnd() * Math.PI, 0, Math.PI * 2);
+    g.fill();
+  }
+  SNOW_TEX = new THREE.CanvasTexture(c);
+  return SNOW_TEX;
+}
 // Props « arbres » : montés d'un cran sur la carte pour dépasser les personnages.
 const TREE_IDS = new Set(["tree-green", "tree-pink", "pine", "pine-snow", "dead-tree"]);
 // Échelle relative des monstres par apparence (× la taille de base d'un perso) :
@@ -530,6 +554,40 @@ class MapWorld {
       const m4 = new THREE.Matrix4();
       depleted.forEach((c, i) => {
         m4.makeTranslation(c.x, topOf(c.x, c.y) + 0.03, c.y);
+        im.setMatrixAt(i, m4);
+      });
+      im.instanceMatrix.needsUpdate = true;
+      this.overlays.add(im);
+    }
+
+    // LA NEIGE FRAÎCHE, même traitement : un seul InstancedMesh pour toute la carte.
+    // ⚠ `covered` n'a de sens que sur une case DÉCOUVERTE — le fog rend une tuile
+    // vierge, donc sans le drapeau, et une case cachée ne doit rien afficher.
+    const snowy: { x: number; y: number }[] = [];
+    for (let y = 0; y < game.height; y++) {
+      for (let x = 0; x < game.width; x++) {
+        const t = game.tiles[y * game.width + x];
+        if (t?.discovered && t.covered) snowy.push({ x, y });
+      }
+    }
+    if (snowy.length) {
+      const im = new THREE.InstancedMesh(
+        QUAD_GEOM,
+        new THREE.MeshBasicMaterial({
+          map: snowTexture(), // texture PARTAGÉE (jamais libérée)
+          transparent: true,
+          opacity: 0.85,
+          depthWrite: false,
+        }),
+        snowy.length,
+      );
+      im.userData.ownMat = true;
+      im.renderOrder = -1;
+      const m4 = new THREE.Matrix4();
+      snowy.forEach((c, i) => {
+        // Au-dessus du voile des cases épuisées : une case peut être les deux, et
+        // c'est la neige qui commande (elle empêche la récolte).
+        m4.makeTranslation(c.x, topOf(c.x, c.y) + 0.04, c.y);
         im.setMatrixAt(i, m4);
       });
       im.instanceMatrix.needsUpdate = true;

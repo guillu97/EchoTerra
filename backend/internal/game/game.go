@@ -62,12 +62,16 @@ type Item struct {
 
 // Tile is one cell of the global orthogonal map.
 type Tile struct {
-	Biome      Biome  `json:"biome"`
-	Height     int    `json:"height"`    // cosmetic elevation on the global map
-	Resources  int    `json:"resources"` // remaining successful searches (0 => depleted)
-	MonsterID  string `json:"monsterId,omitempty"`
-	RuinID     string `json:"ruinId,omitempty"` // ruine-donjon posée sur la case (voir ruins.go)
-	Discovered bool   `json:"discovered"`       // fog of war: revealed once a hero has seen it (shared by all players)
+	Biome     Biome  `json:"biome"`
+	Height    int    `json:"height"`    // cosmetic elevation on the global map
+	Resources int    `json:"resources"` // remaining successful searches (0 => depleted)
+	MonsterID string `json:"monsterId,omitempty"`
+	RuinID    string `json:"ruinId,omitempty"` // ruine-donjon posée sur la case (voir ruins.go)
+	// Covered : la case est sous la NEIGE FRAÎCHE (thème nordique, cold.go). Elle
+	// n'interrompt que la fouille AUTOMATIQUE ; la fouille manuelle rend son butin
+	// comme d'habitude et déblaie la neige au passage.
+	Covered    bool `json:"covered,omitempty"`
+	Discovered bool `json:"discovered"` // fog of war: revealed once a hero has seen it (shared by all players)
 }
 
 // Hero is a controllable unit on the global map.

@@ -27,6 +27,8 @@ export function MapHeroBar() {
   if (roster.length === 0) return null;
 
   const selInTown = !!selected && selected.hp > 0 && selected.x === game.town.x && selected.y === game.town.y;
+  const selTile = selected && !selInTown ? game.tiles[selected.y * game.width + selected.x] : undefined;
+  const snowedIn = !!selTile?.covered;
 
   return (
     <div className="map-herobar">
@@ -44,7 +46,12 @@ export function MapHeroBar() {
       </div>
       {selected && selected.hp > 0 && (
         <div className="mhb-hint">
-          {forageIn !== null ? (
+          {/* NEIGE FRAÎCHE (thème nordique) : c'est LA raison pour laquelle la récolte
+              s'est arrêtée, et sans un mot ici le joueur ne peut pas la deviner. */}
+          {snowedIn ? (
+            <>❄️ <strong>{selected!.name}</strong> a la case ensevelie sous la neige — fouiller la
+              dégage et relance la récolte.</>
+          ) : forageIn !== null ? (
             <>🔄 <strong>{selected.name}</strong> fouille sur place — prochaine trouvaille dans{" "}
               <strong>{formatHMS(forageIn)}</strong> (sans PA ; bouger l'interrompt).</>
           ) : selInTown ? (

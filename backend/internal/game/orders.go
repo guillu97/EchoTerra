@@ -241,6 +241,33 @@ func (g *GameState) BuildOrders() []TownOrder {
 		}
 	}
 
+	// 1-ter. LE FROID (thème nordique, cold.go) : les foyers brûlent du bois chaque
+	// nuit. On DIT combien de nuits il reste, parce que c'est la seule façon d'arbitrer
+	// entre chauffer et bâtir avant que la ville ne gèle.
+	if g.Theme().Cold {
+		fuel := 0
+		for _, f := range hearthFuels {
+			fuel += g.storageQty(f)
+		}
+		frozen := 0
+		for _, h := range g.Heroes {
+			if h.HP > 0 && h.HasState(StateGele) {
+				frozen++
+			}
+		}
+		switch {
+		case fuel == 0:
+			add("cold", "🔥", fmt.Sprintf("Plus rien à brûler : la ville gèlera cette nuit (−%d PA pour tout le monde) — il faut rapporter du bois",
+				coldPA), true)
+		case fuel <= 3:
+			add("cold", "🔥", fmt.Sprintf("Les foyers n'ont plus que %d nuits de bois — le gel coûte %d PA par héros",
+				fuel, coldPA), true)
+		case frozen > 0:
+			add("cold", "🥶", fmt.Sprintf("%d héros ont pris le gel dehors (−%d PA) — les murs et la cachette abritent, le reste non",
+				frozen, coldPA), false)
+		}
+	}
+
 	// 2. Le portail ouvert : la plus grosse fuite de défense du jeu, et la moins chère
 	// à colmater (1 PA).
 	if b := g.buildingByID("gate"); b != nil && b.Built && b.Open {
