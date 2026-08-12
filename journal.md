@@ -30,9 +30,19 @@ celui qu'il faut reconnaître de loin.
    palmes, et leur largeur de deux voxels près du cœur, qui font le palmier ; un squelette de branches
    d'un voxel disparaît au dézoom.
 
-**Vérifié.** `npm run build`, `test:perf` 13/13 (les nouveaux props ne touchent ni au budget de
-triangles ni au poids du payload voxel), `test:map-tap` 3/3, catalogue d'assets reconstruit (612
-entrées). Contrôle à l'œil au zoom de jeu sur une carte désertique tirée au sort.
+⚠ **ET UN TROISIÈME PIÈGE, LE PLUS VICIEUX : `PROP_KEYS` EST CE QUE LA CARTE CHARGE.** Un prop semé
+par les tables de scatter mais absent de cette liste n'est jamais téléchargé : `propsLib.get` rend
+`undefined`, la boucle de pose fait `continue`, et **le décor est silencieusement absent** — pas
+d'erreur, pas de trou visible, on croit simplement que le tirage n'est pas tombé. Mes quatre modèles
+étaient dans ce cas le jour de leur livraison, et j'ai d'abord cru les voir à l'écran (c'étaient des
+oliviers et des touffes d'herbe). Ce qui a tranché, c'est de compter les `.vox` RÉELLEMENT
+téléchargés par le navigateur, pas de regarder une capture. Au passage, **`brambles`, semé depuis le
+lot D2, n'avait jamais poussé sur une seule carte** pour la même raison.
+
+**Vérifié.** `npm run build`, `test:perf` 13/13 (budget de triangles et payload voxel inchangés),
+`test:map-tap` 3/3, catalogue d'assets reconstruit (612 entrées), et surtout un contrôle RÉSEAU :
+`cactus, palm, bones, rune-stone, brambles, olive` tous téléchargés sur une carte désertique tirée au
+sort.
 
 **Ce qui reste au lot 3** : une halle sommitale par thème (le sommet du tertre), un modèle de ruine
 propre à chaque expédition (pyramide, drakkar), et une arme + une recette par thème — latérales,

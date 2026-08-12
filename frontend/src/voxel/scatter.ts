@@ -20,6 +20,15 @@ export const PROP_KEYS = [
   "butterfly", "gull", "firefly", "rabbit", "hare", "crab",
   "web", "snow-motes", "eagle",
   "ruin-wall", "ruin-column", "ruin-slab", "ruin-arch",
+  // ⚠ CETTE LISTE EST CE QUE LA CARTE CHARGE. Un prop semé par les tables mais absent
+  // d'ici n'est jamais chargé, donc `propsLib.get` rend undefined et la boucle de pose
+  // fait `continue` : le décor est SILENCIEUSEMENT ABSENT, sans erreur ni trou visible
+  // (on croit juste que le tirage n'est pas tombé). C'est arrivé aux quatre modèles de
+  // thème le jour de leur livraison — et `brambles`, semé depuis le lot D2, n'avait
+  // jamais poussé sur une seule carte.
+  "brambles", "olive",
+  // Les silhouettes propres à une expédition (theme.go, lot 3).
+  "cactus", "palm", "bones", "rune-stone",
 ];
 
 export type ScatterTile = { biome: number; height: number; discovered?: boolean; monsterId?: string };

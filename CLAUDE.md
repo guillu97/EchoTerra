@@ -648,6 +648,12 @@ CLI évite de réécrire les 216 fichiers). ⚠ **LE MESHER NORMALISE SUR LA LAR
 cactus de 3 cellules de large se lisait comme une touffe d'herbe, il a fallu l'épaissir à 5 ET monter
 son échelle de placement. ⚠ une couronne de palmier PLATE se lit comme un champignon : c'est la
 retombée quadratique des palmes et leur largeur de deux voxels près du cœur qui font le palmier.
+⚠⚠ **`PROP_KEYS` (scatter.ts) EST CE QUE LA CARTE CHARGE** : un prop semé par les tables mais absent
+de cette liste n'est jamais téléchargé — `propsLib.get` rend `undefined`, la pose fait `continue`, et
+le décor est **silencieusement absent** (aucune erreur, aucun trou : on croit que le tirage n'est pas
+tombé). Y ajouter tout nouveau prop, et le vérifier en comptant les `.vox` réellement téléchargés
+plutôt qu'à l'œil sur une capture — `brambles`, semé depuis le lot D2, n'avait jamais poussé nulle
+part pour cette raison.
 
 **LA PEAU D'UN THÈME** (`voxel/smoothTerrain.ts` `THEME_PALETTES` + `voxel/scatter.ts`, 2026-08-11) —
 le biais de biomes change ce qui pousse autour de la ville ; la **palette de terrain** change l'humeur
