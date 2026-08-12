@@ -82,6 +82,13 @@ func (g *GameState) ClientView() *GameState {
 	// Le retard restant : posé ICI et nulle part ailleurs, donc jamais persisté (le
 	// blob est écrit depuis `g`, où le champ reste faux). Voir CatchUpPending.
 	cp.CatchUp = g.CatchUpPending(time.Now())
+	// Le compte à rebours de l'escorte (R4) : ce que le joueur qui attend a le droit de
+	// savoir. Dérivé lui aussi, donc jamais écrit dans le blob.
+	if g.IsPublic() && g.Status == StatusLobby && len(g.Players) < g.MinPlayers {
+		if since := g.waitingSince(); !since.IsZero() {
+			cp.EscortAt = since.Add(PublicEscortWait)
+		}
+	}
 	// The messaging board never rides the game payload: who may READ it depends on
 	// the requesting player (in town, or the Poste built — see chat.go) and this
 	// function has no idea who is asking. Only the count survives, so the ✉️ button

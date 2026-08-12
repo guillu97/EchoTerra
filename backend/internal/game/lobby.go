@@ -48,9 +48,6 @@ func (g *GameState) LeaderboardMode() string {
 	if g.Solo {
 		return ModeSolo
 	}
-	if g.IsPublic() {
-		return ModePublic
-	}
 	humans, bots := 0, 0
 	for _, p := range g.Players {
 		if p.Bot {
@@ -59,8 +56,17 @@ func (g *GameState) LeaderboardMode() string {
 			humans++
 		}
 	}
+	// ⚠ UN SEUL HUMAIN ENTOURÉ DE ROBOTS EST UN RUN SOLO, publique ou pas. Depuis
+	// l'escorte de départ (MaybeStartWithEscort), une expédition publique peut partir
+	// avec un joueur et des bots : la classer parmi les villes tenues à plusieurs
+	// comparerait des choses qui n'ont rien à voir. Le mode est recalculé à chaque
+	// écriture, donc l'expédition redevient « publique » dès qu'un deuxième humain
+	// embarque — ce qui est exactement la vérité de ce moment-là.
 	if humans == 1 && bots > 0 {
 		return ModeSolo
+	}
+	if g.IsPublic() {
+		return ModePublic
 	}
 	return ModePrivate
 }
@@ -311,6 +317,102 @@ func (g *GameState) MaybeAutoStart(now time.Time) bool {
 	}
 	g.launch(now)
 	return true
+}
+
+// --- L'ESCORTE DE DÉPART (R4 de RETENTION-PLAN.md) -----------------------------------
+//
+// LE PROBLÈME : le premier contact avec le jeu pouvait être une SALLE D'ATTENTE. Le
+// serveur ne tient qu'UN point d'accueil public à la fois (règle voulue : deux salons
+// côte à côte sépareraient les joueurs), et ce salon ne part qu'à `MinPlayers`. Sur une
+// population faible — c'est-à-dire au lancement, et c'est-à-dire aujourd'hui — un
+// nouveau venu clique « expéditions publiques » et attend un deuxième humain qui
+// n'arrivera peut-être jamais. Tout le travail de rétention en amont ne sert à rien si
+// la première minute est un écran d'attente.
+//
+// LA RÉPONSE : au bout de `PublicEscortWait`, l'expédition part avec une ESCORTE de
+// joueurs-IA — juste assez pour atteindre son minimum. Elle reste ensuite OUVERTE
+// pendant sa fenêtre d'accueil (PublicJoinGraceWaves), donc les humains qui arrivent
+// ensuite ne rejoignent pas un salon vide mais une ville qui VIT déjà, avec des murs,
+// une banque et un journal. C'est mieux que ce qu'ils auraient trouvé en attendant.
+//
+// ⚠ TROIS BORNES, et elles comptent :
+//
+//  1. **JAMAIS SANS UN HUMAIN.** Une expédition d'escorte pure serait un fantôme que le
+//     battement fabriquerait en boucle sur un serveur au repos. L'escorte accompagne
+//     quelqu'un ; elle ne joue pas toute seule.
+//  2. **JUSTE JUSQU'AU MINIMUM**, jamais jusqu'au maximum : les places restent pour des
+//     gens. Une expédition de vingt ne se remplit pas de robots parce qu'un joueur est
+//     arrivé le premier.
+//  3. **ON ATTEND VRAIMENT.** Le délai n'est pas cosmétique : si deux humains se
+//     présentent à une minute d'intervalle, ils doivent partir ENSEMBLE. L'escorte est
+//     un filet pour le joueur seul, pas un raccourci qui empêcherait les rencontres.
+//
+// ⚠ Les bots d'escorte RESTENT toute la partie : les retirer en cours de route voudrait
+// dire supprimer trois héros, leurs contributions au registre et leur part du travail
+// déjà fait. Ce sont des coéquipiers, pas des figurants.
+
+// PublicEscortWait : ce qu'un joueur seul attend avant que son expédition parte quand
+// même. Assez pour laisser une chance à une vraie rencontre, assez court pour qu'on ne
+// referme pas l'onglet.
+const PublicEscortWait = 90 * time.Second
+
+// waitingSince rend l'instant où le PREMIER humain de ce salon est arrivé (zéro s'il n'y
+// en a aucun).
+func (g *GameState) waitingSince() time.Time {
+	var first time.Time
+	for _, p := range g.Players {
+		if p.Bot {
+			continue
+		}
+		if first.IsZero() || p.JoinedAt.Before(first) {
+			first = p.JoinedAt
+		}
+	}
+	return first
+}
+
+// MaybeStartWithEscort fait partir un salon public qui attend depuis trop longtemps, en
+// complétant l'équipage de joueurs-IA. Rend true si l'expédition vient de se lancer.
+func (g *GameState) MaybeStartWithEscort(now time.Time) bool {
+	if !g.IsPublic() || g.Status != StatusLobby {
+		return false
+	}
+	since := g.waitingSince()
+	if since.IsZero() {
+		return false // borne 1 : pas d'humain, pas d'expédition
+	}
+	if len(g.Players) >= g.MinPlayers {
+		return false // MaybeAutoStart s'en charge : ce chemin-ci est celui de l'attente
+	}
+	if now.Sub(since) < PublicEscortWait {
+		return false // borne 3 : on laisse sa chance à une vraie rencontre
+	}
+	for len(g.Players) < g.MinPlayers { // borne 2 : jusqu'au MINIMUM, pas au maximum
+		if _, err := g.addEscortBot(now); err != nil {
+			return false
+		}
+	}
+	g.launch(now)
+	return true
+}
+
+// addEscortBot ajoute un joueur-IA d'escorte. Même chose qu'AddBot sans le contrôle
+// d'hôte — c'est le SERVEUR qui décide ici, jamais un joueur : `AddBot` continue de
+// refuser qu'un humain bourre un salon public de robots.
+func (g *GameState) addEscortBot(now time.Time) (*Player, error) {
+	name := botNames[len(g.Players)%len(botNames)]
+	for _, p := range g.Players {
+		if p.Name == name {
+			name += " II"
+			break
+		}
+	}
+	p, err := g.AddPlayer(name, now)
+	if err != nil {
+		return nil, err
+	}
+	p.Bot = true
+	return p, nil
 }
 
 // OwnerOfHero returns the id of the player owning the hero ("" if none — legacy

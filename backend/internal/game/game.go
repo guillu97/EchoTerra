@@ -230,6 +230,12 @@ type GameState struct {
 	// Sans lui, le client sondait toutes les 20 s et voyait le rattrapage tomber une
 	// vague à la fois, minuteur figé à 0 — voir CatchUpPending.
 	CatchUp bool `json:"catchUp,omitempty"`
+	// EscortAt dit à un joueur qui PATIENTE dans un salon public quand son expédition
+	// partira quand même, avec une escorte de joueurs-IA (lobby.go
+	// MaybeStartWithEscort). Dérivé, posé par ClientView seulement — jamais persisté.
+	// Sans lui, le client devrait recopier le délai, et la copie finirait par diverger ;
+	// et sans affichage, l'attente serait un mystère puis un départ inexpliqué.
+	EscortAt time.Time `json:"escortAt,omitzero"`
 	// Rev is the store revision this state was loaded at — persistence bookkeeping,
 	// never serialized into the blob nor sent to clients (see store.SaveIfUnchanged).
 	Rev      int64       `json:"-"`

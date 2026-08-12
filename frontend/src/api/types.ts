@@ -475,6 +475,9 @@ export interface GameState {
   // redemande alors tout de suite au lieu d'attendre son sondage de 20 s — voir
   // `refreshGame` dans store.ts. Absent = le monde est à l'heure.
   catchUp?: boolean;
+  // L'heure à laquelle un salon public partira quand même, avec une escorte de
+  // joueurs-IA (backend lobby.go MaybeStartWithEscort). Absent hors de ce cas.
+  escortAt?: string;
   status: "lobby" | "active" | "gameover";
   joinCode?: string;
   themeId?: string; // nature de l'expédition (theme.go) ; absent = tempéré

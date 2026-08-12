@@ -25,6 +25,20 @@ export function useWaveRemaining(game?: GameState): number {
   return Math.max(0, Math.floor((target - now) / 1000));
 }
 
+// Secondes avant un instant serveur quelconque (null si l'instant n'est pas donné).
+// Sert au compte à rebours de l'ESCORTE DE DÉPART, dont l'heure vient du serveur
+// (`game.escortAt`) : le client ne recopie pas le délai, il le lirait de travers le jour
+// où il changerait.
+export function useCountdown(at?: string): number | null {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  if (!at) return null;
+  return Math.max(0, Math.floor((new Date(at).getTime() - now) / 1000));
+}
+
 // Secondes avant la prochaine FOUILLE AUTOMATIQUE d'un héros, dérivées de
 // `hero.forageAt` (serveur). null = ce héros n'est pas installé à récolter.
 //

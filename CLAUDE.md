@@ -349,6 +349,25 @@ que MES héros pour la présence en ville, le worker, les PA et le Stock. `POST 
 `POST /{id}/kick` (hôte). Goroutine `lobbyJanitor` purge les lobbies non lancés de +24 h (`store.Delete`).
 Tests: `lobby_test.go`, `store_test.go`, worldgen `TestNewLobby*`.
 
+**L'ESCORTE DE DÉPART** (`lobby.go` `MaybeStartWithEscort`, 2026-08-12) — R4 de
+`RETENTION-PLAN.md` : le premier contact avec le jeu pouvait être une SALLE D'ATTENTE. Le serveur ne
+tient qu'UN point d'accueil public (règle voulue) et ce salon ne partait qu'à `MinPlayers` : sur une
+population faible, un nouveau venu attendait un deuxième humain qui n'arrivera peut-être jamais. Au
+bout de `PublicEscortWait` (90 s), l'expédition part avec une **escorte de joueurs-IA** — et reste
+OUVERTE pendant sa fenêtre d'accueil, donc les humains suivants trouvent une ville qui VIT au lieu
+d'un salon vide. ⚠ **trois bornes** : jamais sans un humain (sinon le battement fabriquerait des
+expéditions fantômes en boucle), jusqu'au MINIMUM seulement (les places restent pour des gens), et on
+attend vraiment (deux humains à une minute d'intervalle partent ENSEMBLE). ⚠ **appelé depuis `tick()`,
+donc à CHAQUE accès à la partie** : le joueur qui patiente sonde son salon toutes les 3 s, donc c'est
+son attente elle-même qui déclenche son départ — accroché au seul `housekeeping()`, le départ
+dépendait du mode (stateless) et du janitor résident, qui ne passe que toutes les DIX MINUTES (mesuré :
+jamais parti, quatre minutes après l'heure). `ClientView` pose `escortAt` (dérivé, jamais persisté)
+pour que l'écran d'attente affiche le compte à rebours. ⚠ **`AddBot` refuse toujours** les parties
+publiques : l'escorte est une décision du SERVEUR, pas un moyen pour un joueur de bourrer un salon.
+⚠ **une expédition menée par UN humain et des robots est classée SOLO** (`LeaderboardMode`, règle
+changée le même jour) — et redevient publique dès qu'un deuxième humain embarque, le mode étant
+recalculé à chaque écriture. Tests : `escort_test.go`.
+
 **Classement des villes** (`store.go` table `leaderboard`, `GET /api/leaderboard`,
 `LeaderboardScreen.tsx`, 2026-08-02) — **une ligne par partie LANCÉE** (les salons sont exclus),
 upsertée à chaque `Save` ET à chaque `SaveIfUnchanged` (sans ce second point, une ville qui ne

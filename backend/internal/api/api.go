@@ -132,6 +132,20 @@ func (s *Server) tick(gs *game.GameState) {
 	if gs == nil {
 		return
 	}
+	// L'ESCORTE DE DÉPART (R4) : un salon public qui a assez attendu part, avec des
+	// joueurs-IA pour compléter l'équipage.
+	//
+	// ⚠ ICI, dans le chemin de CHAQUE accès à la partie, et pas seulement dans le
+	// ménage périodique : le joueur qui patiente sonde SON salon toutes les trois
+	// secondes, donc c'est son attente elle-même qui déclenche son départ. Accroché au
+	// seul `housekeeping()`, le départ dépendait du mode (il n'y tourne qu'en
+	// stateless) et, sur un serveur résident, du janitor — qui ne passe que toutes les
+	// DIX MINUTES. Mesuré : l'escorte n'est jamais partie, quatre minutes après l'heure.
+	if gs.MaybeStartWithEscort(time.Now()) {
+		gs.Recompute()
+		_ = s.store.Save(gs)
+		return
+	}
 	res := gs.AdvanceTo(time.Now(), game.RequestBudget)
 	gs.Recompute()
 	if res.Changed {
@@ -511,6 +525,20 @@ func (s *Server) housekeeping() {
 			unlock()
 		}
 		return
+	}
+	// L'ESCORTE DE DÉPART (R4) : un salon public qui attend depuis trop longtemps part
+	// avec des joueurs-IA plutôt que de faire patienter un humain devant un écran vide.
+	// ⚠ appelé ICI parce que `housekeeping` tourne à la fois sur le battement ET sur le
+	// sondage de la liste des salons : c'est donc l'attente du joueur elle-même qui
+	// déclenche son départ, sans dépendre de la cadence (très irrégulière) du cron.
+	// …et le filet : le battement fait partir un salon dont personne ne sonde plus la
+	// page (l'onglet fermé sur l'écran d'attente).
+	for _, gs := range public {
+		unlock := s.lockGame(gs.ID)
+		if gs.MaybeStartWithEscort(time.Now()) {
+			s.persist(gs)
+		}
+		unlock()
 	}
 	if len(public) == 0 {
 		s.newPublicLobby()

@@ -94,11 +94,27 @@ func TestLeaderboardMode(t *testing.T) {
 	if got := legacy.LeaderboardMode(); got != ModeSolo {
 		t.Fatalf("legacy solo run classified %q", got)
 	}
-	// A public game stays public even with a single human among bots.
-	pubBots := &GameState{Visibility: VisibilityPublic, Players: []*Player{
+	// ⚠ RÈGLE CHANGÉE LE 2026-08-12, avec l'escorte de départ (lobby.go
+	// MaybeStartWithEscort). Ce test affirmait « une partie publique reste publique même
+	// avec un seul humain parmi des bots » — ce qui ne coûtait rien tant qu'une partie
+	// publique ne POUVAIT PAS avoir de bots (AddBot les refusait, et les refuse
+	// toujours aux joueurs). Depuis que le serveur fait partir un salon qui attend en
+	// complétant l'équipage, le cas est réel : une expédition menée par UN humain et des
+	// robots a la difficulté et la texture d'un run solo, et la ranger parmi les villes
+	// tenues à plusieurs comparerait des choses qui n'ont rien à voir.
+	//
+	// Le mode est recalculé à CHAQUE écriture : l'expédition redevient « publique » à la
+	// seconde où un deuxième humain embarque. L'étiquette suit donc la réalité du run,
+	// ce qui est exactement ce qu'on lui demande.
+	escorted := &GameState{Visibility: VisibilityPublic, Players: []*Player{
 		{ID: "p1", Name: "Guillaume"}, {ID: "b1", Name: "Bot", Bot: true},
 	}}
-	if got := pubBots.LeaderboardMode(); got != ModePublic {
-		t.Fatalf("public game with bots classified %q", got)
+	if got := escorted.LeaderboardMode(); got != ModeSolo {
+		t.Fatalf("expédition publique menée par un seul humain : %q, attendu solo", got)
+	}
+	// …et dès qu'un deuxième humain est là, c'est bien une expédition publique.
+	escorted.Players = append(escorted.Players, &Player{ID: "p2", Name: "Neko"})
+	if got := escorted.LeaderboardMode(); got != ModePublic {
+		t.Fatalf("expédition publique à deux humains : %q, attendu public", got)
 	}
 }

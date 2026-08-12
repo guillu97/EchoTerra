@@ -4633,3 +4633,14 @@ body {
   font-size: var(--t-sm);
   line-height: var(--lh-body);
 }
+
+/* L'escorte de départ : ce que le joueur qui patiente a le droit de savoir. */
+.lobby-escort {
+  margin-top: var(--s-2);
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-sm);
+  background: var(--shade);
+  font-size: var(--t-sm);
+  line-height: var(--lh-body);
+  text-align: left;
+}

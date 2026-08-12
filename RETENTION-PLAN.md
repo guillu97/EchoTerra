@@ -328,7 +328,18 @@ dans `backend/internal`. Les données brutes existent pourtant (comptes, `joined
 qui bougent à chaque action, `updated_at` du classement). **Rétention J3 / J7 par expédition** reste
 le premier chiffre à produire, et il ne demande qu'une table d'activité (compte, partie, jour).
 
-### R4 — Le délai avant la première partie
+### R4 — Le délai avant la première partie — ✅ **LIVRÉ** (2026-08-12)
+
+> `game/lobby.go` : `MaybeStartWithEscort` — au bout de 90 s, un salon public part avec
+> une escorte de joueurs-IA et reste ouvert pendant sa fenêtre d'accueil. Appelé depuis
+> `tick()`, donc déclenché par le sondage du joueur qui attend. Trois bornes : jamais
+> sans un humain, jusqu'au minimum seulement, et on laisse sa chance à une vraie
+> rencontre. Tests : `game/escort_test.go`.
+>
+> ⚠ livré AVANT d'avoir des chiffres, à la demande de Guillaume : en phase de
+> développement la population est nulle, donc le trou n'est pas une hypothèse à vérifier
+> mais une certitude — un joueur seul attendrait indéfiniment.
+
 
 `ensurePublicLobby` maintient **un seul** point d'accueil public à la fois (règle délibérée : ne pas
 séparer les joueurs). Conséquence non délibérée : quand l'expédition publique en cours a fermé sa
@@ -561,5 +572,6 @@ sphinx, harpies et araignées), puis — quand les deux premiers auront prouvé 
    modèle de bâtiment). Reste le **lot 3** : les modèles propres à chaque thème (cactus, ossements,
    drakkar, pyramide, halle sommitale) et une arme + une recette par expédition — de l'art, livrable
    thème par thème.
-5. **R4 — le temps avant la première partie.** À traiter quand on saura, par R3, s'il coûte
-   réellement des joueurs.
+5. ~~**R4 — le temps avant la première partie.**~~ ✅ **LIVRÉ le 2026-08-12.** Le plan disait
+   d'attendre les chiffres ; avec une population nulle en phase de développement, le trou est certain
+   et non hypothétique — un joueur seul attendrait pour toujours.

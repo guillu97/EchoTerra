@@ -6,6 +6,56 @@
 
 ---
 
+## 2026-08-12 (118) — L'escorte de départ : plus jamais de salle d'attente (R4)
+
+Le plan disait de ne traiter R4 qu'une fois les chiffres lus. Guillaume tranche, et il a raison : en
+phase de développement la population est NULLE, donc le trou n'est pas une hypothèse à vérifier mais
+une certitude — un joueur seul attendrait pour toujours.
+
+**Le problème.** Le serveur ne tient qu'UN point d'accueil public (règle voulue : deux salons côte à
+côte sépareraient les joueurs) et ce salon ne partait qu'à `MinPlayers`. Un nouveau venu cliquait
+« expéditions publiques » et attendait un deuxième humain. Tout le travail de rétention en amont ne
+sert à rien si la première minute est un écran d'attente.
+
+**La réponse** (`lobby.go MaybeStartWithEscort`) : au bout de 90 s, l'expédition part avec une
+**escorte** de joueurs-IA — juste de quoi atteindre son minimum — et reste OUVERTE pendant sa fenêtre
+d'accueil. Les humains qui arrivent ensuite ne rejoignent pas un salon vide mais une ville qui vit
+déjà, avec des murs, une banque et un journal. C'est mieux que ce qu'ils auraient trouvé en attendant.
+
+⚠ **Trois bornes, toutes testées.** Jamais sans un humain (sinon le battement fabriquerait des
+expéditions fantômes en boucle sur un serveur au repos) · jusqu'au MINIMUM seulement, jamais jusqu'au
+maximum (les places restent pour des gens) · et on attend VRAIMENT : deux humains à une minute
+d'intervalle doivent partir ensemble, l'escorte étant un filet pour le joueur seul et non un raccourci
+qui empêcherait les rencontres. `AddBot` continue par ailleurs de refuser les parties publiques :
+l'escorte est une décision du SERVEUR.
+
+⚠ **LE PIÈGE D'ACCROCHAGE, trouvé en essayant pour de vrai.** Première version : l'escorte partait
+depuis `housekeeping()`. Or `housekeeping` n'est appelé QU'EN MODE STATELESS sur la liste des salons,
+et sur un serveur résident c'est le janitor qui joue ce rôle — toutes les DIX MINUTES. Mesuré : rien
+n'était parti quatre minutes après l'heure annoncée. L'escorte vit désormais dans `tick()`, c'est-à-dire
+dans le chemin de CHAQUE accès à la partie : le joueur qui patiente sonde son salon toutes les trois
+secondes, donc **c'est son attente elle-même qui déclenche son départ**. Le battement garde le rôle de
+filet pour l'onglet fermé.
+
+⚠ **Règle de classement changée.** Une expédition publique menée par UN humain et des robots est
+désormais classée **solo** : la ranger parmi les villes tenues à plusieurs comparerait des choses qui
+n'ont rien à voir. Le mode étant recalculé à chaque écriture, elle redevient « publique » à la seconde
+où un deuxième humain embarque. Un test existant affirmait l'inverse — il datait de l'époque où une
+partie publique ne POUVAIT PAS avoir de bots ; il a été réécrit avec sa raison.
+
+**Côté client**, le serveur donne l'heure (`escortAt`, champ DÉRIVÉ posé par `ClientView`) et l'écran
+d'attente affiche « 🤖 Départ dans 1:12 avec une escorte si personne d'autre n'arrive ». Le client ne
+recopie pas le délai : il le lirait de travers le jour où il changerait.
+
+**Vérifié.** `go test ./...` tout vert (dont `escort_test.go` et ses trois bornes) · `tsc`, `build`,
+`test:endgame` 8/8, `test:reconnect` 8/8 · et surtout **en conditions réelles sur un serveur neuf** :
+un joueur seul rejoint, l'écran annonce le départ, et l'expédition part **91 secondes** plus tard avec
+« Odile » en escorte, six héros, encore rejoignable par d'autres. ⚠ mon premier essai « réussi » n'en
+était pas un : l'ancien serveur tournait encore et le salon contenait déjà un joueur — le départ
+observé était le départ ORDINAIRE à deux joueurs, pas l'escorte.
+
+---
+
 ## 2026-08-12 (117) — Les chiffres : rétention J1/J3/J7 (R3)
 
 `RETENTION-PLAN.md` le dit depuis sa première ligne : **« tant que la rétention J3/J7 n'est pas

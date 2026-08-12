@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useStore } from "../store";
 import { Logo } from "../components/Logo";
 import { LOBBY_SIZES } from "../data/buildings";
+import { useCountdown, formatHMS } from "../useWave";
 
 // Multiplayer entry: create a game, join one by code (or from the open-lobby list),
 // then wait in the salon until enough players have joined and the host launches.
@@ -232,6 +233,7 @@ function WaitingRoom() {
   const isPublic = game.visibility === "public";
   const isHost = !!me?.host && !isPublic; // public games have no host powers
   const enough = game.players.length >= game.minPlayers;
+  const escortIn = useCountdown(game.escortAt);
 
   const copyCode = async () => {
     try {
@@ -312,6 +314,17 @@ function WaitingRoom() {
             ? `Prêt à partir ✓ · ${game.players.length}/${game.minPlayers} minimum atteint`
             : `En attente de joueurs : ${game.players.length}/${game.minPlayers} minimum`}
         </div>
+        {/* L'ESCORTE DE DÉPART (backend lobby.go) : une expédition publique ne fait
+            jamais attendre indéfiniment. Le serveur donne l'heure du départ (`escortAt`,
+            champ DÉRIVÉ) — le client ne recopie pas le délai, il le lirait de travers le
+            jour où il changerait. */}
+        {escortIn !== null && (
+          <div className="lobby-escort">
+            🤖 Départ dans <b>{formatHMS(escortIn)}</b> avec une escorte si personne
+            d'autre n'arrive — l'expédition restera ouverte, on peut vous rejoindre en
+            route.
+          </div>
+        )}
         <div className="lobby-hint">
           {game.players.length * 3} héros partiront à l'aventure (3 par joueur).
         </div>
