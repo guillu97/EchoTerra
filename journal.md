@@ -6,6 +6,46 @@
 
 ---
 
+## 2026-08-12 (117) — Les chiffres : rétention J1/J3/J7 (R3)
+
+`RETENTION-PLAN.md` le dit depuis sa première ligne : **« tant que la rétention J3/J7 n'est pas
+suivie, tout le reste est une opinion »**. Neuf propositions ont été livrées depuis, et aucune n'avait
+jamais été confrontée à une mesure. C'est réparé.
+
+**La donnée est minimale** (`store/activity.go`) : une ligne par **(compte, partie, jour civil UTC)**
+avec un compteur d'actions. Rien d'autre — ni IP, ni agent, ni détail d'action.
+
+**Quatre cadrages, tous délibérés.**
+- ⚠ **Sur les requêtes POST seulement.** Un GET est un rafraîchissement, et le client en produit tout
+  seul toutes les vingt secondes : les compter ferait passer une page laissée ouverte pour un joueur
+  qui joue. (Testé dans les deux sens.)
+- ⚠ **Rien sur les anonymes.** La rétention se mesure sur des COMPTES : un joueur sans compte n'a pas
+  d'identité qui traverse les parties, donc « est-il revenu ? » n'a pas de réponse le concernant. Le
+  chiffre sous-estime donc l'activité réelle — et il le dit lui-même dans son champ `scope`. Mieux
+  vaut un chiffre dont on connaît le biais qu'un chiffre qu'on croit total.
+- ⚠ **L'agrégation se fait en Go, pas en SQL.** L'arithmétique de dates ne s'écrit pas pareil en
+  SQLite et en Postgres, les deux moteurs que ce store sert. `computeMetrics` est PURE (elle prend
+  `today` en paramètre) : c'est ce qui la rend testable, exactement la raison qui avait fait
+  introduire `GameState.clock()` côté jeu.
+- ⚠ **Le drapeau `mature`.** Une cohorte d'hier ne peut pas avoir de J7 ; la compter afficherait 0 %
+  et tirerait la moyenne vers le bas — le zéro d'une chose qui n'a pas encore eu lieu, et le pire
+  genre d'erreur puisqu'il décourage. Les moyennes ne portent que sur les cohortes mûres.
+
+**La porte** : `GET /api/metrics` est fermé par le jeton du battement (`ECHOTERRA_TICK_TOKEN`), 503
+sans jeton en déploiement, 401 si mauvais. Des agrégats d'audience ne sont pas un contenu de jeu.
+
+**Vérifié.** `go test ./...` tout vert, dont un test de bout en bout qui inscrit un compte, joue une
+vraie action par la vraie route et va LIRE la base (une ligne, le bon compte, la bonne partie) puis
+vérifie qu'un GET n'ajoute rien. Et en conditions réelles, sur un serveur lancé avec un jeton : trois
+actions enregistrées, la cohorte du jour correctement marquée **non mûre**, donc `retained` vide au
+lieu d'un 0 % trompeur.
+
+**Ce qui reste, et c'est le vrai travail** : LIRE ce chiffre dans quelques semaines. Il dira si les
+neuf propositions livrées servent à quelque chose — et R4 (le délai avant la première partie) ne doit
+être traité qu'une fois qu'on saura, par lui, s'il coûte réellement des joueurs.
+
+---
+
 ## 2026-08-12 (116) — Les armes d'un thème, et P9 est complet
 
 Dernier morceau du lot 3 : une arme par expédition, avec une règle qui vaut d'être écrite en toutes

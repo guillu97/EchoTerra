@@ -163,6 +163,8 @@ backend/
   internal/balance/balance.go   SIMULATION DE PARTIE headless (Run/Report/Table) — l'instrument
                                 d'équilibrage ; balance_test.go = garde-fou SurvivalFloor
   cmd/balance/main.go           CLI d'exploration : tables vague par vague, balayage 1→6 joueurs
+  internal/store/activity.go    L'ACTIVITÉ: une ligne par (compte, partie, JOUR) — la donnée d'où
+                                sortent les chiffres de rétention (voir api/metrics.go)
   internal/store/store.go       SQLite OU Postgres (DSN postgres://): one row per game, state as JSON blob
                                 + table leaderboard (ScoreEntry, saveScore/Leaderboard — voir §5)
   internal/store/users.go       comptes (email unique, bcrypt ou Google) + sessions (token TTL 30j)
@@ -392,6 +394,22 @@ pas de chronique publique — exposer celle des autres transformerait un souveni
 PA, de défense ni d'objet — un vétéran et un débutant rejoignent une ville strictement égaux, et
 c'est cette égalité qui fait tenir une survie de groupe. Tests : `store/chronicle_test.go`
 (dont la survie à la purge), `api/chronicle_test.go` (dont `TestATitleCarriesNoPower`).
+
+**LES CHIFFRES — rétention J1/J3/J7** (`store/activity.go` + `api/metrics.go`, 2026-08-12) — R3 de
+`RETENTION-PLAN.md` : « tant que la rétention J3/J7 n'est pas suivie, tout le reste est une opinion ».
+Neuf propositions avaient été livrées sans qu'aucune soit confrontée à une mesure. La donnée est
+MINIMALE : une ligne par **(compte, partie, jour civil UTC)** avec un compteur, écrite par un
+middleware sur les seules requêtes **POST** d'une partie — ⚠ pas sur les GET, sinon le sondage de 20 s
+du client ferait passer une page laissée ouverte pour un joueur actif. ⚠ **rien sur les anonymes** :
+la rétention se mesure sur des COMPTES (un joueur sans compte n'a pas d'identité qui traverse les
+parties), donc le chiffre sous-estime l'activité réelle et le dit lui-même dans son champ `scope`.
+⚠ **l'agrégation se fait en GO**, pas en SQL : l'arithmétique de dates ne s'écrit pas pareil en SQLite
+et en Postgres, les deux moteurs que ce store sert. `computeMetrics` est PURE (elle prend `today` en
+paramètre) — c'est ce qui la rend testable, même raison que `GameState.clock()`. ⚠ une cohorte porte
+un drapeau **`mature`** par échéance : sans lui, une cohorte d'hier afficherait 0 % à J7 et tirerait
+la moyenne vers le bas — le zéro d'une chose qui n'a pas encore eu lieu. « Revenu » veut dire au moins
+une fois **entre J+1 et J+k**, pas pile ce jour-là. Tests : `store/activity_test.go`,
+`api/metrics_test.go` (dont un test de bout en bout qui joue une vraie action et va lire la base).
 
 **Comptes utilisateur** (`store/users.go`, `api/auth.go`, `api/google.go`, `AccountScreen.tsx`,
 `googleAuth.ts`) — email+mot de passe (bcrypt, gratuit) **et Google Sign-In**, sessions Bearer 30 j,
@@ -1039,6 +1057,9 @@ POST /api/games/{id}/heroes/{h}/evolve            {classId} -> GameState (applie
 GET  /api/classes                                 [] ClassDef catalog (tier 1+2 classes)
 GET  /api/mapskills                               [] MapSkillDef (compétences de carte par classe)
 GET  /api/themes                                  [] ThemeDef — les NATURES d'expédition (theme.go)
+GET  /api/metrics                                 RÉTENTION J1/J3/J7 par cohorte (metrics.go) — FERMÉ
+                                                 par le jeton du battement (503 sans jeton en
+                                                 déploiement, 401 si mauvais)
 POST /api/games/{id}/heroes/{h}/combat/start
 GET  /api/games/{id}/combat/{c}
 POST /api/games/{id}/combat/{c}/action            {unitId, action: move|attack|skill|defend|push|flee|item|swap|end,

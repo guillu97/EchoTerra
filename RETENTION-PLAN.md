@@ -312,7 +312,15 @@ héros sans joueurs**. Au moment exact de la ré-engagement, le jeu éjecte le j
 multijoueur. C'est le trou le plus bête de la liste et le plus coûteux : c'est le seul instant où l'on
 sait avec certitude que le joueur est là et qu'il vient de finir quelque chose.
 
-### R3 — Toujours aucune instrumentation
+### R3 — Toujours aucune instrumentation — ✅ **LIVRÉ** (2026-08-12)
+
+> `store/activity.go` : une ligne par (compte, partie, jour UTC), écrite par un middleware
+> sur les seules requêtes POST d'une partie · `api/metrics.go` : `GET /api/metrics`
+> (fermé par le jeton du battement) rend les actifs par jour et la rétention J1/J3/J7 par
+> cohorte, avec un drapeau `mature` pour ne pas compter comme perdue une cohorte trop
+> jeune. ⚠ mesure les COMPTES : les parties anonymes n'y figurent pas, et la réponse le
+> dit. Tests : `store/activity_test.go`, `api/metrics_test.go`.
+
 
 §5 le disait déjà : « tant que ces deux chiffres ne sont pas suivis, tout le reste est une opinion ».
 Il n'y a toujours ni table d'événements, ni compteur de sessions, ni la moindre trace de `analytics`
@@ -545,8 +553,9 @@ sphinx, harpies et araignées), puis — quand les deux premiers auront prouvé 
    carte de référence). Au passage, deux bugs que le sondage a mis au jour : **la neige n'existait
    dans AUCUNE partie** (le lissage plafonne le relief au niveau 5, la neige exigeait le niveau 6),
    donc la Tour gelée et le **Plan de la Caserne** qu'elle seule donne étaient inatteignables.
-3. **R3 — l'instrumentation.** Une table d'activité, puis J3/J7 par expédition. Sans elle, la suite
-   de ce document reste une opinion.
+3. ~~**R3 — l'instrumentation.**~~ ✅ **LIVRÉ le 2026-08-12.** `GET /api/metrics` rend les actifs par
+   jour et la rétention J1/J3/J7 par cohorte. Il reste à la LIRE : le premier chiffre réel dira si
+   les neuf propositions livrées servent à quelque chose.
 4. ~~**P9 lot 2 — la peau.**~~ ✅ **LIVRÉ le 2026-08-12** (palette de terrain et végétation par
    thème ; les sols de ville étant dans la même table, le tertre change d'air sans qu'on touche à un
    modèle de bâtiment). Reste le **lot 3** : les modèles propres à chaque thème (cactus, ossements,

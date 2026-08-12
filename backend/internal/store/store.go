@@ -87,6 +87,9 @@ func Open(dsn string) (*Store, error) {
 	if err := s.migrateChronicle(); err != nil {
 		return nil, err
 	}
+	if err := s.migrateActivity(); err != nil {
+		return nil, err
+	}
 	if err := s.migrateGameColumns(); err != nil {
 		return nil, err
 	}

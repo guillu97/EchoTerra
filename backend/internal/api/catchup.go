@@ -33,12 +33,12 @@ import (
 // tout ce dont le client a besoin, c'est de savoir s'il doit redemander, et de quoi
 // tenir son compteur en attendant l'état complet.
 type catchUpResult struct {
-	Done       bool   `json:"done"`               // plus rien à rattraper
-	Waves      int    `json:"waves"`              // vagues rejouées PAR CET APPEL
-	Skipped    int    `json:"skipped,omitempty"`  // vagues sautées (plafond de retard)
-	WaveNumber int    `json:"waveNumber"`         // là où en est la ville
-	TownHP     int    `json:"townHp"`             // ses PV, pour suivre la casse
-	Status     string `json:"status"`             // "active" | "gameover"
+	Done       bool   `json:"done"`              // plus rien à rattraper
+	Waves      int    `json:"waves"`             // vagues rejouées PAR CET APPEL
+	Skipped    int    `json:"skipped,omitempty"` // vagues sautées (plafond de retard)
+	WaveNumber int    `json:"waveNumber"`        // là où en est la ville
+	TownHP     int    `json:"townHp"`            // ses PV, pour suivre la casse
+	Status     string `json:"status"`            // "active" | "gameover"
 	NextWaveAt string `json:"nextWaveAt,omitzero"`
 }
 

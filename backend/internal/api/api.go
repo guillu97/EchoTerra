@@ -195,6 +195,11 @@ func (s *Server) Router() http.Handler {
 		writeJSON(w, http.StatusOK, game.Themes)
 	})
 
+	// LES CHIFFRES (metrics.go) : rétention J1/J3/J7 par cohorte. Fermé par le jeton du
+	// battement — des agrégats d'audience sont une information d'exploitation, pas un
+	// contenu de jeu.
+	r.Get("/api/metrics", s.metricsHandler)
+
 	// Classement des villes. ?mode=solo|public|private restreint à un type de partie
 	// (les trois ne se comparent pas) ; sans mode, tout est classé ensemble.
 	//
@@ -280,6 +285,10 @@ func (s *Server) Router() http.Handler {
 		r.Post("/join", s.joinByCode)
 		r.Route("/{gameID}", func(r chi.Router) {
 			r.Use(s.gameLockMiddleware)
+			// R3 : qui a joué, à quelle expédition, quel jour (metrics.go). Le seul
+			// fait mesuré du jeu, et sans lui tout le plan de rétention reste une
+			// opinion.
+			r.Use(s.recordActivity)
 			r.Get("/", s.getGame)
 			r.Post("/join", s.joinGame)
 			r.Post("/start", s.startGame)
