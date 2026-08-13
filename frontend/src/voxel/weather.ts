@@ -59,6 +59,12 @@ export type WeatherOpts = {
   groundAt?: (x: number, z: number) => number;
   /** un vire-vent ne roule pas sur l'eau */
   passable?: (x: number, z: number) => boolean;
+  /** Les vire-vents ont-ils leur place ici ? Faux pour la vue VILLE : le tertre
+   *  est couvert de bâtiments, de clôtures et de mobilier, et rien ne dit à une
+   *  boule qui roule de les contourner — elle les TRAVERSAIT. Le décor de la ville
+   *  est trop dense pour un objet libre, et lui inventer une carte d'obstacles
+   *  coûterait plus que ce que l'effet rapporte à cette échelle. */
+  tumbleweeds?: boolean;
   /** ce que la caméra regarde : centre visé (monde) + taille de la vue (px) et
    *  échelle (px par unité monde). La colonne de neige s'en sert pour SUIVRE le
    *  regard et pour tenir une densité à l'écran constante. */
@@ -349,7 +355,7 @@ export function makeWeather(theme: string | undefined, lib: BlockLibrary, o: Wea
       },
       dispose: () => { deck.dispose(); sky.clear(); },
     });
-  } else if (theme === "desertique") {
+  } else if (theme === "desertique" && o.tumbleweeds !== false) {
     const tw = makeTumbleweeds(lib, o);
     if (tw) parts.push(tw);
   }
@@ -365,9 +371,12 @@ export function makeWeather(theme: string | undefined, lib: BlockLibrary, o: Wea
 
 /** Les modèles dont la météo de CE thème a besoin — vide en tempéré (règle 3 :
  *  une expédition sans météo ne télécharge pas un octet de plus). */
-export function weatherPropKeys(theme: string | undefined): string[] {
+export function weatherPropKeys(theme: string | undefined, opts: { tumbleweeds?: boolean } = {}): string[] {
   if (theme === "nordique") return ["cloud"];
-  if (theme === "desertique") return ["tumbleweed"];
+  // ⚠ MÊME CONDITION QUE `makeWeather` : une vue qui ne veut pas de vire-vents ne
+  // doit pas non plus en télécharger le modèle (règle 3). Le paramètre est là pour
+  // que les deux ne puissent pas diverger.
+  if (theme === "desertique" && opts.tumbleweeds !== false) return ["tumbleweed"];
   return [];
 }
 

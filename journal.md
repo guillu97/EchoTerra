@@ -61,6 +61,21 @@ modèle, la plus grosse échelle du désert, et l'inscription dans la liste des 
 qu'une : le cactus quitte `TREE_IDS` (ce boost sert à faire dominer les ARBRES) et son échelle
 redescend d'un cran → **0,97 tuile**, sous le palmier (1,16). Vérifié en tuiles, pas à l'œil.
 
+**Retour de jeu, deux corrections** (même jour) :
+- **Les vire-vents traversaient les bâtiments de la ville.** Retirés de la vue Ville
+  (`WeatherOpts.tumbleweeds:false`, honoré aussi par `weatherPropKeys` pour ne pas télécharger le
+  modèle) : rien ne dit à une boule qui roule librement de contourner un bâtiment, le tertre est trop
+  dense, et lui donner une carte d'obstacles coûterait plus que l'effet ne rapporte à cette échelle.
+  La ville garde la neige, qui tombe sur tout sans rien traverser.
+- **Sur la carte, ils ne roulaient qu'autour de la ville.** Encore une CAPTURE : le test de
+  praticabilité lisait le `game` capturé à la construction de la couche, or le store REMPLACE cet
+  objet à chaque rafraîchissement — la carte de découverte restait donc figée à celle du lancement,
+  pour toute la partie. Il lit maintenant `this.game`. Mesuré sur un coin exploré loin du bourg :
+  **0,00 vire-vent à l'écran avant, 9,05 après**. ⚠ le garde-fou explore POUR DE VRAI (`revealFog`,
+  côté serveur) : marquer `discovered` dans l'objet client ne suffit pas, le fog caviarde le biome
+  des cases inconnues à 0 (= eau), donc une case révélée à la main reste un lac aux yeux du
+  vire-vent et le test mesurerait sa propre bidouille.
+
 **À faire.** Rien de bloquant. Si un quatrième thème arrive, sa météo est une entrée de plus dans
 `makeWeather` et `weatherPropKeys` — et il faudra la MESURER, pas la relire.
 

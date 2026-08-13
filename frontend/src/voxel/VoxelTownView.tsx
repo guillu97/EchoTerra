@@ -287,6 +287,12 @@ export function VoxelTownView({
           span: layout.size + 10,
           seed: 4242,
           groundAt: (x, z) => smooth.heightAt(x, z),
+          // ⚠ PAS DE VIRE-VENTS SUR LE TERTRE : ils traversaient les bâtiments, les
+          // clôtures et le mobilier de rue. Le décor de la ville est trop dense pour
+          // un objet qui roule librement, et lui donner une carte d'obstacles
+          // coûterait plus que ce que l'effet rapporte à cette échelle. La ville
+          // garde la neige, qui tombe sur tout sans rien traverser.
+          tumbleweeds: false,
           view: () => ({ x: engine.target.x, z: engine.target.z, w: engine.viewWidth, h: engine.viewHeight, ppu: engine.zoom }),
         }),
       );
@@ -298,7 +304,7 @@ export function VoxelTownView({
              "bld-infirmerie", "bld-cartographe", "bld-armurerie", "bld-caserne", "bld-verger",
              "bld-gate-door-l", "bld-gate-door-r", "cloud", ...TOWN_DECOR_PROPS,
              // …plus ce que CE thème ajoute (rien en tempéré : aucun octet de plus).
-             ...themedKeysFor(game?.themeId), ...weatherPropKeys(game?.themeId)])
+             ...themedKeysFor(game?.themeId), ...weatherPropKeys(game?.themeId, { tumbleweeds: false })])
       .then(() => {
         drawBuildings();
         // nuages au-dessus de la ville : plus hauts, plus lents que la carte
@@ -481,7 +487,7 @@ export function VoxelTownView({
       if (s.game !== prev.game) { drawHeroes(); drawBuildings(); }
     });
 
-    if (import.meta.env.DEV) (window as unknown as { __vt?: unknown }).__vt = { engine };
+    if (import.meta.env.DEV) (window as unknown as { __vt?: unknown }).__vt = { engine, weather };
     return () => {
       unsub();
       unsubBeauty();

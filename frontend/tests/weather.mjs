@@ -168,6 +168,49 @@ check("désertique : on en voit vraiment (terrain connu)", tw.moy >= 1, `${tw.mo
 check("désertique : ils ROULENT (rotation qui change)", tw.pairs > 20 && tw.rolled >= tw.pairs * 0.9, `${tw.rolled}/${tw.pairs} pas où le vire-vent était visible`);
 check("désertique : pas de neige", l.flakes === 0, `${l.flakes} flocons`);
 
+// ⚠ LES CASES DÉCOUVERTES PLUS TARD COMPTENT AUSSI. La couche est construite UNE
+// fois par partie ; si son test de praticabilité capture l'objet `game` de ce
+// moment-là, il gèle la carte de découverte telle qu'elle était AU LANCEMENT — la
+// ville et ses abords — et plus aucun vire-vent ne roulera jamais ailleurs, quoi
+// que le joueur explore. Rapporté en jeu, et c'est exactement ce que ce check
+// rejoue : on révèle un coin ÉLOIGNÉ, on y pose la caméra, on compte.
+await page.evaluate(async () => {
+  // ⚠ ON EXPLORE POUR DE VRAI (triche de dev `revealFog`, côté SERVEUR). Marquer
+  // `discovered` dans l'objet client ne suffit pas : le fog serveur CAVIARDE le
+  // biome des cases inconnues à 0 (= eau), donc une case « révélée » à la main
+  // reste un lac aux yeux du vire-vent, et le test mesurerait sa propre bidouille.
+  await window.__eg.store.getState().revealFog(true);
+  window.__eg.bus.emit(window.__eg.EV.MapSceneReady);
+});
+await wait(2500);
+const explored = await page.evaluate(() => {
+  const w = window.__vm.world;
+  const g = window.__eg.store.getState().game;
+  // un carré de terre LOIN de la ville — le vire-vent doit y rouler comme ailleurs
+  const far = (a, size) => (a > size / 2 ? 7 : size - 8);
+  const cx = far(g.town.x, g.width), cz = far(g.town.y, g.height);
+  let land = 0;
+  for (let y = cz - 6; y <= cz + 6; y++)
+    for (let x = cx - 6; x <= cx + 6; x++) {
+      const t = g.tiles[y * g.width + x];
+      if (t?.discovered && t.biome !== 0) land++;
+    }
+  w.engine.target.set(cx, w.engine.target.y, cz);
+  const cur = w.weather.current;
+  const pivots = [];
+  cur.group.traverse((o) => {
+    if (o.isMesh && o.parent?.type === "Group" && o.parent.children.length === 1) pivots.push(o.parent);
+  });
+  let seen = 0, samples = 0;
+  for (let s = 0; s < 40; s += 0.5) { cur.setTime(s); seen += pivots.filter((p) => p.visible).length; samples++; }
+  return { land, moy: seen / samples, town: [g.town.x, g.town.y], at: [cx, cz] };
+});
+check(
+  "désertique : ils roulent AUSSI sur les cases explorées ensuite",
+  explored.land > 40 && explored.moy >= 1,
+  `${explored.moy.toFixed(2)} à l'écran en (${explored.at}) — loin de la ville (${explored.town}), ${explored.land} cases de terre`,
+);
+
 // ── LA MÉTÉO N'INTERCEPTE JAMAIS UN TAP ──────────────────────────────────────
 // `engine.pick` raycaste la scène ENTIÈRE : un nuage au-dessus de la tête, ou un
 // nuage de points avec son seuil de raycast par défaut, volerait les taps de la
@@ -236,6 +279,27 @@ const townSnow = await page.evaluate(() => {
   return flakes;
 });
 check("il neige aussi sur la ville nordique", townSnow > 0, `${townSnow} flocons dans la scène de ville`);
+
+// ⚠ AUCUN VIRE-VENT SUR LE TERTRE : rien ne dit à une boule qui roule librement de
+// contourner un bâtiment, et elle les TRAVERSAIT. La ville garde la neige, qui
+// tombe sur tout sans rien traverser.
+await page.evaluate(() => window.__eg.store.setState({ tab: "map" }));
+await openMap(SEEDS.desertique);
+await page.evaluate(() => window.__eg.store.setState({ tab: "home" }));
+await wait(5000);
+const townTw = await page.evaluate(() => {
+  // Sur un thème désertique privé de vire-vents, la ville n'a plus AUCUNE météo :
+  // la couche entière doit être nulle, pas seulement vide.
+  const cur = window.__vt.weather.current;
+  let rolling = 0;
+  cur?.group.traverse((o) => { if (o.isMesh) rolling++; });
+  return { built: !!cur, rolling };
+});
+check(
+  "aucun vire-vent dans la ville (ils traversaient les bâtiments)",
+  !townTw.built && townTw.rolling === 0,
+  `couche ${townTw.built}, ${townTw.rolling} objets roulants`,
+);
 
 await browser.close();
 const ok = results.filter((r) => r.ok).length;

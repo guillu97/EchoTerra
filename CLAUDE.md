@@ -771,7 +771,16 @@ qu'un PRÉFIXE du nuage de points (`setDrawRange`, les positions venant d'un hac
 uniforme) ; (3) les vire-vents en voies larges : ils ne roulent que sur une case DÉCOUVERTE (jamais sur
 l'eau ni sur la nappe de brume — essayé, ça se lit comme un objet en lévitation), or on ne connaît
 qu'une cinquantaine de cases sur 1600 en début de partie → **0,00 vire-vent à l'écran en moyenne** ;
-couloir resserré à la mesure de la vue → 2,1. ⚠ **le ciel SUIT LA CAMÉRA (parallaxe 1)** : la
+couloir resserré à la mesure de la vue → 2,1. ⚠⚠ **le test de praticabilité lit `this.game`, JAMAIS une
+capture** : la couche est bâtie UNE fois par partie (sa clé la protège des redessins) alors que le
+store REMPLACE l'objet `game` à chaque rafraîchissement — capturé, il gèle la carte de découverte telle
+qu'elle était au lancement, si bien qu'aucun vire-vent ne roulait jamais ailleurs qu'autour de la ville,
+quoi qu'on explore (rapporté en jeu ; mesuré 0,00 sur un coin exploré, 9,05 après correction). ⚠ **pas de
+vire-vents dans la vue VILLE** (`WeatherOpts.tumbleweeds:false`, honoré aussi par `weatherPropKeys`
+pour ne pas télécharger le modèle) : rien ne dit à une boule qui roule librement de contourner un
+bâtiment, et elle les TRAVERSAIT — le tertre est trop dense pour un objet libre, et lui donner une
+carte d'obstacles coûterait plus que ce que l'effet rapporte à cette échelle ; la ville garde la neige,
+qui tombe sur tout sans rien traverser. ⚠ **le ciel SUIT LA CAMÉRA (parallaxe 1)** : la
 projection étant dimétrique à 30°, un nuage à 15 unités d'altitude se projette ~26 unités plus haut à
 l'écran, très au-dessus d'une vue qui n'en couvre qu'une vingtaine. ⚠ **un flocon blanc sur un ciel
 blanc est invisible** (la moitié d'une carte est de la brume presque blanche) — d'où le flocon à deux

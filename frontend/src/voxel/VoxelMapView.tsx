@@ -291,8 +291,17 @@ class MapWorld {
         seed: strSeed(game.id),
         groundAt: (x, z) => this.smooth.heightAt(x, z),
         // Un vire-vent ne roule ni hors carte, ni sur l'eau, ni sur le brouillard.
+        //
+        // ⚠ ON LIT `this.game`, PAS le `game` capturé. La couche est construite UNE
+        // fois par partie (sa clé la protège des redessins), or le store remplace
+        // l'objet `game` à chaque rafraîchissement : une capture gèle donc la carte
+        // de découverte telle qu'elle était AU LANCEMENT — c'est-à-dire la ville et
+        // ses abords, et rien d'autre pour toute la partie. Les cases explorées
+        // ensuite n'auraient jamais vu passer un seul vire-vent.
         passable: (x, z) => {
-          const t = this.tileAtWorld(game, x, z);
+          const g = this.game;
+          if (!g) return false;
+          const t = this.tileAtWorld(g, x, z);
           return !!t?.discovered && t.biome !== 0;
         },
         view: () => ({
