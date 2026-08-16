@@ -96,6 +96,20 @@ plus larges. Nouvelle suite `npm run test:inventory` : elle demande au NAVIGATEU
 de sa boîte (`scrollWidth` contre `clientWidth`), sur le viewport le plus serré du parc (390 px) et
 avec les noms les plus longs du catalogue — 4 tronqués sur le CSS d'avant, 0 après.
 
+**Cinquième retour — la fiche d'objet** (`components/ItemSheet.tsx`). Demande de Guillaume : des
+infos sur les objets, un bouton pour utiliser un consommable (les rations d'eau pour récupérer des
+PA), un bouton pour équiper une arme ou une armure. L'inventaire était une VITRINE : icône, nom,
+quantité — alors que le serveur SAIT tout (`GET /api/items`, `GET /api/equipment`) et ne le disait
+nulle part ; et un tap consommait l'objet **sans rien dire**. Taper un objet ouvre désormais une
+feuille : ce que c'est, ce que ça fait (+6 PA, retire Fatigue/Soif ; +3 force au combat…), puis les
+deux seules actions du jeu. ⚠ **elle n'offre jamais un bouton qui échouera** — `itemWouldHelp` est le
+miroir de la fonction serveur (héros déjà au mieux ⇒ bouton éteint AVEC la raison), « Utiliser » sur
+la Banque exige un héros dans les murs (la « cantine »), « Équiper » n'existe pas depuis la Banque
+(le serveur prend l'objet dans le sac du héros). Un objet sans action ouvre quand même sa fiche et
+explique à quoi il sert. Vérifié à trois niveaux dans `test:inventory` : ce que la fiche AFFICHE,
+l'ORDRE réellement envoyé (requête interceptée), et pour le seul chemin jouable de bout en bout — la
+ration puisée au puits — l'effet mesuré sur l'ÉTAT SERVEUR (PA 5 → 6, ration consommée).
+
 **À faire.** Rien de bloquant. Si un quatrième thème arrive, sa météo est une entrée de plus dans
 `makeWeather` et `weatherPropKeys` — et il faudra la MESURER, pas la relire.
 

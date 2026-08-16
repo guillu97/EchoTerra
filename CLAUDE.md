@@ -88,8 +88,9 @@ mêmes prérequis) ·
 `npm run test:weather` (in frontend — **la météo des thèmes** : neige + pont de nuages au nord portés
 par le MÊME vent, vire-vents qui roulent VRAIMENT à l'écran au sud, rien du tout en tempéré, et
 « Aucun » qui SUPPRIME la couche au lieu de la figer; mêmes prérequis) ·
-`npm run test:inventory` (in frontend — **la lisibilité de l'inventaire** : aucun nom d'objet tronqué
-sur un écran de 390 px, mesuré sur les noms les plus longs du jeu; mêmes prérequis).
+`npm run test:inventory` (in frontend — **l'inventaire** : aucun nom d'objet tronqué sur un écran de
+390 px, et la FICHE d'objet — ce qu'il fait, « Utiliser », « Équiper », jusqu'à l'état serveur pour
+la ration puisée au puits; mêmes prérequis).
 
 **Déploiement Vercel (gratuit)** — voir `DEPLOY.md`. Preset **Services** (`vercel.json`) : service
 `frontend` (root `frontend/`, Vite, statique CDN) + service `backend` (root `backend/`, le preset Go
@@ -1214,7 +1215,16 @@ test `TestServerWrittenSentencesUseFrenchBuildingNames`).
 - **Character screen** (`HeroOverlay`, from the avatar): Skill view only (class, attributes + bonuses, unique
   skills, Evolve, ◀▶ roster cycle). **No inventory tab / no Stock link** (user decision).
 - **Stock**: MY team's personal bags only (always) + the **Bank** section (only when ≥1 of MY heroes in town)
-  + "deposit loot" (server deposits my team's bags only).
+  + "deposit loot" (server deposits my team's bags only). **Taper un objet ouvre sa FICHE**
+  (`components/ItemSheet.tsx`, 2026-08-12) : ce que c'est, ce qu'il fait (`GET /api/items` +
+  `GET /api/equipment` — le jeu le savait et ne le disait NULLE PART), puis les deux seules actions du
+  jeu, « 🍽️ Utiliser » et « 🗡️/🧥 Équiper ». Avant, la grille était une vitrine et un tap CONSOMMAIT
+  l'objet sans rien dire. ⚠ **la fiche n'offre jamais un bouton qui échouera** : `Utiliser` prend dans
+  le sac — ou, en ville, dans la réserve commune (la « cantine » d'items.go), d'où un bouton actif sur
+  la Banque à condition qu'un héros soit dans les murs — et `itemWouldHelp` est le **MIROIR** de la
+  fonction serveur du même nom (héros déjà au mieux ⇒ bouton éteint, avec la raison écrite) ; `Équiper`
+  exige l'objet dans le sac DE CE HÉROS, donc jamais depuis la Banque. Un objet sans action (ressource,
+  plan) ouvre quand même sa fiche et EXPLIQUE à quoi il sert — c'est tout l'intérêt.
 - **Structure**: vue par défaut **groupée par état** (tri « Statut ») : **🏗️ Chantiers en cours**
   (constructions ET améliorations — barre `paInvested/cost.pa`, bouton « +N PA », « ⏸ matériaux
   manquants » si la Banque ne couvre pas la liste), **📐 Plans à poser** (sites, bouton « Poser le

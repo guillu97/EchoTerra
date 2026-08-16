@@ -4339,6 +4339,113 @@ body {
   background: rgba(217, 164, 65, 0.16);
 }
 
+/* ── FICHE D'UN OBJET (components/ItemSheet.tsx) ─────────────────────────────
+   Une feuille du bas : ce que l'objet est, ce qu'il fait, et les deux seules
+   actions du jeu — le consommer, le porter. Elle remplace le survol, qui
+   n'existe pas sur un téléphone. */
+.item-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+.isheet-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+.isheet-ic {
+  width: 56px;
+  height: 56px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  font-size: 30px;
+  background: linear-gradient(180deg, #f6ecd6, #ece0c2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+}
+.isheet-ic img {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.3));
+}
+.isheet-id {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.isheet-id b {
+  font-size: var(--t-lg);
+  /* le nom complet, sur autant de lignes qu'il faut (cf. .item-name) */
+  overflow-wrap: anywhere;
+}
+.isheet-id .muted {
+  font-size: var(--t-xs);
+}
+.isheet-block {
+  background: rgba(255, 250, 236, 0.7);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: var(--s-3);
+}
+.isheet-block h5 {
+  margin: 0 0 var(--s-2);
+  font-size: var(--t-sm);
+}
+.isheet-block p {
+  margin: var(--s-2) 0 0;
+  font-size: var(--t-sm);
+  line-height: var(--lh-normal);
+}
+.isheet-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+.isheet-tags span {
+  background: rgba(217, 164, 65, 0.18);
+  border: 1px solid rgba(217, 164, 65, 0.45);
+  border-radius: var(--r-pill);
+  padding: 2px var(--s-2);
+  font-size: var(--t-xs);
+  font-weight: 700;
+}
+.isheet-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+.isheet-actions button {
+  flex: 1 1 auto;
+  min-height: var(--tap);
+}
+/* ⚠ les classes utilitaires `.green`/`.gold` n'existent PAS globalement (elles ne
+   sont définies que dans quelques contextes) : les couleurs sont posées ici, sinon
+   les deux actions sortent en beige et rien ne distingue « consommer » de
+   « porter ». */
+.isheet-actions .isheet-use {
+  background: linear-gradient(180deg, #9ccf6b, var(--green-2));
+  color: #14310a;
+  border: none;
+  font-weight: 800;
+}
+.isheet-actions .isheet-equip {
+  background: linear-gradient(180deg, #e9c069, var(--gold));
+  color: #4a3410;
+  border: none;
+  font-weight: 800;
+}
+.isheet-actions button:disabled {
+  filter: grayscale(0.7);
+  opacity: 0.6;
+}
+.isheet-why {
+  margin: 0;
+}
+
 /* ── Emplacements d'équipement (fiche de héros) ──────────────────────────────
    Deux emplacements : une arme, un équipement. Les bonus ne jouent qu'AU COMBAT. */
 .gear-slots {

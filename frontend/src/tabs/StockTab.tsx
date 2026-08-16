@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useStore } from "../store";
-import { heroesInTown, myTeamHeroes } from "../townUtils";
+import { effectiveTownHeroId, heroesInTown, myTeamHeroes } from "../townUtils";
 import { ItemGrid } from "../components/ItemGrid";
+import { ItemSheet, itemWouldHelp } from "../components/ItemSheet";
 import type { Item } from "../api/types";
 
 const CATS = [
@@ -23,8 +24,13 @@ export function StockTab() {
   const deposit = useStore((s) => s.townDeposit);
   const busy = useStore((s) => s.busy);
   const useItem = useStore((s) => s.useItem);
+  const equipItem = useStore((s) => s.equipItem);
   const itemEffects = useStore((s) => s.itemEffects);
+  const equipment = useStore((s) => s.equipment);
   const [cat, setCat] = useState("all");
+  // La FICHE d'objet ouverte : d'où elle vient (le sac d'un héros, ou la Banque)
+  // détermine ce qu'on a le droit d'en faire — voir l'en-tête d'ItemSheet.
+  const [sheet, setSheet] = useState<{ item: Item; heroId?: string } | null>(null);
   if (!game) return null;
 
   const active = CATS.find((c) => c.id === cat)!;
@@ -57,14 +63,14 @@ export function StockTab() {
                 <span className={`tag-loc ${here ? "in" : "out"}`}>{here ? "en ville" : "en expédition"}</span>
                 <span className="right muted">{carriedH} obj.</span>
               </div>
-              {/* Les consommables sont CLIQUABLES : nourriture et potions se prennent
-                  depuis le sac (backend game/items.go). Avant, la grille n'était qu'une
-                  vitrine — les vingt-six recettes du jeu produisaient des plats que
-                  personne ne pouvait avaler. */}
+              {/* Taper un objet ouvre sa FICHE (ItemSheet) : ce que c'est, ce qu'il
+                  fait, et les actions possibles. Auparavant un tap CONSOMMAIT l'objet
+                  sans rien dire, et rien n'indiquait à quoi il servait — or le survol
+                  n'existe pas sur un téléphone. */}
               <ItemGrid
                 items={filt(h.inventory)}
-                onUse={(it) => useItem(h.id, it.name)}
-                usable={(it) => !!itemEffects[it.name]}
+                onOpen={(it) => setSheet({ item: it, heroId: h.id })}
+                actionable={(it) => !!itemEffects[it.name] || !!equipment[it.name]}
               />
             </div>
           );
@@ -79,7 +85,11 @@ export function StockTab() {
             <button className="small green dep" disabled={busy || carried === 0} onClick={() => deposit()}>
               📦 Déposer le butin de mes héros en ville {carried > 0 ? `(${carried})` : ""}
             </button>
-            <ItemGrid items={filt(game.town.storage ?? [])} />
+            <ItemGrid
+              items={filt(game.town.storage ?? [])}
+              onOpen={(it) => setSheet({ item: it })}
+              actionable={(it) => !!itemEffects[it.name]}
+            />
           </div>
         ) : (
           <div className="stock-note">
@@ -87,6 +97,42 @@ export function StockTab() {
           </div>
         )}
       </div>
+
+      {sheet && (() => {
+        const owner = sheet.heroId ? myHeroes.find((h) => h.id === sheet.heroId) : undefined;
+        // Depuis la BANQUE, c'est l'ouvrier de la ville qui consomme sur place (la
+        // « cantine » de game/items.go) — il faut donc un héros dans les murs.
+        const townHeroId = effectiveTownHeroId(game, playerId, useStore.getState().townHeroId);
+        const actor = owner?.id ?? townHeroId;
+        const actorHero = actor ? myHeroes.find((h) => h.id === actor) : undefined;
+        const eff = itemEffects[sheet.item.name];
+        // Le serveur refuse un objet qui n'apporterait rien : on éteint le bouton
+        // plutôt que d'offrir une erreur, et on dit laquelle des deux raisons c'est.
+        const helps = !!eff && !!actorHero && itemWouldHelp(actorHero, eff);
+        return (
+          <ItemSheet
+            item={sheet.item}
+            effect={itemEffects[sheet.item.name]}
+            gear={equipment[sheet.item.name]}
+            ownerName={owner ? owner.name : "Banque"}
+            canUse={helps}
+            whyNoUse={
+              !actorHero
+                ? "Il faut un de tes héros dans la ville pour puiser dans la Banque."
+                : `${actorHero.name} est déjà au mieux : cela ne servirait à rien maintenant.`
+            }
+            canEquip={!!owner}
+            busy={busy}
+            onUse={() => { if (actor) void useItem(actor, sheet.item.name); setSheet(null); }}
+            onEquip={() => {
+              const def = equipment[sheet.item.name];
+              if (owner && def) void equipItem(owner.id, sheet.item.name, def.slot);
+              setSheet(null);
+            }}
+            onClose={() => setSheet(null)}
+          />
+        );
+      })()}
     </div>
   );
 }
