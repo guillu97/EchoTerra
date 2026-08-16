@@ -317,7 +317,8 @@ func (s *Server) Router() http.Handler {
 			r.Post("/town/action", s.townAction)
 			r.Post("/town/deposit", s.townDeposit)
 			r.Post("/town/craft", s.townCraft)
-			r.Post("/town/scout", s.townScout)     // monter à la Tour estimer la vague
+			r.Post("/town/scout", s.townScout)       // monter à la Tour estimer la vague
+			r.Post("/town/blessing", s.townBlessing) // voter au Temple pour un dieu
 			r.Post("/town/request", s.townRequest) // afficher / retirer un besoin
 			r.Post("/town/request/fill", s.townRequestFill)
 			r.Get("/town/chat", s.townChatList)
@@ -857,6 +858,35 @@ func (s *Server) townScout(w http.ResponseWriter, r *http.Request) {
 	}
 	s.persist(gs)
 	writeJSON(w, http.StatusOK, map[string]any{"forecast": f, "game": gs})
+}
+
+// townBlessing pose (ou retire) la voix d'un joueur au Temple : quel dieu la ville
+// appelle (mythic.go). Gratuit en PA — un vote est une décision, pas un travail — et
+// dépouillé à la vague suivante, ce qui laisse le temps du scrutin à une ville dont
+// chaque joueur passe cinq minutes par jour.
+//
+// ⚠ le vote appartient au JOUEUR, pas à un héros : c'est la seule action de ville qui
+// ne demande ni héros dans les murs ni point d'action. Un joueur en expédition a son mot
+// à dire sur le dieu qui protégera la ville où dorment ses camarades.
+func (s *Server) townBlessing(w http.ResponseWriter, r *http.Request) {
+	gs := s.mustGame(w, r)
+	if gs == nil {
+		return
+	}
+	var body struct {
+		PlayerID string `json:"playerId"`
+		GodID    string `json:"godId"` // vide = retirer sa voix
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeErr(w, http.StatusBadRequest, "corps invalide")
+		return
+	}
+	if err := gs.VoteBlessing(body.PlayerID, body.GodID); err != nil {
+		writeActionErr(w, err)
+		return
+	}
+	s.persist(gs)
+	writeJSON(w, http.StatusOK, gs)
 }
 
 // townRequest affiche un besoin au Panneau, ou retire le sien (`cancel`).

@@ -268,6 +268,29 @@ func (g *GameState) BuildOrders() []TownOrder {
 		}
 	}
 
+	// 1-quater. LE TEMPLE (mythic.go) : un scrutin qui peut aboutir doit se SAVOIR.
+	// Une bénédiction s'invoque à la vague suivante, donc l'ordre du jour est le seul
+	// endroit où l'on peut prévenir à temps — et personne n'ira ouvrir le Temple « au
+	// cas où » deux fois par jour.
+	if g.templeBuilding() != nil {
+		p := g.Pantheon()
+		votes := 0
+		for range g.Town.Votes {
+			votes++
+		}
+		switch {
+		case g.Town.Favor >= BlessingCost && len(g.Town.Blessings) < g.BlessingSlots() && votes == 0:
+			add("temple", p.Favor, fmt.Sprintf("%s %d de faveur : le %s peut appeler un dieu, mais personne n'a encore voté",
+				p.Favor, g.Town.Favor, p.Temple), false)
+		case g.Town.Favor >= BlessingCost && len(g.Town.Blessings) < g.BlessingSlots():
+			add("temple", p.Favor, fmt.Sprintf("%d voix au %s — le dieu élu répondra à la prochaine vague",
+				votes, p.Temple), false)
+		case len(g.Town.Blessings) < g.BlessingSlots():
+			add("temple", p.Favor, fmt.Sprintf("Faveur des dieux %d/%d — fabriquer des offrandes à l'Atelier rapproche la prochaine bénédiction",
+				g.Town.Favor, BlessingCost), false)
+		}
+	}
+
 	// 2. Le portail ouvert : la plus grosse fuite de défense du jeu, et la moins chère
 	// à colmater (1 PA).
 	if b := g.buildingByID("gate"); b != nil && b.Built && b.Open {

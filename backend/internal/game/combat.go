@@ -452,7 +452,10 @@ func NewCombat(gs *GameState, heroes []*Hero, monster *Monster, starterID string
 	// L'ARMURERIE (bâtiment de spécialité) : ce que la ville forge part au combat avec
 	// ses héros. C'est l'axe « frapper » — le seul bâtiment dont l'effet se voit hors des
 	// murs, et le pendant de la Caserne (qui, elle, ne sert qu'à l'intérieur).
-	forge := gs.armoryBonus()
+	// LA BÉNÉDICTION DE LA LAME (mythic.go) : le dieu de la guerre arme les bras. Comme
+	// l'Armurerie, elle est PRÊTÉE à l'unité et jamais greffée sur Hero.Stats — greffée,
+	// elle s'empilerait à chaque combat et survivrait à l'expiration de la faveur.
+	forge := gs.armoryBonus() + gs.blessingBladeBonus()
 	for i, h := range heroes {
 		// L'ÉQUIPEMENT PORTÉ (equipment.go) : prêté à l'unité, jamais greffé sur le héros.
 		gear, armor, reach, vsCursed, rangedStat := equipBonuses(h)

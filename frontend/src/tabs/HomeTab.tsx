@@ -32,6 +32,7 @@ function BuildingMenu({ layout, b, onClose }: { layout: BuildingLayout; b: TownB
   const toggleTownStatus = useStore((s) => s.toggleTownStatus);
   const toggleTownJournal = useStore((s) => s.toggleTownJournal);
   const toggleTownLedger = useStore((s) => s.toggleTownLedger);
+  const toggleTemple = useStore((s) => s.toggleTemple);
   const toggleChat = useStore((s) => s.toggleChat);
   const busy = useStore((s) => s.busy);
   const game = useStore((s) => s.game);
@@ -84,6 +85,15 @@ function BuildingMenu({ layout, b, onClose }: { layout: BuildingLayout; b: TownB
       ? { label: "📋 Journal", fn: () => { onClose(); toggleTownJournal(true); }, cost: 0 }
       : layout.id === "poste"
       ? { label: "✉️ Ouvrir la messagerie", fn: () => { onClose(); toggleChat(true); }, cost: 0 }
+      : layout.id === "temple"
+      ? {
+          // LE TEMPLE : le compteur de faveur et le scrutin. Gratuit — voter est une
+          // décision, pas un travail, et le faire payer en PA donnerait le dernier mot
+          // au joueur le plus riche.
+          label: `${game?.theme?.pantheon?.favor ?? "⚡"} Appeler un dieu (${game?.town.favor ?? 0}/${game?.town.favorGoal ?? 20})`,
+          fn: () => { onClose(); toggleTemple(true); },
+          cost: 0,
+        }
       : layout.id === "infirmerie"
       ? {
           // L'Infirmerie soigne le plus mal en point de MES héros présents (le serveur

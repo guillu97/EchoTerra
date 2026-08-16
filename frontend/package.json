@@ -16,7 +16,8 @@
     "test:weather": "node tests/weather.mjs",
     "test:inventory": "node tests/inventory.mjs",
     "test:wave-chip": "node tests/wave-chip.mjs",
-    "test:structures": "node tests/structures.mjs"
+    "test:structures": "node tests/structures.mjs",
+    "test:mythic": "node tests/mythic.mjs"
   },
   "dependencies": {
     "react": "^18.3.1",

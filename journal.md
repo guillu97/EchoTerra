@@ -6,6 +6,112 @@
 
 ---
 
+## 2026-08-16 (122) — La faveur des dieux : offrandes, Temple, bénédictions votées
+
+Demande de Guillaume : « un aspect mythique — les objets de déco donnent des faveurs aux dieux au lieu
+du moral (compteur d'éclairs à la Age of Mythology), avec assez d'éclairs on choisit des bénédictions
+(Odin/Loki/Thor au nord, trois dieux égyptiens au désert), plus un bâtiment TEMPLE spécifique au biome
+où l'on VOTE pour la faveur, appliquée dès la vague d'après. Le biome de base doit être grec. »
+
+**Ce qui manquait, et pourquoi ça tombait juste.** La catégorie « déco » du craft annonçait « moral de
+la ville » depuis le premier jour du catalogue. Le moral n'existe **nulle part** dans le code — §9 le
+listait encore comme un reste de design non implémenté. Fabriquer un totem produisait donc un objet
+qui allait dormir en Banque et n'agissait sur rien : la dernière grande promesse en texte du
+catalogue, après les niveaux 2-3 (lot 2026-08-10), l'équipement et les objets consommables.
+
+**Livré** (`game/mythic.go`, bâtiment `temple`, `components/TemplePanel.tsx`) : les offrandes versent
+de la **faveur** ; la ville la **vote** au Temple ; le dieu élu répond **dès la vague suivante** ;
+la bénédiction **expire** au bout de 4 vagues. Trois panthéons — **Olympe** (grec, le thème tempéré,
+donc le défaut), **Ásgard** (Thor/Loki/Odin), **Douat** (Râ/Osiris/Sekhmet) — et trois modèles voxel
+de temple, un par panthéon.
+
+**Les quatre règles qui tiennent le système**, et qui sont tout le travail de conception :
+
+1. **La faveur se paie en matériaux de CONSTRUCTION.** Un totem, c'est 3 Bois ; une stèle, 3 Pierre ;
+   un brasero, une Brique et du Charbon. La ferveur est donc en concurrence directe avec la muraille,
+   les remparts et — au nord — les foyers. C'est la règle des contraintes de thème (§8 de
+   RETENTION-PLAN), et sans elle la faveur ne serait qu'une seconde monnaie qu'on ramasse en plus.
+2. **Une bénédiction EXPIRE.** Sans expiration, une ville empile les boons jusqu'à devenir imprenable
+   et le compteur n'a plus rien à dire passé la vague 10. La faveur est une monnaie qui tourne.
+3. **On VOTE.** Même esprit que `VoteKick` : c'est une ville qui appelle un dieu. Gratuit (un vote est
+   une décision, pas un travail — le faire payer en PA donnerait le dernier mot au plus riche), sans
+   héros en ville (un joueur en expédition a son mot à dire), et dépouillé **quand la vague tombe** :
+   dans un jeu où chacun passe cinq minutes par jour, l'intervalle entre deux vagues EST le scrutin.
+   Aucun quorum — à moitié endormie, une expédition n'invoquerait jamais rien.
+4. **Un panthéon est une PEAU.** Les trois servent les mêmes trois domaines avec les mêmes chiffres
+   (rempart +8 de défense, moisson +1 par trouvaille, lame +2 de force). Un thème se TIRE ; s'il
+   pouvait donner de meilleurs dieux, ce serait une punition au hasard. Même contrat que les armes de
+   thème, et même test (`TestPantheonsAreLateralNotStronger`).
+
+⚠ **Le dépouillement doit être DÉTERMINISTE, ex æquo compris.** Premier réflexe : parcourir la map des
+voix en gardant le mieux placé. C'eût été un vainqueur dépendant de l'ordre d'itération de Go, donc
+deux instances rejouant la même période auraient appelé deux dieux différents — exactement les deux
+fuites de déterminisme corrigées le 2026-08-09. Le dépouillement parcourt le PANTHÉON dans son ordre,
+qui départage les égalités ; un test le rejoue vingt fois.
+
+⚠ **Les joueurs-IA n'y touchent pas, et c'est un choix.** Ils bâtissent le Temple comme n'importe quel
+site dont le plan est en Banque, mais ils ne fabriquent pas d'offrandes (le bois est déjà la matière
+la plus disputée ; CLAUDE.md a mesuré deux fois qu'élargir leur craft coûtait des vagues) et surtout
+**ils ne votent pas** : à vingt robots contre un humain, leurs voix décideraient du dieu à sa place.
+
+⚠ **Le plan du Temple tombe de la FOUILLE ORDINAIRE**, pas seulement des ruines. Les cinq bâtiments de
+spécialité sont rares exprès — mesuré, une ville n'en bâtit que 1 à 3. Un PILIER de jeu que la moitié
+des parties n'atteindrait jamais n'en serait pas un.
+
+**Mesuré (l'instrument d'équilibrage, 5 graines × 6 tailles, avant/après).** Médianes de survie
+1·2·4·8·12·20 joueurs : **15·16·17·17·16·20 → 15·15·17·19·19·20**. Rien ne s'effondre, l'échelle reste
+croissante, et l'écart tient au fait que le nouveau plan décale le flux de hasard des tables de butin.
+Le pilier est invisible pour la simulation (les bots ne votent pas), ce qui est le résultat voulu :
+il ne change pas la difficulté de fond, il donne quelque chose à décider.
+
+⚠ **La barre du haut : deux sessions sur le même mur, et la fusion tranche.** Le compteur en fait un
+septième élément, sur une barre où le ⚙️ était **déjà coupé** à 390 px (la capture de Guillaume le
+montre avant même cet ajout). J'avais mesuré 414 px pour 390 de large et resserré à ma façon —
+gouttières, chips, et boutons-icônes rognés à 40 px de large. Entre-temps l'entrée (121) a traité le
+même mur autrement et **mieux** : la pastille de vague s'empile sur deux lignes sous 460 px, ce qui
+libère bien plus de largeur, et elle pose explicitement la règle « on ne rogne QUE l'espace entre les
+cibles tactiles, jamais les cibles ». À la fusion j'ai donc **retiré mon rognage des boutons** et
+adopté sa solution. Mais son calcul ne laissait que **4 px** de marge, et le compteur en réclame 47 :
+mesuré après fusion, 433 px pour 390. Reconquis là où elle autorisait à le faire — gouttières à 3 px,
+pastille d'état resserrée, compteur collé à son icône (≤460 px), puis un cran de typo en moins et des
+gouttières à 2 px sur les seuls écrans ≤400 px. **386 px, une rangée**, et la largeur des
+boutons-icônes n'a pas bougé d'un pixel. Vérifié à 360 · 375 · 390 · 400 · 414 · 430 : une rangée dès
+390. Sous 390 (vieux téléphones), le **filet `flex-wrap`** de mon lot fait passer à la ligne plutôt que
+découper — un bouton hors de l'écran est inatteignable et ne se signale pas. ⚠ et parce que ce filet
+rend `scrollWidth` toujours égal à `clientWidth`, `test:mythic` **compte les rangées** (par le centre
+vertical, les hauteurs différant d'un élément à l'autre) : sans ça il passerait avec une barre sur
+trois rangs.
+
+⚠ **La fusion a rendu un de mes messages FAUX.** L'entrée (120) a fait disparaître de l'onglet Bâtir
+les sites dont le plan n'est pas en Banque. Or le panneau du Temple disait « il faut d'abord le bâtir
+(onglet 🏗️ Bâtir) » — vers une liste où le Temple ne figure justement pas encore. Il dit maintenant
+l'étape où l'on en est vraiment : trouver le plan, PUIS bâtir. Deux cas, deux vérifications.
+
+⚠ **Deux modèles voxel repris APRÈS rendu**, et aucun des deux défauts n'était lisible dans le code.
+Le temple égyptien empilait pylônes, salle hypostyle, mâts à bannière et obélisques dans la même grille
+de 20 : la dalle plate de la salle passait devant les tours en projection dimétrique et mangeait tout
+le bâtiment. Un modèle vu à trois centimètres n'a droit qu'à UNE silhouette — deux tours, un linteau,
+deux aiguilles, le reste retiré. Et le hof nordique disparaissait sous la neige : posée sur toute la
+largeur des trois toitures, elle effaçait les bardeaux sombres, c'est-à-dire le bois debout, tout le
+sujet du bâtiment. La neige ne coiffe plus que les faîtes — c'est le CONTRASTE qui fait l'hiver, le
+même réglage que la palette du terrain nordique.
+
+**Vérifié, APRÈS fusion de `main`** (qui avait avancé de six commits, dont la pastille de vague et le
+filtrage des plans — les deux touchant précisément ce lot) : `go test ./...` vert (dont
+`game/mythic_test.go` 14 cas et `api/mythic_test.go`) · `npm run test:mythic` **14/14** (neuf) ·
+`test:wave-chip` 6/6 · `test:structures` 14/14 · `test:map-tap` 8/8 · `test:inventory` 11/11 ·
+`test:endgame` 8/8 · `test:combat-ui` 9/9 · `test:reconnect` 8/8 · `test:weather` 18/18 ·
+`test:perf` 13/13 · `tsc -b` + `npm run build` · `cmd/balance -sweep`.
+⚠ note d'exploitation : `test:perf` et `test:weather` échouent par intermittence quand la machine
+tourne déjà les deux serveurs de dev ET une compilation Go — leurs budgets de redraw sont serrés, et
+la contention CPU suffit à les faire sortir. Relancés au calme, ils passent. À garder en tête avant de
+conclure à une régression.
+
+**À faire.** Les bots ne cuisinent aucune offrande : une ville 100 % IA n'atteindra jamais un dieu.
+C'est délibéré aujourd'hui, mais ça mériterait d'être mesuré (une offrande de bois par tranche de
+Banque bien remplie, par exemple). Et le Temple n'a pas encore de rôle dans le récit de fin de partie
+— la ville qui a tenu sous une bénédiction pourrait le raconter.
+
 ## 2026-08-16 (121) — « −0/16 en rouge sur rouge » : la pastille de vague se lit enfin
 
 Rapporté en jeu, capture à l'appui : « −0/16 en rouge sur rouge sans savoir ce que c'est, je pense

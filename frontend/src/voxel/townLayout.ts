@@ -255,6 +255,12 @@ const POLAR: PolarPlot[] = [
   { bid: "caserne", r: 0.78, deg: 278, cells: 3.6 },
   { bid: "armurerie", r: 0.78, deg: 350, cells: 3.4 },
   { bid: "verger", r: 0.80, deg: 92, cells: 3.2 },
+  // LE TEMPLE (backend mythic.go) : HAUT sur la butte, juste sous la halle sommitale.
+  // Ce n'est pas une annexe — c'est le seul bâtiment qui parle aux dieux, et une ville
+  // le met en vue. ⚠ position trouvée en BALAYANT les emplacements libres et en
+  // maximisant le dégagement (distance entre centres moins la somme des demi-emprises) :
+  // à l'œil, le secteur 208° semblait vide, mais il chevauchait l'Atelier de 1,2 cellule.
+  { bid: "temple", r: 0.42, deg: 344, cells: 3.6 },
 ];
 
 /**

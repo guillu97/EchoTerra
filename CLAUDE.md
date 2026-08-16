@@ -97,7 +97,10 @@ envoyé au serveur; mêmes prérequis) ·
 `npm run test:wave-chip` (in frontend — **la pastille de vague** : elle MESURE le contraste sur les
 pixels peints (capture → canvas → percentiles de luminance), dans les deux états, et vérifie que la
 TopBar tient à 390 px avec le badge le plus large; **aucun serveur de dev requis**, c'est du CSS pur
-sur du balisage statique).
+sur du balisage statique) ·
+`npm run test:mythic` (in frontend — **la faveur des dieux** : la barre du haut tient sur UNE rangée
+à 390 px compteur compris, les trois dieux du panthéon lisibles sans troncature, et le vote qui part
+vraiment au serveur; mêmes prérequis).
 
 **Déploiement Vercel (gratuit)** — voir `DEPLOY.md`. Preset **Services** (`vercel.json`) : service
 `frontend` (root `frontend/`, Vite, statique CDN) + service `backend` (root `backend/`, le preset Go
@@ -172,6 +175,9 @@ backend/
     townnames.go                NewTownName: noms de ville générés (Town.Name, posé au worldgen)
     theme.go                    LES EXPÉDITIONS THÉMATIQUES: ThemeDef/Themes/PickTheme (tiré de la
                                 graine), biome dominant, libellés de terrain, peau des ruines
+    mythic.go                   LA FAVEUR DES DIEUX: Pantheon/God (grec/nordique/égyptien),
+                                Town.Favor, VoteBlessing, resolveBlessingVote, expireBlessings,
+                                les trois domaines (rempart/moisson/lame)
     *_test.go                   worldgen, combat, tetanise, build (TestBuildConsumesBankMaterials), evolve
   internal/balance/balance.go   SIMULATION DE PARTIE headless (Run/Report/Table) — l'instrument
                                 d'équilibrage ; balance_test.go = garde-fou SurvivalFloor
@@ -203,7 +209,9 @@ frontend/src/
                                 CombatControls (LA barre d'action du combat : qui joue / quoi faire / sur qui),
                                 TownJournal, TownChat (messagerie, cf. §5),
                                 TownLedger (LE registre de contribution : la feuille de ville ET
-                                le récit de fin de partie lisent le même composant)
+                                le récit de fin de partie lisent le même composant),
+                                TemplePanel (LE TEMPLE : compteur de faveur, bénédictions en
+                                cours, scrutin — cf. §5)
   ui/                           Overlay.tsx (LA primitive de modale/feuille : Échap, piège à focus,
                                 retour du focus, role=dialog/aria-modal), Toasts.tsx (file aria-live),
                                 ErrorBoundary.tsx (écran de secours au lieu d'un écran blanc)
@@ -224,6 +232,8 @@ frontend/src/
 - **Town** (inline in GameState): `name, x, y, hp(100), maxHp(100), defense(computed), buildings[], storage[]`.
   **`storage` = the Bank** (shared town stash). `name` = nom généré au worldgen (`townnames.go`,
   « Clairmont », « Valbourg-sur-Brume ») — affiché dans la TopBar et **c'est lui qui figure au classement**.
+  Plus la FAVEUR DES DIEUX (`mythic.go`) : `favor`, `blessings[{godId,name,icon,domain,untilWave}]`,
+  `votes{playerId->godId}` (persistés) et les dérivés `favorGoal`/`blessingSlots` posés par `Recompute`.
 - **Hero**: `id, name, x, y, pa(6), maxPa, hp, maxHp, stats{force,dexterite,agilite,endurance,athletisme,
   precision}, class("Sans classe"), classId, classTier(0|1|2), classBonuses{Stats}, states[], inventory[Item],
   bars{}`.
@@ -246,8 +256,10 @@ frontend/src/
   x,y,hp,maxHp,stats,states[],move,moved,initiative`.
 - **Recipe**: `id, name, category(conso|potion|forge|deco), building(kitchen|workshop), buildingLevel,
   outputType, outputName?, outputQty?(Planche/Brique ×2), field(bool=craftable outside town), paCost,
-  ingredients[Item], effects` — **26 recettes** (transformations, armes/équipements mythiques, cuisine,
-  alchimie). En ville le bâtiment doit être CONSTRUIT au niveau requis (Kitchen niv.2 = plats raffinés,
+  ingredients[Item], effects, favor?` — **29 recettes** (transformations, armes/équipements mythiques,
+  cuisine, alchimie, et **5 OFFRANDES** qui versent de la faveur, cf. `mythic.go` — `favor` n'existe
+  que sur la catégorie `deco`, garde-fou `TestEveryDecoRecipePaysFavor`).
+  En ville le bâtiment doit être CONSTRUIT au niveau requis (Kitchen niv.2 = plats raffinés,
   niv.3 = Ambroisie ; Workshop niv.2 = Acier/équipements, niv.3 = Talisman/Amulette) ; en expédition les
   recettes `field` s'affranchissent du bâtiment (feu de camp).
 - **WaveReport** (`lastWave`): `wave, day, hordePower, defense, townDamage, townHpAfter, buildingsHit[],
@@ -668,6 +680,46 @@ parcelle plantée. ⚠ `buildingModelKey` (townLayout.ts) reste l'indirection : 
 `if (!geom) continue`, donc un bâtiment INVISIBLE et incliquable.
 Tests : `specialties_test.go`.
 
+**LA FAVEUR DES DIEUX** (`game/mythic.go` + bâtiment `temple`, 2026-08-16) — le pilier MYTHIQUE, à
+la Age of Mythology. La catégorie « déco » du craft annonçait « moral de la ville » depuis le premier
+jour, et le moral n'existe nulle part dans le code : fabriquer un totem produisait un objet qui allait
+dormir en Banque. Les offrandes versent désormais de la **FAVEUR** (compteur ⚡, l'icône vient du
+panthéon), la ville la dépense en **BÉNÉDICTIONS** qu'elle **VOTE** au **Temple**, et le dieu élu
+répond **dès la vague suivante**. **Trois panthéons, un par thème** : `PantheonOlympe` (grec — le
+thème TEMPÉRÉ, donc le défaut, donc aussi celui des parties d'avant les thèmes), `PantheonAsgard`
+(Thor/Loki/Odin), `PantheonDuat` (Râ/Osiris/Sekhmet).
+⚠ **UN PANTHÉON EST UNE PEAU** (`TestPantheonsAreLateralNotStronger`) : les trois servent les MÊMES
+trois **domaines** avec les mêmes chiffres — `rempart` (+8 de défense de ville), `moisson` (+1 à
+CHAQUE trouvaille, fouille auto comprise), `lame` (+2 de force au combat iso). Un thème se TIRE ;
+s'il pouvait donner de meilleurs dieux, ce serait une punition au hasard (même règle que les armes
+de thème). ⚠ **LA FAVEUR SE PAIE EN MATÉRIAUX DE CONSTRUCTION** — un totem coûte 3 Bois, une stèle
+3 Pierre, un brasero une Brique + du Charbon : la ferveur est en CONCURRENCE avec la muraille, les
+remparts et (au nord) les foyers, jamais une ressource parallèle. ⚠ **UNE BÉNÉDICTION EXPIRE**
+(`BlessingWaves` 4, la vague d'invocation comprise) : sans expiration une ville accumulerait les
+boons jusqu'à devenir imprenable et le compteur n'aurait plus rien à dire passé la vague 10.
+⚠ **ON VOTE** (même esprit que `VoteKick`) : `VoteBlessing(playerID, godID)` est **gratuite, sans
+héros et sans PA** — la faire payer donnerait le dernier mot au joueur le plus riche — et le
+**dépouillement a lieu EN HAUT de `processWave`**, avant que la horde et la défense soient chiffrées.
+Aucun quorum (à moitié endormie, une expédition n'invoquerait jamais rien) ; une voix non aboutie
+RESTE POSÉE pour le scrutin suivant. ⚠ **le dépouillement parcourt le panthéon DANS SON ORDRE**
+(`BlessingTally`) : c'est lui qui départage les ex æquo, et itérer la map des voix aurait rendu le
+vainqueur dépendant de l'ordre d'itération de Go — donc deux rejeux de la même période auraient
+appelé deux dieux différents (cf. §8, « ordre d'itération = état »). ⚠ le domaine `rempart` s'ajoute
+**HORS du plafond de garnison** (une faveur n'est pas de la pierre) et le domaine `lame` est **PRÊTÉ
+à la `CombatUnit`**, jamais greffé sur `Hero.Stats` (même règle que l'Armurerie et l'équipement).
+⚠ **LES JOUEURS-IA N'Y TOUCHENT PAS** : ils bâtissent le Temple comme n'importe quel site dont le
+plan est en Banque (mesuré : sans effet sur le plancher de survie), mais ils ne fabriquent pas
+d'offrandes (le bois est déjà la matière la plus disputée) et surtout **ils ne votent pas** — à vingt
+robots contre un humain, leurs voix décideraient du dieu à sa place. **Le Temple** : prérequis
+Atelier niv.1 (là où l'on fabrique les offrandes), **plan trouvable à la FOUILLE ORDINAIRE** (prairie
+et sable, plus le sanctuaire en ruine) et non réservé aux ruines — un pilier que la moitié des
+parties n'atteindrait jamais n'en serait pas un ; ses trois niveaux = le nombre de bénédictions
+SIMULTANÉES (1/2/3), et son modèle voxel change avec le panthéon (`bld-temple` péristyle grec,
+`bld-temple-nordique` hof à toitures étagées, `bld-temple-desertique` pylône à obélisques).
+Front : chip ⚡ dans la TopBar (affiché seulement si Temple debout ou faveur > 0), `TemplePanel.tsx`,
+ligne d'ordre du jour quand un scrutin peut aboutir. Tests : `game/mythic_test.go`,
+`api/mythic_test.go`, `npm run test:mythic`.
+
 **LES EXPÉDITIONS THÉMATIQUES** (`game/theme.go` + `worldgen.applyThemeBias`, 2026-08-11) — trois
 NATURES de carte tirées de la graine (**Tempéré** le témoin sans biais, **Nordique**, **Désertique**),
 réponse au trou R5 de `RETENTION-PLAN.md` : rien ne distinguait l'expédition n°4 de la n°1. ⚠ **un
@@ -727,7 +779,10 @@ silhouette à un bâtiment ou à une ruine : la **halle sommitale** du bourg (to
 désert, là où il ne pleut jamais ; chaume sombre coiffé de neige au nord — la recette `bldTownhall`
 est PARAMÉTRÉE par une peau, on n'écrit pas deux bâtiments de plus) et le **donjon de sable**
 (`sitePyramide`, `siteDrakkar` — ⚠ même `Ruin.Type` serveur que l'épave, donc même table de butin et
-même plan de spécialité : un thème rhabille, il ne redistribue pas). La clé devient
+même plan de spécialité : un thème rhabille, il ne redistribue pas). ⚠ **le TEMPLE est le seul cas où
+la forme porte une RÈGLE** et non une matière (péristyle grec / hof nordique / pylône égyptien = quels
+dieux figurent au scrutin) : d'où trois recettes distinctes dans `gen-props.mjs`, là où la halle
+sommitale n'est qu'une recette à peaux. La clé devient
 `<base>-<theme>`. ⚠ **LE REGISTRE EST EXPLICITE** (`themedKey`/`themedKeysFor`) : les modèles sont
 PRÉCHARGÉS par liste, donc demander une clé sans fichier ne produit ni erreur ni repli — `get` rend
 `undefined`, la pose fait `continue`, et le bâtiment est silencieusement INVISIBLE. On ne dérive donc
@@ -1123,6 +1178,11 @@ POST /api/games/{id}/catchup                      RATTRAPAGE DEMANDÉ: avance CE
                                                   n'est rechargé qu'une fois, à l'arrivée)
 POST /api/games/{id}/town/action                  {buildingId, action: build|restore|repair|use|water|toggle|revive|heal, points?, heroId?}
                                                   (repair = mur : PA + Pierre -> PV de la ville)
+POST /api/games/{id}/town/blessing                {playerId, godId} vote au Temple pour le dieu que la
+                                                  ville appelle (mythic.go). GRATUIT, sans héros ni PA ;
+                                                  godId vide = retirer sa voix. Le panthéon lui-même
+                                                  voyage dans le payload (`theme.pantheon`) — pas de
+                                                  route de catalogue à part.
 POST /api/games/{id}/town/deposit                 deposit in-town heroes' loot into the Bank
 POST /api/games/{id}/town/craft                   {recipeId, heroId}
 GET  /api/games/{id}/town/chat?playerId=…         messagerie de la ville (gatée : héros en ville OU Poste
@@ -1756,9 +1816,11 @@ setSpeed, setTurntable, state, engine}` — pilotable en headless (vérif Playwr
    richesse), 11 espèces avec grilles d'attaque GDD en combat iso + spawn par biome + loots pondérés + boss
    vague 4+, bâtiments (matériaux par niveau, prérequis, défense/capacités par niveau, revive Townhall,
    Workshop −1 PA chantiers, puits 2j×héros), 26 recettes gatées par niveau de bâtiment, classes (requires,
-   apparences, passifs récolte/vision, Tir précis, skills iso), mapgen 60×60 lissé. Restent du design :
-   consommation d'objets (nourriture/potions/équipement — les effets sont du texte), Poussée du Survivant
-   (pionnier), Éclairer (éclaireur iso), moral de la ville (déco), faim.
+   apparences, passifs récolte/vision, Tir précis, skills iso), mapgen 60×60 lissé. Le « moral de la
+   ville » de la déco a été REMPLACÉ (2026-08-16) par LA FAVEUR DES DIEUX (`mythic.go`, §5) : un moral
+   qui n'aurait été qu'un multiplicateur invisible n'aurait rien donné à décider, une faveur qu'on vote
+   au Temple, si. Restent du design : Poussée du Survivant (pionnier), Éclairer (éclaireur iso), faim
+   (les objets, eux, se consomment vraiment depuis `items.go`).
 5. ✅ **Gardien** class counting as 3 in the Tétanisé calc — DONE. `gardienWeight()` in `wave.go`;
    tests `TestGardienCountsAsThreeForTetanise` / `TestNonGardienGetsStuckOnLargePack` in `evolve_test.go`.
 6. ✅ Real **class-evolution** system — DONE. `classes.go`: `EvolveHero`, 6 classes (3 intermediate, 3 advanced),
