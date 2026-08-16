@@ -229,16 +229,35 @@ const held = await page.evaluate(() => {
 check("un dieu déjà invoqué ne peut pas être revoté", held.disabled, `bouton Zeus disabled=${held.disabled}`);
 check("…et il figure parmi les bénédictions en cours", held.active === 1, `${held.active} bénédiction(s) affichée(s)`);
 
-// ─── 7. sans Temple bâti, le panneau dit quoi faire ───────────────────────────
+// ─── 7. sans Temple bâti, le panneau dit L'ÉTAPE OÙ L'ON EN EST ───────────────
+// Deux étapes distinctes, et les confondre serait un mensonge : depuis que l'onglet
+// Bâtir ne montre que les sites dont le plan est en Banque (townUtils.buildingKnown),
+// « va le bâtir » envoie vers une liste où le Temple ne figure même pas.
+const noTemple = { built: false, level: 0, cost: { pa: 16, materials: [], plan: "Plan du Temple" } };
 await page.evaluate(() => window.__eg.store.getState().toggleTemple(false));
-await patchTown(OLYMPE, { favor: 6, favorGoal: 20, blessingSlots: 0, blessings: [], votes: {}, __temple: { built: false, level: 0 } });
+await patchTown(OLYMPE, { favor: 6, favorGoal: 20, blessingSlots: 0, blessings: [], votes: {}, storage: [], __temple: noTemple });
 await page.evaluate(() => window.__eg.store.getState().toggleTemple(true));
 await wait(600);
-const locked = await page.evaluate(() => document.querySelector(".temple-modal .stock-note")?.textContent ?? "");
+let locked = await page.evaluate(() => document.querySelector(".temple-modal .stock-note")?.textContent ?? "");
 check(
-  "sans Temple, le panneau dit qu'il faut le bâtir (et que la faveur n'est pas perdue)",
+  "sans le plan, le panneau dit qu'il faut le TROUVER (et que la faveur n'est pas perdue)",
+  locked.includes("trouver") && locked.includes("Plan du Temple") && locked.includes("perdue"),
+  JSON.stringify(locked.slice(0, 90)),
+);
+
+await page.evaluate(() => window.__eg.store.getState().toggleTemple(false));
+await patchTown(OLYMPE, {
+  favor: 6, favorGoal: 20, blessingSlots: 0, blessings: [], votes: {},
+  storage: [{ name: "Plan du Temple", type: "objet", qty: 1 }],
+  __temple: noTemple,
+});
+await page.evaluate(() => window.__eg.store.getState().toggleTemple(true));
+await wait(600);
+locked = await page.evaluate(() => document.querySelector(".temple-modal .stock-note")?.textContent ?? "");
+check(
+  "…et une fois le plan en Banque, qu'il faut le BÂTIR",
   locked.includes("bâtir") && locked.includes("perdue"),
-  JSON.stringify(locked.slice(0, 80)),
+  JSON.stringify(locked.slice(0, 90)),
 );
 
 await browser.close();

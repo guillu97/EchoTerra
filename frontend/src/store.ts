@@ -17,7 +17,8 @@ import type {
   WaveReport,
 } from "./api/types";
 import { bus, EV } from "./eventBus";
-import { effectiveTownHeroId } from "./townUtils";
+import { effectiveTownHeroId, myTeamHeroes } from "./townUtils";
+import { buildingName } from "./data/buildings";
 import { myActiveCombat } from "./combatUtils";
 
 const LS_GAME = "echoterra:gameId"; // dernière partie active (pointeur générique)
@@ -1735,6 +1736,44 @@ export const useStore = create<StoreState>((set, get) => {
       renderMap();
     },
   };
+});
+
+// LA DÉCOUVERTE D'UN PLAN SE DIT.
+//
+// Un plan de bâtiment ne tombe que des ruines et de la fouille, et depuis qu'un
+// site dont le plan n'est pas trouvé n'est plus listé (townUtils.buildingKnown),
+// le seul signe qu'un chantier vient de s'ouvrir est UNE LIGNE DE PLUS dans un
+// onglet qu'on n'a pas forcément ouvert. On le dit donc, aux deux moments qui
+// comptent : le plan qui tombe dans le sac d'un de MES héros (« rapporte-le »),
+// et le plan qui arrive en BANQUE (le chantier est débloqué — c'est le moment
+// jouable, et il vaut aussi pour le plan qu'un COÉQUIPIER vient de déposer).
+//
+// ⚠ on ne compare que deux états de la MÊME partie : charger une partie, revenir
+// d'un combat ou rattraper une absence remplace l'objet `game` en bloc, et sans
+// ce garde toute reprise déverserait un toast par plan déjà en Banque.
+// ⚠ un plan déposé quitte le sac ET entre en Banque dans le même état : seules
+// les APPARITIONS déclenchent, donc ce geste ne produit qu'un seul message.
+const qtyOf = (items: { name: string; qty: number }[] | undefined, name: string) =>
+  (items ?? []).reduce((n, i) => (i.name === name ? n + i.qty : n), 0);
+
+useStore.subscribe((s, prev) => {
+  const next = s.game;
+  const before = prev.game;
+  if (!next || !before || next.id !== before.id) return;
+  for (const b of next.town.buildings ?? []) {
+    if (b.built || b.underConstruction) continue;
+    const plan = b.cost?.plan ?? "";
+    if (plan === "") continue;
+    const label = buildingName(b.id, b.name);
+    if (qtyOf(before.town.storage, plan) === 0 && qtyOf(next.town.storage, plan) > 0) {
+      s.notify(`📐 ${plan} en Banque — nouveau chantier débloqué : ${label} (onglet Bâtir).`, "ok");
+      continue; // le dépôt vide le sac au même instant : un seul message
+    }
+    const bag = (g: GameState) => myTeamHeroes(g, s.playerId).reduce((n, h) => n + qtyOf(h.inventory, plan), 0);
+    if (bag(before) === 0 && bag(next) > 0) {
+      s.notify(`📐 ${plan} trouvé — dépose-le à la Banque pour ouvrir le chantier.`);
+    }
+  }
 });
 
 // Dev-only handle for debugging from the browser console / automated checks.

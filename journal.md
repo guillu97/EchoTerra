@@ -6,7 +6,7 @@
 
 ---
 
-## 2026-08-16 (120) — La faveur des dieux : offrandes, Temple, bénédictions votées
+## 2026-08-16 (122) — La faveur des dieux : offrandes, Temple, bénédictions votées
 
 Demande de Guillaume : « un aspect mythique — les objets de déco donnent des faveurs aux dieux au lieu
 du moral (compteur d'éclairs à la Age of Mythology), avec assez d'éclairs on choisit des bénédictions
@@ -64,13 +64,28 @@ croissante, et l'écart tient au fait que le nouveau plan décale le flux de has
 Le pilier est invisible pour la simulation (les bots ne votent pas), ce qui est le résultat voulu :
 il ne change pas la difficulté de fond, il donne quelque chose à décider.
 
-⚠ **La barre du haut ne tenait plus.** Le compteur en fait un septième élément, sur une barre où le
-bouton ⚙️ était **déjà coupé** par le bord de l'écran à 390 px (visible sur la capture de Guillaume,
-avant même cet ajout). Mesuré : 414 px de contenu pour 390 de large. Resserré (gouttières, chips,
-boutons-icônes à 40 px de LARGE mais toujours 44 de haut) → **380 px, une seule rangée**, plus un filet
-`flex-wrap` pour qu'un écran plus étroit fasse passer à la ligne au lieu de découper. Un bouton hors de
-l'écran est inatteignable et ne se signale pas : c'est le seul défaut de cette barre qu'un joueur ne
-peut pas contourner.
+⚠ **La barre du haut : deux sessions sur le même mur, et la fusion tranche.** Le compteur en fait un
+septième élément, sur une barre où le ⚙️ était **déjà coupé** à 390 px (la capture de Guillaume le
+montre avant même cet ajout). J'avais mesuré 414 px pour 390 de large et resserré à ma façon —
+gouttières, chips, et boutons-icônes rognés à 40 px de large. Entre-temps l'entrée (121) a traité le
+même mur autrement et **mieux** : la pastille de vague s'empile sur deux lignes sous 460 px, ce qui
+libère bien plus de largeur, et elle pose explicitement la règle « on ne rogne QUE l'espace entre les
+cibles tactiles, jamais les cibles ». À la fusion j'ai donc **retiré mon rognage des boutons** et
+adopté sa solution. Mais son calcul ne laissait que **4 px** de marge, et le compteur en réclame 47 :
+mesuré après fusion, 433 px pour 390. Reconquis là où elle autorisait à le faire — gouttières à 3 px,
+pastille d'état resserrée, compteur collé à son icône (≤460 px), puis un cran de typo en moins et des
+gouttières à 2 px sur les seuls écrans ≤400 px. **386 px, une rangée**, et la largeur des
+boutons-icônes n'a pas bougé d'un pixel. Vérifié à 360 · 375 · 390 · 400 · 414 · 430 : une rangée dès
+390. Sous 390 (vieux téléphones), le **filet `flex-wrap`** de mon lot fait passer à la ligne plutôt que
+découper — un bouton hors de l'écran est inatteignable et ne se signale pas. ⚠ et parce que ce filet
+rend `scrollWidth` toujours égal à `clientWidth`, `test:mythic` **compte les rangées** (par le centre
+vertical, les hauteurs différant d'un élément à l'autre) : sans ça il passerait avec une barre sur
+trois rangs.
+
+⚠ **La fusion a rendu un de mes messages FAUX.** L'entrée (120) a fait disparaître de l'onglet Bâtir
+les sites dont le plan n'est pas en Banque. Or le panneau du Temple disait « il faut d'abord le bâtir
+(onglet 🏗️ Bâtir) » — vers une liste où le Temple ne figure justement pas encore. Il dit maintenant
+l'étape où l'on en est vraiment : trouver le plan, PUIS bâtir. Deux cas, deux vérifications.
 
 ⚠ **Deux modèles voxel repris APRÈS rendu**, et aucun des deux défauts n'était lisible dans le code.
 Le temple égyptien empilait pylônes, salle hypostyle, mâts à bannière et obélisques dans la même grille
@@ -81,17 +96,111 @@ largeur des trois toitures, elle effaçait les bardeaux sombres, c'est-à-dire l
 sujet du bâtiment. La neige ne coiffe plus que les faîtes — c'est le CONTRASTE qui fait l'hiver, le
 même réglage que la palette du terrain nordique.
 
-**Vérifié.** `go test ./...` vert (dont `game/mythic_test.go` 14 cas et `api/mythic_test.go`) ·
-`npm run test:mythic` 13/13 (neuf) · `test:map-tap` 8/8 · `test:inventory` 11/11 · `test:endgame` 8/8 ·
-`test:combat-ui` 9/9 · `test:reconnect` 8/8 · `test:perf` 13/13 · `tsc -b` + `npm run build` ·
-`cmd/balance -sweep`. ⚠ `test:weather` est **instable sur cette machine** (17/18 puis 18/18 sur deux
-exécutions consécutives du même code, et la branche de référence échoue aussi, sur un autre point) —
-contention CPU avec les serveurs de dev, pas une régression ; à revérifier au calme.
+**Vérifié, APRÈS fusion de `main`** (qui avait avancé de six commits, dont la pastille de vague et le
+filtrage des plans — les deux touchant précisément ce lot) : `go test ./...` vert (dont
+`game/mythic_test.go` 14 cas et `api/mythic_test.go`) · `npm run test:mythic` **14/14** (neuf) ·
+`test:wave-chip` 6/6 · `test:structures` 14/14 · `test:map-tap` 8/8 · `test:inventory` 11/11 ·
+`test:endgame` 8/8 · `test:combat-ui` 9/9 · `test:reconnect` 8/8 · `test:weather` 18/18 ·
+`test:perf` 13/13 · `tsc -b` + `npm run build` · `cmd/balance -sweep`.
+⚠ note d'exploitation : `test:perf` et `test:weather` échouent par intermittence quand la machine
+tourne déjà les deux serveurs de dev ET une compilation Go — leurs budgets de redraw sont serrés, et
+la contention CPU suffit à les faire sortir. Relancés au calme, ils passent. À garder en tête avant de
+conclure à une régression.
 
 **À faire.** Les bots ne cuisinent aucune offrande : une ville 100 % IA n'atteindra jamais un dieu.
 C'est délibéré aujourd'hui, mais ça mériterait d'être mesuré (une offrande de bois par tranche de
 Banque bien remplie, par exemple). Et le Temple n'a pas encore de rôle dans le récit de fin de partie
 — la ville qui a tenu sous une bénédiction pourrait le raconter.
+
+## 2026-08-16 (121) — « −0/16 en rouge sur rouge » : la pastille de vague se lit enfin
+
+Rapporté en jeu, capture à l'appui : « −0/16 en rouge sur rouge sans savoir ce que c'est, je pense
+que c'est buggé ». C'étaient **trois bugs empilés**, et la capture les montrait tous les trois.
+
+**1. Rouge sur rouge, littéralement.** `.chip.wave .wave-dmg` était `color: var(--red)` (#c0392b)
+posé sur le dégradé du chip, qui **finit exactement sur --red**. Contraste **mesuré 1,40:1** — pas
+« peu lisible » : invisible. Et `.chip.wave.fatal { color: var(--red) }` faisait le même coup au chip
+**entier**, minuteur compris, au moment précis où il compte le plus. Un badge se détache par son
+**FOND**, pas par sa teinte : encre translucide, blanc dessus (7,9 puis 10,7:1 après l'ombre).
+
+**2. Le chiffre ne disait pas ce qu'il était.** « −0/16 » se lit comme une **fraction** (« 0 sur
+16 ») alors que c'est une **fourchette de PV**. Le badge porte désormais son unité et un « … » —
+`frontend/src/forecast.ts` écrit la phrase **une seule fois** pour la pastille, son `aria-label`, son
+`title` et la feuille. Et surtout : **la feuille qu'ouvre la pastille ne parlait pas de la
+prévision** — l'unique explication était un `title=`, que le doigt ne révèle jamais (même piège que
+les noms d'objets tronqués, entrée 113). `TownStatus` porte maintenant le bloc en toutes lettres :
+dégâts attendus, horde vs défense, d'où vient la précision, et le levier (les assiégeants).
+
+**3. ⚠ LA BARRE DÉBORDAIT DÉJÀ, et personne ne l'avait vu.** Mesuré à 390px : **41px de trop** avec
+l'ancien badge — le nom de ville écrasé à **0px** et le **⚙️ hors de l'écran**. C'est visible sur la
+capture du joueur, qui ne le signalait pas. Écrire le badge en entier portait ça à 91px : impossible
+de livrer la correction sans corriger le débordement d'abord. Le badge passe **sous** le minuteur
+dans la MÊME pastille à ≤460px (175,7px → 98,5px), gouttières et marges resserrées — mêmes cibles
+tactiles. C'est la même réponse que la fusion PV+PA en un chip, pour la même raison.
+
+**Vérifié** : `npm run test:wave-chip` (nouveau) **mesure les pixels peints** — capture, décodage
+canvas, percentiles 2/98 de la luminance, rapport de contraste — plutôt que de relire la feuille de
+style. Sur le code d'avant il échoue 3/6 (1,40:1 ×3) ; après, 6/6. Il vérifie aussi que la barre tient
+à 390px avec le badge le plus large que le jeu puisse produire. `tsc -b` + `build` verts ;
+`test:inventory` 11/11, `test:map-tap` 8/8, `test:endgame` 8/8, `test:combat-ui` 9/9, `test:perf`
+13/13 (un premier passage rouge, reproduit vert ensuite — flaky, hors de ce diff).
+
+**À retenir** : un token de couleur posé sur un fond fait du même token est un piège muet — aucun
+lint ne l'attrape, et sur un chip en dégradé il ne se voit qu'en bas. Et un débordement de barre se
+mesure (`scrollWidth`), il ne se constate pas à l'œil sur une capture où il ressemble à du cadrage.
+
+---
+
+## 2026-08-16 (120) — Bâtir : on ne montre que ce qu'on a trouvé, et on dose ses PA
+
+Retour de jeu de Guillaume, capture à l'appui (onglet Bâtir sur téléphone) : « les plans qui n'ont
+pas été découverts ne doivent pas apparaître » et « les personnages peuvent choisir le nombre de PA
+à investir dans les structures ».
+
+**1. Un plan qu'on n'a pas trouvé n'existe pas encore.** Dix bâtiments du catalogue (mairie, tour,
+cuisine, recyclerie, poste + les cinq spécialités) ne s'ouvrent qu'avec un plan qui ne tombe que des
+ruines et de la fouille. La liste les alignait quand même : sur la capture, SIX lignes « 📐 Plan de
+X 0/1 » avec un bouton « Poser le plan » qui ne pouvait rien faire, au-dessus des trois chantiers
+réellement ouvrables. Un écran d'action transformé en liste de courses infaisable.
+
+`townUtils.buildingKnown()` est le seul juge (bâti · en chantier · pas de plan requis · plan en
+Banque) et il sert aux TROIS endroits qui nomment un bâtiment : la liste **Structures**, l'**état de
+la ville** (les deux listes) et les **pastilles de la vue Ville** — la parcelle d'un site inconnu
+reste une friche anonyme. Le faire à un seul endroit aurait donné le pire des deux mondes : un
+bâtiment caché ici, nommé là. Le seul déclencheur est le plan qui arrive en Banque, donc la
+découverte se voit : le chantier apparaît.
+
+⚠ Ce qui n'a PAS été supprimé : une ligne de pied de liste dit combien de bâtiments attendent encore
+leur plan, **sans les nommer**. Le joueur doit savoir que le catalogue est plus grand que sa ville —
+c'est le moteur des ruines — sans qu'on lui rende la liste de courses qu'on vient d'enlever.
+Rien côté serveur : l'ordre du jour ne parlait déjà que des plans DÉJÀ en Banque (orders.go §6), et
+`botShoppingList` ignorait déjà les sites sans plan.
+
+**2. Les PA d'un héros sont sa journée.** Le bouton investissait tout d'un coup (« +7 PA ») : aucun
+moyen d'en poser 3 ici et de garder 4 pour rentrer ou pour un second chantier — alors que le serveur
+accepte n'importe quel montant depuis toujours (`TownAction(..., points, ...)`, testé en Go). Doseur
+`− / valeur / + / tout` sous la barre de progression, plafonné à ce que le travailleur a en poche et
+à ce qu'il reste à faire ; le défaut reste « tout », donc le geste d'avant tient en un tap.
+
+**Le garde-fou** : `npm run test:structures` mesure ce qui est RENDU (la liste, le doseur) et
+l'ORDRE ENVOYÉ (`"points":3` quand on choisit 3) ; la comptabilité de l'investissement partiel est
+déjà couverte en Go. Sur le code d'AVANT : 3/10. Plus deux captures à 390 px (la liste tombe à
+6 lignes lisibles ; la ville n'affiche plus que les six pastilles de ses bâtiments réels).
+
+**3. Et donc le toast** (demandé dans la foulée). Une fois les sites inconnus retirés de la liste, le
+seul signe qu'un chantier vient de s'ouvrir était UNE LIGNE DE PLUS dans un onglet qu'on n'ouvre pas
+forcément. Deux moments, deux messages : le plan qui tombe dans le sac d'un de MES héros (« dépose-le
+à la Banque ») et le plan qui arrive en BANQUE (« nouveau chantier débloqué : X » — vaut aussi pour
+le plan qu'un coéquipier vient de déposer). Un seul point de branchement, `useStore.subscribe` : le
+toast part quelle que soit la route par laquelle l'état arrive (dépôt, sondage, rattrapage, bot).
+
+⚠ **deux gardes, et ce sont eux tout le travail** : on ne compare que deux états de la MÊME partie
+(sinon reprendre une partie déverse un toast par plan déjà en Banque) et seules les APPARITIONS
+parlent (sinon le sondage de 20 s toaste en boucle — et le dépôt, qui vide le sac ET remplit la
+Banque dans le même état, ne produit qu'UN message). Les deux sont testés.
+
+**Vérifié.** `npm run test:structures` **14/14** · `test:inventory` 11/11 · `test:map-tap` 8/8 ·
+`tsc -b` + `npm run build`.
 
 ---
 

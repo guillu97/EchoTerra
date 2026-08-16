@@ -31,6 +31,11 @@ export function TemplePanel() {
   const myVote = playerId ? votes[playerId] : undefined;
   const temple = game.town.buildings.find((b) => b.id === "temple");
   const standing = !!temple?.built && temple.durability > 0;
+  // Le plan du Temple : tant qu'il n'est pas en Banque, le site n'apparaît même pas
+  // dans l'onglet Bâtir (townUtils.buildingKnown), donc l'étape n'est pas « bâtir ».
+  const templePlan = temple?.cost?.plan ?? "";
+  const needsPlan =
+    !standing && templePlan !== "" && !(town.storage ?? []).some((i) => i.name === templePlan && i.qty > 0);
   const freeSlot = blessings.length < slots;
   const tally = (godId: string) => Object.values(votes).filter((v) => v === godId).length;
   const close = () => toggle(false);
@@ -89,9 +94,15 @@ export function TemplePanel() {
         )}
 
         {!standing ? (
+          // ⚠ « va dans l'onglet Bâtir » serait un MENSONGE tant que le plan n'est pas
+          // trouvé : depuis que Bâtir ne montre que les sites dont le plan est en Banque
+          // (townUtils.buildingKnown), le Temple n'y figure même pas. On dit donc l'étape
+          // où l'on en est vraiment — chercher le plan, puis bâtir.
           <div className="stock-note compact">
-            🏛️ Il faut d'abord bâtir le {pantheon?.temple ?? "Temple"} (onglet 🏗️ Bâtir) — la faveur
-            s'accumule en attendant, elle n'est pas perdue.
+            {needsPlan
+              ? `📐 Il faut d'abord trouver « ${templePlan} » — les plans se trouvent à la fouille et dans les ruines. `
+              : `🏛️ Il faut d'abord bâtir le ${pantheon?.temple ?? "Temple"} (onglet 🏗️ Bâtir). `}
+            La faveur s'accumule en attendant, elle n'est pas perdue.
           </div>
         ) : (
           <>

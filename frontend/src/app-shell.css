@@ -613,40 +613,12 @@ body {
   .topbar .town-name {
     display: none;
   }
-  /* …et même sans le nom, la barre déborde : sept éléments à 390 px, dont le compteur
-     de faveur (mythic.go) qui en fait un de plus. On resserre les gouttières et les
-     chips plutôt que de retirer une information — chacun est le raccourci d'un panneau
-     qu'aucun autre écran n'ouvre. */
-  .topbar {
-    gap: var(--s-1);
-    padding-left: max(var(--s-3), env(safe-area-inset-left));
-    padding-right: max(var(--s-3), env(safe-area-inset-right));
-  }
-  .topbar .chip {
-    padding: 5px var(--s-2);
-    font-size: var(--t-xs);
-  }
 }
-/* Sur les téléphones les plus étroits (≤430 px : iPhone mini/SE, Pixel « a »), la
-   rangée reste 24 px trop large une fois le compteur de faveur ajouté — MESURÉ, pas
-   estimé. On rogne les boutons-icônes en LARGEUR seulement : la hauteur reste à 44 px,
-   donc la cible tactile garde sa surface utile (c'est la hauteur qui manque au pouce
-   sur une barre, pas la largeur). */
-@media (max-width: 430px) {
-  .topbar {
-    column-gap: 3px;
-  }
-  .topbar .iconbtn {
-    width: 40px;
-  }
-  .topbar .chip {
-    padding: 5px var(--s-1);
-    gap: 2px;
-  }
-  .topbar .chip.status {
-    gap: var(--s-1);
-  }
-}
+/* LE COMPTEUR DE FAVEUR (mythic.go) fait un élément de plus sur une barre qui ne
+   rentrait déjà qu'à l'arraché. Il se resserre donc AVEC les autres, sur le même seuil
+   que la pastille de vague empilée (≤460 px) — et on ne touche PAS à la largeur des
+   boutons-icônes : la décision de ne rogner que l'espace ENTRE les cibles tactiles, et
+   jamais les cibles elles-mêmes, est celle du lot précédent, et elle est la bonne. */
 /* LE FILET : si malgré tout la rangée ne tient pas (police système agrandie, écran de
    320 px), elle passe à la ligne. Un bouton ⚙️ coupé par le bord de l'écran est
    inatteignable et ne se signale pas — c'est le seul défaut de cette barre qu'un joueur
@@ -732,6 +704,10 @@ body {
   color: #fff;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.02em;
+  /* Le HAUT du dégradé (--red-hi) ne donne que 3:1 au blanc : le minuteur passait
+     tout juste le seuil AA. Une ombre sombre l'assoit sans changer la couleur du
+     chip — moins intrusif que d'assombrir le rouge de toute la barre. */
+  text-shadow: 0 1px 1px rgba(74, 16, 6, 0.5);
 }
 /* LA FAVEUR DES DIEUX (mythic.go). Doré et non rouge : ce n'est pas une alerte, c'est
    une réserve — et le doré est déjà la couleur des PA, dont la faveur est la cousine
@@ -1287,6 +1263,59 @@ body {
   line-height: 13px;
   color: var(--ink);
   text-shadow: 0 1px 1px rgba(255, 255, 255, 0.5);
+}
+/* Combien de PA je pose ICI : le doseur d'un chantier (Structure). Les PA d'un
+   héros sont sa journée — poser « tout » doit rester le geste par défaut, pas le
+   seul geste possible. Cibles ≥ 34px : c'est un damier de petits boutons, donc
+   sous le plancher --tap des familles de chrome, mais jamais sous le doigt. */
+.ps-invest {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  margin-top: var(--s-2);
+}
+.ps-invest .stepbtn {
+  min-width: 34px;
+  height: 34px;
+  padding: 0 var(--s-2);
+  border-radius: var(--r-sm);
+  border: 1px solid rgba(120, 86, 40, 0.28);
+  background: var(--cream);
+  color: var(--ink);
+  font-size: var(--t-sm);
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+}
+.ps-invest .stepbtn.wide {
+  min-width: 44px;
+  font-size: var(--t-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+}
+.ps-invest .stepbtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.ps-invest .amt {
+  min-width: 62px;
+  text-align: center;
+  font-size: var(--t-sm);
+  font-weight: 800;
+  color: var(--ink);
+}
+.ps-invest .amt i {
+  font-style: normal;
+  font-weight: 700;
+  color: var(--ink-muted);
+}
+/* Le catalogue est plus grand que la liste : on le DIT, sans nommer les plans
+   qu'on n'a pas trouvés (ce serait la liste de courses qu'on vient d'enlever). */
+.ps-unknown {
+  border-radius: var(--r-md);
+  margin-top: var(--s-4);
+  font-style: italic;
 }
 .town.dim::after {
   content: "";
@@ -2711,6 +2740,48 @@ body {
   color: var(--ink-soft);
   font-size: 11px;
 }
+/* La prévision de vague dans l'état de la ville — la version longue de la pastille
+   rouge de la TopBar. Sur fond parchemin, donc le rouge y est LISIBLE (c'est sur le
+   chip rouge qu'il ne l'était pas). */
+.ts-fc {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  background: var(--cream);
+  border: 1px solid rgba(120, 86, 40, 0.15);
+  border-radius: 12px;
+  padding: 10px;
+  font-size: 12px;
+  line-height: var(--lh-body);
+  color: var(--ink-soft);
+}
+.ts-fc.risk {
+  background: rgba(192, 57, 43, 0.08);
+  border-color: rgba(192, 57, 43, 0.25);
+}
+.ts-fc.fatal {
+  background: rgba(192, 57, 43, 0.14);
+  border-color: var(--red);
+}
+/* Volontairement en BLOC et non en flex : la phrase qui suit le gros chiffre doit
+   revenir à la ligne SOUS lui, sur toute la largeur. En flex elle formait une
+   colonne étroite qui repartait en retrait — illisible pour deux mots de plus. */
+.ts-fc-head {
+  color: var(--ink);
+}
+.ts-fc-dmg {
+  font-size: var(--t-lg);
+  font-weight: 800;
+  color: var(--red-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  margin-right: var(--s-2);
+}
+.ts-fc-warn {
+  font-weight: 700;
+  color: var(--red-2);
+}
+
 .ts-report {
   background: rgba(192, 57, 43, 0.08);
   border: 1px solid rgba(192, 57, 43, 0.25);
@@ -4238,15 +4309,95 @@ body {
 }
 .orders-list li.urgent { color: var(--ink); font-weight: 600; }
 
-/* Les dégâts attendus, collés au compte à rebours de la TopBar. */
+/* Les dégâts attendus, collés au compte à rebours de la TopBar.
+   ⚠ ROUGE SUR ROUGE : ce badge était `color: var(--red)` (#c0392b) posé SUR le
+   dégradé rouge du chip, qui finit exactement sur --red — contraste 1:1 au bas du
+   dégradé, donc un chiffre littéralement invisible (rapporté en jeu). Un badge se
+   détache par son FOND, pas par sa teinte : ici une encre translucide, qui reste
+   lisible quel que soit le rouge derrière (normal ou fatal). */
 .chip.wave .wave-dmg {
   font-style: normal;
   font-variant-numeric: tabular-nums;
-  margin-left: 4px;
-  color: var(--red);
-  font-weight: 700;
+  margin-left: var(--s-2);
+  padding: 1px 6px;
+  border-radius: var(--r-pill);
+  background: rgba(58, 12, 4, 0.4);
+  color: #fff;
+  font-weight: 800;
 }
-.chip.wave.fatal { border-color: var(--red); color: var(--red); }
+/* Au pire, la ville n'y survit pas. MÊME PIÈGE : `color: var(--red)` rendait alors
+   le chip ENTIER — minuteur compris — illisible, au moment précis où il compte le
+   plus. Une alerte se marque en AJOUTANT du contraste (rouge plus sombre, liseré
+   doré), jamais en en retirant. */
+.chip.wave.fatal {
+  background: linear-gradient(180deg, var(--red), var(--red-2));
+  border-color: var(--gold);
+  color: #fff;
+}
+.chip.wave.fatal .wave-dmg { background: rgba(0, 0, 0, 0.45); }
+
+/* À L'ÉTROIT, LE BADGE PASSE SOUS LE MINUTEUR — dans la MÊME pastille.
+   La barre débordait DÉJÀ de 41px sur un écran de 390px avec l'ancien « −0/16 » :
+   le nom de ville était écrasé à 0px et le ⚙️ sortait de l'écran (visible sur la
+   capture du joueur). Écrire le badge en entier l'aggravait à 91px. Empiler ne
+   coûte que de la hauteur — c'est la même réponse que la fusion PV+PA en un seul
+   chip, et pour la même raison : deux faces d'une même information. */
+@media (max-width: 460px) {
+  .chip.wave {
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    padding: 2px var(--s-2);
+    line-height: 1.2;
+  }
+  .chip.wave .wave-dmg {
+    margin-left: 0;
+    padding: 0 5px;
+    font-size: var(--t-xs);
+  }
+  /* Les six gouttières et les deux marges latérales valent 46px à elles seules,
+     sur les 390px d'un iPhone SE : les resserrer finit de faire rentrer le ⚙️.
+     (Les cibles tactiles, elles, ne bougent pas — c'est l'espace ENTRE qui cède.) */
+  .topbar {
+    gap: 3px;
+    padding-left: max(var(--s-3), env(safe-area-inset-left));
+    padding-right: max(var(--s-3), env(safe-area-inset-right));
+  }
+  .topbar .chip.status {
+    padding-left: var(--s-2);
+    padding-right: var(--s-2);
+    gap: var(--s-1);
+  }
+  /* LE COMPTEUR DE FAVEUR (mythic.go) est arrivé APRÈS ce calcul et a repris les
+     43 px qu'on venait de gagner. Il se paie donc sur lui-même — icône collée à son
+     nombre, corps réduit — et sur les mêmes gouttières, jamais sur la largeur des
+     boutons-icônes : la règle du lot précédent tient, seul l'espace ENTRE cède. */
+  .topbar .chip.favor {
+    padding-left: var(--s-1);
+    padding-right: var(--s-1);
+    gap: 2px;
+    font-size: var(--t-xs);
+  }
+}
+/* Et sur les 390 px d'un iPhone SE / 12 mini — le plus étroit du parc — il manque
+   encore une vingtaine de pixels. Le dernier levier qui ne soit pas une cible tactile,
+   c'est le CORPS DU TEXTE des pastilles : un cran plus petit, sur ces écrans-là
+   seulement. Mesuré 411 px → sous les 390. Au-dessus de 400 px (iPhone 14/15, Pixel),
+   la barre tient déjà sans ça et garde sa typo. */
+@media (max-width: 400px) {
+  .topbar {
+    column-gap: 2px;
+    padding-left: max(var(--s-2), env(safe-area-inset-left));
+    padding-right: max(var(--s-2), env(safe-area-inset-right));
+  }
+  .topbar .chip {
+    font-size: var(--t-xs);
+  }
+  .topbar .chip.status {
+    padding-left: var(--s-1);
+    padding-right: var(--s-1);
+  }
+}
 
 /* LES CONSIGNES du menu radial (orders_standing.go) — ce qu'un héros fera seul si son
    joueur ne revient pas avant la vague. Volontairement discrètes : c'est un filet, pas
