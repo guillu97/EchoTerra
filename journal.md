@@ -37,14 +37,25 @@ accepte n'importe quel montant depuis toujours (`TownAction(..., points, ...)`, 
 `− / valeur / + / tout` sous la barre de progression, plafonné à ce que le travailleur a en poche et
 à ce qu'il reste à faire ; le défaut reste « tout », donc le geste d'avant tient en un tap.
 
-**Vérifié.** Nouveau garde-fou `npm run test:structures` (10/10) — il mesure ce qui est RENDU (la
-liste, le doseur) et l'ORDRE ENVOYÉ (`"points":3` quand on choisit 3) ; la comptabilité de
-l'investissement partiel est déjà couverte en Go. Sur le code d'AVANT : 3/10. Plus `tsc -b` +
-`npm run build`, et deux captures à 390 px (la liste tombe à 6 lignes lisibles ; la ville n'affiche
-plus que les six pastilles de ses bâtiments réels).
+**Le garde-fou** : `npm run test:structures` mesure ce qui est RENDU (la liste, le doseur) et
+l'ORDRE ENVOYÉ (`"points":3` quand on choisit 3) ; la comptabilité de l'investissement partiel est
+déjà couverte en Go. Sur le code d'AVANT : 3/10. Plus deux captures à 390 px (la liste tombe à
+6 lignes lisibles ; la ville n'affiche plus que les six pastilles de ses bâtiments réels).
 
-**À faire** (pas dans ce lot) : la découverte d'un plan mériterait un toast (« 📐 Plan de la Cuisine
-— un nouveau chantier s'ouvre »), sinon elle passe inaperçue pour qui n'ouvre pas l'onglet.
+**3. Et donc le toast** (demandé dans la foulée). Une fois les sites inconnus retirés de la liste, le
+seul signe qu'un chantier vient de s'ouvrir était UNE LIGNE DE PLUS dans un onglet qu'on n'ouvre pas
+forcément. Deux moments, deux messages : le plan qui tombe dans le sac d'un de MES héros (« dépose-le
+à la Banque ») et le plan qui arrive en BANQUE (« nouveau chantier débloqué : X » — vaut aussi pour
+le plan qu'un coéquipier vient de déposer). Un seul point de branchement, `useStore.subscribe` : le
+toast part quelle que soit la route par laquelle l'état arrive (dépôt, sondage, rattrapage, bot).
+
+⚠ **deux gardes, et ce sont eux tout le travail** : on ne compare que deux états de la MÊME partie
+(sinon reprendre une partie déverse un toast par plan déjà en Banque) et seules les APPARITIONS
+parlent (sinon le sondage de 20 s toaste en boucle — et le dépôt, qui vide le sac ET remplit la
+Banque dans le même état, ne produit qu'UN message). Les deux sont testés.
+
+**Vérifié.** `npm run test:structures` **14/14** · `test:inventory` 11/11 · `test:map-tap` 8/8 ·
+`tsc -b` + `npm run build`.
 
 ---
 

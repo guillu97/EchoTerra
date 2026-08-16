@@ -112,9 +112,36 @@ check(
 
 // ── 2. TROUVER UN PLAN LE FAIT APPARAÎTRE ───────────────────────────────────
 // (le plan déposé en Banque est le SEUL déclencheur : c'est le moment de la découverte)
+const toasts = () => page.evaluate(() => [...document.querySelectorAll(".toast-item .ti-msg")].map((t) => t.textContent));
+const clearToasts = () => page.evaluate(() => window.__eg.store.setState({ toasts: [] }));
+
+// D'abord le plan dans le SAC d'un héros : il n'ouvre aucun chantier (il n'est pas
+// en Banque), mais il ne doit pas passer inaperçu pour autant.
+await clearToasts();
 await page.evaluate(() => {
   const st = window.__eg.store;
   const g = structuredClone(st.getState().game);
+  g.heroes[0].inventory = [...(g.heroes[0].inventory ?? []), { type: "objet", name: "Plan de la Cuisine", qty: 1 }];
+  st.setState({ game: g });
+});
+await wait(400);
+const bagToast = await toasts();
+check(
+  "un plan trouvé par un héros est annoncé (et dit quoi en faire)",
+  bagToast.some((t) => t.includes("Plan de la Cuisine") && /Banque/.test(t)),
+  bagToast.join(" | ") || "aucun toast",
+);
+check(
+  "…mais le chantier n'est pas encore listé (le plan est dans le sac, pas en Banque)",
+  !(await rows()).some((r) => r.nom === "Cuisine"),
+  "Cuisine absente tant que le plan n'est pas déposé",
+);
+
+await clearToasts();
+await page.evaluate(() => {
+  const st = window.__eg.store;
+  const g = structuredClone(st.getState().game);
+  g.heroes[0].inventory = (g.heroes[0].inventory ?? []).filter((i) => i.name !== "Plan de la Cuisine"); // déposé
   g.town.storage = [...(g.town.storage ?? []), { type: "objet", name: "Plan de la Cuisine", qty: 1 }];
   st.setState({ game: g });
 });
@@ -124,6 +151,25 @@ check(
   "le plan trouvé fait apparaître SON chantier, et lui seul",
   withPlan.includes("Cuisine") && !withPlan.includes("Mairie") && !withPlan.includes("Caserne"),
   withPlan.join(", "),
+);
+const bankToast = await toasts();
+check(
+  "le plan qui entre en Banque annonce le chantier débloqué — UN seul message",
+  bankToast.filter((t) => t.includes("Plan de la Cuisine")).length === 1 && bankToast.some((t) => /débloqué/.test(t)),
+  bankToast.join(" | ") || "aucun toast",
+);
+// …et un simple rafraîchissement (même plan, toujours en Banque) ne redit rien :
+// seules les APPARITIONS parlent, sinon le sondage de 20 s toasterait en boucle.
+await clearToasts();
+await page.evaluate(() => {
+  const st = window.__eg.store;
+  st.setState({ game: structuredClone(st.getState().game) });
+});
+await wait(400);
+check(
+  "un rafraîchissement ne re-annonce pas un plan déjà connu",
+  (await toasts()).length === 0,
+  (await toasts()).join(" | ") || "aucun toast (attendu)",
 );
 
 // ── 3. LE DOSEUR DE PA ──────────────────────────────────────────────────────

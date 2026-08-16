@@ -1250,7 +1250,15 @@ test `TestServerWrittenSentencesUseFrenchBuildingNames`).
   COMBIEN de bâtiments attendent leur plan **sans les nommer** — le catalogue doit se deviner plus
   grand que la ville (c'est le moteur des ruines), pas se lire comme une liste de courses. Rien à
   changer côté serveur : `orders.go` ne parle que des plans DÉJÀ en Banque et `botShoppingList`
-  ignore déjà les sites sans plan.
+  ignore déjà les sites sans plan. ⚠ **LA DÉCOUVERTE SE DIT** (toast, `useStore.subscribe` en fin de
+  `store.ts`) : un plan qui tombe dans le sac d'un de MES héros (« dépose-le à la Banque ») et un
+  plan qui arrive en BANQUE (« nouveau chantier débloqué : X », vaut aussi pour le dépôt d'un
+  coéquipier) — sans quoi le seul signe d'un chantier neuf serait une ligne de plus dans un onglet
+  qu'on n'ouvre pas. UN seul point de branchement, donc le toast part quelle que soit la route de
+  l'état (dépôt, sondage, rattrapage, bot). ⚠ deux gardes indispensables : on ne compare que deux
+  états de la MÊME partie (`next.id === before.id` — sinon reprendre une partie déverse un toast par
+  plan déjà en Banque) et seules les APPARITIONS parlent (sinon le sondage de 20 s toaste en boucle ;
+  et le dépôt, qui vide le sac ET remplit la Banque dans le même état, ne dit qu'UNE chose).
   ⚠ **LE JOUEUR DOSE SES PA** (même jour) : un chantier ouvert porte un `− / valeur / + / tout`
   (`.ps-invest`, état local par bâtiment) plafonné aux PA du travailleur ET au restant du chantier ;
   le défaut reste « tout » (le geste d'avant, en un tap). Le serveur acceptait déjà n'importe quel
