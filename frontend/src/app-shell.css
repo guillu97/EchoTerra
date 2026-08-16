@@ -691,6 +691,10 @@ body {
   color: #fff;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.02em;
+  /* Le HAUT du dégradé (--red-hi) ne donne que 3:1 au blanc : le minuteur passait
+     tout juste le seuil AA. Une ombre sombre l'assoit sans changer la couleur du
+     chip — moins intrusif que d'assombrir le rouge de toute la barre. */
+  text-shadow: 0 1px 1px rgba(74, 16, 6, 0.5);
 }
 .iconbtn {
   /* 30×30 était sous le minimum tactile (44px iOS / 48dp Android). */
@@ -2648,6 +2652,48 @@ body {
   color: var(--ink-soft);
   font-size: 11px;
 }
+/* La prévision de vague dans l'état de la ville — la version longue de la pastille
+   rouge de la TopBar. Sur fond parchemin, donc le rouge y est LISIBLE (c'est sur le
+   chip rouge qu'il ne l'était pas). */
+.ts-fc {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  background: var(--cream);
+  border: 1px solid rgba(120, 86, 40, 0.15);
+  border-radius: 12px;
+  padding: 10px;
+  font-size: 12px;
+  line-height: var(--lh-body);
+  color: var(--ink-soft);
+}
+.ts-fc.risk {
+  background: rgba(192, 57, 43, 0.08);
+  border-color: rgba(192, 57, 43, 0.25);
+}
+.ts-fc.fatal {
+  background: rgba(192, 57, 43, 0.14);
+  border-color: var(--red);
+}
+/* Volontairement en BLOC et non en flex : la phrase qui suit le gros chiffre doit
+   revenir à la ligne SOUS lui, sur toute la largeur. En flex elle formait une
+   colonne étroite qui repartait en retrait — illisible pour deux mots de plus. */
+.ts-fc-head {
+  color: var(--ink);
+}
+.ts-fc-dmg {
+  font-size: var(--t-lg);
+  font-weight: 800;
+  color: var(--red-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  margin-right: var(--s-2);
+}
+.ts-fc-warn {
+  font-weight: 700;
+  color: var(--red-2);
+}
+
 .ts-report {
   background: rgba(192, 57, 43, 0.08);
   border: 1px solid rgba(192, 57, 43, 0.25);
@@ -4175,15 +4221,65 @@ body {
 }
 .orders-list li.urgent { color: var(--ink); font-weight: 600; }
 
-/* Les dégâts attendus, collés au compte à rebours de la TopBar. */
+/* Les dégâts attendus, collés au compte à rebours de la TopBar.
+   ⚠ ROUGE SUR ROUGE : ce badge était `color: var(--red)` (#c0392b) posé SUR le
+   dégradé rouge du chip, qui finit exactement sur --red — contraste 1:1 au bas du
+   dégradé, donc un chiffre littéralement invisible (rapporté en jeu). Un badge se
+   détache par son FOND, pas par sa teinte : ici une encre translucide, qui reste
+   lisible quel que soit le rouge derrière (normal ou fatal). */
 .chip.wave .wave-dmg {
   font-style: normal;
   font-variant-numeric: tabular-nums;
-  margin-left: 4px;
-  color: var(--red);
-  font-weight: 700;
+  margin-left: var(--s-2);
+  padding: 1px 6px;
+  border-radius: var(--r-pill);
+  background: rgba(58, 12, 4, 0.4);
+  color: #fff;
+  font-weight: 800;
 }
-.chip.wave.fatal { border-color: var(--red); color: var(--red); }
+/* Au pire, la ville n'y survit pas. MÊME PIÈGE : `color: var(--red)` rendait alors
+   le chip ENTIER — minuteur compris — illisible, au moment précis où il compte le
+   plus. Une alerte se marque en AJOUTANT du contraste (rouge plus sombre, liseré
+   doré), jamais en en retirant. */
+.chip.wave.fatal {
+  background: linear-gradient(180deg, var(--red), var(--red-2));
+  border-color: var(--gold);
+  color: #fff;
+}
+.chip.wave.fatal .wave-dmg { background: rgba(0, 0, 0, 0.45); }
+
+/* À L'ÉTROIT, LE BADGE PASSE SOUS LE MINUTEUR — dans la MÊME pastille.
+   La barre débordait DÉJÀ de 41px sur un écran de 390px avec l'ancien « −0/16 » :
+   le nom de ville était écrasé à 0px et le ⚙️ sortait de l'écran (visible sur la
+   capture du joueur). Écrire le badge en entier l'aggravait à 91px. Empiler ne
+   coûte que de la hauteur — c'est la même réponse que la fusion PV+PA en un seul
+   chip, et pour la même raison : deux faces d'une même information. */
+@media (max-width: 460px) {
+  .chip.wave {
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    padding: 2px var(--s-2);
+    line-height: 1.2;
+  }
+  .chip.wave .wave-dmg {
+    margin-left: 0;
+    padding: 0 5px;
+    font-size: var(--t-xs);
+  }
+  /* Les six gouttières et les deux marges latérales valent 46px à elles seules,
+     sur les 390px d'un iPhone SE : les resserrer finit de faire rentrer le ⚙️.
+     (Les cibles tactiles, elles, ne bougent pas — c'est l'espace ENTRE qui cède.) */
+  .topbar {
+    gap: var(--s-1);
+    padding-left: max(var(--s-4), env(safe-area-inset-left));
+    padding-right: max(var(--s-4), env(safe-area-inset-right));
+  }
+  .topbar .chip.status {
+    padding-left: var(--s-3);
+    padding-right: var(--s-3);
+  }
+}
 
 /* LES CONSIGNES du menu radial (orders_standing.go) — ce qu'un héros fera seul si son
    joueur ne revient pas avant la vague. Volontairement discrètes : c'est un filet, pas

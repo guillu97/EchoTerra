@@ -2,6 +2,7 @@ import { useStore } from "../store";
 import { Overlay } from "../ui/Overlay";
 import { useWaveRemaining, formatHMS } from "../useWave";
 import { buildingIcon, buildingName } from "../data/buildings";
+import { damageRange, damageSentence, precisionSentence, besiegingSentence } from "../forecast";
 import { durColor } from "../tabs/HomeTab";
 
 const DEFENSIVE = ["wall", "gate", "tower"];
@@ -17,6 +18,7 @@ export function TownStatus() {
 
   const t = game.town;
   const lw = game.lastWave;
+  const fc = t.forecast;
   const defensive = t.buildings.filter((b) => DEFENSIVE.includes(b.id));
 
   return (
@@ -49,6 +51,31 @@ export function TownStatus() {
           <div>🌊 Vagues subies <b>{game.waveNumber}</b></div>
           <div>📅 Jour <b>{game.day}</b></div>
         </div>
+
+        {/* LA PRÉVISION DE VAGUE — ce que dit la pastille rouge de la TopBar, en
+            toutes lettres. C'est ELLE qu'on ouvre en tapant la pastille, or elle ne
+            portait pas un mot de la prévision : le chiffre « −0…16 » n'était
+            explicité que par un `title=`, qu'un doigt ne peut pas révéler. Tout est
+            dérivé du serveur (game/orders.go) et mis en mots par forecast.ts, donc
+            la version courte et la longue ne peuvent pas diverger. */}
+        {game.status === "active" && fc && (
+          <>
+            <h4>🌊 Prochaine vague — dans {formatHMS(remaining)}</h4>
+            <div className={"ts-fc" + (fc.fatal ? " fatal" : fc.atRisk ? " risk" : "")}>
+              <div className="ts-fc-head">
+                <b className="ts-fc-dmg">{damageRange(fc)} PV</b>
+                <span>{damageSentence(fc)}</span>
+              </div>
+              <div className="ts-fc-line">🔭 {precisionSentence(fc)}</div>
+              <div className="ts-fc-line">☠️ {besiegingSentence(fc)}</div>
+              {fc.fatal ? (
+                <div className="ts-fc-warn">⚠️ Même au mieux, la ville n'y survit pas.</div>
+              ) : (
+                fc.atRisk && <div className="ts-fc-warn">⚠️ Au pire, la ville n'y survit pas.</div>
+              )}
+            </div>
+          </>
+        )}
 
         <h4>Défense — total 🛡 {t.defense}</h4>
         <div className="ts-def">
