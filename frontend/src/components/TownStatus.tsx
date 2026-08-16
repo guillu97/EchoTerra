@@ -4,6 +4,7 @@ import { useWaveRemaining, formatHMS } from "../useWave";
 import { buildingIcon, buildingName } from "../data/buildings";
 import { damageRange, damageSentence, precisionSentence, besiegingSentence } from "../forecast";
 import { durColor } from "../tabs/HomeTab";
+import { buildingKnown } from "../townUtils";
 
 const DEFENSIVE = ["wall", "gate", "tower"];
 
@@ -19,7 +20,12 @@ export function TownStatus() {
   const t = game.town;
   const lw = game.lastWave;
   const fc = t.forecast;
-  const defensive = t.buildings.filter((b) => DEFENSIVE.includes(b.id));
+  // Un bâtiment dont le plan n'a pas encore été trouvé n'existe pas pour le joueur
+  // (townUtils.buildingKnown) : il n'a pas plus sa place dans l'état de la ville que
+  // dans la liste des chantiers — même règle partout, sinon la Tour disparaît d'un
+  // écran et reste nommée dans l'autre.
+  const known = t.buildings.filter((b) => buildingKnown(game, b));
+  const defensive = known.filter((b) => DEFENSIVE.includes(b.id));
 
   return (
     <Overlay variant="sheet" onClose={() => close(false)} title="🏰 État de la ville">
@@ -114,7 +120,7 @@ export function TownStatus() {
 
         <h4>Tous les bâtiments</h4>
         <div className="ts-buildings">
-          {t.buildings.map((b) => (
+          {known.map((b) => (
             <div className="ts-b" key={b.id}>
               <span className="ts-name">
                 {b.built ? buildingIcon(b.id) : "🏗️"} {buildingName(b.id, b.name)}{" "}

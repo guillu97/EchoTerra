@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useStore } from "../store";
 import { buildingIcon, buildingName } from "../data/buildings";
 import { TownWorker, useWorkerPA } from "../components/TownWorker";
-import { heroesInTown } from "../townUtils";
+import { buildingKnown, heroesInTown } from "../townUtils";
 import { durColor } from "./HomeTab";
 import type { TownBuilding } from "../api/types";
 
@@ -19,12 +19,20 @@ export function StructureTab() {
   const playerId = useStore((s) => s.playerId);
   const pa = useWorkerPA();
   const inTown = heroesInTown(game, playerId).length > 0;
+  // PA choisis par chantier (voir `chosen` plus bas) : par défaut on propose tout
+  // ce que le travailleur peut donner, mais c'est LUI qui décide combien il pose.
+  const [amounts, setAmounts] = useState<Record<string, number>>({});
 
   const storage = game?.town.storage ?? [];
   const have = (name: string) => storage.find((i) => i.name === name)?.qty ?? 0;
 
+  // Les sites dont le plan n'a pas encore été trouvé sont HORS LISTE (townUtils) —
+  // on en garde juste le nombre, pour dire que le catalogue est plus grand sans
+  // en faire une liste de courses.
+  const hidden = (game?.town.buildings ?? []).filter((b) => !buildingKnown(game, b)).length;
+
   const groups = useMemo(() => {
-    const list = [...(game?.town.buildings ?? [])];
+    const list = (game?.town.buildings ?? []).filter((b) => buildingKnown(game, b));
     if (sort !== "status") {
       list.sort((a, b) => (sort === "level" ? b.level - a.level : buildingName(a.id, a.name).localeCompare(buildingName(b.id, b.name))));
       return [{ key: "all", title: "", items: list }];
@@ -65,8 +73,15 @@ export function StructureTab() {
           const enoughMats = mats.every((m) => have(m.name) >= m.qty);
           const open = b.underConstruction; // chantier ouvert (plan posé)
           const remaining = Math.max(0, b.cost.pa - b.paInvested);
-          // Chantier ouvert : on investit les PA du worker (le serveur borne au restant).
-          const invest = Math.min(pa, remaining);
+          // Chantier ouvert : le travailleur CHOISIT combien de PA il pose ici. Le
+          // plafond reste ce qu'il a en poche et ce qu'il reste à faire (le serveur
+          // borne aux deux de son côté) ; le défaut est « tout », c'est-à-dire le
+          // comportement d'avant, mais garder 2 PA pour rentrer ou pour un second
+          // chantier est désormais possible — les PA d'un héros sont sa journée.
+          const maxInvest = Math.min(pa, remaining);
+          const invest = maxInvest > 0 ? Math.max(1, Math.min(maxInvest, amounts[b.id] ?? maxInvest)) : 0;
+          const setInvest = (n: number) =>
+            setAmounts((m) => ({ ...m, [b.id]: Math.max(1, Math.min(maxInvest, n)) }));
           const maxed = b.built && b.cost.pa === 0; // level 3 reached (design max)
           // Plan (blueprint) à trouver : un chantier NEUF (site, pas encore posé) exige
           // le plan correspondant en Banque pour être posé (il est consommé à la pose).
@@ -92,7 +107,7 @@ export function StructureTab() {
             : open && !enoughMats
             ? "Matériaux manquants en Banque — les PA investis restent acquis"
             : open
-            ? `Investir les PA du travailleur (${b.paInvested}/${b.cost.pa})`
+            ? `Investir ${invest} PA dans ce chantier (${b.paInvested}/${b.cost.pa})`
             : pa < 1
             ? "PA insuffisants"
             : "Poser le plan de chantier (1 PA)";
@@ -144,6 +159,37 @@ export function StructureTab() {
                     </span>
                   </div>
                 )}
+                {open && inTown && maxInvest > 0 && (
+                  <div className="ps-invest" role="group" aria-label={`PA à investir dans ${buildingName(b.id, b.name)}`}>
+                    <button
+                      className="stepbtn"
+                      disabled={invest <= 1 || busy}
+                      aria-label="Un PA de moins"
+                      onClick={() => setInvest(invest - 1)}
+                    >
+                      −
+                    </button>
+                    <span className="amt" aria-live="polite">
+                      ⚡ {invest} <i>/ {maxInvest}</i>
+                    </span>
+                    <button
+                      className="stepbtn"
+                      disabled={invest >= maxInvest || busy}
+                      aria-label="Un PA de plus"
+                      onClick={() => setInvest(invest + 1)}
+                    >
+                      +
+                    </button>
+                    <button
+                      className="stepbtn wide"
+                      disabled={invest >= maxInvest || busy}
+                      aria-label="Investir tous les PA disponibles"
+                      onClick={() => setInvest(maxInvest)}
+                    >
+                      tout
+                    </button>
+                  </div>
+                )}
               </div>
               <button className="ps-act" disabled={!can} title={hint} onClick={() => townAction(b.id, "build", open ? invest : 1)}>
                 {label}
@@ -153,6 +199,12 @@ export function StructureTab() {
             })}
           </div>
         ))}
+        {hidden > 0 && (
+          <div className="stock-note compact ps-unknown">
+            📜 {hidden} bâtiment{hidden > 1 ? "s" : ""} de la ville {hidden > 1 ? "attendent" : "attend"} encore
+            {hidden > 1 ? " leurs plans" : " son plan"} — les plans se trouvent dans les ruines et à la fouille.
+          </div>
+        )}
       </div>
     </div>
   );
