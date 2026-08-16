@@ -47,6 +47,8 @@ func buildingPlanItem(id string) string {
 		return "Plan du Verger"
 	case "caserne":
 		return "Plan de la Caserne"
+	case "temple":
+		return "Plan du Temple"
 	}
 	return ""
 }
@@ -94,6 +96,9 @@ var buildPA = map[string]int{
 	"armurerie":   16,
 	"verger":      12,
 	"caserne":     18,
+	// LE TEMPLE (mythic.go) : cher, parce qu'il ouvre un pilier entier et qu'une ville
+	// qui le bâtit renonce à autre chose cette semaine-là.
+	"temple": 16,
 }
 
 // planPACost is the price of laying down the plan that opens a chantier.
@@ -204,6 +209,10 @@ func DefaultBuildings() []*TownBuilding {
 		{ID: "armurerie", Name: "Armory", Built: false, Level: 0, MaxDurability: 100},
 		{ID: "verger", Name: "Orchard", Built: false, Level: 0, MaxDurability: 60},
 		{ID: "caserne", Name: "Barracks", Built: false, Level: 0, MaxDurability: 110},
+		// LE TEMPLE (mythic.go) : le bâtiment du pilier mythique. Il ne défend pas, il
+		// ne stocke rien, il ne produit aucun objet — il transforme la ferveur d'une
+		// ville en bénédictions, et c'est là qu'on vote pour le dieu qu'on appelle.
+		{ID: "temple", Name: "Temple", Built: false, Level: 0, MaxDurability: 90},
 	}
 }
 
@@ -794,6 +803,11 @@ func buildingLabel(id, fallback string) string {
 		return "Verger"
 	case "caserne":
 		return "Caserne"
+	case "temple":
+		// Le nom AFFICHÉ du temple change avec le panthéon (« Hof des Ases », « Temple
+		// de Râ ») ; ce libellé-ci est le générique, celui des phrases composées sans
+		// contexte de partie. Le nom propre est servi par Pantheon.Temple.
+		return "Temple"
 	}
 	return fallback
 }

@@ -337,6 +337,20 @@ type GameState struct {
 		// Scouts : les JOUEURS montés à la Tour estimer la vague qui vient (orders.go).
 		// Remis à zéro à chaque vague — la horde suivante est une autre horde.
 		Scouts []string `json:"scouts,omitempty"`
+		// LA FAVEUR DES DIEUX (mythic.go) : le compteur qu'alimentent les objets de
+		// décoration fabriqués, et que le Temple dépense en bénédictions.
+		Favor int `json:"favor"`
+		// Blessings : les bénédictions EN COURS, chacune avec la dernière vague
+		// qu'elle couvre. Persistées : elles doivent survivre à un redémarrage comme
+		// tout le reste de l'état de la ville.
+		Blessings []ActiveBlessing `json:"blessings,omitempty"`
+		// Votes : le scrutin en cours au Temple, joueur -> dieu. Dépouillé et vidé à
+		// la vague suivante (resolveBlessingVote).
+		Votes map[string]string `json:"votes,omitempty"`
+		// Dérivés (Recompute), pour que l'interface n'ait pas à recopier les nombres du
+		// serveur : ce qu'un dieu coûte, et combien de bénédictions le Temple tient.
+		FavorGoal     int `json:"favorGoal"`
+		BlessingSlots int `json:"blessingSlots"`
 	} `json:"town"`
 	// ActiveCombat is the id of the combat in progress, if any.
 	ActiveCombat string             `json:"activeCombat,omitempty"`

@@ -21,7 +21,7 @@ import * as THREE from "three";
 import { signacify } from "./signacMaterial";
 import { TOWN_BUILDINGS } from "../data/buildings";
 import { heroAssetUrl, heroTexKey, libUrl } from "../assets";
-import { myTeamHeroes } from "../townUtils";
+import { buildingKnown, myTeamHeroes } from "../townUtils";
 import { useStore } from "../store";
 import { durColor } from "../tabs/HomeTab";
 import { clearOwned, VoxelEngine } from "./engine";
@@ -204,8 +204,11 @@ export function VoxelTownView({
         // pastille. Sans elle, quatre bâtiments sur dix (mairie, tour, cuisine,
         // recyclerie en début de partie) étaient introuvables depuis la Ville —
         // c'était le principal défaut de cohérence de l'onglet.
+        // ⚠ SAUF si son PLAN n'a pas encore été trouvé (townUtils.buildingKnown) :
+        // la parcelle reste alors une friche anonyme, comme dans Structures. Nommer
+        // ici un bâtiment que l'autre écran cache serait le pire des deux mondes.
         if (!b.built && !b.underConstruction) {
-          if (pl.primary) list.push({ buildingId: pl.bid, world: spotAtGround(pl) });
+          if (pl.primary && buildingKnown(g, b)) list.push({ buildingId: pl.bid, world: spotAtGround(pl) });
           continue;
         }
         const variant = b.built
@@ -302,6 +305,11 @@ export function VoxelTownView({
              "bld-townhall", "bld-kitchen", "bld-wall", "bld-recyclerie", "bld-poste", "bld-chantier",
              // les cinq bâtiments de spécialité (design.go)
              "bld-infirmerie", "bld-cartographe", "bld-armurerie", "bld-caserne", "bld-verger",
+             // le TEMPLE (mythic.go) : la clé nue est le péristyle grec ; les deux autres
+             // panthéons arrivent par themedKeysFor. ⚠ un bâtiment absent de cette liste
+             // est INVISIBLE et incliquable, sans la moindre erreur (`get` rend undefined,
+             // la pose fait `continue`) — le piège documenté sur PROP_KEYS et themeModels.
+             "bld-temple",
              "bld-gate-door-l", "bld-gate-door-r", "cloud", ...TOWN_DECOR_PROPS,
              // …plus ce que CE thème ajoute (rien en tempéré : aucun octet de plus).
              ...themedKeysFor(game?.themeId), ...weatherPropKeys(game?.themeId, { tumbleweeds: false })])

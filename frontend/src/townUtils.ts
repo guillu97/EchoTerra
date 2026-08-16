@@ -1,4 +1,20 @@
-import type { GameState, Hero } from "./api/types";
+import type { GameState, Hero, TownBuilding } from "./api/types";
+
+// UN PLAN QU'ON N'A PAS TROUVÉ N'EXISTE PAS ENCORE POUR LE JOUEUR.
+// Dix bâtiments du catalogue (mairie, tour, cuisine, recyclerie, poste et les cinq
+// spécialités) ne s'ouvrent qu'avec un plan LOOTABLE, qui ne tombe que des ruines
+// et de la fouille. Les lister avant de l'avoir trouvé affichait une liste de
+// courses infaisable — six sites verrouillés qui noyaient les deux chantiers
+// réellement ouvrables, avec le nom du plan manquant en guise de promesse.
+// Un site réapparaît dès que son plan est en Banque : c'est ça, la découverte.
+// Un chantier déjà ouvert ou un bâtiment debout restent évidemment visibles (le
+// plan est consommé à la pose), et une AMÉLIORATION n'exige aucun plan.
+export function buildingKnown(g: GameState | undefined, b: TownBuilding): boolean {
+  if (b.built || b.underConstruction) return true;
+  const plan = b.cost?.plan ?? "";
+  if (plan === "") return true;
+  return (g?.town.storage ?? []).some((i) => i.name === plan && i.qty > 0);
+}
 
 // My team's heroes. In a multiplayer game only the heroes owned by `playerId`
 // count — town presence, PA pools and the Stock tab must never mix in another

@@ -261,6 +261,9 @@ export interface Recipe {
   paCost: number;
   ingredients: Item[];
   effects?: string;
+  // LA FAVEUR DES DIEUX que fabriquer cet objet verse à la ville (backend mythic.go).
+  // En pratique la catégorie « deco » : orner le bourg est ce qui attire leur regard.
+  favor?: number;
 }
 
 
@@ -455,6 +458,40 @@ export interface Theme {
   tagline: string;
   dominant: number; // biome dominant autour de la ville
   biomeNames?: Record<string, string>;
+  // Le PANTHÉON de cette terre (backend mythic.go) : grec par défaut, nordique au nord,
+  // égyptien au sud. Il voyage dans le payload plutôt que d'être recopié ici — une copie
+  // client divergerait au premier dieu ajouté.
+  pantheon?: Pantheon;
+}
+
+// Un dieu du panthéon. `domain` est ce que sa bénédiction FAIT : les trois panthéons
+// servent les mêmes trois domaines, donc aucun tirage de carte ne donne de meilleurs
+// dieux qu'un autre (règle des thèmes : latéral, jamais supérieur).
+export interface God {
+  id: string;
+  name: string;
+  icon: string;
+  domain: "rempart" | "moisson" | "lame";
+  boon: string; // l'effet en clair — ce qu'on lit avant de voter
+  tagline: string; // la légende
+}
+
+export interface Pantheon {
+  id: string;
+  name: string;
+  favor: string; // l'icône du compteur (⚡ grec, 🔨 nordique, ☥ égyptien)
+  temple: string; // le nom du Temple sous ce panthéon
+  gods: God[];
+}
+
+// Une bénédiction EN COURS. `untilWave` est le numéro de la dernière vague couverte :
+// on compte en vagues et jamais en heures, comme tout ce qui traverse un rattrapage.
+export interface ActiveBlessing {
+  godId: string;
+  name: string;
+  icon: string;
+  domain: string;
+  untilWave: number;
 }
 
 // Nature d'une partie au classement : les trois ne se comparent pas (un run solo
@@ -542,6 +579,13 @@ export interface GameState {
     scouts?: string[];
     reviveDay?: number; // Townhall resurrections performed today (allowance = level)
     revivesToday?: number;
+    // LA FAVEUR DES DIEUX (backend mythic.go) : le compteur qu'alimentent les offrandes
+    // fabriquées, le scrutin en cours au Temple, et les bénédictions actives.
+    favor?: number;
+    favorGoal?: number; // ce que coûte un dieu (dérivé serveur, pas une constante client)
+    blessingSlots?: number; // combien de bénédictions le Temple tient — son niveau
+    blessings?: ActiveBlessing[];
+    votes?: Record<string, string>; // playerId -> godId
   };
   activeCombat?: string;
   combats?: Record<string, Combat>;

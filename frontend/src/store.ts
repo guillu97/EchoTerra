@@ -17,7 +17,8 @@ import type {
   WaveReport,
 } from "./api/types";
 import { bus, EV } from "./eventBus";
-import { effectiveTownHeroId } from "./townUtils";
+import { effectiveTownHeroId, myTeamHeroes } from "./townUtils";
+import { buildingName } from "./data/buildings";
 import { myActiveCombat } from "./combatUtils";
 
 const LS_GAME = "echoterra:gameId"; // dernière partie active (pointeur générique)
@@ -208,6 +209,7 @@ interface StoreState {
   townStatusOpen: boolean; // town status panel overlay
   townJournalOpen: boolean; // town journal overlay (Panel building)
   townLedgerOpen: boolean; // registre de contribution (Panel building) — cf. TownLedger.tsx
+  templeOpen: boolean; // le Temple : faveur, dieux, scrutin — cf. TemplePanel.tsx
   chatOpen: boolean; // messagerie de la ville (feuille ✉️)
   chat: ChatMessage[]; // board content — served by its own gated route, never by the game payload
   chatSeen: number; // how many messages this device had seen (drives the unread pip)
@@ -267,6 +269,9 @@ interface StoreState {
   toggleTownStatus: (open?: boolean) => void;
   toggleTownJournal: (open?: boolean) => void;
   toggleTownLedger: (open?: boolean) => void;
+  toggleTemple: (open?: boolean) => void;
+  // Voter pour le dieu que la ville appelle. `godId` vide retire sa voix.
+  voteBlessing: (godId: string) => Promise<void>;
   toggleChat: (open?: boolean) => void;
   dismissWaveCinema: () => void;
   refreshChat: () => Promise<void>; // sondage silencieux de la messagerie
@@ -684,6 +689,7 @@ export const useStore = create<StoreState>((set, get) => {
     townStatusOpen: false,
     townJournalOpen: false,
     townLedgerOpen: false,
+    templeOpen: false,
     chatOpen: false,
     chat: [],
     chatSeen: 0,
@@ -736,6 +742,7 @@ export const useStore = create<StoreState>((set, get) => {
       set((s) => ({ townJournalOpen: open === undefined ? !s.townJournalOpen : open })),
     toggleTownLedger: (open) =>
       set((s) => ({ townLedgerOpen: open === undefined ? !s.townLedgerOpen : open })),
+    toggleTemple: (open) => set((s) => ({ templeOpen: open === undefined ? !s.templeOpen : open })),
 
     toggleChat: (open) => {
       const next = open === undefined ? !get().chatOpen : open;
@@ -1005,6 +1012,26 @@ export const useStore = create<StoreState>((set, get) => {
         get().notify(
           `🔭 Horde estimée entre ${f.min} et ${f.max} — fiable à ${f.precision}%` +
             (f.scouts > 1 ? ` (${f.scouts} observateurs)` : ""),
+        );
+      }),
+
+    // LE SCRUTIN DU TEMPLE (backend mythic.go). Gratuit, sans héros, et sans effet
+    // immédiat : le dépouillement a lieu quand la vague tombe. On le DIT dans le toast,
+    // sinon un joueur qui vote et ne voit rien changer croit que ça n'a pas marché.
+    voteBlessing: (godId) =>
+      withBusy(async () => {
+        const { game, playerId } = get();
+        if (!game || !playerId) {
+          get().notify("Il faut rejoindre l'expédition pour voter");
+          return;
+        }
+        const next = await api.voteBlessing(game.id, playerId, godId);
+        adoptGame(next);
+        const god = next.theme?.pantheon?.gods.find((g) => g.id === godId);
+        get().notify(
+          god
+            ? `${god.icon} Voix donnée à ${god.name} — le dieu élu répondra à la prochaine vague`
+            : "Voix retirée",
         );
       }),
 
@@ -1751,6 +1778,44 @@ export const useStore = create<StoreState>((set, get) => {
       renderMap();
     },
   };
+});
+
+// LA DÉCOUVERTE D'UN PLAN SE DIT.
+//
+// Un plan de bâtiment ne tombe que des ruines et de la fouille, et depuis qu'un
+// site dont le plan n'est pas trouvé n'est plus listé (townUtils.buildingKnown),
+// le seul signe qu'un chantier vient de s'ouvrir est UNE LIGNE DE PLUS dans un
+// onglet qu'on n'a pas forcément ouvert. On le dit donc, aux deux moments qui
+// comptent : le plan qui tombe dans le sac d'un de MES héros (« rapporte-le »),
+// et le plan qui arrive en BANQUE (le chantier est débloqué — c'est le moment
+// jouable, et il vaut aussi pour le plan qu'un COÉQUIPIER vient de déposer).
+//
+// ⚠ on ne compare que deux états de la MÊME partie : charger une partie, revenir
+// d'un combat ou rattraper une absence remplace l'objet `game` en bloc, et sans
+// ce garde toute reprise déverserait un toast par plan déjà en Banque.
+// ⚠ un plan déposé quitte le sac ET entre en Banque dans le même état : seules
+// les APPARITIONS déclenchent, donc ce geste ne produit qu'un seul message.
+const qtyOf = (items: { name: string; qty: number }[] | undefined, name: string) =>
+  (items ?? []).reduce((n, i) => (i.name === name ? n + i.qty : n), 0);
+
+useStore.subscribe((s, prev) => {
+  const next = s.game;
+  const before = prev.game;
+  if (!next || !before || next.id !== before.id) return;
+  for (const b of next.town.buildings ?? []) {
+    if (b.built || b.underConstruction) continue;
+    const plan = b.cost?.plan ?? "";
+    if (plan === "") continue;
+    const label = buildingName(b.id, b.name);
+    if (qtyOf(before.town.storage, plan) === 0 && qtyOf(next.town.storage, plan) > 0) {
+      s.notify(`📐 ${plan} en Banque — nouveau chantier débloqué : ${label} (onglet Bâtir).`, "ok");
+      continue; // le dépôt vide le sac au même instant : un seul message
+    }
+    const bag = (g: GameState) => myTeamHeroes(g, s.playerId).reduce((n, h) => n + qtyOf(h.inventory, plan), 0);
+    if (bag(before) === 0 && bag(next) > 0) {
+      s.notify(`📐 ${plan} trouvé — dépose-le à la Banque pour ouvrir le chantier.`);
+    }
+  }
 });
 
 // Dev-only handle for debugging from the browser console / automated checks.

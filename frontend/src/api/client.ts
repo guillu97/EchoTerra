@@ -191,6 +191,11 @@ export const api = {
       heroId,
       playerId,
     }),
+  // Voter au Temple pour le dieu que la ville appelle (backend mythic.go). Gratuit et
+  // sans héros : c'est la seule action de ville qui n'exige ni présence ni PA. `godId`
+  // vide retire sa voix.
+  voteBlessing: (gameId: string, playerId: string, godId: string) =>
+    req<GameState>("POST", `/api/games/${gameId}/town/blessing`, { playerId, godId }),
   postRequest: (gameId: string, playerId: string, item: string, qty: number) =>
     req<{ game: GameState }>("POST", `/api/games/${gameId}/town/request`, { playerId, item, qty }),
   cancelRequest: (gameId: string, playerId: string, cancel: string) =>

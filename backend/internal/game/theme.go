@@ -85,6 +85,13 @@ type ThemeDef struct {
 	// alors le bois ET l'eau : une destination disputée, ce qui est le but.
 	ExtraDrops map[Biome][]DropDef `json:"-"`
 
+	// Pantheon est le panthéon de cette terre (mythic.go) : le nom de son temple,
+	// l'icône de sa faveur et ses trois dieux. ⚠ un panthéon est une PEAU — les trois
+	// pantheons servent les mêmes trois domaines, avec les mêmes chiffres. Un thème se
+	// TIRE ; s'il pouvait donner de meilleurs dieux, ce serait une punition au hasard
+	// (même raison que pour les armes de thème, cf. equipment.go).
+	Pantheon *Pantheon `json:"pantheon,omitempty"`
+
 	// BiomeNames renomme les terrains à l'écran. Clé = biome, valeur = libellé.
 	BiomeNames map[Biome]string `json:"biomeNames,omitempty"`
 	// RuinNames rhabille les ruines-donjons. ⚠ le TYPE et la table de BUTIN restent
@@ -114,6 +121,9 @@ var Themes = []ThemeDef{
 		// dont dépend tout l'équilibrage.
 		Dominant: BiomeGrass,
 		Bias:     0,
+		// La terre de référence est GRECQUE : c'est le panthéon des parties sans thème
+		// enregistré, donc celui qu'il faut par défaut (ThemeByID rend ce thème-ci).
+		Pantheon: PantheonOlympe,
 	},
 	{
 		ID:       "nordique",
@@ -125,6 +135,7 @@ var Themes = []ThemeDef{
 		// LA CONTRAINTE : le froid. Nourrir les foyers, ou geler.
 		Cold:     true,
 		Snowfall: true,
+		Pantheon: PantheonAsgard,
 		ExtraDrops: map[Biome][]DropDef{
 			// LE THÈME FINANCE SA PROPRE CONTRAINTE. Le bois est déjà la matière la
 			// plus disputée du jeu (mesuré : Banque à zéro bois sur les grandes
@@ -161,6 +172,7 @@ var Themes = []ThemeDef{
 		// LA CONTRAINTE : l'eau. Boire une fois par jour, ou traîner la Soif.
 		Thirst:     true,
 		WellRefill: 4, // contre 10 ailleurs : le puits ne se remplit plus tout seul
+		Pantheon:   PantheonDuat,
 		ExtraDrops: map[Biome][]DropDef{
 			// La palmeraie EST l'oasis. Poids fort : c'est la raison d'y aller, et le
 			// thème l'a mise loin.

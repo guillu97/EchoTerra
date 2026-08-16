@@ -216,6 +216,7 @@ var ruinDefs = map[Biome]ruinDef{
 		{"objet", "Plan de la Mairie", 1, 2},    // sanctuaire civique → mairie
 		{"objet", "Plan de la Poste", 1, 1},     // scriptorium du sanctuaire → poste
 		{"objet", "Plan de l'Infirmerie", 1, 2}, // herboristerie du sanctuaire → infirmerie
+		{"objet", "Plan du Temple", 1, 3},       // un sanctuaire enseigne comment on en bâtit un
 	}},
 	4: {Type: "mine", Name: "Mine effondrée", Icon: "⛏️", ClearPA: 12, Loot: []DropDef{
 		{"minerai", "Minerai de fer", 2, 3},

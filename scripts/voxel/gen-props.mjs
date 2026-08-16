@@ -1564,6 +1564,193 @@ function bldTownhall(seed, skinId) {
   return g;
 }
 
+// ─── LE TEMPLE, UN PAR PANTHÉON (2026-08-16, backend mythic.go) ──────────────
+//
+// « Spécifique au biome », demandé, et c'est le seul bâtiment dont la FORME dit une
+// règle du jeu : quel panthéon la ville prie, donc quels dieux figurent au scrutin.
+// D'où trois recettes distinctes et non une recette à peaux, contrairement à la halle
+// sommitale (bldTownhall) : là-bas le thème ne change que la matière d'une même
+// civilisation ; ici l'architecture EST l'information.
+//
+// ⚠ le péristyle grec est du MARBRE, c'est-à-dire un quasi-neutre — donc jamais passé
+// par `shade()`, qui écarte la teinte et ferait virer au LILAS une grande surface sans
+// chroma (l'avertissement en tête de fichier, déjà payé une fois sur le chaume de
+// l'Infirmerie). Ses nuances sont des littéraux, ce que `g.box` accepte tel quel.
+
+// Toiture à PIGNON SUR LA FAÇADE : l'arête court en Y (avant-arrière), donc les deux
+// bouts en X montrent un triangle — c'est le fronton. `prismRoof`, dont l'arête court
+// en X, aurait donné un long versant aveugle en façade et rien qui ressemble à un temple.
+function pedimentRoof(g, x0, x1, y0, y1, z0, rgb, slope = 0.62, over = 0.6) {
+  for (let x = x0 - over; x <= x1 + over; x += 0.5) {
+    const d = Math.min(x - (x0 - over), x1 + over - x);
+    const top = z0 + d * slope;
+    g.box(x, x + 0.5, y0 - over, y1 + over, Math.max(z0, top - 0.7), top, rgb);
+  }
+}
+
+function bldTempleGrec(seed) {
+  // OLYMPE — un péristyle : trois degrés de stylobate, une colonnade qui fait le tour,
+  // un entablement et un fronton doré. La colonnade est le trait : c'est elle qu'on
+  // reconnaît d'en haut, parce qu'elle découpe la lumière en peigne.
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz, FINE);
+  const rnd = makeRng(seed); void rnd;
+  const MARBLE = [234, 228, 214], MARBLE_2 = [216, 209, 192], MARBLE_3 = [198, 190, 172];
+  const ROOF = [190, 104, 74]; // terre cuite : la seule tache chaude, et elle a du chroma
+  const GOLD = TRIM_GOLD, OLIVE = [104, 132, 84];
+  // Stylobate : trois degrés, tout autour.
+  for (let k = 0; k < 3; k++) {
+    const m = k * 0.5;
+    g.box(2.8 + m, 17.2 - m, 5.4 + m, 15.6 - m, k * 0.5, (k + 1) * 0.5, k % 2 ? MARBLE_2 : MARBLE_3);
+  }
+  // Naos : la cella pleine, au centre — le temple n'est pas creux vu du ciel.
+  g.box(5.4, 14.6, 7.6, 13.6, 1.5, 8.2, MARBLE_2);
+  g.box(8.6, 11.4, 7.3, 7.7, 1.5, 6.4, [64, 58, 52]); // la porte, dans l'ombre
+  // LA COLONNADE. Six fûts en façade et à l'arrière, trois de chaque côté — cannelés
+  // par une alternance de tons littéraux (pas de shade sur du marbre, cf. plus haut).
+  const col = (x, y, i) => {
+    cylAt(g, x, y, 1.5, 8.0, 0.62, i % 2 ? MARBLE : MARBLE_2);
+    g.box(x - 0.9, x + 0.9, y - 0.9, y + 0.9, 1.5, 1.9, MARBLE_3); // base
+    g.box(x - 0.9, x + 0.9, y - 0.9, y + 0.9, 8.0, 8.5, MARBLE); // chapiteau
+  };
+  const XS = [4, 6.2, 8.4, 10.6, 12.8, 15];
+  XS.forEach((x, i) => col(x, 6.4, i));
+  XS.forEach((x, i) => col(x, 14.6, i + 1));
+  [9, 11.5].forEach((y, i) => {
+    col(4, y, i);
+    col(15, y, i + 1);
+  });
+  // Entablement (architrave + frise) puis le toit à fronton.
+  g.box(2.9, 16.1, 5.5, 15.5, 8.5, 9.1, MARBLE);
+  g.box(2.9, 16.1, 5.5, 15.5, 9.1, 9.7, MARBLE_3); // la frise, plus sombre : elle se lit
+  pedimentRoof(g, 3.2, 15.8, 5.8, 15.2, 9.7, ROOF, 0.62, 0.7);
+  // Acrotères dorés aux trois pointes du fronton — l'or du sanctuaire.
+  g.box(9.2, 9.8, 5.4, 5.8, 13.6, 14.6, GOLD);
+  g.box(9.2, 9.8, 15.2, 15.6, 13.6, 14.6, GOLD);
+  // L'AUTEL, devant la façade (y < 5,4) : le débord du toit avale ce qu'on pose sur les
+  // côtés — même leçon que la boîte aux lettres de la Poste.
+  g.box(8.4, 11.6, 3.2, 4.6, 0, 1.6, MARBLE_2);
+  g.box(8.2, 11.8, 3.0, 4.8, 1.6, 1.9, MARBLE);
+  g.box(9.4, 10.6, 3.7, 4.1, 1.9, 2.6, [232, 148, 62]); // la flamme
+  // Deux oliviers en pot encadrent la montée.
+  for (const x of [5.2, 14.2]) {
+    g.box(x - 0.5, x + 0.5, 3.6, 4.4, 0, 1.0, MARBLE_3);
+    g.box(x - 0.4, x + 0.4, 3.8, 4.2, 1.0, 2.0, [104, 82, 60]);
+    ellipsoid(g, x, 4, 3.0, 1.4, 1.4, 1.1, OLIVE, makeRng(seed + x * 7), 6);
+  }
+  return g;
+}
+
+function bldTempleNordique(seed) {
+  // ÁSGARD — un hof en bois debout : trois toitures très pentues qui s'emboîtent en
+  // pyramide, une galerie basse tout autour, des têtes de dragon aux pignons et la
+  // neige sur les faîtes. Aucune pierre : au nord, on bâtit avec la forêt.
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz, FINE);
+  const rnd = makeRng(seed); void rnd;
+  const STAVE = [76, 58, 46], SHINGLE = [58, 66, 74], SHINGLE_2 = [74, 84, 92];
+  const POST = [104, 80, 58], SNOW = [238, 244, 252], RUNE = [186, 148, 76];
+  // Solin de pierre — juste assez pour que le bois ne touche pas la terre.
+  g.box(3.6, 16.4, 6.4, 14.6, 0, 0.8, shade(STONE_W, 0.82));
+  // Galerie basse : poteaux tout autour, couverture débordante. C'est elle qui donne
+  // au hof sa large base pyramidale.
+  for (const x of [4.2, 7.4, 12.6, 15.8]) {
+    g.box(x - 0.35, x + 0.35, 6.6, 7.3, 0.8, 4.2, POST);
+    g.box(x - 0.35, x + 0.35, 13.7, 14.4, 0.8, 4.2, POST);
+  }
+  g.box(4.6, 15.4, 7.4, 13.6, 0.8, 5.2, STAVE); // corps, premier niveau
+  g.box(8.6, 11.4, 7.1, 7.5, 0.8, 4.2, [42, 36, 34]); // portail
+  g.box(8.2, 11.8, 7.0, 7.3, 4.2, 4.8, RUNE); // linteau runique
+  pedimentRoof(g, 3.4, 16.6, 6.2, 14.8, 4.4, SHINGLE, 0.5, 0.5); // auvent de la galerie
+  // Deuxième et troisième toitures, emboîtées : la signature d'une église en bois debout.
+  g.box(6.4, 13.6, 8.6, 12.4, 6.4, 8.6, STAVE);
+  pedimentRoof(g, 6.0, 14.0, 8.2, 12.8, 8.6, SHINGLE_2, 0.62, 0.5);
+  g.box(8.6, 11.4, 9.6, 11.4, 11.0, 12.6, STAVE);
+  pedimentRoof(g, 8.2, 11.8, 9.2, 11.8, 12.6, SHINGLE, 0.7, 0.4);
+  // La NEIGE ne coiffe QUE LES FAÎTES, en bandeaux étroits autour de l'arête.
+  // ⚠ un premier jet la posait sur toute la largeur des trois toitures : rendu, le hof
+  // disparaissait sous une pile de dalles blanches et les bardeaux sombres — c'est-à-dire
+  // le bois debout, tout le sujet du bâtiment — n'étaient plus visibles. C'est le
+  // CONTRASTE qui fait l'hiver, pas la couverture (même réglage que la palette du terrain).
+  pedimentRoof(g, 8.8, 11.2, 6.4, 14.6, 6.6, SNOW, 0.5, 0.2);
+  pedimentRoof(g, 9.0, 11.0, 8.4, 12.6, 10.6, SNOW, 0.62, 0.2);
+  pedimentRoof(g, 9.2, 10.8, 9.4, 11.6, 13.8, SNOW, 0.7, 0.2);
+  // TÊTES DE DRAGON aux pointes de faîtage — le trait qu'on reconnaît de loin, donc
+  // franc : un col, une gueule ouverte et une langue rouge, pas une pastille.
+  for (const [x, y, dy] of [[9.7, 6.0, -1], [9.7, 15.0, 1]]) {
+    // Un col ÉTROIT et haut : large, la tête se lisait comme une cheminée. C'est
+    // l'élancement du cou, pas la taille de la gueule, qui fait la proue de drakkar.
+    g.box(x - 0.28, x + 0.28, y, y + 0.55 * dy, 8.0, 12.0, POST);
+    g.box(x - 0.4, x + 0.4, y + 0.4 * dy, y + 1.5 * dy, 11.6, 12.4, POST); // la mâchoire
+    g.box(x - 0.4, x + 0.4, y + 0.8 * dy, y + 1.5 * dy, 12.6, 13.2, POST); // le crâne
+    g.box(x - 0.18, x + 0.18, y + 1.3 * dy, y + 2.1 * dy, 12.0, 12.35, [206, 92, 74]); // la langue
+  }
+  // Deux pierres runiques plantées devant, et un feu de veille.
+  for (const x of [5.0, 14.4]) {
+    g.box(x - 0.6, x + 0.6, 4.2, 4.8, 0, 3.4, shade(STONE_W, 0.9));
+    g.box(x - 0.25, x + 0.25, 4.1, 4.3, 1.0, 2.8, RUNE);
+  }
+  g.box(9.0, 10.8, 3.4, 5.0, 0, 0.6, shade(STONE_W, 0.78));
+  g.box(9.3, 10.5, 3.7, 4.7, 0.6, 1.3, [232, 132, 54]);
+  return g;
+}
+
+function bldTempleDesertique(seed) {
+  // LA DOUAT — un pylône : deux massifs trapézoïdaux à FRUIT (les faces s'inclinent
+  // vers l'intérieur en montant), une porte basse entre eux, la corniche à gorge, le
+  // disque solaire, et deux obélisques devant. Aucun toit en pente : là où il ne pleut
+  // jamais, la ligne est horizontale — c'est ce qui l'oppose d'un coup d'œil aux deux
+  // autres temples.
+  const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz, FINE);
+  const rnd = makeRng(seed); void rnd;
+  const SAND = [216, 178, 120], SAND_2 = [198, 160, 106], SAND_3 = [180, 142, 92];
+  const LAPIS = [64, 88, 152], GOLD = [232, 190, 92], INK = [72, 56, 44];
+  // ⚠ COMPOSITION REPRISE APRÈS RENDU. Le premier jet empilait pylônes + salle
+  // hypostyle + mâts à bannière + obélisques dans la même grille de 20 : la dalle
+  // plate de la salle passait DEVANT les tours en projection dimétrique et mangeait
+  // tout le bâtiment, les massifs trop larges et trop courts ne se lisaient plus comme
+  // des tours, et l'or des corniches ressortait en gros cubes jaunes. Un modèle vu à
+  // trois centimètres n'a droit qu'à UNE silhouette : deux tours, un linteau, deux
+  // aiguilles. Tout le reste a été retiré.
+  g.box(2.8, 17.2, 5.6, 12.4, 0, 0.7, SAND_3); // le socle
+  // LES DEUX TOURS À FRUIT : les faces s'inclinent vers l'intérieur en montant, seize
+  // assises. C'est ce dévers, et lui seul, qui dit « Égypte » plutôt que « donjon ».
+  for (const side of [0, 1]) {
+    const bx0 = side ? 11.8 : 3.4, bx1 = side ? 16.6 : 8.2;
+    for (let k = 0; k < 16; k++) {
+      const z = 0.7 + k * 0.8, m = k * 0.085;
+      g.box(bx0 + m, bx1 - m, 6.2 + m * 0.7, 10.6 - m * 0.7, z, z + 0.8, k % 2 ? SAND : SAND_2);
+    }
+    // Corniche à gorge : un BANDEAU en débord, surmonté de pierre. ⚠ posé d'abord en
+    // pleine section, il coiffait la tour d'un gros cube d'or — l'écueil déjà connu des
+    // toits trop colorés : à trois centimètres, une facette dorée de cette taille est ce
+    // qu'on voit AVANT la silhouette. Il ne fait plus qu'une demi-cellule de haut.
+    g.box(bx0 + 0.9, bx1 - 0.9, 6.9, 9.9, 12.9, 13.4, GOLD);
+    g.box(bx0 + 1.25, bx1 - 1.25, 7.25, 9.55, 13.4, 14.1, SAND);
+    // La colonne d'hiéroglyphes creusée dans la face avant.
+    g.box(bx0 + 2.0, bx0 + 2.5, 6.0, 6.3, 2.0, 11.0, INK);
+  }
+  // LE PASSAGE entre les tours : mur bas, vantail sombre, linteau et disque solaire.
+  g.box(8.0, 12.0, 6.4, 10.4, 0.7, 6.4, SAND_2);
+  g.box(8.7, 11.3, 6.1, 6.5, 0.7, 5.2, INK); // la porte
+  g.box(7.7, 12.3, 6.1, 10.7, 6.4, 7.4, SAND); // le linteau
+  g.box(7.7, 12.3, 6.0, 6.4, 7.4, 8.0, GOLD); // la gorge
+  cylAt(g, 10, 6, 5.4, 6.0, 0.85, GOLD); // le disque de Râ, sur le linteau
+  g.box(8.2, 9.2, 6.05, 6.35, 5.5, 5.9, GOLD); // les ailes
+  g.box(10.8, 11.8, 6.05, 6.35, 5.5, 5.9, GOLD);
+  g.box(8.6, 11.4, 6.05, 6.35, 3.0, 3.6, LAPIS); // le bandeau de lapis au-dessus de la porte
+  // DEUX OBÉLISQUES devant, fins et hauts : la verticale qui fait repérer la parcelle
+  // sur une butte de toits. Fins À DESSEIN — épais, ils faisaient une troisième tour.
+  // Plantés DEVANT le passage et non contre les tours : collés, ils s'y fondaient et
+  // ne se lisaient plus (mesuré au rendu). Et plus hauts que les pylônes, comme à Louxor.
+  for (const x of [6.4, 13.6]) {
+    for (let k = 0; k < 17; k++) {
+      const z = k * 0.8, m = k * 0.02;
+      g.box(x - 0.5 + m, x + 0.5 - m, 3.1 + m, 4.1 - m, z, z + 0.8, k % 3 ? SAND : SAND_2);
+    }
+    g.box(x - 0.34, x + 0.34, 3.4, 3.8, 13.6, 14.5, GOLD); // le pyramidion
+  }
+  return g;
+}
+
 function bldKitchen(seed) {
   const g = new Grid(SIZE.sx, SIZE.sy, SIZE.sz, FINE);
   const rnd = makeRng(seed); void rnd;
@@ -2299,6 +2486,10 @@ async function main() {
       ["bld-armurerie", bldArmurerie],
       ["bld-caserne", bldCaserne],
       ["bld-verger", bldVerger],
+      // LE TEMPLE (mythic.go). La clé NUE est le péristyle grec : c'est le panthéon du
+      // thème tempéré, donc celui des parties d'avant les thèmes — et `themedKey` rend
+      // la base quand rien n'est prévu pour la terre où l'on joue.
+      ["bld-temple", bldTempleGrec],
     ].map(([id, mk], bi) => ({
       id,
       make: (v) => {
@@ -2357,6 +2548,17 @@ async function main() {
       make: (v) => {
         const g = bldTownhall(3201 + si * 31, skin);
         damagePass(g, v === 0 ? 0 : v === 1 ? 0.35 : 0.68, 3301 + si * 31 + v * 7);
+        return fin(g);
+      },
+    })),
+    // LE TEMPLE DE CHAQUE PANTHÉON (mythic.go) — trois ARCHITECTURES et non trois peaux :
+    // ici la forme dit quels dieux figurent au scrutin, ce que la matière seule ne dirait
+    // pas. Le grec est la clé nue, plus haut dans la liste des bâtiments.
+    ...[["nordique", bldTempleNordique], ["desertique", bldTempleDesertique]].map(([skin, mk], si) => ({
+      id: `bld-temple-${skin}`,
+      make: (v) => {
+        const g = mk(3401 + si * 31);
+        damagePass(g, v === 0 ? 0 : v === 1 ? 0.35 : 0.68, 3501 + si * 31 + v * 7);
         return fin(g);
       },
     })),

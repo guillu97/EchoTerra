@@ -3,6 +3,7 @@ import { useStore } from "../store";
 import { HeroActionsMenu } from "./HeroActionsMenu";
 import { heroesInTown } from "../townUtils";
 import { useWaveRemaining, formatHMS } from "../useWave";
+import { damageRange, damageSentence, precisionSentence, besiegingSentence } from "../forecast";
 import { assetUrl, type AssetKey } from "../assets";
 
 // Portrait key for a hero class (same mapping as HeroOverlay).
@@ -26,6 +27,7 @@ export function TopBar() {
   const toggleTownStatus = useStore((s) => s.toggleTownStatus);
   const toggleTownJournal = useStore((s) => s.toggleTownJournal);
   const toggleChat = useStore((s) => s.toggleChat);
+  const toggleTemple = useStore((s) => s.toggleTemple);
   const chatSeen = useStore((s) => s.chatSeen);
   const game = useStore((s) => s.game);
   const playerId = useStore((s) => s.playerId);
@@ -47,6 +49,20 @@ export function TopBar() {
 
   const selHero = game?.heroes.find((h) => h.id === selectedHeroId) ?? myHeroes[0];
   const portrait = assetUrl(portraitKey(selHero?.classId));
+
+  // La prévision de vague, mise en mots par forecast.ts — la MÊME phrase sert la
+  // pastille, son aria-label, son title et la feuille « État de la ville ».
+  const fc = game?.town.forecast;
+
+  // LA FAVEUR DES DIEUX (mythic.go) : le compteur ⚡ et son seuil viennent du serveur,
+  // jamais d'une constante recopiée ici.
+  const pantheon = game?.theme?.pantheon;
+  const favor = game?.town.favor ?? 0;
+  const favorGoal = game?.town.favorGoal ?? 20;
+  const templeB = game?.town.buildings?.find((b) => b.id === "temple");
+  const templeStanding = !!templeB?.built && templeB.durability > 0;
+  const freeSlot = (game?.town.blessings?.length ?? 0) < (game?.town.blessingSlots ?? 0);
+  const favorReady = templeStanding && favor >= favorGoal && freeSlot;
 
   return (
     <header className="topbar">
@@ -76,18 +92,11 @@ export function TopBar() {
 
       {game?.status === "active" && (
         <button
-          className={"chip wave" + (game.town.forecast?.atRisk ? " fatal" : "")}
+          className={"chip wave" + (fc?.atRisk ? " fatal" : "")}
           onClick={() => toggleTownStatus(true)}
           title={
-            game.town.forecast
-              ? `Horde estimée entre ${game.town.forecast.min} et ${game.town.forecast.max} contre ` +
-                `${game.town.forecast.defense} de défense · fiable à ${game.town.forecast.precision}%` +
-                (game.town.forecast.tower === 0
-                  ? " (sans Tour de guet, on devine)"
-                  : ` (Tour niv.${game.town.forecast.tower}, ${game.town.forecast.scouts} observateur(s))`) +
-                (game.town.forecast.besieging > 0
-                  ? ` · ${game.town.forecast.besieging} créatures aux abords — les abattre fait baisser ce chiffre`
-                  : " · abords dégagés")
+            fc
+              ? `${damageSentence(fc)} ${precisionSentence(fc)} ${besiegingSentence(fc)}`
               : "Prochaine vague — état de la ville"
           }
         >
@@ -99,19 +108,42 @@ export function TopBar() {
           {/* Les dégâts ATTENDUS en FOURCHETTE, pas le numéro de vague : c'est le
               chiffre sur lequel le joueur peut agir, et son imprécision est elle-même
               une information (elle se paie en Tour de guet et en observateurs). */}
+          {/* ⚠ IL PORTE SON UNITÉ, et son séparateur est « … » : écrit « −0/16 » nu,
+              il a été lu comme une fraction (« 0 sur 16 ») par le joueur qui l'a
+              rapporté — et le title, seule explication, est invisible au doigt. La
+              version longue vit dans la feuille qu'ouvre ce bouton. */}
           {/* Pendant le rattrapage, la prévision porte sur une vague qui n'est pas
               la prochaine que le joueur verra tomber : on la tait (et la barre
               reste courte sur un téléphone). */}
-          {!catchingUp && game.town.forecast && game.town.forecast.damageMax > 0 && (
-            <i className="wave-dmg">
-              −{game.town.forecast.damageMin}
-              {game.town.forecast.damageMax !== game.town.forecast.damageMin &&
-                `/${game.town.forecast.damageMax}`}
+          {!catchingUp && fc && fc.damageMax > 0 && (
+            <i className="wave-dmg" aria-label={damageSentence(fc)}>
+              {damageRange(fc)} PV
             </i>
           )}
         </button>
       )}
 
+      {/* LA FAVEUR DES DIEUX (backend mythic.go). Affichée seulement quand elle a un
+          sens — un Temple debout, ou de la faveur déjà accumulée : sur une barre où le
+          ⚙️ sortait déjà de l'écran à 390 px, un compteur à zéro pour une ville sans
+          temple ne serait que du bruit. L'icône est celle du PANTHÉON (⚡ grec,
+          🔨 nordique, ☥ égyptien), ce qui la distingue au passage des PA, qui portent
+          aussi la foudre. */}
+      {(favor > 0 || templeStanding) && (
+        <button
+          className={"chip favor" + (favorReady ? " ready" : "")}
+          onClick={() => toggleTemple(true)}
+          title={
+            templeStanding
+              ? `Faveur des dieux ${favor}/${favorGoal} — ${
+                  favorReady ? "un dieu peut être appelé au Temple" : "fabrique des offrandes à l'Atelier"
+                }`
+              : `Faveur des dieux ${favor}/${favorGoal} — il reste à bâtir le ${pantheon?.temple ?? "Temple"}`
+          }
+        >
+          {pantheon?.favor ?? "⚡"} {favor}
+        </button>
+      )}
       {inTown && (
         <button className="iconbtn" title="Journal de la ville" onClick={() => toggleTownJournal(true)}>
           📋

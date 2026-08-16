@@ -19,6 +19,11 @@ type Recipe struct {
 	PACost        int    `json:"paCost"`
 	Ingredients   []Item `json:"ingredients"`
 	Effects       string `json:"effects,omitempty"` // design text (what the item does)
+	// Favor : la FAVEUR DES DIEUX que fabriquer cet objet verse à la ville (mythic.go).
+	// Réservé en pratique à la catégorie « deco » — orner le bourg est ce qui attire le
+	// regard des dieux. C'est ce qui remplace le « moral de la ville » que ces recettes
+	// promettaient depuis le premier jour sans qu'une ligne de code le porte.
+	Favor int `json:"favor,omitempty"`
 }
 
 // Recipes is the crafting catalog from the ⚒️ Craft tab of the design (26 recipes):
@@ -116,11 +121,27 @@ var Recipes = []Recipe{
 		Effects: "Arme : +1 force, +4 précision (coups critiques)"},
 	{ID: "leather_armor", Name: "Armure de cuir", Category: "forge", Building: "workshop", BuildingLevel: 2, OutputType: "arme", PACost: 2,
 		Ingredients: []Item{{"objet", "Cuir", 2}, {"objet", "Corde", 1}}, Effects: "Équipement : -2 dégâts subis en combat"},
-	// --- déco ---
-	{ID: "wooden_totem", Name: "Totem de bois", Category: "deco", Building: "workshop", BuildingLevel: 1, OutputType: "deco", PACost: 1,
-		Ingredients: []Item{{"objet", "Bois", 3}}, Effects: "Décoration (moral de la ville)"},
-	{ID: "golden_amulet", Name: "Amulette dorée", Category: "deco", Building: "workshop", BuildingLevel: 3, OutputType: "deco", PACost: 2,
-		Ingredients: []Item{{"minerai", "Minerai d'or", 1}, {"objet", "Corde", 1}}, Effects: "Décoration précieuse (moral de la ville)"},
+	// --- déco : LA FAVEUR DES DIEUX (mythic.go) ---
+	//
+	// Ces recettes annonçaient « moral de la ville » — un système qui n'a jamais existé
+	// dans le code. Elles versent désormais de la FAVEUR : orner le bourg attire le
+	// regard des dieux, et la ville dépense cette faveur en bénédictions votées au
+	// Temple. ⚠ elles se paient en BOIS, en PIERRE et en minerais — c'est-à-dire dans la
+	// même bourse que la muraille, les remparts et (au nord) les foyers. La ferveur doit
+	// coûter quelque chose à la défense, sinon ce n'est pas un choix.
+	//
+	// Le barème suit la rareté de la matière : trois faveurs pour du bois brut, dix pour
+	// de l'or. Un dieu coûte BlessingCost (20).
+	{ID: "wooden_totem", Name: "Totem de bois", Category: "deco", Building: "workshop", BuildingLevel: 1, OutputType: "deco", PACost: 1, Favor: 3,
+		Ingredients: []Item{{"objet", "Bois", 3}}, Effects: "Offrande : +3 faveur des dieux"},
+	{ID: "carved_stele", Name: "Stèle gravée", Category: "deco", Building: "workshop", BuildingLevel: 1, OutputType: "deco", PACost: 1, Favor: 3,
+		Ingredients: []Item{{"minerai", "Pierre", 3}}, Effects: "Offrande : +3 faveur des dieux"},
+	{ID: "flower_wreath", Name: "Couronne de fleurs", Category: "deco", Building: "kitchen", BuildingLevel: 1, OutputType: "deco", PACost: 1, Favor: 2,
+		Ingredients: []Item{{"plante", "Fleur", 2}, {"plante", "Fibre végétale", 1}}, Effects: "Offrande : +2 faveur des dieux"},
+	{ID: "votive_brazier", Name: "Brasero votif", Category: "deco", Building: "workshop", BuildingLevel: 2, OutputType: "deco", PACost: 2, Favor: 6,
+		Ingredients: []Item{{"minerai", "Brique", 1}, {"minerai", "Charbon", 1}}, Effects: "Offrande : +6 faveur des dieux"},
+	{ID: "golden_amulet", Name: "Amulette dorée", Category: "deco", Building: "workshop", BuildingLevel: 3, OutputType: "deco", PACost: 2, Favor: 10,
+		Ingredients: []Item{{"minerai", "Minerai d'or", 1}, {"objet", "Corde", 1}}, Effects: "Offrande précieuse : +10 faveur des dieux"},
 }
 
 // RecipeByID returns the recipe with the given id, or nil.
@@ -234,6 +255,12 @@ func (g *GameState) Craft(recipeID, heroID string) (*Item, error) {
 		g.addStorage(out)
 		g.credit(h.ID, func(c *Contribution) { c.Crafted += out.Qty })
 		g.logTown("⚒️ " + h.Name + " a fabriqué " + r.Name + " (ingrédients de la Banque)")
+		// LA FAVEUR (mythic.go) : une offrande fabriquée EN VILLE orne le bourg. Au
+		// feu de camp elle n'orne rien — et les recettes de déco sont de toute façon
+		// gatées sur l'Atelier ou la Cuisine, donc ce cas ne se présente pas ; la
+		// garde reste, parce que le catalogue est modifiable et que la règle est « la
+		// ville, pas le sac ».
+		g.grantFavor(r.Favor*out.Qty, h.Name, r.Name)
 	} else {
 		for _, ing := range r.Ingredients {
 			removeHeroItem(h, ing.Name, ing.Qty)
