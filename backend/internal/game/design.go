@@ -182,6 +182,11 @@ type AttackDef struct {
 	// réponse ne change jamais. Le cooldown est ce qui force à descendre dans la
 	// liste : on ouvre sur son meilleur coup, puis on compose avec ce qui reste.
 	Cooldown int `json:"cooldown,omitempty"`
+	// Reveal : RAYON RÉVÉLÉ autour de la case visée (0 = ne révèle rien). C'est le
+	// verbe de l'Éclaireur au combat (combatsight.go) : il ne frappe pas, il DÉSIGNE —
+	// tout ce qui se trouve dans le rayon devient visible pour toute l'équipe pendant
+	// quelques rounds, même hors de portée de vue.
+	Reveal int `json:"reveal,omitempty"`
 }
 
 // maxReach is the farthest cell of the targeting grid (for AI approach).

@@ -723,7 +723,11 @@ func (g *GameState) botCriticalList(want map[string]bool) map[string]bool {
 // is to go and find the biome that has it. Measured before this: the Bank filled with
 // flowers while stone stayed at zero for twenty-five waves, so no wall was ever
 // upgraded and the town could never repair itself.
-func (g *GameState) botSupplyKnown(want map[string]bool) bool {
+//
+// ⚠ CETTE QUESTION-CI RESTE CELLE DU HÉROS qui la pose (et non celle de l'expédition) :
+// elle décide si CE bot part prospecter, et il ne peut pas se fier à un gisement que
+// seul un autre joueur a vu — il ne saurait pas où aller. Même raison que `heroKnows`.
+func (g *GameState) botSupplyKnown(h *Hero, want map[string]bool) bool {
 	if len(want) == 0 {
 		return true // nothing needed — the nearest tile is as good as any
 	}
@@ -734,7 +738,7 @@ func (g *GameState) botSupplyKnown(want map[string]bool) bool {
 	sourced := map[string]bool{}
 	for i := range g.Tiles {
 		t := &g.Tiles[i]
-		if !t.Discovered || !t.Biome.Walkable() || t.Resources <= 0 {
+		if !g.heroKnows(h, i%g.Width, i/g.Width) || !t.Biome.Walkable() || t.Resources <= 0 {
 			continue
 		}
 		td, _ := g.terrainFor(t.Biome)
@@ -778,12 +782,25 @@ func (g *GameState) botGatherTarget(h *Hero) (int, int, bool) {
 // botGoalWorthKeeping : le cap tient tant que le héros n'y est pas arrivé et que la
 // case vaut encore le déplacement (découverte, praticable, libre de pack, et fournissant
 // soit des ressources, soit ce que la ville attend).
+// heroKnows : la case est-elle dans la MÉMOIRE DE BROUILLARD du joueur qui possède ce
+// héros (fog.go) ?
+//
+// ⚠ CE N'EST PLUS `Tile.Discovered`. Depuis que le brouillard a une mémoire par joueur,
+// `Discovered` veut dire « quelqu'un de l'expédition l'a vue » — s'en servir ici
+// donnerait aux joueurs-IA une connaissance qu'ils n'ont pas, et les ferait marcher
+// vers un gisement repéré par l'équipe d'en face. Chacun raisonne sur SA carte ; c'est
+// ce qui rend la règle honnête, et c'est aussi ce qui donne son prix à une tour de
+// guet, dont la lumière est partagée.
+func (g *GameState) heroKnows(h *Hero, x, y int) bool {
+	return g.PlayerKnows(g.OwnerOfHero(h.ID), x, y)
+}
+
 func (g *GameState) botGoalWorthKeeping(h *Hero) bool {
 	if h.X == h.GoalX && h.Y == h.GoalY {
 		return false // arrivé : on rouvre la question
 	}
 	t := g.TileAt(h.GoalX, h.GoalY)
-	if t == nil || !t.Discovered || !t.Biome.Walkable() || t.MonsterID != "" {
+	if t == nil || !g.heroKnows(h, h.GoalX, h.GoalY) || !t.Biome.Walkable() || t.MonsterID != "" {
 		return false
 	}
 	return t.Resources > 0 || g.biomeSupplies(t.Biome, g.botShoppingList())
@@ -815,7 +832,7 @@ func (g *GameState) botPickGatherTarget(h *Hero) (int, int, bool) {
 			return x, y, true
 		}
 	}
-	if g.botSupplyKnown(g.botShoppingList()) {
+	if g.botSupplyKnown(h, g.botShoppingList()) {
 		if x, y, ok := g.pickResourceTile(h); ok {
 			return x, y, ok
 		}
@@ -1214,7 +1231,7 @@ func (g *GameState) pickResourceTile(h *Hero) (int, int, bool) {
 	for y := 0; y < g.Height; y++ {
 		for x := 0; x < g.Width; x++ {
 			t := g.TileAt(x, y)
-			if t == nil || !t.Discovered || !t.Biome.Walkable() || t.MonsterID != "" {
+			if t == nil || !g.heroKnows(h, x, y) || !t.Biome.Walkable() || t.MonsterID != "" {
 				continue
 			}
 			supplies := g.biomeSupplies(t.Biome, want)
@@ -1269,12 +1286,12 @@ func (g *GameState) pickFrontierTile(h *Hero) (int, int, bool) {
 	for y := 0; y < g.Height; y++ {
 		for x := 0; x < g.Width; x++ {
 			t := g.TileAt(x, y)
-			if t == nil || !t.Discovered || !t.Biome.Walkable() || t.MonsterID != "" {
+			if t == nil || !g.heroKnows(h, x, y) || !t.Biome.Walkable() || t.MonsterID != "" {
 				continue
 			}
 			touchesFog := false
 			for _, d := range [][2]int{{1, 0}, {-1, 0}, {0, 1}, {0, -1}} {
-				if n := g.TileAt(x+d[0], y+d[1]); n != nil && !n.Discovered {
+				if nx, ny := x+d[0], y+d[1]; g.TileAt(nx, ny) != nil && !g.heroKnows(h, nx, ny) {
 					touchesFog = true
 					break
 				}
@@ -1376,7 +1393,7 @@ func (g *GameState) botRuinTarget(h *Hero) (int, int, bool) {
 			continue
 		}
 		t := g.TileAt(ru.X, ru.Y)
-		if t == nil || !t.Discovered || t.MonsterID != "" {
+		if t == nil || !g.heroKnows(h, ru.X, ru.Y) || t.MonsterID != "" {
 			continue
 		}
 		d := absI(ru.X-h.X) + absI(ru.Y-h.Y)

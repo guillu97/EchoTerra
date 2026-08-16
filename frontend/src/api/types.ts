@@ -51,7 +51,18 @@ export interface Tile {
   resources: number;
   monsterId?: string;
   ruinId?: string; // ruine-donjon posée sur la case (voir Ruin)
-  discovered?: boolean; // fog of war: false until a hero has seen the tile (shared by all players)
+  // BROUILLARD À TROIS ÉTATS (backend fog.go), modèle Warcraft III :
+  //   discovered=false            → jamais vue. Noir, tuile vierge.
+  //   discovered=true, visible=false → SOUVENIR : le terrain est là, on le dessine
+  //                                    sous un voile sombre ; rien de vivant n'est servi.
+  //   visible=true                → sous les yeux de quelqu'un : tout est là.
+  // ⚠ La mémoire est PAR JOUEUR — `discovered` veut dire « MOI je m'en souviens ».
+  // ⚠ `visible` est ABSENT quand il est faux (le serveur l'omet : l'écrire sur chaque
+  // tuile coûterait des centaines de ko par rafraîchissement). Tester `!t.visible`,
+  // jamais `t.visible === false`.
+  discovered?: boolean;
+  visible?: boolean;
+  towerId?: string; // belvédère (chantier ou bâti) posé sur la case (voir Watchtower)
   // NEIGE FRAÎCHE (thème nordique, backend cold.go) : la case n'est plus récoltée
   // automatiquement tant qu'un héros n'est pas revenu la fouiller.
   covered?: boolean;
@@ -531,7 +542,22 @@ export interface GameState {
   activeCombat?: string;
   combats?: Record<string, Combat>;
   ruins?: Record<string, Ruin>;
+  watchtowers?: Record<string, Watchtower>;
   contributions?: Record<string, Contribution>;
+}
+
+// LE BELVÉDÈRE (backend watchtower.go) : un chantier posé sur un SOMMET, qui une fois
+// bâti garde sa vue allumée pour toute l'expédition et pour toujours.
+export interface Watchtower {
+  id: string;
+  x: number;
+  y: number;
+  height: number;
+  built: boolean;
+  paInvested: number;
+  buildPa: number;
+  sight: number;
+  materials?: Item[];
 }
 
 export interface CombatUnit {
@@ -562,6 +588,11 @@ export interface CombatUnit {
   reach?: number; // portée de l'attaque de base (0 = mêlée)
   weaponName?: string; // l'arme au poing (weapons.go)
   weaponKind?: string; // son archétype : epee | dague | lance | arc | baton
+  // VISION D'ARÈNE (backend combatsight.go) : portée d'œil, dérivée de la Précision.
+  // Une unité adverse hors de vue n'est PAS servie du tout — le client n'a donc rien
+  // à masquer, et la position ne voyage pas.
+  sight?: number;
+  spotted?: number; // rounds restants de marquage par « Éclairer »
 }
 
 // A combat ability with its GDD grids (mirrors backend AttackDef).
@@ -578,6 +609,7 @@ export interface Skill {
   absorb?: boolean;
   selfShield?: boolean;
   buffAllies?: boolean;
+  reveal?: number; // rayon révélé (Éclairer) — la capacité ne fait aucun dégât
   cooldown?: number; // tours de recharge après usage (0 = disponible chaque tour)
 }
 

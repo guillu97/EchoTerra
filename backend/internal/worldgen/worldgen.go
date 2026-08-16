@@ -617,6 +617,10 @@ func newWorld(width, height int, seed int64, theme *game.ThemeDef) *game.GameSta
 	// Ruines-donjons : un bâtiment en ruine par biome présent (déterministe par
 	// seed) — chantier de déblayage collectif puis donjon à butin rare (ruins.go).
 	gs.SeedRuins()
+	// LES BELVÉDÈRES (watchtower.go) : les SITES des sommets, semés après les
+	// escarpements — un sommet ne se connaît qu'une fois le relief définitif, et ce
+	// sont justement les mesas qui en créent (leur plat domine tout ce qui l'entoure).
+	gs.SeedWatchtowerSites()
 	return gs
 }
 

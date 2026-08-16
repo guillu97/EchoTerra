@@ -33,6 +33,12 @@ type CombatUnit struct {
 	Move       int      `json:"move"`
 	Moved      bool     `json:"moved"` // already moved this turn (FFTA2: one move per turn)
 	Acted      bool     `json:"acted"` // already spent its ACTION this turn (attaque/compétence/objet…)
+	// Sight : portée de vision (combatsight.go), dérivée de la Précision. Servie au
+	// client pour qu'il puisse peindre le champ de vision de l'unité active.
+	Sight int `json:"sight,omitempty"`
+	// Spotted : rounds restants de marquage par « Éclairer » — l'unité est visible de
+	// toute l'équipe adverse à l'Éclaireur, où qu'elle soit.
+	Spotted int `json:"spotted,omitempty"`
 	Initiative int      `json:"initiative"`
 	// Cooldowns : tours restants avant de pouvoir rejouer chaque capacité, par NOM
 	// d'attaque. Décrémenté au début du tour de l'unité (advanceTurn). Absent de la
@@ -243,6 +249,13 @@ func heroIsoSkillsFor(classID string) []AttackDef {
 	case "eclaireur":
 		return []AttackDef{
 			{Name: "Coup vif", Kind: "special", Desc: "Frappe rapide et sûre.", Targets: orthCells(), DmgStat: "dexterite", Bonus: 3, Cooldown: 2},
+			// ÉCLAIRER — la capacité qui fait de l'Éclaireur l'œil de l'équipe. Elle ne
+			// fait AUCUN dégât, et c'est le point : sa portée de ciblage est la plus
+			// longue du jeu (5) parce qu'on désigne un endroit qu'on ne peut pas
+			// atteindre. C'est le pendant en combat de son passif de carte.
+			{Name: "Éclairer", Kind: "special",
+				Desc:    "Désigne une zone : tout ce qui s'y trouve est visible par l'équipe pendant 2 rounds.",
+				Targets: manhattanCells(1, 5), Reveal: eclairerRadius, Cooldown: 3},
 		}
 	case "gardien":
 		return []AttackDef{
@@ -683,6 +696,10 @@ func NewCombat(gs *GameState, heroes []*Hero, monster *Monster, starterID string
 func (c *Combat) computeOrder() {
 	for _, u := range c.Units {
 		u.Initiative = u.Stats.Agilite*10 + randIntn(10)
+		// La portée de vision (combatsight.go) : posée ICI, une fois, pour héros comme
+		// monstres — donc après que l'équipement et l'Armurerie ont fini de bonifier
+		// la Précision, sinon l'œil d'un objet ne porterait pas.
+		u.Sight = u.sight()
 	}
 	units := append([]*CombatUnit(nil), c.Units...)
 	sort.SliceStable(units, func(i, j int) bool {
@@ -964,6 +981,12 @@ func (c *Combat) hasLOS(x0, y0, x1, y1 int) bool {
 // à distance (>1), la ligne de vue est dégagée. Utilisé par le ciblage servi,
 // la validation des actions ET l'IA — personne ne tire à travers un rocher.
 func (c *Combat) canTarget(att *CombatUnit, atk *AttackDef, def *CombatUnit) bool {
+	// ON NE FRAPPE QUE CE QU'ON VOIT (combatsight.go). Placé en TÊTE : c'est la
+	// condition la moins chère et la plus forte, et la mettre après la grille de
+	// ciblage aurait laissé `TargetsFor` proposer des cibles que l'action refuse.
+	if def != nil && def.Side != att.Side && !c.VisibleTo(att.Side, def) {
+		return false
+	}
 	// multi-cases (boss 2×2, lot C5) : la grille de ciblage s'évalue entre CHAQUE
 	// case de l'attaquant et CHAQUE case de la cible — avec ligne de vue sur ce
 	// segment pour les tirs (>1).
@@ -1252,6 +1275,18 @@ func (c *Combat) performAttack(att *CombatUnit, atk *AttackDef, tx, ty int) {
 		c.logf("%s utilise %s : les dégâts subis sont réduits de moitié.", att.Name, atk.Name)
 		return
 	}
+	// ÉCLAIRER (combatsight.go) : la capacité ne frappe pas, elle DÉSIGNE. Traitée
+	// avant la zone de dégâts et avec un retour immédiat — lui faire traverser le
+	// calcul de dégâts n'aurait produit qu'un coup à zéro dans le journal.
+	if atk.Reveal > 0 {
+		n := c.spotArea(att, tx, ty, atk.Reveal)
+		if n == 0 {
+			c.logf("%s scrute la zone — rien à signaler.", att.Name)
+		} else {
+			c.logf("%s éclaire la zone : %d ennemi(s) repéré(s) pour %d rounds.", att.Name, n, spotRounds)
+		}
+		return
+	}
 	if atk.BuffAllies {
 		n := 0
 		for _, o := range c.Units {
@@ -1399,6 +1434,20 @@ func (c *Combat) PlayerAction(unitID, action string, tx, ty int, targetID string
 			if left := cur.cooldownLeft(&atk); left > 0 {
 				return ErrInvalidAction{fmt.Sprintf("%s se recharge encore (%d tour(s))", atk.Name, left)}
 			}
+		}
+		// ÉCLAIRER vise une CASE, pas une unité — et c'est tout le point : on désigne
+		// l'endroit où l'on soupçonne quelque chose, précisément parce qu'on ne voit
+		// rien à cibler. Exiger une cible aurait rendu la capacité inutilisable dans la
+		// seule situation où elle sert.
+		if atk.Reveal > 0 {
+			if !atk.inTargets(tx-cur.X, ty-cur.Y) {
+				return ErrInvalidAction{"case hors de portée"}
+			}
+			c.performAttack(cur, &atk, tx, ty)
+			cur.startCooldown(&atk)
+			cur.Acted = true
+			c.spendBudget(cur)
+			return nil
 		}
 		// Self abilities (Posture défensive) need no target — anything else must aim
 		// at a living enemy standing on one of the attack's green targeting cells.
@@ -1625,6 +1674,7 @@ func (c *Combat) advanceTurn() {
 		if c.TurnIdx >= len(c.Order) {
 			c.TurnIdx = 0
 			c.Round++
+			c.tickSpots() // les marquages d'« Éclairer » s'estompent d'un round
 			c.roundTick() // lot C5 : annonce/arrivée des renforts
 		}
 		u := c.CurrentUnit()
@@ -1865,14 +1915,18 @@ func (c *Combat) bossTurn(u *CombatUnit) {
 func (c *Combat) packTarget(u *CombatUnit) *CombatUnit {
 	var best *CombatUnit
 	bestScore := 1 << 30
-	for _, o := range c.Units {
-		if !o.inBattle() || o.Side == u.Side {
-			continue
-		}
+	// ⚠ MÊME RÈGLE QUE LE JOUEUR : on ne concentre le feu que sur ce qu'on distingue.
+	for _, o := range c.visibleEnemies(u) {
 		score := o.HP*100 + o.distTo(u.X, u.Y)
 		if score < bestScore {
 			bestScore, best = score, o
 		}
+	}
+	if best == nil {
+		// AVEUGLE : on avance quand même vers le plus proche, sinon deux camps qui ne
+		// se voient pas resteraient plantés jusqu'à la limite de rounds. Ce n'est pas
+		// une tension, c'est une panne.
+		best = c.nearestEnemy(u)
 	}
 	return best
 }
@@ -2027,7 +2081,7 @@ func (c *Combat) heroAutoTurn(u *CombatUnit) {
 // héros des joueurs absents du combat (l'appelant gère checkEnd/advanceTurn,
 // sinon la récursion endTurn→advanceUntilHeroOrEnd s'empilerait).
 func (c *Combat) heroAutoAct(u *CombatUnit) {
-	target := c.nearestEnemy(u)
+	target := c.packTarget(u) // visible d'abord, sinon le plus proche (cf. packTarget)
 	if target == nil {
 		return
 	}

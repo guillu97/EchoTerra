@@ -75,15 +75,55 @@ func (s *Server) lockGame(id string) func() {
 }
 
 // gameLockMiddleware serializes all requests touching one game (even GETs mutate via
-// the lazy wave catch-up in tick).
+// the lazy wave catch-up in tick) AND installe le DESTINATAIRE de la réponse.
+//
+// LE DESTINATAIRE, ET POURQUOI IL PASSE PAR LE ResponseWriter. Depuis que le
+// brouillard a une mémoire PAR JOUEUR (fog.go), `ClientView` ne peut plus caviarder
+// sans savoir QUI demande — exactement le problème déjà rencontré avec la messagerie,
+// résolu là en sortant le contenu du payload. Ici ce n'est pas possible : la carte EST
+// le payload.
+//
+// ⚠ On ne change PAS la signature de `writeJSON` (une centaine d'appels, et la
+// centralisation est justement ce qui garantit qu'aucun handler ne peut fuiter l'état
+// complet). On emballe le `http.ResponseWriter` : `writeJSON` retrouve le destinataire
+// par assertion de type, et un handler qui l'oublierait ne fuiterait rien — il servirait
+// la vue d'un joueur ANONYME, c'est-à-dire la plus pauvre. Le défaut est sûr.
 func (s *Server) gameLockMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if id := chi.URLParam(r, "gameID"); id != "" {
 			unlock := s.lockGame(id)
 			defer unlock()
 		}
-		next.ServeHTTP(w, r)
+		// Le GET porte son destinataire en query (le client l'ajoute partout) ; les
+		// POST le portent dans leur corps et le posent via `viewerFromBody`.
+		next.ServeHTTP(&viewerWriter{ResponseWriter: w, playerID: r.URL.Query().Get("playerId")}, r)
 	})
+}
+
+// viewerWriter transporte l'identité du destinataire jusqu'à writeJSON.
+type viewerWriter struct {
+	http.ResponseWriter
+	playerID string
+}
+
+// viewerOf rend le destinataire installé par le middleware ("" = anonyme).
+func viewerOf(w http.ResponseWriter) string {
+	if vw, ok := w.(*viewerWriter); ok {
+		return vw.playerID
+	}
+	return ""
+}
+
+// setViewer note le joueur qui parle, quand il vient du CORPS de la requête (POST).
+// ⚠ Ne l'écrase jamais avec une chaîne vide : certains handlers décodent un corps qui
+// ne porte pas de `playerId` (le `?playerId=` de l'URL reste alors la meilleure source).
+func setViewer(w http.ResponseWriter, playerID string) {
+	if playerID == "" {
+		return
+	}
+	if vw, ok := w.(*viewerWriter); ok {
+		vw.playerID = playerID
+	}
 }
 
 // lobbyTTL is how long an un-launched lobby survives before being purged.
@@ -333,6 +373,7 @@ func (s *Server) Router() http.Handler {
 			// Porter / retirer un objet (equipment.go).
 			r.Post("/heroes/{heroID}/equip", s.equipItem)
 			r.Post("/heroes/{heroID}/order", s.heroOrder) // consigne permanente
+			r.Post("/heroes/{heroID}/tower/build", s.watchtowerBuild)
 			r.Post("/heroes/{heroID}/ruin/clear", s.ruinClear)
 			r.Post("/heroes/{heroID}/ruin/explore", s.ruinExplore)
 			r.Post("/heroes/{heroID}/evolve", s.evolveHero)
@@ -350,20 +391,20 @@ func (s *Server) Router() http.Handler {
 func writeJSON(w http.ResponseWriter, code int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
-	_ = json.NewEncoder(w).Encode(clientView(v))
+	_ = json.NewEncoder(w).Encode(clientView(v, viewerOf(w)))
 }
 
 // clientView redacts every GameState in an outgoing payload (fog of war: tiles no
 // hero has discovered must not reach the network, see GameState.ClientView).
 // Centralized here so no handler — current or future — can leak the full state.
-func clientView(v any) any {
+func clientView(v any, viewer string) any {
 	switch t := v.(type) {
 	case *game.GameState:
-		return t.ClientView()
+		return t.ClientViewFor(viewer)
 	case map[string]any:
 		out := make(map[string]any, len(t))
 		for k, val := range t {
-			out[k] = clientView(val)
+			out[k] = clientView(val, viewer)
 		}
 		return out
 	}
@@ -1127,12 +1168,22 @@ func decodePlayer(r *http.Request) string {
 	return body.PlayerID
 }
 
+// decodePlayerW décode le joueur du corps ET l'installe comme destinataire de la
+// réponse : la vue de brouillard servie en retour doit être la SIENNE. Sans ça, une
+// action réussie renverrait au joueur la carte d'un anonyme, et sa propre exploration
+// disparaîtrait de l'écran à chaque pas.
+func decodePlayerW(w http.ResponseWriter, r *http.Request) string {
+	id := decodePlayer(r)
+	setViewer(w, id)
+	return id
+}
+
 func (s *Server) searchTile(w http.ResponseWriter, r *http.Request) {
 	gs := s.mustGame(w, r)
 	if gs == nil {
 		return
 	}
-	if !s.ownHero(w, gs, decodePlayer(r), chi.URLParam(r, "heroID")) {
+	if !s.ownHero(w, gs, decodePlayerW(w, r), chi.URLParam(r, "heroID")) {
 		return
 	}
 	it, err := gs.SearchTile(chi.URLParam(r, "heroID"))
@@ -1149,7 +1200,7 @@ func (s *Server) hideHero(w http.ResponseWriter, r *http.Request) {
 	if gs == nil {
 		return
 	}
-	if !s.ownHero(w, gs, decodePlayer(r), chi.URLParam(r, "heroID")) {
+	if !s.ownHero(w, gs, decodePlayerW(w, r), chi.URLParam(r, "heroID")) {
 		return
 	}
 	if err := gs.HideHero(chi.URLParam(r, "heroID")); err != nil {
@@ -1165,7 +1216,7 @@ func (s *Server) escapeHero(w http.ResponseWriter, r *http.Request) {
 	if gs == nil {
 		return
 	}
-	if !s.ownHero(w, gs, decodePlayer(r), chi.URLParam(r, "heroID")) {
+	if !s.ownHero(w, gs, decodePlayerW(w, r), chi.URLParam(r, "heroID")) {
 		return
 	}
 	if err := gs.EscapeHero(chi.URLParam(r, "heroID")); err != nil {
@@ -1275,7 +1326,7 @@ func (s *Server) drinkRation(w http.ResponseWriter, r *http.Request) {
 	if gs == nil {
 		return
 	}
-	if !s.ownHero(w, gs, decodePlayer(r), chi.URLParam(r, "heroID")) {
+	if !s.ownHero(w, gs, decodePlayerW(w, r), chi.URLParam(r, "heroID")) {
 		return
 	}
 	if _, err := gs.DrinkRation(chi.URLParam(r, "heroID")); err != nil {
@@ -1287,6 +1338,35 @@ func (s *Server) drinkRation(w http.ResponseWriter, r *http.Request) {
 }
 
 // ruinClear invests the hero's PA into clearing the ruin on their tile (collective).
+// watchtowerBuild investit des PA collectifs dans le belvédère du sommet sous le
+// héros (game/watchtower.go). Même forme que le déblayage d'une ruine : un chantier du
+// MONDE, pas un bâtiment de ville.
+func (s *Server) watchtowerBuild(w http.ResponseWriter, r *http.Request) {
+	gs := s.mustGame(w, r)
+	if gs == nil {
+		return
+	}
+	var body struct {
+		Points   int    `json:"points"`
+		PlayerID string `json:"playerId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeErr(w, http.StatusBadRequest, "corps invalide")
+		return
+	}
+	setViewer(w, body.PlayerID)
+	if !s.ownHero(w, gs, body.PlayerID, chi.URLParam(r, "heroID")) {
+		return
+	}
+	wt, err := gs.BuildWatchtower(chi.URLParam(r, "heroID"), body.Points)
+	if err != nil {
+		writeActionErr(w, err)
+		return
+	}
+	s.persist(gs)
+	writeJSON(w, http.StatusOK, map[string]any{"tower": wt, "game": gs})
+}
+
 func (s *Server) ruinClear(w http.ResponseWriter, r *http.Request) {
 	gs := s.mustGame(w, r)
 	if gs == nil {
@@ -1300,6 +1380,7 @@ func (s *Server) ruinClear(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "corps invalide")
 		return
 	}
+	setViewer(w, body.PlayerID)
 	if !s.ownHero(w, gs, body.PlayerID, chi.URLParam(r, "heroID")) {
 		return
 	}
@@ -1318,7 +1399,7 @@ func (s *Server) ruinExplore(w http.ResponseWriter, r *http.Request) {
 	if gs == nil {
 		return
 	}
-	if !s.ownHero(w, gs, decodePlayer(r), chi.URLParam(r, "heroID")) {
+	if !s.ownHero(w, gs, decodePlayerW(w, r), chi.URLParam(r, "heroID")) {
 		return
 	}
 	item, err := gs.ExploreRuin(chi.URLParam(r, "heroID"))
@@ -1432,7 +1513,7 @@ func (s *Server) townDeposit(w http.ResponseWriter, r *http.Request) {
 	// In multiplayer, a player only deposits their own team's bags; legacy solo games
 	// (no players) keep the deposit-everyone behaviour.
 	var only []string
-	if pid := decodePlayer(r); len(gs.Players) > 0 {
+	if pid := decodePlayerW(w, r); len(gs.Players) > 0 {
 		p := gs.PlayerByID(pid)
 		if p == nil {
 			writeErr(w, http.StatusBadRequest, "joueur inconnu — reconnecte-toi à la partie")
@@ -1529,7 +1610,7 @@ func (s *Server) startCombat(w http.ResponseWriter, r *http.Request) {
 	if gs == nil {
 		return
 	}
-	playerID := decodePlayer(r)
+	playerID := decodePlayerW(w, r)
 	if !s.ownHero(w, gs, playerID, chi.URLParam(r, "heroID")) {
 		return
 	}
@@ -1671,8 +1752,12 @@ func writeActionErr(w http.ResponseWriter, err error) {
 
 // combatResponse augments the raw combat with per-current-unit hints for the UI.
 func combatResponse(gs *game.GameState, c *game.Combat) map[string]any {
+	// LE BROUILLARD DE L'ARÈNE (game/combatsight.go) : on sert la vue du camp des
+	// HÉROS, d'où les unités adverses que personne ne distingue sont RETIRÉES. Servir
+	// leur position avec un drapeau « cachée » n'aurait été qu'un effet d'affichage :
+	// la position aurait voyagé sur le réseau.
 	resp := map[string]any{
-		"combat": c,
+		"combat": c.SightView("hero"),
 		"game":   gs,
 	}
 	if c.Status == "active" {

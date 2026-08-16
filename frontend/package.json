@@ -13,6 +13,7 @@
     "test:combat-ui": "node tests/combat-ui.mjs",
     "test:reconnect": "node tests/reconnect.mjs",
     "test:endgame": "node tests/endgame.mjs",
+    "test:fog": "node tests/fog.mjs",
     "test:weather": "node tests/weather.mjs",
     "test:inventory": "node tests/inventory.mjs"
   },

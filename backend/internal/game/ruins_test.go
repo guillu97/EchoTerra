@@ -119,7 +119,14 @@ func TestRuinFogRedaction(t *testing.T) {
 	g := ruinsTestGame()
 	g.SeedRuins()
 	ru := g.Ruins["ruin-ferme"]
-	// tuile non découverte → la ruine et le ruinId sont caviardés
+	// ⚠ ON L'ÉLOIGNE D'ABORD. La carte du fixture fait 8×8 et le bourg en éclaire un
+	// rayon de 3 : depuis que la visibilité est DÉRIVÉE des positions (fog.go), une
+	// ruine semée à trois cases du bourg est légitimement sous les yeux de tout le
+	// monde, et il n'y avait plus rien à cacher à observer.
+	g.TileAt(ru.X, ru.Y).RuinID = ""
+	ru.X, ru.Y = 7, 7
+	g.TileAt(7, 7).RuinID = ru.ID
+
 	cv := g.ClientView()
 	if cv.Ruins[ru.ID] != nil {
 		t.Fatal("ruine visible sous la brume")
@@ -127,10 +134,21 @@ func TestRuinFogRedaction(t *testing.T) {
 	if cv.Tiles[ru.Y*g.Width+ru.X].RuinID != "" {
 		t.Fatal("ruinId visible sur une tuile caviardée")
 	}
-	g.TileAt(ru.X, ru.Y).Discovered = true
+	// Un héros va la voir : c'est le VRAI chemin de découverte (RevealVision), et non
+	// un drapeau posé à la main — la mémoire vit désormais dans un bitset par joueur.
+	g.Heroes[0].X, g.Heroes[0].Y = 7, 7
+	g.RevealVision()
 	cv = g.ClientView()
 	if cv.Ruins[ru.ID] == nil {
 		t.Fatal("ruine découverte absente du ClientView")
+	}
+	// …et elle RESTE sur la carte quand le héros repart : une ruine est un élément de
+	// terrain, elle ne se déplace pas. C'est la distinction Warcraft III entre un
+	// bâtiment (mémorisé) et une unité (oubliée).
+	g.Heroes[0].X, g.Heroes[0].Y = 1, 1
+	g.RevealVision()
+	if g.ClientView().Ruins[ru.ID] == nil {
+		t.Fatal("une ruine repérée doit rester connue même hors de vue")
 	}
 }
 

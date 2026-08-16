@@ -14,7 +14,7 @@ import { formatHMS, useForageRemaining, useTurnRemaining } from "../useWave";
 
 // Radial action menu (Hordes-style) that pops at the selected hero when tapped on the map.
 function ActionMenu() {
-  const { game, selectedHeroId, mapSkills, search, startCombat, hide, escape, castSkill, drinkRation, ruinClear, ruinExplore, setHeroOrder, busy } = useStore();
+  const { game, selectedHeroId, mapSkills, search, startCombat, hide, escape, castSkill, drinkRation, ruinClear, ruinExplore, buildWatchtower, setHeroOrder, busy } = useStore();
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
 
   useEffect(() => bus.on(EV.MapHeroMenu, ({ sx, sy }: { sx: number; sy: number }) => setPos({ x: sx, y: sy })), []);
@@ -37,6 +37,8 @@ function ActionMenu() {
     [[0, -1], [0, 1], [-1, 0], [1, 0]].some(([dx, dy]) => !!tileAt(hero.x + dx, hero.y + dy)?.monsterId);
   const stuck = hero.states.includes("Tétanisé");
   const ruin = tile?.ruinId ? game.ruins?.[tile.ruinId] : undefined;
+  // LE BELVÉDÈRE du sommet sous le héros (backend watchtower.go).
+  const tower = tile?.towerId ? game.watchtowers?.[tile.towerId] : undefined;
   const noPa = busy || hero.pa <= 0;
   // Compétences de carte de la classe du héros disponibles ICI (une cible à portée).
   const heroSkills = mapSkillsForHero(mapSkills, hero.classId);
@@ -112,6 +114,28 @@ function ActionMenu() {
             <span>{ruinEpitaph(ruin)}</span>
           </div>
         ) : null}
+        {/* LE BELVÉDÈRE (backend watchtower.go) : un sommet où poser une vue qui ne
+            s'éteint plus. Le bouton dit ce que ça COÛTE et ce que ça DONNE — c'est un
+            chantier cher, loin de la ville, sur une case qu'il a fallu escalader :
+            personne n'y monte par hasard, donc l'interface doit justifier le voyage. */}
+        {tower && !tower.built && (
+          <button
+            className="am-ruin"
+            disabled={noPa || stuck}
+            title={`Vue permanente sur ${tower.sight} cases, pour toute l'expédition. Matériaux : ${
+              (tower.materials ?? []).map((m) => `${m.name} ×${m.qty}`).join(", ")
+            }`}
+            onClick={() => run(buildWatchtower)}
+          >
+            🗼 Bâtir la tour de guet <i>{tower.paInvested}/{tower.buildPa}</i>
+          </button>
+        )}
+        {tower && tower.built && (
+          <div className="am-memorial">
+            <b>🗼 Tour de guet</b>
+            <span>Veille permanente sur {tower.sight} cases — la vue est acquise.</span>
+          </div>
+        )}
         {/* Ruine-donjon sous le héros : déblayage collectif puis exploration. */}
         {ruin && !ruin.cleared && (
           <button

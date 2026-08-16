@@ -6,6 +6,122 @@
 
 ---
 
+## 2026-08-16 (122) — Le brouillard de guerre, la tour de guet, et la vision en combat
+
+Demande de Guillaume : « construire une tour sur les montagnes les plus hautes, offrant une vue
+panoramique. Modifier la vision sur la carte et en combat. Sur la carte : découvrir des cases en
+explorant, mais un fog of war serveur qui ne révèle qu'aux joueurs qui s'y trouvent ; la tour
+conserverait la vision, supprimant le fog dans son rayon, et la tour de la ville de même. En combat :
+portée de vision limitée liée à une stat existante, et la capacité de l'éclaireur révèle une zone.
+Le fog sur une case : assombri, non illuminé — à la Warcraft III / StarCraft II. »
+
+### Ce que le brouillard était : une carte qui se colorie
+
+`Tile.Discovered` était un booléen PARTAGÉ par toute l'expédition, qui ne repassait jamais à faux.
+Une case vue une fois par n'importe qui restait acquise à tout le monde pour toujours, **avec ses
+monstres visibles en permanence**. Il n'y avait donc ni mémoire, ni surprise, ni raison de retourner
+voir.
+
+### Trois états, et une mémoire par joueur
+
+`FogHidden` (noir, tuile vierge) · `FogExplored` (**souvenir** : le terrain est rendu sous un voile
+sombre, rien de vivant n'est servi) · `FogVisible` (tout est là). La mémoire est **par joueur**, dans
+un bitset par identifiant — en `[]bool` le seul brouillard pèserait ~90 ko par joueur et par requête
+sur une carte 134², soit près de deux mégaoctets par partie réécrits à chaque vague.
+
+⚠ **Les MONSTRES ne sont servis que sur une case VISIBLE**, les RUINES et les tours restent connues
+une fois repérées. C'est la distinction que WC3 fait entre une unité et un bâtiment : mentir sur la
+position d'un pack est pire que se taire, alors qu'une ruine ne se déplace pas.
+
+⚠ **Ce qui reste PARTAGÉ, et pourquoi** : le bourg et les tours. Une survie collective sans aucune
+connaissance commune ne serait plus collective — et c'est exactement l'intérêt de la tour demandé
+dans la même phrase. Bâtir devient le moyen de transformer une exploration individuelle en savoir
+d'expédition.
+
+⚠ **Le destinataire de la vue.** `ClientView()` ne pouvait plus caviarder sans savoir QUI demande —
+le même problème que la messagerie, résolu là en sortant le contenu du payload, ce qui est impossible
+ici puisque la carte EST le payload. Plutôt que de changer la signature de `writeJSON` (une centaine
+d'appels, et sa centralisation est justement ce qui garantit qu'aucun handler ne fuite), on EMBALLE le
+`ResponseWriter` : `viewerWriter`, posé par le middleware. Un handler qui oublierait le destinataire
+sert la vue d'un ANONYME — le défaut est sûr. Côté client, `?playerId=` est ajouté dans l'UNIQUE
+fonction `req`, pour la même raison.
+
+⚠ **Migration** : une sauvegarde d'avant la refonte est semée une fois depuis `Tile.Discovered`, sans
+quoi tous ses joueurs perdaient plusieurs jours réels d'exploration. Le test est « personne n'a encore
+de mémoire », pas « ce joueur-ci n'en a pas » — sinon un joueur qui rejoint en cours de partie
+hériterait de l'exploration des autres, la règle même qu'on venait de supprimer.
+
+### La tour de guet
+
+Des SITES semés au worldgen sur les **sommets** — critère TOPOGRAPHIQUE et non de biome, parce qu'on
+sait depuis l'audit du relief que « biome montagne » ne veut pas dire « point haut » dans ce
+générateur. Chantier collectif (14 PA + Bois/Pierre), et une fois bâtie elle éclaire 6 cases **en
+permanence et pour tout le monde**.
+
+⚠ **Synergie voulue avec les mesas** : un sommet est justement ce qu'un héros ordinaire ne peut pas
+atteindre. La récompense d'un plateau scellé est le belvédère qu'on y pose, et la raison de forger des
+Bottes cloutées devient visible sur la carte. Les deux systèmes s'emboîtent sans qu'on ait rien
+inventé pour ça.
+
+⚠ **Elle ne donne QUE de la vision** — aucune défense, aucun PA, aucun stockage. Un objet qui ferait
+deux choses obligerait à arbitrer entre elles, alors que tout son intérêt est d'être un choix simple.
+Et ce n'est PAS un `TownBuilding` : greffer une parcelle hors-les-murs sur `town.go` aurait contaminé
+la défense, l'ordre du jour et l'usure.
+
+### La vision en combat
+
+`Sight = 3 + précision/3`. **La Précision** : elle donnait déjà le coup critique — repérer le point
+faible —, elle donne maintenant la portée à laquelle on distingue quelque chose. Vision mise en commun
+par camp, ligne de vue par `hasLOS` (qui existait et ne servait qu'aux tirs), et le **contact voit
+toujours** (sinon une unité collée à un rocher devenait invisible pour celle qui la touche).
+
+⚠ **`SightView` RETIRE les unités invisibles du payload** au lieu de les marquer : un drapeau
+« cachée » laisserait la position voyager sur le réseau. Mais **l'ordre du tour n'est pas amputé** —
+le raccourcir trahirait le nombre d'ennemis.
+
+⚠ **L'ÉCLAIREUR n'est pas la statistique, c'est la CAPACITÉ** : sa classe n'a aucun bonus de
+précision. « Éclairer » (aucun dégât, portée de ciblage 5, recharge 3) désigne une **CASE** et non une
+unité — c'est tout le point : la capacité sert précisément quand on n'a rien à cibler. Il a fallu lui
+donner un chemin de ciblage à part, côté serveur comme côté client, sans quoi son bouton restait
+éteint « faute de cible » au seul moment où elle est utile.
+
+### Le piège qu'aucune relecture n'aurait attrapé
+
+Le voile ne se posait JAMAIS. Le champ `visible` porte `omitempty` côté Go — volontairement, l'écrire
+sur chaque tuile coûte ~280 ko de JSON par rafraîchissement sur une carte de vingt joueurs — donc il
+est ABSENT quand il est faux, jamais `false`. Le client testait `t.visible !== false` (une prudence
+pour un serveur plus ancien) et n'assombrissait donc rien : **0 quad posé pour 21 cases mémorisées**,
+sans la moindre erreur. C'est le test navigateur qui l'a trouvé, en comptant les instances
+réellement présentes dans la scène.
+
+### Fonctionnel (vérifié)
+
+- `go test ./...` vert. 13 tests neufs : `fogwar_test.go` (une case quittée s'assombrit sans être
+  oubliée, les monstres ne voyagent que sur une case éclairée, l'exploration est personnelle, le bourg
+  et les tours sont partagés, la tour garde la lumière allumée sans personne dessus, la migration des
+  vieilles sauvegardes) et `combatsight_test.go` (la portée suit la précision, on ne cible pas ce
+  qu'on ne voit pas, le payload ne porte pas l'invisible, Éclairer révèle et s'estompe, les monstres
+  obéissent à la même règle, et **deux camps aveugles ne se bloquent pas**).
+- `npm run test:fog` **8/8** (nouveau), `test:combat-ui` 12/12, `test:map-tap` 8/8,
+  `test:inventory` 11/11, `test:endgame` 8/8. `tsc` + `build` propres.
+- Vérifié à l'œil : la carte montre bien un couloir exploré SOMBRE et une tache éclairée autour du
+  héros et du bourg.
+- **Équilibrage tenu** : médiane 18 vagues à 4 joueurs (plancher 12), alors que les bots ne profitent
+  plus de l'exploration des autres — chacun raisonne désormais sur SA carte (`heroKnows`).
+
+### À faire
+
+- Le voile est un quad au sol : il n'assombrit pas les ARBRES qui dépassent. Assombrir la palette du
+  terrain serait plus juste, mais obligerait à re-mailler la carte à chaque pas (budget `test:perf`).
+- Les bots ne bâtissent pas de tour de guet et ne cherchent pas les sommets : le belvédère est pour
+  l'instant du contenu de joueur humain.
+- Un joueur qui rejoint en cours de partie arrive devant une carte noire. C'est la règle demandée, et
+  le bourg la rouvre aussitôt autour de lui — mais ça mérite d'être observé en jeu réel.
+- Rien n'indique encore sur la carte OÙ se trouvent les sites de belvédère non découverts : on tombe
+  dessus en explorant.
+
+---
+
 ## 2026-08-16 (121) — Les objets des deux statistiques, et le relief qui arrête enfin
 
 Demande de Guillaume : « ajoute les objets pour ces capacités. Et parmi les stats actuelles : une

@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { api, getAuthToken, setAuthToken } from "./api/client";
+import { api, getAuthToken, setAuthToken, setViewerPlayer } from "./api/client";
 import type {
   ChatMessage,
   ClassDef,
@@ -330,6 +330,7 @@ interface StoreState {
   useItem: (heroId: string, item: string) => Promise<void>;
   // Porter un objet, ou libérer un emplacement (item vide).
   equipItem: (heroId: string, item: string, slot: string) => Promise<void>;
+  buildWatchtower: () => Promise<void>; // bâtir le belvédère du sommet sous le héros
   ruinClear: () => Promise<void>; // déblayer la ruine sous le héros (tous ses PA)
   ruinExplore: () => Promise<void>; // fouiller le donjon déblayé (2 PA)
   advance: (safe?: boolean) => Promise<void>;
@@ -1379,6 +1380,21 @@ export const useStore = create<StoreState>((set, get) => {
         renderMap();
       }),
 
+    buildWatchtower: () =>
+      withBusy(async () => {
+        const { game, selectedHeroId, playerId } = get();
+        if (!game || !selectedHeroId) return;
+        if (!ownsHero(selectedHeroId)) return;
+        const hero = game.heroes.find((h) => h.id === selectedHeroId);
+        const res = await api.watchtowerBuild(game.id, selectedHeroId, hero?.pa ?? 1, playerId);
+        set({ game: res.game });
+        const wt = res.tower;
+        pushLog(wt.built
+          ? `🗼 La tour de guet est debout — la vue est acquise pour toute l'expédition.`
+          : `🗼 ${hero?.name ?? "Le héros"} bâtit la tour de guet (${wt.paInvested}/${wt.buildPa} PA).`);
+        renderMap();
+      }),
+
     ruinClear: () =>
       withBusy(async () => {
         const { game, selectedHeroId, playerId } = get();
@@ -1551,8 +1567,29 @@ export const useStore = create<StoreState>((set, get) => {
 
     combatTileClick: (x, y) =>
       withBusy(async () => {
-        const { game, combat, current, playerId } = get();
+        const { game, combat, current, combatMode, combatSkillIdx, playerId } = get();
         if (!game || !combat || !current) return;
+        // ÉCLAIRER vise une CASE et non une unité (backend combatsight.go) : c'est
+        // toute sa raison d'être — on désigne l'endroit où l'on soupçonne quelque
+        // chose, justement parce qu'on n'a rien à cibler. Un tap sur l'arène lance
+        // donc la capacité au lieu de déplacer, tant qu'elle est armée.
+        const armed = combatMode === "skill" ? current.skills?.[combatSkillIdx] : undefined;
+        if (armed?.skill.reveal) {
+          const inRange = (armed.cells ?? []).some(([cx, cy]) => cx === x && cy === y);
+          if (!inRange) return;
+          const resp = await api.combatAction(game.id, combat.id, {
+            unitId: current.unitId,
+            action: "skill",
+            skillIdx: armed.idx,
+            x,
+            y,
+            playerId,
+          });
+          bus.emit(EV.CombatAnim, { unitId: current.unitId, kind: "skill" });
+          set({ combatMode: "move", combatSkillIdx: 0 });
+          applyCombat(resp);
+          return;
+        }
         if (!current.reachable.some(([rx, ry]) => rx === x && ry === y)) return;
         const resp = await api.combatAction(game.id, combat.id, {
           unitId: current.unitId,
@@ -1743,5 +1780,12 @@ bus.on(EV.MapTileClick, ({ x, y }) => {
   const dy = y - hero.y;
   if (Math.abs(dx) + Math.abs(dy) === 1) s.move(dx, dy);
 });
+// LE DESTINATAIRE DE LA VUE, tenu à jour en UN endroit. `playerId` est posé par une
+// dizaine de chemins (rejoindre, reprendre, quitter, expulser, revenir d'un compte) ;
+// s'abonner au store plutôt que de les patcher un par un garantit qu'un chemin ajouté
+// demain n'oubliera pas de le faire — et un oubli ne se verrait pas tout de suite : le
+// serveur servirait simplement la carte d'un anonyme, donc un brouillard trop épais.
+useStore.subscribe((s) => setViewerPlayer(s.playerId));
+
 bus.on(EV.CombatTileClick, ({ x, y }) => useStore.getState().combatTileClick(x, y));
 bus.on(EV.CombatUnitClick, ({ unitId }) => useStore.getState().combatUnitClick(unitId));

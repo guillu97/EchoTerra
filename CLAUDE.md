@@ -86,6 +86,9 @@ main au menu; mêmes prérequis) ·
 `npm run test:endgame` (in frontend — **le récit de fin de partie** : le registre de contribution dans
 l'ordre d'arrivée, la promesse du mémorial, et une relance qui ne repasse PAS par la partie legacy;
 mêmes prérequis) ·
+`npm run test:fog` (in frontend — **le brouillard de guerre** : les trois états dans le
+payload, une case quittée qui redevient un SOUVENIR assombri sans être oubliée, et le
+voile réellement POSÉ dans la scène; mêmes prérequis) ·
 `npm run test:weather` (in frontend — **la météo des thèmes** : neige + pont de nuages au nord portés
 par le MÊME vent, vire-vents qui roulent VRAIMENT à l'écran au sud, rien du tout en tempéré, et
 « Aucun » qui SUPPRIME la couche au lieu de la figer; mêmes prérequis) ·
@@ -936,6 +939,40 @@ les parties, sans qu'aucun test n'échoue. `snowCaps` coiffe les sommets ISOLÉS
 cartes molles. ⚠ ne pas « corriger » en baissant le seuil de la neige : elle volerait tout son terrain
 à la montagne.
 
+**LA TOUR DE GUET** (`game/watchtower.go`, `POST /heroes/{h}/tower/build`, 2026-08-16) —
+des SITES semés au worldgen sur les **sommets** (`SeedWatchtowerSites` : une case dont
+aucune voisine n'est plus haute, ≥12 du bourg, espacées de 10 ; ⚠ critère TOPOGRAPHIQUE
+et pas de biome — « biome montagne » ne veut pas dire « point haut » dans ce
+générateur). Chantier COLLECTIF (`WatchtowerPA` 14 + Bois 6/Pierre 4 en Banque, mêmes
+règles qu'une ruine) ; une fois bâtie elle éclaire `WatchtowerSight` 6 cases **en
+permanence et pour TOUS les joueurs** — c'est la seule façon de transformer une
+exploration individuelle en savoir d'expédition. ⚠ **elle ne donne QUE de la vision**
+(aucune défense, aucun PA, aucun stockage) : un objet qui ferait deux choses obligerait
+à arbitrer entre elles. ⚠ **ce n'est PAS un `TownBuilding`** — greffer une parcelle
+hors-les-murs sur `town.go` aurait contaminé la défense, l'ordre du jour et l'usure ;
+elle réutilise le modèle des ruines. ⚠ **synergie voulue avec les mesas** : un sommet est
+justement ce qu'un héros ordinaire ne peut pas atteindre (climb.go), donc la récompense
+d'un plateau scellé est le belvédère qu'on y pose. La **Tour de la ville** fait de même
+autour du bourg (`townTowerSight` 4/6/8 par niveau). ⚠ le modèle voxel doit figurer dans
+la liste de PRÉCHARGEMENT de `VoxelMapView` (`bld-tower`, `bld-chantier`) — un modèle
+absent rend l'objet SILENCIEUSEMENT invisible.
+
+**LA VISION EN COMBAT** (`game/combatsight.go`, 2026-08-16) — l'arène servait TOUT :
+chaque unité connaissait chaque ennemi à travers les piliers dès le premier round.
+Désormais `Sight = 3 + précision/3` (la **PRÉCISION** : elle donnait le critique
+— repérer le point faible —, elle donne la portée à laquelle on distingue), vision MISE
+EN COMMUN par camp, ligne de vue via `hasLOS`, et le **contact voit toujours** (sinon une
+unité collée à un rocher devenait invisible pour celle qui la touche). `canTarget` exige
+de VOIR — c'est la conséquence qui compte. ⚠ **`SightView` RETIRE les unités invisibles
+du payload** au lieu de les marquer : un drapeau « cachée » laisserait la position
+voyager. ⚠ **l'ORDRE du tour n'est pas amputé** (le raccourcir trahirait le nombre
+d'ennemis). ⚠ **règle SYMÉTRIQUE** : `packTarget` ne cible que le visible… mais retombe
+sur le plus proche quand il ne voit RIEN, sinon deux camps aveugles resteraient plantés
+jusqu'à la limite de rounds — une panne, pas une tension. **ÉCLAIRER** (éclaireur,
+`AttackDef.Reveal`, cooldown 3, aucun dégât, portée de ciblage 5) désigne une CASE — pas
+une unité, et c'est tout le point : la capacité sert quand on n'a rien à cibler — et
+marque les ennemis du rayon pour `spotRounds` 2 rounds. Tests : `combatsight_test.go`.
+
 **Ruines-donjons** (`ruins.go`, 2026-07-19) — 5 bâtiments en ruine PAR BIOME semés au worldgen
 (`SeedRuins`, déterministe, 1/biome, Chebyshev ≥ 3 de la ville) : Épave (sable 8 PA), Ferme
 (prairie 8), Sanctuaire (forêt 10), Mine (montagne 12), Tour gelée (neige 12). `GameState.Ruins`
@@ -1221,6 +1258,7 @@ GET  /api/equipment                               {nom -> EquipDef} ce qui se PO
 POST /api/games/{id}/heroes/{h}/equip             {item,slot} porte un objet du sac (item vide = retirer)
 POST /api/games/{id}/heroes/{h}/use               {item} consomme un objet du sac (ou, EN VILLE, de la
                                                   réserve commune : on mange sur place, on n'emporte rien)
+POST /api/games/{id}/heroes/{h}/tower/build     {points} bâtit le belvédère du sommet sous le héros
 POST /api/games/{id}/heroes/{h}/ruin/clear        {points} déblaye la ruine sous le héros -> {ruin, game}
 POST /api/games/{id}/heroes/{h}/ruin/explore      fouille le donjon déblayé (2 PA) -> {item, game}
 POST /api/games/{id}/heroes/{h}/evolve            {classId} -> GameState (applies class bonuses)
@@ -1389,6 +1427,32 @@ test `TestServerWrittenSentencesUseFrenchBuildingNames`).
   l'interception centrale `clientView` dans `api.writeJSON` : les tuiles non découvertes partent
   **vierges**, les monstres sur tuiles cachées sont **omis**, et la **seed est masquée** (seed +
   générateur = toute la carte). Tests : `fog_test.go` (`TestClientViewRedactsUndiscovered`).
+  ⚠ **Fog of war à TROIS ÉTATS et à mémoire PAR JOUEUR (2026-08-16, refonte)** —
+  modèle Warcraft III / StarCraft II : `FogHidden` (jamais vue : noir, tuile vierge) ·
+  `FogExplored` (vue autrefois, plus sous les yeux de personne : le TERRAIN est rendu
+  sous un **voile sombre**, mais rien de vivant n'est servi) · `FogVisible` (dans le
+  champ de quelqu'un : tout est là). ⚠ **la mémoire est par JOUEUR**
+  (`GameState.Explored`, un bitset par identifiant — jamais sur le réseau : `[]bool`
+  pèserait ~90 ko par joueur et par requête sur une carte 134²) ; `ClientViewFor(playerID)`
+  remplace `ClientView()`, et le destinataire arrive par le **ResponseWriter emballé**
+  (`viewerWriter`, posé par `gameLockMiddleware`) — on ne change PAS la signature de
+  `writeJSON`, dont la centralisation est ce qui garantit qu'aucun handler ne fuite ;
+  un handler qui oublierait le destinataire sert la vue d'un anonyme, donc la plus
+  pauvre. Le client ajoute `?playerId=` dans l'UNIQUE fonction `req` (api/client.ts).
+  ⚠ **les MONSTRES ne sont servis que sur une case VISIBLE** (un souvenir qui garderait
+  ses monstres mentirait sur leur position) ; les RUINES et les belvédères, eux, restent
+  connus une fois repérés — un bâtiment ne se déplace pas. ⚠ **`Tile.Discovered` survit**
+  avec un sens réduit (« quelqu'un l'a vue »), lu par `climb.go` et la simulation
+  d'équilibrage ; les BOTS, eux, lisent leur PROPRE mémoire (`heroKnows`). ⚠ **MIGRATION**
+  : une sauvegarde d'avant la refonte (`Explored == nil`) est semée une fois depuis
+  `Tile.Discovered`, sinon des jours réels d'exploration disparaîtraient — mais un joueur
+  qui rejoint ENSUITE part bien d'une carte noire. ⚠ **`visible` est OMIS quand il est
+  faux** (280 ko de JSON économisés) : tester `!t.visible`, jamais `t.visible === false`
+  — un premier jet écrivait le second et ne voilait jamais rien. Le voile est un
+  **InstancedMesh de quads sombres** et non une teinte de terrain : la surface n'est
+  re-maillée que quand le nombre de cases DÉCOUVERTES change, alors que la visibilité
+  bouge à chaque pas — remailler la carte à chaque déplacement violerait le budget de
+  `test:perf`. Garde-fou : `npm run test:fog`. Tests Go : `fogwar_test.go`.
   L'onglet Map reste **MONTÉ toute la partie** (`GameScreen` le rend en permanence avec une prop
   `active`, caché via `visibility:hidden` — PAS `display:none`) : c'est donc à **`VoxelMapView`
   d'honorer `active`** (animator coupé, cycle solaire en pause), sinon la vue travaille derrière un

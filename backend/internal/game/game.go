@@ -71,7 +71,21 @@ type Tile struct {
 	// n'interrompt que la fouille AUTOMATIQUE ; la fouille manuelle rend son butin
 	// comme d'habitude et déblaie la neige au passage.
 	Covered    bool `json:"covered,omitempty"`
-	Discovered bool `json:"discovered"` // fog of war: revealed once a hero has seen it (shared by all players)
+	// Discovered : « quelqu'un de l'expédition l'a vue un jour ». ⚠ CE N'EST PLUS ce
+	// qui décide de ce qu'un joueur voit — c'est `PlayerExplored` (mémoire PAR
+	// JOUEUR, fog.go). Ce drapeau reste la mémoire de l'EXPÉDITION : le relief ne peut
+	// arrêter que sur une case déjà vue (climb.go) et la simulation d'équilibrage
+	// compte les tuiles sorties du brouillard. Dans un payload client il porte le sens
+	// « ce joueur s'en souvient ».
+	Discovered bool `json:"discovered"`
+	// Visible : la case est ÉCLAIRÉE en ce moment (un héros à moi, le bourg, ou une
+	// tour). ⚠ DÉRIVÉ, jamais persisté — posé uniquement par `ClientViewFor`. C'est la
+	// distinction Warcraft III entre le souvenir assombri et la vue vivante : sur une
+	// case seulement `discovered`, le terrain est rendu mais rien de mouvant n'est
+	// servi.
+	Visible bool `json:"visible,omitempty"`
+	// TowerID : le belvédère (bâti ou en chantier) posé sur cette case (watchtower.go).
+	TowerID string `json:"towerId,omitempty"`
 }
 
 // Hero is a controllable unit on the global map.
@@ -311,6 +325,15 @@ type GameState struct {
 	Combats      map[string]*Combat `json:"combats,omitempty"`
 	// Ruins are the biome-specific ruined buildings → dungeons (see ruins.go).
 	Ruins map[string]*Ruin `json:"ruins,omitempty"`
+	// Watchtowers : les belvédères des sommets (watchtower.go) — sites semés au
+	// worldgen, bâtis par les joueurs, et qui gardent la vision ALLUMÉE dans leur
+	// rayon pour toute l'expédition.
+	Watchtowers map[string]*Watchtower `json:"watchtowers,omitempty"`
+	// Explored : la MÉMOIRE DE BROUILLARD PAR JOUEUR — un bit par case, indexé par
+	// identifiant de joueur (clé vide pour les parties legacy sans joueurs). ⚠ Ne
+	// traverse JAMAIS le réseau : `ClientViewFor` l'efface, et sert à la place deux
+	// drapeaux par tuile (`discovered` / `visible`). Voir fog.go.
+	Explored map[string][]byte `json:"explored,omitempty"`
 	// RevealAll is a DEBUG flag: when set, ClientView stops redacting the fog and
 	// sends the whole map (tiles marked discovered) — the real explored set is left
 	// untouched, so clearing the flag restores the genuine fog. See fog.go.

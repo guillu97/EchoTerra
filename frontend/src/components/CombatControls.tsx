@@ -222,7 +222,10 @@ export function CombatControls() {
               className={`cbt-act ${sk.weapon ? "wpn" : "skill"} ${cd ? "cooling" : ""} ${
                 combatMode === "skill" && combatSkillIdx === sk.idx ? "on" : ""
               }`}
-              disabled={busy || !canAct || cd > 0 || noTarget}
+              // ⚠ UNE CAPACITÉ DE RÉVÉLATION N'A PAS DE CIBLE À AVOIR : elle vise une
+              // CASE, et sert précisément quand on ne voit aucun ennemi. L'éteindre
+              // faute de cible l'aurait rendue inutilisable au seul moment utile.
+              disabled={busy || !canAct || cd > 0 || (noTarget && !sk.skill.reveal)}
               title={
                 cd > 0
                   ? `${sk.skill.name} se recharge — disponible dans ${cd} tour${cd > 1 ? "s" : ""}`
@@ -327,8 +330,13 @@ export function CombatControls() {
         </div>
       )}
 
-      {/* Rang 3 — les cibles du mode armé. */}
-      {(combatMode === "attack" || combatMode === "skill" || combatMode === "push") && (
+      {/* Rang 3 — les cibles du mode armé (ou, pour une révélation, la consigne). */}
+      {combatMode === "skill" && activeSkill?.skill.reveal ? (
+        <div className="cbt-hint state">
+          🔦 Tape une case de l'arène (liseré doré) pour éclairer la zone — les ennemis qui s'y
+          trouvent seront visibles par toute l'équipe.
+        </div>
+      ) : (combatMode === "attack" || combatMode === "skill" || combatMode === "push") && (
         <div className="cbt-targets">
           {targetList.length > 0 ? (
             targetList.map((id) => {

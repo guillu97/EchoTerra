@@ -5,18 +5,21 @@ import "testing"
 // The client view must not leak anything about undiscovered tiles: not their
 // terrain, not their resources, not the monsters standing on them, and not the
 // worldgen seed (seed + generator = the whole map).
+// ⚠ LA CARTE DOIT ÊTRE PLUS GRANDE QUE LA VUE DU BOURG. Elle faisait 4×4 quand la
+// vision était un simple drapeau posé à la main ; depuis que la VISIBILITÉ est dérivée
+// des positions (fog.go), le rayon 3 du bourg éclaire une carte de 4×4 en entier et le
+// test ne pouvait plus avoir de case cachée à observer.
 func TestClientViewRedactsUndiscovered(t *testing.T) {
-	g := &GameState{Width: 4, Height: 4, Seed: 1234, Monsters: map[string]*Monster{}}
-	g.Tiles = make([]Tile, 16)
+	g := &GameState{Width: 12, Height: 12, Seed: 1234, Monsters: map[string]*Monster{}}
+	g.Tiles = make([]Tile, 144)
 	for i := range g.Tiles {
 		g.Tiles[i] = Tile{Biome: Biome(3), Height: 5, Resources: 2}
 	}
-	g.TileAt(0, 0).Discovered = true
-	g.TileAt(1, 0).Discovered = true
+	g.Town.X, g.Town.Y = 0, 0 // son rayon éclaire (1,0), jamais (11,11)
 	g.Monsters["seen"] = &Monster{ID: "seen", X: 1, Y: 0, Count: 2}
 	g.TileAt(1, 0).MonsterID = "seen"
-	g.Monsters["hidden"] = &Monster{ID: "hidden", X: 3, Y: 3, Count: 4}
-	g.TileAt(3, 3).MonsterID = "hidden"
+	g.Monsters["hidden"] = &Monster{ID: "hidden", X: 11, Y: 11, Count: 4}
+	g.TileAt(11, 11).MonsterID = "hidden"
 
 	cv := g.ClientView()
 
@@ -27,7 +30,7 @@ func TestClientViewRedactsUndiscovered(t *testing.T) {
 		got.Resources != 2 || got.MonsterID != "seen" {
 		t.Fatalf("discovered tile must pass through unchanged, got %+v", got)
 	}
-	if got := cv.TileAt(3, 3); got.Discovered || got.Biome != 0 || got.Height != 0 ||
+	if got := cv.TileAt(11, 11); got.Discovered || got.Biome != 0 || got.Height != 0 ||
 		got.Resources != 0 || got.MonsterID != "" {
 		t.Fatalf("undiscovered tile must be blank, got %+v", got)
 	}
@@ -39,7 +42,7 @@ func TestClientViewRedactsUndiscovered(t *testing.T) {
 	}
 
 	// The receiver must be untouched (persistence and game logic use the full state).
-	if g.Seed != 1234 || g.TileAt(3, 3).Biome != Biome(3) || g.TileAt(3, 3).MonsterID != "hidden" ||
+	if g.Seed != 1234 || g.TileAt(11, 11).Biome != Biome(3) || g.TileAt(11, 11).MonsterID != "hidden" ||
 		len(g.Monsters) != 2 {
 		t.Fatalf("ClientView must not mutate the original state")
 	}
@@ -48,30 +51,31 @@ func TestClientViewRedactsUndiscovered(t *testing.T) {
 // DEBUG « lever le brouillard » : RevealAll fait passer TOUTE la carte (tuiles
 // marquées découvertes, monstres inclus) sans toucher au vrai jeu de tuiles.
 func TestRevealAllShowsWholeMapWithoutMutating(t *testing.T) {
-	g := &GameState{Width: 4, Height: 4, Seed: 1234, Monsters: map[string]*Monster{}}
-	g.Tiles = make([]Tile, 16)
+	g := &GameState{Width: 12, Height: 12, Seed: 1234, Monsters: map[string]*Monster{}}
+	g.Tiles = make([]Tile, 144)
 	for i := range g.Tiles {
 		g.Tiles[i] = Tile{Biome: Biome(3), Height: 5, Resources: 2}
 	}
-	g.Monsters["hidden"] = &Monster{ID: "hidden", X: 3, Y: 3, Count: 4}
-	g.TileAt(3, 3).MonsterID = "hidden"
+	g.Town.X, g.Town.Y = 0, 0
+	g.Monsters["hidden"] = &Monster{ID: "hidden", X: 11, Y: 11, Count: 4}
+	g.TileAt(11, 11).MonsterID = "hidden"
 
 	g.RevealAll = true
 	cv := g.ClientView()
-	if got := cv.TileAt(3, 3); !got.Discovered || got.Biome != Biome(3) || got.Height != 5 {
+	if got := cv.TileAt(11, 11); !got.Discovered || got.Biome != Biome(3) || got.Height != 5 {
 		t.Fatalf("with RevealAll every tile must be sent discovered, got %+v", got)
 	}
 	if _, ok := cv.Monsters["hidden"]; !ok {
 		t.Fatalf("with RevealAll every monster must be sent")
 	}
 	// L'état réel n'est PAS modifié : la tuile (3,3) reste non découverte côté serveur.
-	if g.TileAt(3, 3).Discovered {
+	if g.TileAt(11, 11).Discovered {
 		t.Fatalf("RevealAll must not mutate the real explored set")
 	}
 
 	// Le remettre restaure la vraie occultation.
 	g.RevealAll = false
-	if got := g.ClientView().TileAt(3, 3); got.Discovered {
+	if got := g.ClientView().TileAt(11, 11); got.Discovered {
 		t.Fatalf("clearing RevealAll must restore the fog, got %+v", got)
 	}
 }

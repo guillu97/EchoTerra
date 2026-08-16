@@ -249,6 +249,12 @@ class MapWorld {
       // la case ville rend un village miniature (mairie + portail + muraille),
       // les mêmes modèles que l'onglet Ville — plus le temple grec d'avant
       "bld-townhall", "bld-gate", "bld-wall",
+      // ⚠ LE BELVÉDÈRE DOIT ÊTRE DANS CETTE LISTE. Un modèle absent du préchargement
+      // fait rendre `undefined` à `propsLib.get`, la pose fait `continue`, et l'objet
+      // est SILENCIEUSEMENT invisible — aucune erreur, aucun trou : on croit
+      // simplement qu'il n'y en a pas sur la carte (le piège documenté pour
+      // `PROP_KEYS` et `buildingModelKey`). Vérifié : les .vox sont bien téléchargés.
+      "bld-tower", "bld-chantier",
       "site-ferme", "site-epave", "site-sanctuaire", "site-mine", "site-tour",
     ]).then(() => {
       this.propsReady = true;
@@ -660,6 +666,55 @@ class MapWorld {
       this.overlays.add(im);
     }
 
+    // LE VOILE DU BROUILLARD — les cases dont on se SOUVIENT sans les voir.
+    //
+    // C'est la troisième couche de la règle Warcraft III (backend fog.go) : le noir
+    // pour ce qu'on n'a jamais vu, la pénombre pour ce qu'on a vu et qu'on ne voit
+    // plus, la pleine lumière pour ce qui est sous les yeux de quelqu'un.
+    //
+    // ⚠ UN VOILE POSÉ PAR-DESSUS, ET NON UNE COULEUR DE TERRAIN. Assombrir la palette
+    // du sol (smoothTerrain) aurait été plus joli, mais la surface n'est re-maillée
+    // que lorsque le nombre de cases DÉCOUVERTES change — or la visibilité, elle,
+    // change à CHAQUE PAS. Il aurait fallu remailler la carte entière à chaque
+    // déplacement, ce que le budget de `npm run test:perf` interdit précisément. Un
+    // InstancedMesh de quads sombres se reconstruit, lui, pour presque rien : c'est
+    // aussi, littéralement, la façon dont Warcraft III dessine son brouillard.
+    const veiled: { x: number; y: number }[] = [];
+    for (let y = 0; y < game.height; y++) {
+      for (let x = 0; x < game.width; x++) {
+        const t = game.tiles[y * game.width + x];
+        // ⚠ `visible` EST ABSENT QUAND IL EST FAUX (tag Go `omitempty`), et c'est
+        // volontaire : l'écrire sur chaque tuile coûterait ~280 ko de JSON sur une
+        // carte de vingt joueurs, à chaque rafraîchissement, sur un téléphone. Le test
+        // est donc « découverte ET pas visible », pas « visible === false » — un
+        // premier jet écrivait le second et ne voilait JAMAIS rien (mesuré : 0 quad
+        // posé pour 21 cases mémorisées, et rien ne le signalait à l'écran).
+        if (!t?.discovered || t.visible) continue;
+        veiled.push({ x, y });
+      }
+    }
+    if (veiled.length) {
+      const im = new THREE.InstancedMesh(
+        QUAD_GEOM,
+        new THREE.MeshBasicMaterial({
+          color: 0x0a1020,
+          transparent: true,
+          opacity: 0.42, // assez pour se lire d'un coup d'œil, assez peu pour garder le terrain lisible
+          depthWrite: false,
+        }),
+        veiled.length,
+      );
+      im.userData.ownMat = true;
+      im.renderOrder = -2; // sous les cases épuisées et sous les losanges
+      const m4 = new THREE.Matrix4();
+      veiled.forEach((c, i) => {
+        m4.makeTranslation(c.x, topOf(c.x, c.y) + 0.02, c.y);
+        im.setMatrixAt(i, m4);
+      });
+      im.instanceMatrix.needsUpdate = true;
+      this.overlays.add(im);
+    }
+
     // LA NEIGE FRAÎCHE, même traitement : un seul InstancedMesh pour toute la carte.
     // ⚠ `covered` n'a de sens que sur une case DÉCOUVERTE — le fog rend une tuile
     // vierge, donc sans le drapeau, et une case cachée ne doit rien afficher.
@@ -806,6 +861,34 @@ class MapWorld {
       mesh.scale.setScalar(0.72);
       this.sprites.add(mesh);
       quad(ru.x, ru.y, topOf(ru.x, ru.y), ru.cleared && ru.charges > 0 ? 0xffd66e : 0xfff3d0, ru.cleared ? 0.35 : 0.2);
+    }
+
+    // LES BELVÉDÈRES (backend watchtower.go). Un chantier se lit à sa silhouette
+    // d'échafaudage, une tour debout à son fanal doré — et c'est ce halo qui doit se
+    // repérer de loin : c'est la seule chose sur la carte qui promet de la VUE, donc
+    // la seule raison d'escalader une mesa scellée.
+    //
+    // ⚠ Modèle réutilisé (`bld-tower`), pas un nouveau `.vox` : `buildingModelKey` a
+    // déjà appris qu'un modèle manquant rend un bâtiment silencieusement INVISIBLE
+    // (CLAUDE.md §5) — on ne prend pas ce risque pour un objet dont tout l'intérêt est
+    // d'être repérable.
+    for (const id in game.watchtowers ?? {}) {
+      const wt = game.watchtowers![id];
+      const geom = this.propsLib.get(wt.built ? "bld-tower" : "bld-chantier", 0);
+      const top = topOf(wt.x, wt.y);
+      if (geom) {
+        const mesh = pickable(new THREE.Mesh(geom, PROP_MAT), { x: wt.x, y: wt.y });
+        mesh.castShadow = mesh.receiveShadow = true;
+        mesh.position.set(wt.x, top - 0.02, wt.y);
+        // un chantier est plus bas qu'une tour finie : la progression se VOIT
+        mesh.scale.set(0.62, wt.built ? 0.9 : 0.5 + 0.35 * (wt.paInvested / Math.max(1, wt.buildPa)), 0.62);
+        this.sprites.add(mesh);
+      }
+      quad(wt.x, wt.y, top, wt.built ? 0xffd66e : 0xbfd0e8, wt.built ? 0.42 : 0.22);
+      const lbl = unpicked(makeLabel(wt.built ? "🗼 Guet" : `🗼 ${wt.paInvested}/${wt.buildPa}`, wt.built ? "#ffd166" : "#cfe0f5", 0.26));
+      lbl.center.set(0.5, 0);
+      lbl.position.set(wt.x, top + 1.0, wt.y);
+      this.sprites.add(lbl);
     }
 
     // combats en cours : un marqueur ⚔ par case de combat (plusieurs combats

@@ -21,6 +21,7 @@ import type {
   ScoreEntry,
   SeasonList,
   User,
+  Watchtower,
 } from "./types";
 
 export interface JoinResponse {
@@ -49,6 +50,28 @@ export function setAuthToken(token: string | null) {
   }
 }
 
+// LE DESTINATAIRE DE LA VUE — qui regarde, donc quel brouillard le serveur doit
+// servir.
+//
+// Depuis que la mémoire de brouillard est PAR JOUEUR (backend fog.go), toute réponse
+// contenant un GameState doit être caviardée pour CE joueur-là. Le serveur le lit dans
+// `?playerId=` ; on l'ajoute donc ICI, dans l'unique fonction par laquelle passent
+// toutes les requêtes, plutôt qu'au cas par cas dans quarante méthodes — même raison
+// que l'interception centrale côté serveur : un appel ajouté demain ne peut pas
+// l'oublier. Un identifiant absent n'est pas une faute : le serveur sert alors la vue
+// d'un anonyme, c'est-à-dire la plus pauvre.
+let viewerPlayerId = "";
+export function setViewerPlayer(id: string | undefined | null) {
+  viewerPlayerId = id ?? "";
+}
+
+// withViewer n'ajoute le paramètre qu'aux routes d'UNE partie : le reste de l'API
+// (catalogues, classement, comptes) n'a pas de brouillard et n'a rien à en savoir.
+function withViewer(url: string): string {
+  if (!viewerPlayerId || !/^\/api\/games\/[^/]+/.test(url)) return url;
+  return url + (url.includes("?") ? "&" : "?") + "playerId=" + encodeURIComponent(viewerPlayerId);
+}
+
 // Relative base: Vite proxies /api to the Go backend during development.
 async function req<T>(method: string, url: string, body?: unknown): Promise<T> {
   const headers: Record<string, string> = {};
@@ -57,7 +80,7 @@ async function req<T>(method: string, url: string, body?: unknown): Promise<T> {
   if (token) headers["Authorization"] = `Bearer ${token}`;
   let res: Response;
   try {
-    res = await fetch(url, {
+    res = await fetch(withViewer(url), {
       method,
       headers: Object.keys(headers).length ? headers : undefined,
       body: body !== undefined ? JSON.stringify(body) : undefined,
@@ -212,6 +235,14 @@ export const api = {
       "POST",
       `/api/games/${gameId}/heroes/${heroId}/skill`,
       { skillId, playerId },
+    ),
+
+  // LE BELVÉDÈRE (backend watchtower.go) : un chantier collectif posé sur un sommet.
+  watchtowerBuild: (gameId: string, heroId: string, points: number, playerId?: string) =>
+    req<{ tower: Watchtower; game: GameState }>(
+      "POST",
+      `/api/games/${gameId}/heroes/${heroId}/tower/build`,
+      { points, playerId },
     ),
 
   ruinClear: (gameId: string, heroId: string, points: number, playerId?: string) =>
