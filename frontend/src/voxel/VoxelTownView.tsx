@@ -448,6 +448,17 @@ export function VoxelTownView({
       // ⚠ Viser à MI-HAUTEUR du bâti, pas au niveau du sol : la masse du tertre
       // monte à ~7 unités, visé au sol il occupait le haut du cadre.
       engine.target.set(layout.center, 4.6, layout.center);
+      // BORNES DU PAN : le tertre, et rien de plus. Sans elles on tirait le bourg
+      // dans un coin et il ne restait à l'écran que le ciel et ses nuages — qui,
+      // volant à 13-17 unités, se projettent ~26 unités PLUS HAUT que le sol en
+      // dimétrique : un pan vers le haut ne trouvait littéralement QUE des nuages
+      // (« quand je bouge ça déplace les nuages »). Le rayon est celui du tertre,
+      // donc au maximum du pan son bord est au centre de l'écran : le bourg ne
+      // peut jamais quitter la vue.
+      engine.panBounds = {
+        minX: layout.center - layout.hill.rx, maxX: layout.center + layout.hill.rx,
+        minZ: layout.center - layout.hill.ry, maxZ: layout.center + layout.hill.ry,
+      };
       // En projection dimétrique un carré de côté N occupe ~N·√2 en diagonale
       // écran : cadrer sur N seul débordait des deux côtés.
       const span = (layout.size + 1) * 1.05;

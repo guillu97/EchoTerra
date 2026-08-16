@@ -77,6 +77,21 @@ export class VoxelEngine {
   readonly camera: THREE.OrthographicCamera;
   /** point regardé, sur le plan du sol (y = 0) */
   readonly target = new THREE.Vector3();
+  /**
+   * BORNES DU PAN (rectangle monde, x/z) — au-delà il n'y a plus rien à regarder.
+   *
+   * Sans elles le pan est infini : sur la vue VILLE on tirait le tertre dans un
+   * coin et l'écran se remplissait de ciel (les nuages volent à 13-17 unités, or
+   * la projection est dimétrique à 30° : ils se projettent ~26 unités PLUS HAUT
+   * que le sol, donc un pan vers le haut ne trouve QUE des nuages — « quand je
+   * bouge ça déplace les nuages »). Même trou sur la carte du monde et sur
+   * l'arène de combat, où l'on pouvait sortir du damier et ne plus rien voir.
+   *
+   * La cible reste DANS le rectangle du contenu : on peut amener le bord du
+   * contenu au centre de l'écran, jamais au-delà — le contenu ne peut donc
+   * jamais quitter la vue. `null` (défaut) = pan libre (éditeur, banc).
+   */
+  panBounds: { minX: number; maxX: number; minZ: number; maxZ: number } | null = null;
   orientation: Orientation = 0;
   zoom = 48; // px CSS par unité monde (1 unité = 1 bloc)
   minZoom = 12;
@@ -337,6 +352,17 @@ export class VoxelEngine {
 
   /** applique zoom + azimut + cible à la caméra (avant chaque rendu) */
   private applyCamera() {
+    // ⚠ le recadrage se fait ICI et pas dans les contrôles : toute la math
+    // écran↔monde passe par `groundAt`, qui appelle applyCamera — borner au seul
+    // endroit qui pose la caméra garantit qu'aucun chemin (pan, pinch, molette,
+    // recentrage sur un héros) ne peut sortir du contenu, et que le point saisi
+    // sous le doigt est recalculé sur la caméra RÉELLEMENT posée (arrêt net en
+    // butée, sans dérive accumulée).
+    const b = this.panBounds;
+    if (b) {
+      this.target.x = Math.min(Math.max(this.target.x, Math.min(b.minX, b.maxX)), Math.max(b.minX, b.maxX));
+      this.target.z = Math.min(Math.max(this.target.z, Math.min(b.minZ, b.maxZ)), Math.max(b.minZ, b.maxZ));
+    }
     this.camera.zoom = this.zoom;
     // vue de dessus (combat) : élévation ~78° — presque plongeant mais pas
     // strictement vertical (évite un lookAt dégénéré) ; l'azimut est conservé.

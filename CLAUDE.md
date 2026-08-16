@@ -104,7 +104,10 @@ TopBar tient à 390 px avec le badge le plus large; **aucun serveur de dev requi
 sur du balisage statique) ·
 `npm run test:mythic` (in frontend — **la faveur des dieux** : la barre du haut tient sur UNE rangée
 à 390 px compteur compris, les trois dieux du panthéon lisibles sans troncature, et le vote qui part
-vraiment au serveur; mêmes prérequis).
+vraiment au serveur; mêmes prérequis) ·
+`npm run test:camera` (in frontend — **les bornes de la caméra** : le bourg reste à l'écran après un
+pan à fond, la cible ne quitte ni le tertre ni le damier, et un TÉMOIN sans bornes qui perd le bourg
+prouve que le test mord; mêmes prérequis).
 
 **Déploiement Vercel (gratuit)** — voir `DEPLOY.md`. Preset **Services** (`vercel.json`) : service
 `frontend` (root `frontend/`, Vite, statique CDN) + service `backend` (root `backend/`, le preset Go
@@ -1548,6 +1551,22 @@ test `TestServerWrittenSentencesUseFrenchBuildingNames`).
   actions (Well "Puiser de l'eau" free, Gate "Open/Close", etc.), "Améliorer (Structure)", and Restore.
 - **TownStatus** panel: town HP, **defense total + per-building breakdown** (who defends, how much, durability,
   open/unbuilt), every building's durability, and the last-wave report.
+- **LES BORNES DE LA CAMÉRA** (`VoxelEngine.panBounds`, 2026-08-16) — le pan des trois vues voxel était
+  INFINI. Sur la VILLE on tirait le tertre dans un coin et il ne restait à l'écran que du ciel : les
+  nuages volent à 13-17 unités et la projection est dimétrique à 30°, donc ils se projettent **~26
+  unités PLUS HAUT** que le sol — un pan vers le haut ne trouvait littéralement QUE des nuages, sans
+  plus aucun repère pour savoir dans quel sens revenir (« quand je bouge ça déplace les nuages »,
+  rapporté en jeu). Chaque vue pose désormais le rectangle de SON contenu : le tertre
+  (`TownLayout.hill`, demi-axes de la butte), la carte (`0..width-1 × 0..height-1`, reposé à chaque
+  dessin — une autre expédition a une autre taille) et le damier de l'arène (9×9 pour un boss).
+  ⚠ **le recadrage se fait dans `applyCamera()`**, pas dans les contrôles : toute la math écran↔monde
+  passe par `groundAt()`, qui appelle `applyCamera` — borner au seul endroit qui pose la caméra
+  garantit qu'aucun chemin (pan, pinch, molette, recentrage sur un héros) ne peut sortir du contenu, et
+  que le point saisi sous le doigt est recalculé sur la caméra RÉELLEMENT posée (butée nette, sans
+  dérive accumulée). ⚠ la cible reste DANS le rectangle : on peut amener le BORD du contenu au centre
+  de l'écran, jamais au-delà — borner n'est pas figer, un pan normal continue de déplacer la vue.
+  `null` (défaut) = pan libre, pour l'éditeur et le banc. Garde-fou : `npm run test:camera` (dont un
+  TÉMOIN qui rejoue le même geste bornes retirées et DOIT perdre le bourg).
 - **Map** (`MapTab`): carte du monde en **voxel** (`voxel/VoxelMapView.tsx`) — SEUL rendu depuis
   2026-07-29, le moteur Phaser et tout le rendu 2D isométrique ayant été retirés (bundle 2 652 kB →
   1 138 kB). Terrain en **colonnes voxel fines** (`smoothTerrain.ts`, R=10 colonnes par tuile, pas

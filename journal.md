@@ -6,6 +6,65 @@
 
 ---
 
+## 2026-08-16 (127) — « Quand je bouge ça déplace les nuages » : la caméra n'avait aucune borne
+
+Retour de Guillaume, capture à l'appui : sur l'onglet **Ville**, le bourg réduit à une vignette dans
+le coin en bas à gauche et **tout le reste de l'écran rempli de nuages**.
+
+### Ce que c'était
+
+Le pan des vues voxel était **infini** : `VoxelControls` déplace `engine.target` sans jamais le
+borner, et aucune des trois vues ne lui donnait de rectangle. Un drag un peu franc sortait donc du
+contenu — et sur la ville on ne tombe pas sur du vide, on tombe sur les NUAGES : ils volent à 13-17
+unités et la projection est dimétrique à 30°, donc ils se projettent **~26 unités plus haut** que le
+sol. Tirer vers le bas de l'écran amène exactement la nappe de nuages au centre du cadre, et il ne
+reste plus un seul repère pour savoir dans quel sens revenir. D'où la phrase : ce n'est pas que les
+nuages bougent, c'est que ce sont les SEULS objets qui restent quand on a quitté le tertre.
+
+Le même trou existait sur la carte du monde (on dérivait hors du damier) et dans l'arène de combat.
+
+### Livré
+
+`VoxelEngine.panBounds` (rectangle monde x/z, `null` = pan libre pour l'éditeur et le banc), et
+chaque vue pose celui de SON contenu : le tertre (`TownLayout.hill`, les demi-axes de la butte, qui
+n'étaient pas exposés), la carte (`0..width-1 × 0..height-1`, **reposé à chaque dessin** — une autre
+expédition a une autre taille de carte) et le damier de l'arène (9×9 pour un boss).
+
+⚠ **Le recadrage se fait dans `applyCamera()`**, pas dans les contrôles. Toute la math écran↔monde
+passe par `groundAt()`, qui appelle `applyCamera` : borner au seul endroit qui pose réellement la
+caméra garantit qu'aucun chemin (pan, pinch, molette, recentrage sur un héros) ne peut sortir du
+contenu, et que le point saisi sous le doigt est recalculé sur la caméra RÉELLEMENT posée — la butée
+est nette, sans dérive accumulée ni effet élastique.
+
+⚠ **Borner n'est pas figer** : la cible peut aller jusqu'au BORD du contenu, donc on amène le bord au
+centre de l'écran et pas plus loin. Un pan normal déplace toujours la vue d'une demi-page.
+
+### Fonctionnel (vérifié)
+
+- `npm run test:camera` (neuf) 7/7 : la ville et la carte ont leurs bornes, un petit pan déplace
+  toujours la vue, la cible reste sur le tertre / sur une tuile, et **le bourg est encore à l'écran
+  après quatre drags à fond** (centre du tertre en NDC 0,08 / −0,36). Plus un **TÉMOIN** qui rejoue le
+  même geste bornes retirées : NDC 2,67 / −3,77, largement hors cadre — le test mord.
+- Vérifié à l'œil sur capture (420×780, à fond de pan et au zoom minimum) : le bourg occupe toujours
+  la moitié basse du cadre au lieu de disparaître dans un coin.
+- ⚠ Piège du test : un drag parti du centre du canvas de la ville ne panait RIEN — les pastilles de
+  bâtiment (`.town-spot`) flottent au-dessus et avalent le `pointerdown`. Le harnais cherche
+  maintenant un point de départ réellement sur le canvas.
+- `tsc -b` propre ; `test:map-tap` 8/8, `test:perf` 13/13, `test:combat-ui` 12/12.
+- `test:weather` 17/18 — « la carte redevient 100 % on-demand » compte 2 ou 3 redraws selon le tour
+  (seuil ≤2, le cycle solaire tique toutes les 5 s). **Sans rapport avec ce lot** : mesuré dans la
+  MÊME page en basculant `panBounds` à `null` et retour, la distribution est identique (0-2 des deux
+  côtés). Seuil borderline préexistant, à remonter à 3 un jour.
+
+### À faire
+
+- Le zoom minimum de la ville (8 px/unité) laisse encore le bourg occuper moins de la moitié du
+  cadre : borner le dézoom au cadrage initial serait le pendant naturel de ces bornes.
+- Rien ne borne le pan pendant qu'une modale de bâtiment est ouverte, et un drag qui DÉMARRE sur une
+  pastille ne pane pas du tout (constaté en écrivant le test) — mineur, mais c'est une surprise.
+
+---
+
 ## 2026-08-16 (126) — La Perception : une septième statistique, et six classes enfin distinctes
 
 Retour de Guillaume sur le lot précédent : « Sight = 3 + précision/3, ça je ne suis pas sûr —

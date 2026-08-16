@@ -76,6 +76,9 @@ export type TownLayout = {
   decor: TownDecor[];
   heroSlots: { x: number; y: number; lvl: number }[];
   center: number;
+  /** Demi-axes du tertre, en cellules — TOUT le contenu du bourg tient dedans.
+   *  La vue s'en sert pour borner le pan : hors du tertre il n'y a que du ciel. */
+  hill: { rx: number; ry: number };
 };
 
 // ============================================================================
@@ -677,6 +680,7 @@ export function buildTownLayout(): TownLayout {
     decor,
     heroSlots,
     center: CENTRE,
+    hill: { rx: RX, ry: RY },
   };
 }
 

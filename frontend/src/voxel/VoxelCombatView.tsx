@@ -638,6 +638,10 @@ class CombatWorld {
     }
     this.animator.endFrame();
 
+    // BORNES DU PAN = le damier (posées à chaque dessin : la grille d'un boss
+    // fait 9×9). Hors de l'arène il n'y a que le socle et le ciel.
+    engine.panBounds = { minX: 0, maxX: c.gridW - 1, minZ: 0, maxZ: c.gridH - 1 };
+
     if (!this.fitted) {
       // vise un peu plus BAS et dézoome légèrement pour montrer le socle-île (le
       // diorama), tout en gardant l'arène lisible ; zoom adapté à la grille (boss 9×9).

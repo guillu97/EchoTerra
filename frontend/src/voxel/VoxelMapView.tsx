@@ -1004,6 +1004,12 @@ class MapWorld {
 
     this.engine.refreshShadows(); // le contenu a pu changer (terrain/props/sprites)
 
+    // BORNES DU PAN = la carte elle-même (posées à chaque dessin : une autre
+    // expédition a une autre taille de carte). Le pan était infini, donc on
+    // pouvait dériver hors du monde et se retrouver devant du vide — la cible
+    // reste sur une tuile, au pire celle d'un coin.
+    engine.panBounds = { minX: 0, maxX: game.width - 1, minZ: 0, maxZ: game.height - 1 };
+
     // cadrage initial : zoomé sur la ville (comme MapScene)
     if (!this.fitted) {
       engine.target.set(game.town.x, 0, game.town.y);
