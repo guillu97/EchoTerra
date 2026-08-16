@@ -12,13 +12,17 @@ package game
 // Tout ici est DÉRIVÉ : aucune donnée nouvelle, aucun stockage, rien à migrer.
 // Recompute() reconstruit ces champs à chaque fois, comme la défense ou le Tétanisé.
 
-import "fmt"
-
 // TownOrder est une ligne de l'ordre du jour : ce que la ville demande, maintenant.
 type TownOrder struct {
 	Kind string `json:"kind"` // threat | gate | repair | material | plan | chantier | wear
 	Icon string `json:"icon"`
 	Text string `json:"text"`
+	// Key/Args : le gabarit français et ses substitutions, pour que le client redise la
+	// ligne dans SA langue (i18n.go). L'ordre du jour est recalculé par Recompute et
+	// STOCKÉ dans l'état — il est donc écrit par n'importe quelle requête, y compris le
+	// battement qui n'a aucun joueur derrière lui, et relu par toute la ville.
+	Key  string `json:"key,omitempty"`
+	Args []any  `json:"args,omitempty"`
 	// Urgent marque ce qui coûte des PV À LA PROCHAINE VAGUE, par opposition à ce qui
 	// prépare les suivantes. Le client peut en faire un accent visuel.
 	Urgent bool `json:"urgent"`
@@ -141,14 +145,14 @@ func (g *GameState) Forecast() WaveForecast {
 func (g *GameState) ScoutWave(heroID string) (WaveForecast, error) {
 	h := g.HeroByID(heroID)
 	if h == nil || h.HP <= 0 {
-		return WaveForecast{}, ActionError{"héros invalide"}
+		return WaveForecast{}, actionErr("héros invalide")
 	}
 	b := g.buildingByID("tower")
 	if b == nil || !b.Built {
-		return WaveForecast{}, ActionError{"il faut une Tour de guet pour observer la horde"}
+		return WaveForecast{}, actionErr("il faut une Tour de guet pour observer la horde")
 	}
 	if h.X != g.Town.X || h.Y != g.Town.Y {
-		return WaveForecast{}, ActionError{h.Name + " doit être en ville pour monter à la tour"}
+		return WaveForecast{}, actionErrf("%s doit être en ville pour monter à la tour", h.Name)
 	}
 	owner := g.OwnerOfHero(heroID)
 	if owner == "" {
@@ -156,11 +160,11 @@ func (g *GameState) ScoutWave(heroID string) (WaveForecast, error) {
 	}
 	for _, id := range g.Town.Scouts {
 		if id == owner {
-			return WaveForecast{}, ActionError{"ton équipe a déjà observé cette vague — laisse la place aux autres"}
+			return WaveForecast{}, actionErr("ton équipe a déjà observé cette vague — laisse la place aux autres")
 		}
 	}
 	if h.PA < scoutPA {
-		return WaveForecast{}, ActionError{fmt.Sprintf("observer coûte %d PA", scoutPA)}
+		return WaveForecast{}, actionErrf("observer coûte %d PA", scoutPA)
 	}
 	h.PA -= scoutPA
 	if h.PA == 0 {
@@ -168,8 +172,8 @@ func (g *GameState) ScoutWave(heroID string) (WaveForecast, error) {
 	}
 	g.Town.Scouts = append(g.Town.Scouts, owner)
 	g.Recompute() // la fourchette se resserre immédiatement, pour tout le monde
-	g.logTown(fmt.Sprintf("🔭 %s a observé la horde depuis la Tour (%d observateur(s), précision %d%%)",
-		h.Name, len(g.Town.Scouts), g.Town.Forecast.Precision))
+	g.logTown("🔭 %s a observé la horde depuis la Tour (%d observateur(s), précision %d%%)",
+		h.Name, len(g.Town.Scouts), g.Town.Forecast.Precision)
 	return g.Town.Forecast, nil
 }
 
@@ -185,37 +189,40 @@ func (g *GameState) BuildOrders() []TownOrder {
 		return []TownOrder{}
 	}
 	out := make([]TownOrder, 0, townOrdersCap)
-	add := func(kind, icon, text string, urgent bool) {
+	add := func(kind, icon string, urgent bool, key string, args ...any) {
 		if len(out) < townOrdersCap {
-			out = append(out, TownOrder{Kind: kind, Icon: icon, Text: text, Urgent: urgent})
+			m := newMsg(key, args...)
+			out = append(out, TownOrder{Kind: kind, Icon: icon, Text: m.Text, Key: m.Key, Args: m.Args, Urgent: urgent})
 		}
 	}
 	f := g.Forecast()
 
 	// 1. La menace, chiffrée. C'est la ligne qui donne envie de jouer maintenant.
-	rng := fmt.Sprintf("%d à %d", f.Min, f.Max)
+	// ⚠ la fourchette « %d à %d » était composée à part puis versée dans un %s : une
+	// sous-phrase française sans clé, donc intraduisible. Les bornes sont désormais des
+	// arguments comme les autres.
 	switch {
 	case f.Fatal:
-		add("threat", "☠️", fmt.Sprintf("%d créatures aux portes — la prochaine vague (%s contre %d de défense) emporterait la ville",
-			f.Besieging, rng, f.Defense), true)
+		add("threat", "☠️", true, "%d créatures aux portes — la prochaine vague (%d à %d contre %d de défense) emporterait la ville",
+			f.Besieging, f.Min, f.Max, f.Defense)
 	case f.AtRisk:
-		add("threat", "⚠️", fmt.Sprintf("%d créatures aux portes — la vague est estimée entre %s : au pire, la ville tombe",
-			f.Besieging, rng), true)
+		add("threat", "⚠️", true, "%d créatures aux portes — la vague est estimée entre %d et %d : au pire, la ville tombe",
+			f.Besieging, f.Min, f.Max)
 	case f.Besieging > 0:
-		add("threat", "⚔️", fmt.Sprintf("%d créatures dans l'anneau — vague estimée entre %s contre %d de défense (−%d à −%d PV)",
-			f.Besieging, rng, f.Defense, f.DamageMin, f.DamageMax), true)
+		add("threat", "⚔️", true, "%d créatures dans l'anneau — vague estimée entre %d et %d contre %d de défense (−%d à −%d PV)",
+			f.Besieging, f.Min, f.Max, f.Defense, f.DamageMin, f.DamageMax)
 	case f.DamageMax > 0:
-		add("threat", "🌊", fmt.Sprintf("Abords dégagés — la vague coûterait entre %d et %d PV", f.DamageMin, f.DamageMax), false)
+		add("threat", "🌊", false, "Abords dégagés — la vague coûterait entre %d et %d PV", f.DamageMin, f.DamageMax)
 	default:
-		add("threat", "🛡️", "Abords dégagés — la ville encaissera la prochaine vague sans une égratignure", false)
+		add("threat", "🛡️", false, "Abords dégagés — la ville encaissera la prochaine vague sans une égratignure")
 	}
 	// La tour de guet : ce qu'on gagnerait à monter observer. C'est une action
 	// collective, donc l'ordre du jour la propose à tout le monde.
 	if f.Tower == 0 {
-		add("scout", "🔭", "Sans Tour de guet, la horde ne s'estime qu'à vue de nez — la bâtir affinerait chaque prévision", false)
+		add("scout", "🔭", false, "Sans Tour de guet, la horde ne s'estime qu'à vue de nez — la bâtir affinerait chaque prévision")
 	} else if f.Precision < 90 {
-		add("scout", "🔭", fmt.Sprintf("Tour niveau %d · %d observateur(s) · prévision fiable à %d%% — chaque joueur qui monte resserre la fourchette",
-			f.Tower, f.Scouts, f.Precision), false)
+		add("scout", "🔭", false, "Tour niveau %d · %d observateur(s) · prévision fiable à %d%% — chaque joueur qui monte resserre la fourchette",
+			f.Tower, f.Scouts, f.Precision)
 	}
 
 	// 1-bis. LA SOIF (thème désertique) : une contrainte de thème doit être ANNONCÉE,
@@ -232,11 +239,11 @@ func (g *GameState) BuildOrders() []TownOrder {
 			well := g.buildingByID("well")
 			switch {
 			case well != nil && well.Built && well.Capacity > 0:
-				add("thirst", "💧", fmt.Sprintf("%d héros ont soif (−%d PA par jour) — le puits tient encore %d rations",
-					thirsty, thirstPA, well.Capacity), thirsty > len(g.Heroes)/2)
+				add("thirst", "💧", thirsty > len(g.Heroes)/2, "%d héros ont soif (−%d PA par jour) — le puits tient encore %d rations",
+					thirsty, thirstPA, well.Capacity)
 			default:
-				add("thirst", "💧", fmt.Sprintf("%d héros ont soif (−%d PA par jour) et le puits est à sec — il faut rapporter de l'eau",
-					thirsty, thirstPA), true)
+				add("thirst", "💧", true, "%d héros ont soif (−%d PA par jour) et le puits est à sec — il faut rapporter de l'eau",
+					thirsty, thirstPA)
 			}
 		}
 	}
@@ -257,21 +264,21 @@ func (g *GameState) BuildOrders() []TownOrder {
 		}
 		switch {
 		case fuel == 0:
-			add("cold", "🔥", fmt.Sprintf("Plus rien à brûler : la ville gèlera cette nuit (−%d PA pour tout le monde) — il faut rapporter du bois",
-				coldPA), true)
+			add("cold", "🔥", true, "Plus rien à brûler : la ville gèlera cette nuit (−%d PA pour tout le monde) — il faut rapporter du bois",
+				coldPA)
 		case fuel <= 3:
-			add("cold", "🔥", fmt.Sprintf("Les foyers n'ont plus que %d nuits de bois — le gel coûte %d PA par héros",
-				fuel, coldPA), true)
+			add("cold", "🔥", true, "Les foyers n'ont plus que %d nuits de bois — le gel coûte %d PA par héros",
+				fuel, coldPA)
 		case frozen > 0:
-			add("cold", "🥶", fmt.Sprintf("%d héros ont pris le gel dehors (−%d PA) — les murs et la cachette abritent, le reste non",
-				frozen, coldPA), false)
+			add("cold", "🥶", false, "%d héros ont pris le gel dehors (−%d PA) — les murs et la cachette abritent, le reste non",
+				frozen, coldPA)
 		}
 	}
 
 	// 2. Le portail ouvert : la plus grosse fuite de défense du jeu, et la moins chère
 	// à colmater (1 PA).
 	if b := g.buildingByID("gate"); b != nil && b.Built && b.Open {
-		add("gate", "🚪", fmt.Sprintf("Le portail est OUVERT — le fermer rend %d de défense", buildingLevelDefense(b)), true)
+		add("gate", "🚪", true, "Le portail est OUVERT — le fermer rend %d de défense", buildingLevelDefense(b))
 	}
 
 	// 3. Les remparts de la ville, quand elle saigne et qu'on a de quoi la soigner.
@@ -279,11 +286,11 @@ func (g *GameState) BuildOrders() []TownOrder {
 		stone := g.storageQty(TownRepairMaterial)
 		missing := g.Town.MaxHP - g.Town.HP
 		if stone > 0 {
-			add("repair", "🧱", fmt.Sprintf("La ville est à %d/%d PV — %d %s en Banque, soit %d PV à relever",
-				g.Town.HP, g.Town.MaxHP, stone, TownRepairMaterial, minInt(stone*TownRepairHP, missing)), g.Town.HP*2 < g.Town.MaxHP)
+			add("repair", "🧱", g.Town.HP*2 < g.Town.MaxHP, "La ville est à %d/%d PV — %d %s en Banque, soit %d PV à relever",
+				g.Town.HP, g.Town.MaxHP, stone, Name(TownRepairMaterial), minInt(stone*TownRepairHP, missing))
 		} else {
-			add("repair", "🧱", fmt.Sprintf("La ville est à %d/%d PV et il n'y a plus de %s pour relever les remparts",
-				g.Town.HP, g.Town.MaxHP, TownRepairMaterial), true)
+			add("repair", "🧱", true, "La ville est à %d/%d PV et il n'y a plus de %s pour relever les remparts",
+				g.Town.HP, g.Town.MaxHP, Name(TownRepairMaterial))
 		}
 	}
 
@@ -292,10 +299,10 @@ func (g *GameState) BuildOrders() []TownOrder {
 		if !b.UnderConstruction {
 			continue
 		}
-		if miss := g.missingFor(b.Cost.Materials); miss != "" {
-			add("chantier", "⏸", fmt.Sprintf("Chantier de %s en pause — il manque %s", b.Label(), miss), false)
+		if miss := g.missingFor(b.Cost.Materials); len(miss) > 0 {
+			add("chantier", "⏸", false, "Chantier de %s en pause — il manque %s", Name(b.Label()), miss)
 		} else {
-			add("chantier", "🏗️", fmt.Sprintf("Chantier de %s : %d/%d PA investis", b.Label(), b.PaInvested, b.Cost.PA), false)
+			add("chantier", "🏗️", false, "Chantier de %s : %d/%d PA investis", Name(b.Label()), b.PaInvested, b.Cost.PA)
 		}
 		break // un seul rappel de chantier : l'ordre du jour n'est pas un inventaire
 	}
@@ -306,8 +313,8 @@ func (g *GameState) BuildOrders() []TownOrder {
 		if b == nil || !b.Built || b.UnderConstruction || b.Level >= MaxBuildingLevel {
 			continue
 		}
-		if miss := g.missingFor(b.Cost.Materials); miss != "" {
-			add("material", "⛏️", fmt.Sprintf("%s niveau %d : il manque %s", b.Label(), b.Level+1, miss), false)
+		if miss := g.missingFor(b.Cost.Materials); len(miss) > 0 {
+			add("material", "⛏️", false, "%s niveau %d : il manque %s", Name(b.Label()), b.Level+1, miss)
 			break
 		}
 	}
@@ -322,7 +329,7 @@ func (g *GameState) BuildOrders() []TownOrder {
 			continue
 		}
 		if g.storageQty(plan) > 0 {
-			add("plan", "📐", fmt.Sprintf("« %s » est en Banque — le chantier de %s peut s'ouvrir", plan, b.Label()), false)
+			add("plan", "📐", false, "« %s » est en Banque — le chantier de %s peut s'ouvrir", Name(plan), Name(b.Label()))
 			break
 		}
 	}
@@ -332,27 +339,29 @@ func (g *GameState) BuildOrders() []TownOrder {
 	for _, id := range botDefensiveOrder {
 		b := g.buildingByID(id)
 		if b != nil && b.Built && b.MaxDurability > 0 && b.Durability*10 < b.MaxDurability*7 {
-			add("wear", "🔧", fmt.Sprintf("%s à %d%% — chaque PA de réparation rend de la défense",
-				b.Label(), 100*b.Durability/b.MaxDurability), false)
+			add("wear", "🔧", false, "%s à %d%% — chaque PA de réparation rend de la défense",
+				Name(b.Label()), 100*b.Durability/b.MaxDurability)
 			break
 		}
 	}
 	return out
 }
 
-// missingFor décrit ce qui manque en Banque pour cette liste de matériaux (« 6 Pierre,
-// 2 Brique »), ou "" si tout est là.
-func (g *GameState) missingFor(mats []Item) string {
-	s := ""
+// missingFor rend ce qui manque en Banque pour cette liste de matériaux, ou nil si tout
+// est là.
+//
+// ⚠ elle rendait une PHRASE (« 6 Pierre, 2 Brique »). Composée ici, cette phrase
+// arrivait au client en un bloc où ni les noms d'objets ni la virgule n'avaient plus de
+// clé : intraduisible. Elle rend maintenant la liste, et c'est le client qui la met en
+// forme (i18n.go, ItemList).
+func (g *GameState) missingFor(mats []Item) ItemList {
+	var miss ItemList
 	for _, m := range mats {
 		if short := m.Qty - g.storageQty(m.Name); short > 0 {
-			if s != "" {
-				s += ", "
-			}
-			s += fmt.Sprintf("%d %s", short, m.Name)
+			miss = append(miss, Item{Type: m.Type, Name: m.Name, Qty: short})
 		}
 	}
-	return s
+	return miss
 }
 
 // buildingLevelDefense : ce qu'un bâtiment défendrait à sa durabilité actuelle s'il

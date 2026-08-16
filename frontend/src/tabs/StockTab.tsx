@@ -4,6 +4,7 @@ import { effectiveTownHeroId, heroesInTown, myTeamHeroes } from "../townUtils";
 import { ItemGrid } from "../components/ItemGrid";
 import { ItemSheet, itemWouldHelp } from "../components/ItemSheet";
 import type { Item } from "../api/types";
+import { useT } from "../i18n/useT";
 
 const CATS = [
   { id: "all", label: "Tout", types: [] as string[] },
@@ -31,6 +32,7 @@ export function StockTab() {
   // La FICHE d'objet ouverte : d'où elle vient (le sac d'un héros, ou la Banque)
   // détermine ce qu'on a le droit d'en faire — voir l'en-tête d'ItemSheet.
   const [sheet, setSheet] = useState<{ item: Item; heroId?: string } | null>(null);
+  const { t } = useT();
   if (!game) return null;
 
   const active = CATS.find((c) => c.id === cat)!;
@@ -46,7 +48,7 @@ export function StockTab() {
         <div className="tabs-scroll">
           {CATS.map((c) => (
             <button key={c.id} className={cat === c.id ? "on" : ""} onClick={() => setCat(c.id)}>
-              {c.label}
+              {t(c.label)}
             </button>
           ))}
         </div>
@@ -60,8 +62,8 @@ export function StockTab() {
             <div className="stock-section" key={h.id}>
               <div className="stock-sec-head">
                 🎒 {h.name}
-                <span className={`tag-loc ${here ? "in" : "out"}`}>{here ? "en ville" : "en expédition"}</span>
-                <span className="right muted">{carriedH} obj.</span>
+                <span className={`tag-loc ${here ? "in" : "out"}`}>{here ? t("en ville") : t("en expédition")}</span>
+                <span className="right muted">{t("{n} obj.", { n: carriedH })}</span>
               </div>
               {/* Taper un objet ouvre sa FICHE (ItemSheet) : ce que c'est, ce qu'il
                   fait, et les actions possibles. Auparavant un tap CONSOMMAIT l'objet
@@ -79,11 +81,11 @@ export function StockTab() {
         {inTown.length > 0 ? (
           <div className="stock-section house">
             <div className="stock-sec-head">
-              🏦 Banque (ville)
+              🏦 {t("Banque (ville)")}
               <span className="right muted">{townTotal}/2000</span>
             </div>
             <button className="small green dep" disabled={busy || carried === 0} onClick={() => deposit()}>
-              📦 Déposer le butin de mes héros en ville {carried > 0 ? `(${carried})` : ""}
+              📦 {t("Déposer le butin de mes héros en ville")} {carried > 0 ? `(${carried})` : ""}
             </button>
             <ItemGrid
               items={filt(game.town.storage ?? [])}
@@ -93,7 +95,10 @@ export function StockTab() {
           </div>
         ) : (
           <div className="stock-note">
-            🏙️ Reviens en ville pour accéder au stock de la <b>Banque</b>. En expédition, un héros n'utilise que son propre inventaire.
+            🏙️{" "}
+            {t(
+              "Reviens en ville pour accéder au stock de la Banque. En expédition, un héros n'utilise que son propre inventaire.",
+            )}
           </div>
         )}
       </div>
@@ -114,12 +119,12 @@ export function StockTab() {
             item={sheet.item}
             effect={itemEffects[sheet.item.name]}
             gear={equipment[sheet.item.name]}
-            ownerName={owner ? owner.name : "Banque"}
+            ownerName={owner ? owner.name : t("Banque")}
             canUse={helps}
             whyNoUse={
               !actorHero
-                ? "Il faut un de tes héros dans la ville pour puiser dans la Banque."
-                : `${actorHero.name} est déjà au mieux : cela ne servirait à rien maintenant.`
+                ? t("Il faut un de tes héros dans la ville pour puiser dans la Banque.")
+                : t("{name} est déjà au mieux : cela ne servirait à rien maintenant.", { name: actorHero.name })
             }
             canEquip={!!owner}
             busy={busy}

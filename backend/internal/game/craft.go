@@ -1,7 +1,5 @@
 package game
 
-import "fmt"
-
 // Recipe is a craftable item. In town it consumes ingredients from the Bank and
 // outputs back there (the required building must be BUILT at BuildingLevel or more);
 // in the field (no town building) a "Field" recipe consumes the crafting hero's own
@@ -146,15 +144,15 @@ func removeHeroItem(h *Hero, name string, qty int) {
 func (g *GameState) Craft(recipeID, heroID string) (*Item, error) {
 	h := g.HeroByID(heroID)
 	if h == nil || h.HP <= 0 {
-		return nil, ActionError{"héros invalide"}
+		return nil, actionErr("héros invalide")
 	}
 	r := RecipeByID(recipeID)
 	if r == nil {
-		return nil, ActionError{"recette inconnue"}
+		return nil, actionErr("recette inconnue")
 	}
 	inTown := h.X == g.Town.X && h.Y == g.Town.Y
 	if !inTown && !r.Field {
-		return nil, ActionError{r.Name + " nécessite un bâtiment de la ville (atelier/forge)"}
+		return nil, actionErrf("%s nécessite un bâtiment de la ville (atelier/forge)", Name(r.Name))
 	}
 	// Town crafting goes through the recipe's building — it must exist at the level
 	// the design asks for (Kitchen niv.2 = plats raffinés, Workshop niv.3 = pièces
@@ -162,14 +160,14 @@ func (g *GameState) Craft(recipeID, heroID string) (*Item, error) {
 	if inTown && r.Building != "" {
 		b := g.buildingByID(r.Building)
 		if b == nil || !b.Built {
-			return nil, ActionError{r.Name + " nécessite le bâtiment " + r.Building}
+			return nil, actionErrf("%s nécessite le bâtiment %s", Name(r.Name), Name(r.Building))
 		}
 		lvl := r.BuildingLevel
 		if lvl < 1 {
 			lvl = 1
 		}
 		if b.Level < lvl {
-			return nil, ActionError{fmt.Sprintf("%s nécessite %s niveau %d", r.Name, b.Label(), lvl)}
+			return nil, actionErrf("%s nécessite %s niveau %d", Name(r.Name), Name(b.Label()), lvl)
 		}
 	}
 
@@ -182,15 +180,18 @@ func (g *GameState) Craft(recipeID, heroID string) (*Item, error) {
 			have = heroItemQty(h, ing.Name)
 		}
 		if have < ing.Qty {
-			where := "le sac"
+			// ⚠ DEUX PHRASES, pas un « %s » qui recevrait « la Banque » ou « le sac » :
+			// un argument porte un NOM, jamais un morceau de phrase française — sinon
+			// ce morceau n'a plus de clé et reste en français dans les autres langues
+			// (voir i18n.go).
 			if inTown {
-				where = "la Banque"
+				return nil, actionErrf("ingrédient manquant à la Banque : %s", Name(ing.Name))
 			}
-			return nil, ActionError{"ingrédient manquant dans " + where + " : " + ing.Name}
+			return nil, actionErrf("ingrédient manquant dans le sac : %s", Name(ing.Name))
 		}
 	}
 	if h.PA < r.PACost {
-		return nil, ActionError{"PA insuffisants pour " + h.Name}
+		return nil, actionErrf("PA insuffisants pour %s", h.Name)
 	}
 
 	h.PA -= r.PACost
@@ -213,7 +214,7 @@ func (g *GameState) Craft(recipeID, heroID string) (*Item, error) {
 		}
 		g.addStorage(out)
 		g.credit(h.ID, func(c *Contribution) { c.Crafted += out.Qty })
-		g.logTown("⚒️ " + h.Name + " a fabriqué " + r.Name + " (ingrédients de la Banque)")
+		g.logTown("⚒️ %s a fabriqué %s (ingrédients de la Banque)", h.Name, r.Name)
 	} else {
 		for _, ing := range r.Ingredients {
 			removeHeroItem(h, ing.Name, ing.Qty)

@@ -227,7 +227,8 @@ func (s *Server) Router() http.Handler {
 		switch mode {
 		case "", game.ModeSolo, game.ModePublic, game.ModePrivate:
 		default:
-			writeErr(w, http.StatusBadRequest, "mode inconnu: "+mode)
+			writeErrMsg(w, http.StatusBadRequest, game.Msg{
+				Key: "mode inconnu : %s", Args: []any{mode}, Text: "mode inconnu : " + mode})
 			return
 		}
 		season := r.URL.Query().Get("season")
@@ -370,8 +371,26 @@ func clientView(v any) any {
 	return v
 }
 
+// writeErr rend un refus lisible par un humain.
+//
+// `error` reste le français rendu — c'est ce que lit tout client qui ne traduit pas,
+// et ce qu'affichent les journaux. `errorKey`/`errorArgs` portent le gabarit et ses
+// substitutions pour que le client redise la phrase dans SA langue (game/i18n.go).
+// Pour les refus à texte fixe — la grande majorité — la clé EST la phrase, et il n'y
+// a donc rien à écrire de plus au point d'appel.
 func writeErr(w http.ResponseWriter, code int, msg string) {
-	writeJSON(w, code, map[string]string{"error": msg})
+	writeErrMsg(w, code, game.Msg{Key: msg, Text: msg})
+}
+
+func writeErrMsg(w http.ResponseWriter, code int, m game.Msg) {
+	body := map[string]any{"error": m.Text}
+	if m.Key != "" {
+		body["errorKey"] = m.Key
+	}
+	if len(m.Args) > 0 {
+		body["errorArgs"] = m.Args
+	}
+	writeJSON(w, code, body)
 }
 
 // load fetches a game from cache or the store. Stateless mode always reads the
@@ -1659,9 +1678,13 @@ func (s *Server) mustGame(w http.ResponseWriter, r *http.Request) *game.GameStat
 
 func writeActionErr(w http.ResponseWriter, err error) {
 	var ae game.ActionError
+	if errors.As(err, &ae) {
+		writeErrMsg(w, http.StatusBadRequest, game.Msg{Key: ae.Key, Args: ae.Args, Text: ae.Msg})
+		return
+	}
 	var ce game.ErrInvalidAction
-	if errors.As(err, &ae) || errors.As(err, &ce) {
-		writeErr(w, http.StatusBadRequest, err.Error())
+	if errors.As(err, &ce) {
+		writeErrMsg(w, http.StatusBadRequest, game.Msg{Key: ce.Key, Args: ce.Args, Text: ce.Msg})
 		return
 	}
 	writeErr(w, http.StatusInternalServerError, err.Error())

@@ -1,7 +1,6 @@
 package game
 
 import (
-	"fmt"
 	"sort"
 	"time"
 )
@@ -395,7 +394,7 @@ func (g *GameState) processWave(now time.Time, safeTown bool) {
 		lit := g.burnHearth()
 		g.applyCold(lit)
 		if !lit {
-			g.logTown(fmt.Sprintf("Plus rien à brûler : les foyers se sont éteints, la ville a gelé (−%d PA)", coldPA))
+			g.logTown("Plus rien à brûler : les foyers se sont éteints, la ville a gelé (−%d PA)", coldPA)
 		}
 	}
 

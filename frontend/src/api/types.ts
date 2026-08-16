@@ -1,5 +1,9 @@
 // TypeScript mirror of the Go API DTOs (kept in sync by hand for the prototype).
 
+import { t, type ServerArg } from "../i18n";
+
+export type { ServerArg };
+
 export enum Biome {
   Water = 0,
   Sand = 1,
@@ -22,7 +26,12 @@ export interface Stats {
 export interface TownLogEntry {
   at: string; // RFC3339 timestamp
   day: number;
+  /** Le français rendu par le serveur — le repli, et ce que gardent les lignes déjà
+   *  écrites avant l'i18n : le journal est PERSISTÉ, on ne réécrit pas le passé. */
   text: string;
+  /** Gabarit français et substitutions (backend game/i18n.go) : voir tServer(). */
+  key?: string;
+  args?: ServerArg[];
 }
 
 // One message of the town board — mirrors game.ChatMessage. It NEVER arrives in
@@ -81,16 +90,22 @@ export interface Ruin {
 export function ruinEpitaph(r: Ruin): string {
   if (!r.fellAtWave) return "";
   const d = r.defenders ?? [];
-  if (d.length === 0) return `Tombée à la vague ${r.fellAtWave}. Nul ne se souvient de ses défenseurs.`;
-  const names = d.length === 1 ? d[0] : `${d.slice(0, -1).join(", ")} et ${d[d.length - 1]}`;
-  return `Tombée à la vague ${r.fellAtWave}, défendue par ${names}.`;
+  if (d.length === 0) return t("Tombée à la vague {n}. Nul ne se souvient de ses défenseurs.", { n: r.fellAtWave });
+  // ⚠ des noms de DÉFENSEURS : ce sont des personnes, on ne les traduit pas — seul le
+  // connecteur « et » change de langue.
+  const names = d.length === 1 ? d[0] : `${d.slice(0, -1).join(", ")} ${t("et|énumération")} ${d[d.length - 1]}`;
+  return t("Tombée à la vague {n}, défendue par {names}.", { n: r.fellAtWave, names });
 }
 
 // Une ligne de l'ordre du jour : ce que la ville demande, maintenant.
 export interface TownOrder {
   kind: "threat" | "gate" | "repair" | "material" | "plan" | "chantier" | "wear";
   icon: string;
+  /** Le français rendu par le serveur — le repli quand la clé est inconnue. */
   text: string;
+  /** Gabarit français et substitutions (backend game/i18n.go) : voir tServer(). */
+  key?: string;
+  args?: ServerArg[];
   urgent: boolean; // coûte des PV à la PROCHAINE vague, par opposition aux suivantes
 }
 
@@ -282,6 +297,26 @@ export interface User {
   email: string;
   name: string;
   provider: string;
+}
+
+// Les PRÉFÉRENCES d'un compte (backend store/prefs.go) — ce qu'un joueur règle une
+// fois et retrouve sur tous ses appareils.
+//
+// ⚠ seule la LANGUE y figure, et c'est délibéré : elle décrit la PERSONNE. La qualité
+// graphique, la cadence d'animation et les effets de météo décrivent la MACHINE, et
+// les synchroniser imposerait au téléphone les réglages du poste de bureau — ils
+// restent dans le localStorage.
+export interface UserPrefs {
+  /** Code de langue ("fr", "en"). Absent = ce compte n'a jamais choisi. */
+  language?: string;
+}
+
+// La réponse des routes de compte : la session ET les préférences, pour que la langue
+// du joueur s'applique dès l'écran qui suit sa connexion.
+export interface AuthResult {
+  user: User;
+  token?: string;
+  prefs?: UserPrefs;
 }
 
 // GET /api/auth/me/games: my games with my player id, for any-device resume.

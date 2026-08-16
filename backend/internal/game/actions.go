@@ -15,9 +15,28 @@ const (
 const depletedFindPct = 25
 
 // ActionError is a player-facing rejection of a map action.
-type ActionError struct{ Msg string }
+//
+// Msg est le français rendu ; Key/Args portent le gabarit et ses substitutions pour
+// que le client puisse le redire dans SA langue (voir i18n.go). Un refus à texte fixe
+// a Key == Msg et Args nil : sa phrase est déjà son identité, il n'y a pas de second
+// vocabulaire à inventer.
+type ActionError struct {
+	Msg  string
+	Key  string
+	Args []any
+}
 
 func (e ActionError) Error() string { return e.Msg }
+
+// actionErr : un refus à texte fixe.
+func actionErr(text string) ActionError { return ActionError{Msg: text, Key: text} }
+
+// actionErrf : un refus composé — gabarit fmt et arguments. ⚠ n'employer que %s/%d/%%
+// et n'y verser que des noms (voir i18n.go), jamais une sous-phrase déjà composée.
+func actionErrf(key string, args ...any) ActionError {
+	m := newMsg(key, args...)
+	return ActionError{Msg: m.Text, Key: m.Key, Args: m.Args}
+}
 
 // heroInCombat returns the ACTIVE combat this hero is fighting in (a hero unit
 // still in battle), or nil. Map actions are blocked only for heroes actually in
@@ -52,25 +71,25 @@ func (g *GameState) GateClosed() bool {
 // MoveHero moves a hero by one orthogonal step, spending 1 PA.
 func (g *GameState) MoveHero(heroID string, dx, dy int) error {
 	if g.heroInCombat(heroID) != nil {
-		return ActionError{"ce héros est en plein combat"}
+		return actionErr("ce héros est en plein combat")
 	}
 	h := g.HeroByID(heroID)
 	if h == nil {
-		return ActionError{"héros introuvable"}
+		return actionErr("héros introuvable")
 	}
 	if absI(dx)+absI(dy) != 1 {
-		return ActionError{"déplacement invalide (une case orthogonale)"}
+		return actionErr("déplacement invalide (une case orthogonale)")
 	}
 	if h.HasState(StateTetanise) {
-		return ActionError{h.Name + " est tétanisé et ne peut pas bouger"}
+		return actionErrf("%s est tétanisé et ne peut pas bouger", h.Name)
 	}
 	if h.PA <= 0 {
-		return ActionError{h.Name + " n'a plus de point d'action"}
+		return actionErrf("%s n'a plus de point d'action", h.Name)
 	}
 	nx, ny := h.X+dx, h.Y+dy
 	t := g.TileAt(nx, ny)
 	if t == nil {
-		return ActionError{"case inaccessible"}
+		return actionErr("case inaccessible")
 	}
 	if !t.Biome.Walkable() {
 		// Eau SOUS LE BROUILLARD (exploration au contact) : le héros s'avance,
@@ -87,15 +106,15 @@ func (g *GameState) MoveHero(heroID string, dx, dy int) error {
 			}
 			return nil
 		}
-		return ActionError{"case inaccessible"}
+		return actionErr("case inaccessible")
 	}
 	// A built, closed gate seals the town in BOTH directions.
 	if g.GateClosed() {
 		if nx == g.Town.X && ny == g.Town.Y {
-			return ActionError{"la porte de la ville est fermée — impossible d'entrer"}
+			return actionErr("la porte de la ville est fermée — impossible d'entrer")
 		}
 		if h.X == g.Town.X && h.Y == g.Town.Y {
-			return ActionError{"la porte de la ville est fermée — impossible de sortir"}
+			return actionErr("la porte de la ville est fermée — impossible de sortir")
 		}
 	}
 	h.X, h.Y = nx, ny
@@ -113,24 +132,24 @@ func (g *GameState) MoveHero(heroID string, dx, dy int) error {
 // wave's attack (concealment is then consumed). Costs 1 PA.
 func (g *GameState) HideHero(heroID string) error {
 	if g.heroInCombat(heroID) != nil {
-		return ActionError{"ce héros est en plein combat"}
+		return actionErr("ce héros est en plein combat")
 	}
 	h := g.HeroByID(heroID)
 	if h == nil {
-		return ActionError{"héros introuvable"}
+		return actionErr("héros introuvable")
 	}
 	// Pointless AND confusing on the town tile: the wave already spares in-town
 	// heroes, hiding is for the wilds.
 	if h.X == g.Town.X && h.Y == g.Town.Y {
-		return ActionError{"inutile de se cacher en ville — la ville protège déjà ses habitants"}
+		return actionErr("inutile de se cacher en ville — la ville protège déjà ses habitants")
 	}
 	// A hero pinned by a pack (Tétanisé) can't slip away to hide: the monsters
 	// hold them. Break free first (kill/thin the pack, or Escape).
 	if h.HasState(StateTetanise) {
-		return ActionError{h.Name + " est tétanisé — impossible de se cacher sous les griffes de la horde"}
+		return actionErrf("%s est tétanisé — impossible de se cacher sous les griffes de la horde", h.Name)
 	}
 	if h.PA <= 0 {
-		return ActionError{h.Name + " n'a plus de point d'action"}
+		return actionErrf("%s n'a plus de point d'action", h.Name)
 	}
 	h.PA--
 	h.Bars["athletisme"]++
@@ -146,14 +165,14 @@ func (g *GameState) HideHero(heroID string) error {
 // put. Costs 1 PA.
 func (g *GameState) EscapeHero(heroID string) error {
 	if g.heroInCombat(heroID) != nil {
-		return ActionError{"ce héros est en plein combat"}
+		return actionErr("ce héros est en plein combat")
 	}
 	h := g.HeroByID(heroID)
 	if h == nil {
-		return ActionError{"héros introuvable"}
+		return actionErr("héros introuvable")
 	}
 	if h.PA <= 0 {
-		return ActionError{h.Name + " n'a plus de point d'action"}
+		return actionErrf("%s n'a plus de point d'action", h.Name)
 	}
 	h.PA--
 	if h.PA == 0 {
@@ -205,31 +224,31 @@ func (g *GameState) EscapeHero(heroID string) error {
 // possibly yielding loot whose type depends on the biome.
 func (g *GameState) SearchTile(heroID string) (*Item, error) {
 	if g.heroInCombat(heroID) != nil {
-		return nil, ActionError{"ce héros est en plein combat"}
+		return nil, actionErr("ce héros est en plein combat")
 	}
 	h := g.HeroByID(heroID)
 	if h == nil {
-		return nil, ActionError{"héros introuvable"}
+		return nil, actionErr("héros introuvable")
 	}
 	if h.PA <= 0 {
-		return nil, ActionError{h.Name + " n'a plus de point d'action"}
+		return nil, actionErrf("%s n'a plus de point d'action", h.Name)
 	}
 	// A hero pinned by a pack (Tétanisé) fights for their life — no digging around.
 	if h.HasState(StateTetanise) {
-		return nil, ActionError{h.Name + " est tétanisé — impossible de fouiller sous les griffes de la horde"}
+		return nil, actionErrf("%s est tétanisé — impossible de fouiller sous les griffes de la horde", h.Name)
 	}
 	// The town tile is not searchable (its resources are zeroed at worldgen; town
 	// loot lives in the Bank, not under the plaza).
 	if h.X == g.Town.X && h.Y == g.Town.Y {
-		return nil, ActionError{"rien à fouiller en ville — le stock est à la Banque"}
+		return nil, actionErr("rien à fouiller en ville — le stock est à la Banque")
 	}
 	t := g.TileAt(h.X, h.Y)
 	if t == nil {
-		return nil, ActionError{"case invalide"}
+		return nil, actionErr("case invalide")
 	}
 	td, ok := g.terrainFor(t.Biome)
 	if !ok || !td.Searchable {
-		return nil, ActionError{"ce terrain n'a rien à fouiller"}
+		return nil, actionErr("ce terrain n'a rien à fouiller")
 	}
 	h.PA--
 	h.Bars["collecte"]++
@@ -242,7 +261,7 @@ func (g *GameState) SearchTile(heroID string) (*Item, error) {
 	}
 	it := g.searchLoot(h, t, td)
 	if it == nil {
-		return nil, ActionError{"rien trouvé"}
+		return nil, actionErr("rien trouvé")
 	}
 	// Le PA payé ici ouvre la FOUILLE AUTOMATIQUE : le héros reste sur place et
 	// continue de fouiller tout seul (voir forage.go).
@@ -293,17 +312,17 @@ const RationPA = 6
 // It does not cost PA — it's the way to keep exploring once out of moves.
 func (g *GameState) DrinkRation(heroID string) (*Hero, error) {
 	if g.heroInCombat(heroID) != nil {
-		return nil, ActionError{"ce héros est en plein combat"}
+		return nil, actionErr("ce héros est en plein combat")
 	}
 	h := g.HeroByID(heroID)
 	if h == nil {
-		return nil, ActionError{"héros introuvable"}
+		return nil, actionErr("héros introuvable")
 	}
 	if heroItemQty(h, "Ration d'eau") < 1 {
-		return nil, ActionError{h.Name + " n'a pas de ration d'eau dans son sac"}
+		return nil, actionErrf("%s n'a pas de ration d'eau dans son sac", h.Name)
 	}
 	if h.PA >= h.MaxPA {
-		return nil, ActionError{h.Name + " a déjà tous ses points d'action"}
+		return nil, actionErrf("%s a déjà tous ses points d'action", h.Name)
 	}
 	removeHeroItem(h, "Ration d'eau", 1)
 	h.PA += RationPA
@@ -337,19 +356,19 @@ func (g *GameState) StartCombat(heroID, starterID string) (*Combat, error) {
 	// Plusieurs combats peuvent tourner EN PARALLÈLE (chaque joueur engage le
 	// sien) — on refuse seulement d'engager un héros DÉJÀ au combat.
 	if g.heroInCombat(heroID) != nil {
-		return nil, ActionError{"ce héros est déjà en plein combat"}
+		return nil, actionErr("ce héros est déjà en plein combat")
 	}
 	h := g.HeroByID(heroID)
 	if h == nil {
-		return nil, ActionError{"héros introuvable"}
+		return nil, actionErr("héros introuvable")
 	}
 	t := g.TileAt(h.X, h.Y)
 	if t == nil || t.MonsterID == "" {
-		return nil, ActionError{"aucun ennemi sur cette case"}
+		return nil, actionErr("aucun ennemi sur cette case")
 	}
 	m := g.Monsters[t.MonsterID]
 	if m == nil {
-		return nil, ActionError{"ennemi introuvable"}
+		return nil, actionErr("ennemi introuvable")
 	}
 	var party []*Hero
 	for _, hh := range g.Heroes {
@@ -377,13 +396,13 @@ func (g *GameState) StartCombat(heroID, starterID string) (*Combat, error) {
 func (g *GameState) JoinCombat(combatID, playerID string) (*Combat, error) {
 	c := g.Combats[combatID]
 	if c == nil {
-		return nil, ActionError{"combat introuvable"}
+		return nil, actionErr("combat introuvable")
 	}
 	if c.Status != "active" {
-		return nil, ActionError{"le combat est terminé"}
+		return nil, actionErr("le combat est terminé")
 	}
 	if g.PlayerByID(playerID) == nil {
-		return nil, ActionError{"joueur inconnu — reconnecte-toi à la partie"}
+		return nil, actionErr("joueur inconnu — reconnecte-toi à la partie")
 	}
 	mine := false
 	for _, u := range c.Units {
@@ -393,7 +412,7 @@ func (g *GameState) JoinCombat(combatID, playerID string) (*Combat, error) {
 		}
 	}
 	if !mine {
-		return nil, ActionError{"aucun de tes héros ne participe à ce combat"}
+		return nil, actionErr("aucun de tes héros ne participe à ce combat")
 	}
 	c.AddParticipant(playerID)
 	// le combat peut devenir PARTAGÉ (≥2 présents) alors qu'on est déjà en pause

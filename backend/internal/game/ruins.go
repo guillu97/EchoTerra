@@ -91,6 +91,11 @@ func joinNames(names []string) string {
 	return strings.Join(names[:len(names)-1], ", ") + " et " + names[len(names)-1]
 }
 
+// ruinNamePrefix ouvre le nom d'une ruine-mémorial (« Ruines de Valbourg »). Isolé en
+// constante pour être traduisible : c'est la seule partie du nom qui ne soit pas le nom
+// propre d'une ville.
+const ruinNamePrefix = "Ruines de "
+
 // SeedMemorialRuins sème sur la carte les ruines de villes RÉELLEMENT tombées avant
 // celle-ci — nom, dernière vague, défenseurs, et de quoi bâtir dans les décombres.
 //
@@ -144,7 +149,11 @@ func (g *GameState) SeedMemorialRuins(fallen []Memorial) int {
 		id := fmt.Sprintf("ruin-memorial-%d", placed)
 		g.Ruins[id] = &Ruin{
 			ID: id, Type: "memorial", Icon: "🏚️",
-			Name:       "Ruines de " + m.TownName,
+			// ⚠ un nom COMPOSÉ avec un nom de ville : il ne peut pas être une clé de
+			// traduction (chaque ville en produirait une nouvelle). Le préfixe seul
+			// en est une — `ruinNamePrefix` — et le client le rhabille en laissant le
+			// nom de la ville intact, exactement comme il fait des noms de joueurs.
+			Name:       ruinNamePrefix + m.TownName,
 			X:          i % g.Width,
 			Y:          i / g.Width,
 			ClearPA:    memorialClearPA,
@@ -302,22 +311,22 @@ func (g *GameState) SeedRuins() {
 // returns the hero + the ruin standing on their tile.
 func (g *GameState) ruinUnderHero(heroID string) (*Hero, *Ruin, error) {
 	if g.heroInCombat(heroID) != nil {
-		return nil, nil, ActionError{"ce héros est en plein combat"}
+		return nil, nil, actionErr("ce héros est en plein combat")
 	}
 	h := g.HeroByID(heroID)
 	if h == nil {
-		return nil, nil, ActionError{"héros introuvable"}
+		return nil, nil, actionErr("héros introuvable")
 	}
 	if h.HasState(StateTetanise) {
-		return nil, nil, ActionError{h.Name + " est tétanisé — impossible de travailler sous les griffes de la horde"}
+		return nil, nil, actionErrf("%s est tétanisé — impossible de travailler sous les griffes de la horde", h.Name)
 	}
 	t := g.TileAt(h.X, h.Y)
 	if t == nil || t.RuinID == "" {
-		return nil, nil, ActionError{"aucune ruine sur cette case"}
+		return nil, nil, actionErr("aucune ruine sur cette case")
 	}
 	ru := g.Ruins[t.RuinID]
 	if ru == nil {
-		return nil, nil, ActionError{"ruine introuvable"}
+		return nil, nil, actionErr("ruine introuvable")
 	}
 	return h, ru, nil
 }
@@ -330,10 +339,10 @@ func (g *GameState) ClearRuin(heroID string, points int) (*Ruin, error) {
 		return nil, err
 	}
 	if ru.Cleared {
-		return nil, ActionError{ru.Name + " est déjà déblayée"}
+		return nil, actionErrf("%s est déjà déblayée", Name(ru.Name))
 	}
 	if h.PA <= 0 {
-		return nil, ActionError{h.Name + " n'a plus de point d'action"}
+		return nil, actionErrf("%s n'a plus de point d'action", h.Name)
 	}
 	if points < 1 {
 		points = 1
@@ -362,13 +371,13 @@ func (g *GameState) ExploreRuin(heroID string) (*Item, error) {
 		return nil, err
 	}
 	if !ru.Cleared {
-		return nil, ActionError{ru.Name + " est encore ensevelie — il faut d'abord la déblayer"}
+		return nil, actionErrf("%s est encore ensevelie — il faut d'abord la déblayer", Name(ru.Name))
 	}
 	if ru.Charges <= 0 {
-		return nil, ActionError{ru.Name + " est épuisée — plus rien à y trouver"}
+		return nil, actionErrf("%s est épuisée — plus rien à y trouver", Name(ru.Name))
 	}
 	if h.PA < ruinExplorePA {
-		return nil, ActionError{fmt.Sprintf("explorer coûte %d PA", ruinExplorePA)}
+		return nil, actionErrf("explorer coûte %d PA", ruinExplorePA)
 	}
 	// La table de butin vient du TYPE de ruine, pas du biome : un mémorial peut se
 	// dresser sur n'importe quelle terre, et ce qu'on y trouve sont les matériaux d'une
@@ -377,7 +386,7 @@ func (g *GameState) ExploreRuin(heroID string) (*Item, error) {
 	if ru.Type != "memorial" {
 		def, ok := ruinDefs[g.TileAt(h.X, h.Y).Biome]
 		if !ok {
-			return nil, ActionError{"donjon corrompu"}
+			return nil, actionErr("donjon corrompu")
 		}
 		loot = def.Loot
 	}
@@ -388,7 +397,7 @@ func (g *GameState) ExploreRuin(heroID string) (*Item, error) {
 	ru.Charges--
 	d := weightedDrop(loot)
 	if d == nil {
-		return nil, ActionError{"rien trouvé"}
+		return nil, actionErr("rien trouvé")
 	}
 	it := Item{Type: d.Type, Name: d.Name, Qty: d.Qty}
 	// Récupérateur : +1 sur les trouvailles (même passif que les trophées)

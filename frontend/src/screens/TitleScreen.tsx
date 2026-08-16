@@ -5,6 +5,7 @@ import { assetUrl, libUrl } from "../assets";
 import { api } from "../api/client";
 import type { GameState } from "../api/types";
 import { formatHMS } from "../useWave";
+import { useT } from "../i18n/useT";
 
 // "Ecran de titre" — main menu: resume cards (deux créneaux : solo + publique/
 // privée), the ways to play, ranking + settings, and a debug section.
@@ -23,6 +24,7 @@ export function TitleScreen() {
     setScreen,
     user,
   } = useStore();
+  const { t } = useT();
 
   // Parties en cours dans chaque créneau (null = créneau vide). Un joueur peut
   // avoir UNE partie solo ET UNE partie publique/privée simultanément.
@@ -33,7 +35,7 @@ export function TitleScreen() {
     <div className="screen parchment">
       <button className="account-chip" onClick={() => openAccount()}>
         <span className="avatar">{user ? "🦊" : "👤"}</span>
-        {user ? user.name : "Connexion"}
+        {user ? user.name : t("Connexion")}
       </button>
       <div className="ornament">
         <i />
@@ -45,17 +47,17 @@ export function TitleScreen() {
       {/* Quand une partie tourne dans un créneau, on ne montre QUE « Reprendre »
           pour ce créneau (le bouton d'entrée correspondant est masqué). */}
       {soloGame && (
-        <ResumeCard game={soloGame} kicker="REPRENDRE — SOLO" busy={busy} onResume={() => resumeSlot("solo")} />
+        <ResumeCard game={soloGame} kicker={t("REPRENDRE — SOLO")} busy={busy} onResume={() => resumeSlot("solo")} />
       )}
       {mpGame && (
-        <ResumeCard game={mpGame} kicker="REPRENDRE — PARTIE" busy={busy} onResume={() => resumeSlot("mp")} />
+        <ResumeCard game={mpGame} kicker={t("REPRENDRE — PARTIE")} busy={busy} onResume={() => resumeSlot("mp")} />
       )}
 
       <div className="menu">
         {/* Solo : masqué si une partie solo est déjà en cours (on la reprend). */}
         {!soloGame && (
           <button className="pill red pulse" disabled={busy} onClick={() => startSoloBots()}>
-            ⚔️ Solo <small>(avec 4 bots)</small>
+            ⚔️ {t("Solo")} <small>{t("(avec 4 bots)")}</small>
           </button>
         )}
         {/* Publiques/privées : un seul créneau « mp ». Masqués tant qu'une partie
@@ -68,24 +70,24 @@ export function TitleScreen() {
                 if (user) {
                   openLobby("public");
                 } else {
-                  pushLog("🔒 Connecte-toi pour rejoindre une partie publique.");
+                  pushLog("🔒 " + t("Connecte-toi pour rejoindre une partie publique."));
                   openAccount();
                 }
               }}
             >
-              🌍 Parties publiques {!user && <small>🔒 connexion requise</small>}
+              🌍 {t("Parties publiques")} {!user && <small>🔒 {t("connexion requise")}</small>}
             </button>
             <button className="pill" onClick={() => openLobby("private")}>
-              🎪 Parties privées
+              🎪 {t("Parties privées")}
             </button>
           </>
         )}
         <div className="menu-row">
           <button className="pill cream" onClick={() => setScreen("leaderboard")}>
-            🏆 Classement
+            🏆 {t("Classement")}
           </button>
           <button className="pill cream" onClick={() => openSettings("menu")}>
-            ⚙️ Paramètres
+            ⚙️ {t("Paramètres")}
           </button>
         </div>
       </div>
@@ -94,13 +96,13 @@ export function TitleScreen() {
         <div className="dev-label">🛠 Debug</div>
         <div className="dev-btns">
           <button className="pill dev-pill" disabled={busy} onClick={() => startTestGame()}>
-            🆕 Nouvelle partie test
+            🆕 {t("Nouvelle partie test")}
           </button>
           <button className="pill dev-pill" disabled={busy} onClick={() => continueTestGame()}>
-            ▶ Continuer
+            ▶ {t("Continuer")}
           </button>
           <button className="pill dev-pill" disabled={busy} onClick={() => startAdventure()}>
-            🎬 Intro
+            🎬 {t("Intro")}
           </button>
           <button className="pill dev-pill" onClick={() => setScreen("editor")}>
             🗺️ Éditeur
@@ -163,12 +165,13 @@ function ResumeCard({
   onResume: () => void;
   busy: boolean;
 }) {
+  const { t } = useT();
   const townPct = Math.round((game.town.hp / game.town.maxHp) * 100);
   const waveSec = Math.max(0, Math.floor((new Date(game.nextWaveAt).getTime() - Date.now()) / 1000));
   const meta =
     game.status === "lobby"
-      ? `Salon en attente · ${game.players.length}/${game.minPlayers} joueurs`
-      : `Jour ${game.day} · 🏰 ${townPct}% · 🌊 ${formatHMS(waveSec)}`;
+      ? t("Salon en attente · {n}/{min} joueurs", { n: game.players.length, min: game.minPlayers })
+      : t("Jour {d} · 🏰 {pct}% · 🌊 {time}", { d: game.day, pct: townPct, time: formatHMS(waveSec) });
 
   return (
     <button className="resume-card" disabled={busy} onClick={onResume}>
@@ -177,7 +180,7 @@ function ResumeCard({
       </span>
       <span className="body">
         <span className="kicker">{kicker}</span>
-        <span className="title">{game.name || "Expédition"}</span>
+        <span className="title">{game.name || t("Expédition")}</span>
         <span className="meta">{meta}</span>
       </span>
       <span className="play">▶</span>

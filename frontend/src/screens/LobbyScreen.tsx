@@ -3,6 +3,7 @@ import { useStore } from "../store";
 import { Logo } from "../components/Logo";
 import { LOBBY_SIZES } from "../data/buildings";
 import { useCountdown, formatHMS } from "../useWave";
+import { useT } from "../i18n/useT";
 
 // Multiplayer entry: create a game, join one by code (or from the open-lobby list),
 // then wait in the salon until enough players have joined and the host launches.
@@ -42,6 +43,7 @@ function LobbyForms() {
   const [minPlayers, setMinPlayers] = useState(2);
   const [maxPlayers, setMaxPlayers] = useState(4);
   const [code, setCode] = useState("");
+  const { t, tName, tDesc } = useT();
   const isPublic = lobbyMode === "public";
 
   useEffect(() => {
@@ -57,7 +59,7 @@ function LobbyForms() {
   return (
     <div className="lobby-panel">
       <button className="back-link" onClick={() => setScreen("title")}>
-        ← Retour
+        ← {t("Retour")}
       </button>
       <div className="lobby-logo">
         <Logo />
@@ -65,32 +67,32 @@ function LobbyForms() {
 
       <div className="lobby-tabs">
         <button className={isPublic ? "on" : ""} onClick={() => openLobby("public")}>
-          🌍 Publiques
+          🌍 {t("Publiques")}
         </button>
         <button className={!isPublic ? "on" : ""} onClick={() => openLobby("private")}>
-          🎪 Privées
+          🎪 {t("Privées")}
         </button>
       </div>
 
       <label className="lobby-field">
-        <span>Ton nom d'aventurier</span>
+        <span>{t("Ton nom d'aventurier")}</span>
         <input
           value={playerName}
           maxLength={20}
-          placeholder="Aventurier"
+          placeholder={t("Aventurier")}
           onChange={(e) => setPlayerName(e.target.value)}
         />
       </label>
 
       {isPublic ? (
         <div className="lobby-card">
-          <div className="lobby-card-title">🌍 Parties publiques</div>
+          <div className="lobby-card-title">🌍 {t("Parties publiques")}</div>
           <div className="lobby-hint left">
-            Une partie démarre dès son minimum de joueurs atteint, puis reste ouverte quelques
-            vagues : on peut embarquer dans une expédition <b>déjà en route</b>. Chaque joueur
-            incarne une équipe de <b>3 héros</b>.
+            {t(
+              "Une partie démarre dès son minimum de joueurs atteint, puis reste ouverte quelques vagues : on peut embarquer dans une expédition déjà en route. Chaque joueur incarne une équipe de 3 héros.",
+            )}
           </div>
-          {publicLobbies.length === 0 && <div className="lobby-hint">Recherche de parties…</div>}
+          {publicLobbies.length === 0 && <div className="lobby-hint">{t("Recherche de parties…")}</div>}
           {publicLobbies.length > 0 && (
             <div className="lobby-list">
               {publicLobbies.map((l) => {
@@ -100,8 +102,15 @@ function LobbyForms() {
                 // qui existe, avec un compte à rebours en vagues avant fermeture.
                 const started = l.status === "active";
                 const status = started
-                  ? `En route — jour ${l.day}, vague ${l.waveNumber} · ${l.players.length}/${l.maxPlayers} joueurs`
-                  : `${ready ? "Minimum atteint" : "En attente de joueurs"} · ${l.players.length}/${l.maxPlayers} joueurs`;
+                  ? t("En route — jour {d}, vague {w} · {n}/{max} joueurs", {
+                      d: l.day,
+                      w: l.waveNumber,
+                      n: l.players.length,
+                      max: l.maxPlayers,
+                    })
+                  : (ready ? t("Minimum atteint") : t("En attente de joueurs")) +
+                    " · " +
+                    t("{n}/{max} joueurs", { n: l.players.length, max: l.maxPlayers });
                 return (
                   <button
                     key={l.id}
@@ -117,8 +126,8 @@ function LobbyForms() {
                           {/* La NATURE de la carte : c'est elle qui distingue cette
                               expédition de la précédente (backend theme.go). */}
                           {l.theme && l.theme.id !== "tempere" && (
-                            <span className="lobby-theme" title={l.theme.tagline}>
-                              {l.theme.emoji} {l.theme.name}
+                            <span className="lobby-theme" title={tDesc(l.theme.tagline)}>
+                              {l.theme.emoji} {tName(l.theme.name)}
                             </span>
                           )}
                         </span>
@@ -127,11 +136,13 @@ function LobbyForms() {
                     </span>
                     <span className={"lobby-badge" + (ready || started ? " hot" : "")}>
                       {full
-                        ? "COMPLET"
+                        ? t("COMPLET")
                         : started
-                        ? `${l.joinWavesLeft} VAGUE${l.joinWavesLeft > 1 ? "S" : ""}`
+                        ? l.joinWavesLeft > 1
+                          ? t("{n} VAGUES", { n: l.joinWavesLeft })
+                          : t("1 VAGUE")
                         : ready
-                        ? "DÉMARRE"
+                        ? t("DÉMARRE")
                         : `${l.players.length}/${l.minPlayers}`}
                     </span>
                   </button>
@@ -143,12 +154,12 @@ function LobbyForms() {
       ) : (
         <>
           <div className="lobby-card">
-            <div className="lobby-card-title">🆕 Créer une partie</div>
+            <div className="lobby-card-title">🆕 {t("Créer une partie")}</div>
             <div className="lobby-hint left">
-              Tu es l'hôte : partage le code, ajoute des bots et lance quand tout le monde est là.
+              {t("Tu es l'hôte : partage le code, ajoute des bots et lance quand tout le monde est là.")}
             </div>
             <label className="lobby-field row">
-              <span>Joueurs minimum</span>
+              <span>{t("Joueurs minimum")}</span>
               <select value={minPlayers} onChange={(e) => setMinPlayers(Number(e.target.value))}>
                 {LOBBY_SIZES.filter((n) => n <= maxPlayers).map((n) => (
                   <option key={n} value={n}>
@@ -158,7 +169,7 @@ function LobbyForms() {
               </select>
             </label>
             <label className="lobby-field row">
-              <span>Joueurs maximum</span>
+              <span>{t("Joueurs maximum")}</span>
               <select
                 value={maxPlayers}
                 onChange={(e) => {
@@ -177,20 +188,22 @@ function LobbyForms() {
             {/* La carte est générée à la taille du salon (worldgen.SizeForPlayers) :
                 la surface par joueur reste constante, et les gisements garantis suivent. */}
             <div className="lobby-hint left">
-              La carte est taillée pour {maxPlayers} joueur{maxPlayers > 1 ? "s" : ""} — plus
-              l'expédition est grande, plus le monde l'est, et plus la horde l'est aussi.
+              {t(
+                "La carte est taillée pour {n} joueurs — plus l'expédition est grande, plus le monde l'est, et plus la horde l'est aussi.",
+                { n: maxPlayers },
+              )}
             </div>
             <button
               className="pill red compact"
               disabled={busy}
               onClick={() => createLobby({ minPlayers, maxPlayers })}
             >
-              Créer le salon
+              {t("Créer le salon")}
             </button>
           </div>
 
           <div className="lobby-card">
-            <div className="lobby-card-title">🤝 Rejoindre par code</div>
+            <div className="lobby-card-title">🤝 {t("Rejoindre par code")}</div>
             <div className="lobby-join-row">
               <input
                 value={code}
@@ -203,7 +216,7 @@ function LobbyForms() {
                 disabled={busy || !code.trim()}
                 onClick={() => joinLobby(code.trim())}
               >
-                Rejoindre
+                {t("Rejoindre")}
               </button>
             </div>
           </div>
@@ -221,6 +234,7 @@ function WaitingRoom() {
   const { game, playerId, startLobby, refreshLobby, leaveLobby, kickFromLobby, addBot, busy, error } =
     useStore();
   const [copied, setCopied] = useState(false);
+  const { t } = useT();
 
   useEffect(() => {
     const t = setInterval(() => refreshLobby(), 3000);
@@ -248,27 +262,28 @@ function WaitingRoom() {
   return (
     <div className="lobby-panel">
       <button className="back-link" onClick={() => leaveLobby()}>
-        ← Quitter le salon
+        ← {t("Quitter le salon")}
       </button>
 
       <div className="lobby-card big">
         <div className="lobby-room-title">
-          {isPublic ? "🌍" : "🎪"} {game.name || "Salon"}
+          {isPublic ? "🌍" : "🎪"} {game.name || t("Salon")}
         </div>
         {isPublic ? (
           <div className="lobby-banner">
             <span className="lobby-banner-icon">🚀</span>
             <span>
-              <b>Démarrage automatique</b> dès que le salon atteint {game.minPlayers} joueurs — aucun
-              hôte requis.
+              {t("Démarrage automatique dès que le salon atteint {n} joueurs — aucun hôte requis.", {
+                n: game.minPlayers,
+              })}
             </span>
           </div>
         ) : (
           <>
-            <button className="lobby-code" onClick={copyCode} title="Copier le code">
+            <button className="lobby-code" onClick={copyCode} title={t("Copier le code")}>
               {game.joinCode} {copied ? "✅" : "📋"}
             </button>
-            <div className="lobby-hint">Partage ce code pour inviter d'autres joueurs.</div>
+            <div className="lobby-hint">{t("Partage ce code pour inviter d'autres joueurs.")}</div>
           </>
         )}
 
@@ -277,13 +292,13 @@ function WaitingRoom() {
             <div key={p.id} className={"lobby-player" + (p.id === playerId ? " me" : "")}>
               <span>{p.host ? "👑" : p.bot ? "🤖" : "🧝"}</span>
               <span className="lobby-player-name">{p.name}</span>
-              {p.id === playerId && <span className="lobby-me-tag">(toi)</span>}
-              {p.bot && <span className="lobby-me-tag">bot</span>}
+              {p.id === playerId && <span className="lobby-me-tag">{t("(toi)")}</span>}
+              {p.bot && <span className="lobby-me-tag">{t("bot")}</span>}
               {isHost && p.id !== playerId && (
                 <button
                   className="lobby-kick"
                   disabled={busy}
-                  title={`Expulser ${p.name}`}
+                  title={t("Expulser {name}", { name: p.name })}
                   onClick={() => kickFromLobby(p.id)}
                 >
                   ✕
@@ -293,7 +308,7 @@ function WaitingRoom() {
                 <button
                   className="lobby-kick"
                   disabled={busy}
-                  title={`Voter pour expulser ${p.name}`}
+                  title={t("Voter pour expulser {name}", { name: p.name })}
                   onClick={() => kickFromLobby(p.id)}
                 >
                   🗳️{(game.kickVotes?.[p.id]?.length ?? 0) > 0 ? ` ${game.kickVotes?.[p.id]?.length}` : ""}
@@ -304,15 +319,15 @@ function WaitingRoom() {
           {Array.from({ length: game.maxPlayers - game.players.length }).map((_, i) => (
             <div key={`empty-${i}`} className="lobby-player empty">
               <span>💤</span>
-              <span className="lobby-player-name">En attente…</span>
+              <span className="lobby-player-name">{t("En attente…")}</span>
             </div>
           ))}
         </div>
 
         <div className={"lobby-status" + (enough ? " ready" : "")}>
           {enough
-            ? `Prêt à partir ✓ · ${game.players.length}/${game.minPlayers} minimum atteint`
-            : `En attente de joueurs : ${game.players.length}/${game.minPlayers} minimum`}
+            ? t("Prêt à partir ✓ · {n}/{min} minimum atteint", { n: game.players.length, min: game.minPlayers })
+            : t("En attente de joueurs : {n}/{min} minimum", { n: game.players.length, min: game.minPlayers })}
         </div>
         {/* L'ESCORTE DE DÉPART (backend lobby.go) : une expédition publique ne fait
             jamais attendre indéfiniment. Le serveur donne l'heure du départ (`escortAt`,
@@ -320,13 +335,15 @@ function WaitingRoom() {
             jour où il changerait. */}
         {escortIn !== null && (
           <div className="lobby-escort">
-            🤖 Départ dans <b>{formatHMS(escortIn)}</b> avec une escorte si personne
-            d'autre n'arrive — l'expédition restera ouverte, on peut vous rejoindre en
-            route.
+            🤖{" "}
+            {t(
+              "Départ dans {time} avec une escorte si personne d'autre n'arrive — l'expédition restera ouverte, on peut vous rejoindre en route.",
+              { time: formatHMS(escortIn) },
+            )}
           </div>
         )}
         <div className="lobby-hint">
-          {game.players.length * 3} héros partiront à l'aventure (3 par joueur).
+          {t("{n} héros partiront à l'aventure (3 par joueur).", { n: game.players.length * 3 })}
         </div>
 
         {isHost ? (
@@ -336,17 +353,17 @@ function WaitingRoom() {
               disabled={busy || game.players.length >= game.maxPlayers}
               onClick={() => addBot()}
             >
-              🤖 Ajouter un bot
+              🤖 {t("Ajouter un bot")}
             </button>
             <button className="pill red" disabled={busy || !enough} onClick={() => startLobby()}>
-              ⚔️ Lancer la partie
+              ⚔️ {t("Lancer la partie")}
             </button>
           </>
         ) : (
           <div className="lobby-hint">
             {isPublic
-              ? "Départ automatique dès que le salon est assez rempli."
-              : "L'hôte lancera la partie quand tout le monde sera là."}
+              ? t("Départ automatique dès que le salon est assez rempli.")
+              : t("L'hôte lancera la partie quand tout le monde sera là.")}
           </div>
         )}
       </div>

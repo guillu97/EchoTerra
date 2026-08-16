@@ -20,8 +20,6 @@ package game
 //     fait strictement mieux, sinon on aurait résolu la rétention en supprimant le jeu ;
 //  3. elle dépense les PA en aveugle, sans arbitrer comme le ferait un humain.
 
-import "fmt"
-
 // Les consignes qu'un héros peut recevoir.
 const (
 	OrderNone    = ""
@@ -49,11 +47,11 @@ func OrderLabel(o string) string {
 // pas une action — ce qu'elle coûte se paiera au moment de l'exécuter.
 func (g *GameState) SetHeroOrder(heroID, order string) error {
 	if !ValidOrder(order) {
-		return ActionError{"consigne inconnue"}
+		return actionErr("consigne inconnue")
 	}
 	h := g.HeroByID(heroID)
 	if h == nil || h.HP <= 0 {
-		return ActionError{"héros invalide"}
+		return actionErr("héros invalide")
 	}
 	h.Order = order
 	h.OrderWave = g.WaveNumber
@@ -75,7 +73,7 @@ func (g *GameState) runStandingOrders() {
 		if h.HasState(StateTetanise) {
 			// Cloué : ni fuir ni se cacher. La consigne ne peut rien, et surtout elle
 			// ne va pas engager un combat à la place du joueur.
-			g.logTown(fmt.Sprintf("⚠️ %s est tétanisé — sa consigne n'a pas pu s'appliquer", h.Name))
+			g.logTown("⚠️ %s est tétanisé — sa consigne n'a pas pu s'appliquer", h.Name)
 			continue
 		}
 		switch order {

@@ -1,13 +1,14 @@
 import { useState } from "react";
 import { useStore } from "../store";
 import { Overlay } from "../ui/Overlay";
-import { TOWN_BUILDINGS, TOWN_REPAIR_HP, type BuildingLayout } from "../data/buildings";
+import { buildingBlurb, buildingName, TOWN_BUILDINGS, TOWN_REPAIR_HP, type BuildingLayout } from "../data/buildings";
 import { VoxelTownView } from "../voxel/VoxelTownView";
 import type { TownBuilding } from "../api/types";
 import { HeroChips } from "../components/HeroChips";
 import { TownOrders } from "../components/TownOrders";
 import { TownWorker, useWorkerPA } from "../components/TownWorker";
 import { effectiveTownHeroId } from "../townUtils";
+import { useT } from "../i18n/useT";
 
 export function durColor(ratio: number) {
   if (ratio > 0.6) return "#4be36e";
@@ -38,6 +39,7 @@ function BuildingMenu({ layout, b, onClose }: { layout: BuildingLayout; b: TownB
   const townHeroId = useStore((s) => s.townHeroId);
   const playerId = useStore((s) => s.playerId);
   const pa = useWorkerPA();
+  const { t } = useT();
   const noPa = pa < 1 || busy;
   const durFull = b.durability >= b.maxDurability;
   const isDefensive = b.id === "wall" || b.id === "gate" || b.id === "tower";
@@ -68,28 +70,30 @@ function BuildingMenu({ layout, b, onClose }: { layout: BuildingLayout; b: TownB
   // Building-specific primary action (label, handler, PA cost).
   const flavor: { label: string; fn: () => void; cost: number; disabled?: boolean } | null =
     layout.id === "bank"
-      ? { label: "🏦 Ouvrir (Stock)", fn: () => { onClose(); setTab("stock"); }, cost: 0 }
+      ? { label: "🏦 " + t("Ouvrir (Stock)"), fn: () => { onClose(); setTab("stock"); }, cost: 0 }
       : layout.id === "kitchen"
-      ? { label: "🍳 Cuisiner (Craft)", fn: () => { onClose(); setTab("craft"); }, cost: 0 }
+      ? { label: "🍳 " + t("Cuisiner (Atelier)"), fn: () => { onClose(); setTab("craft"); }, cost: 0 }
       : layout.id === "tower"
-      ? { label: "🗼 Évaluer l'attaque", fn: () => { onClose(); toggleTownStatus(true); }, cost: 0 }
+      ? { label: "🗼 " + t("Évaluer l'attaque"), fn: () => { onClose(); toggleTownStatus(true); }, cost: 0 }
       : layout.id === "townhall"
       ? {
-          label: deadHero ? `🛏️ Ressusciter ${deadHero.name}` : "🛏️ Ressusciter (aucun héros à terre)",
+          label: deadHero
+            ? "🛏️ " + t("Ressusciter {name}", { name: deadHero.name })
+            : "🛏️ " + t("Ressusciter (aucun héros à terre)"),
           fn: () => townAction("townhall", "revive"),
           cost: reviveCost,
           disabled: !deadHero,
         }
       : layout.id === "panel"
-      ? { label: "📋 Journal", fn: () => { onClose(); toggleTownJournal(true); }, cost: 0 }
+      ? { label: "📋 " + t("Journal"), fn: () => { onClose(); toggleTownJournal(true); }, cost: 0 }
       : layout.id === "poste"
-      ? { label: "✉️ Ouvrir la messagerie", fn: () => { onClose(); toggleChat(true); }, cost: 0 }
+      ? { label: "✉️ " + t("Ouvrir la messagerie"), fn: () => { onClose(); toggleChat(true); }, cost: 0 }
       : layout.id === "infirmerie"
       ? {
           // L'Infirmerie soigne le plus mal en point de MES héros présents (le serveur
           // choisit le patient : à quinze héros, désigner soi-même serait une corvée).
           // Quota quotidien = niveau ; gratuit et illimité au niveau 3.
-          label: hurt ? `🏥 Soigner ${hurt.name}` : "🏥 Soigner (personne de blessé)",
+          label: hurt ? "🏥 " + t("Soigner {name}", { name: hurt.name }) : "🏥 " + t("Soigner (personne de blessé)"),
           fn: () => townAction("infirmerie", "heal"),
           cost: b.level >= 3 ? 0 : 1,
           disabled: !hurt,
@@ -102,25 +106,26 @@ function BuildingMenu({ layout, b, onClose }: { layout: BuildingLayout; b: TownB
         <div className="bm-head">
           <span className="bm-icon">{layout.icon}</span>
           <div className="bm-title">
-            <strong id="bmenu-title">{layout.name}</strong> <span className="lvl">Lv {b.level}</span>
+            <strong id="bmenu-title">{buildingName(layout.id, layout.name)}</strong>{" "}
+            <span className="lvl">{t("Niv. {n}", { n: b.level })}</span>
           </div>
           <button className="hero-close" onClick={onClose}>✕</button>
         </div>
-        <div className="blurb">{layout.blurb}</div>
+        <div className="blurb">{buildingBlurb(layout.id)}</div>
 
         <div className="durab">
-          Durabilité {b.durability}/{b.maxDurability}
+          {t("Durabilité")} {b.durability}/{b.maxDurability}
           <Bar value={b.durability} max={b.maxDurability} color={durColor(b.durability / b.maxDurability)} />
         </div>
         {isDefensive && (
           <div className="bm-def">
-            🛡 Défense : <b>+{b.defense}</b>
-            {b.id === "gate" && b.open && <span className="bm-warn"> — porte ouverte (0)</span>}
+            🛡 {t("Défense")} : <b>+{b.defense}</b>
+            {b.id === "gate" && b.open && <span className="bm-warn"> — {t("porte ouverte (0)")}</span>}
           </div>
         )}
         {b.id === "well" && (
           <div className="durab">
-            💧 Eau {b.capacity}/{b.maxCapacity}
+            💧 {t("Eau")} {b.capacity}/{b.maxCapacity}
             <Bar value={b.capacity} max={b.maxCapacity} color="#3da5ff" />
           </div>
         )}
@@ -134,12 +139,14 @@ function BuildingMenu({ layout, b, onClose }: { layout: BuildingLayout; b: TownB
             >
               <span>
                 💧 {workerDrankToday
-                  ? `${worker?.name ?? "Le héros"} a déjà bu aujourd'hui`
+                  ? t("{name} a déjà bu aujourd'hui", { name: worker?.name ?? t("Le héros") })
                   : wellEmpty
-                  ? "Puits à sec"
-                  : `Puiser de l'eau${worker ? ` (${worker.name})` : ""}`}
+                  ? t("Puits à sec")
+                  : worker
+                  ? t("Puiser de l'eau ({name})", { name: worker.name })
+                  : t("Puiser de l'eau")}
               </span>
-              <span className="c">1/jour</span>
+              <span className="c">{t("1/jour")}</span>
             </button>
           )}
           {/* LA TOUR DE GUET : monter observer la horde. Ce n'est pas un bonus solo —
@@ -153,7 +160,7 @@ function BuildingMenu({ layout, b, onClose }: { layout: BuildingLayout; b: TownB
               onClick={() => { scoutWave(); }}
             >
               <span>
-                🔭 Estimer la vague
+                🔭 {t("Estimer la vague")}
                 {game?.town.forecast &&
                   ` (${game.town.forecast.min}–${game.town.forecast.max}, ${game.town.forecast.precision}%)`}
               </span>
@@ -162,7 +169,7 @@ function BuildingMenu({ layout, b, onClose }: { layout: BuildingLayout; b: TownB
           )}
           {b.id === "gate" && (
             <button className="primary" disabled={noPa} onClick={() => townAction("gate", "toggle")}>
-              <span>🚪 {b.open ? "Fermer la porte" : "Ouvrir la porte"}</span>
+              <span>🚪 {b.open ? t("Fermer la porte") : t("Ouvrir la porte")}</span>
               <span className="c">-1</span>
             </button>
           )}
@@ -178,12 +185,12 @@ function BuildingMenu({ layout, b, onClose }: { layout: BuildingLayout; b: TownB
             >
               <span>
                 🧱 {townFull
-                  ? "La ville est intacte"
+                  ? t("La ville est intacte")
                   : townStone
-                  ? `Relever les remparts (+${TOWN_REPAIR_HP} PV)`
-                  : "Il faut de la Pierre à la Banque"}
+                  ? t("Relever les remparts (+{n} PV)", { n: TOWN_REPAIR_HP })
+                  : t("Il faut de la Pierre à la Banque")}
               </span>
-              <span className="c">-1 PA · -1 Pierre</span>
+              <span className="c">{t("-1 PA · -1 Pierre")}</span>
             </button>
           )}
           {flavor && (
@@ -200,14 +207,14 @@ function BuildingMenu({ layout, b, onClose }: { layout: BuildingLayout; b: TownB
               chacun a apporté (registre) — cf. TownLedger.tsx. */}
           {layout.id === "panel" && (
             <button onClick={() => { onClose(); toggleTownLedger(true); }}>
-              <span>🤝 Ce que la ville vous doit</span>
+              <span>🤝 {t("Ce que la ville vous doit")}</span>
             </button>
           )}
           <button onClick={() => { onClose(); setTab("structure"); }}>
-            <span>🏗️ Améliorer (Structure)</span>
+            <span>🏗️ {t("Améliorer (Bâtir)")}</span>
           </button>
           <button disabled={noPa || durFull} onClick={() => townAction(layout.id, "restore", 1)}>
-            <span>🔧 Réparer +5 durabilité</span>
+            <span>🔧 {t("Réparer +5 durabilité")}</span>
             <span className="c">-1</span>
           </button>
         </div>
@@ -227,10 +234,11 @@ function BuildingMenu({ layout, b, onClose }: { layout: BuildingLayout; b: TownB
 function ChatBubble() {
   const chat = useStore((s) => s.chat);
   const toggleChat = useStore((s) => s.toggleChat);
+  const { t } = useT();
   const last = chat[chat.length - 1];
   if (!last) return null;
   return (
-    <button className="chat-bubble" title="Ouvrir la messagerie" onClick={() => toggleChat(true)}>
+    <button className="chat-bubble" title={t("Ouvrir la messagerie")} onClick={() => toggleChat(true)}>
       <span className="who">{last.author} :</span> {last.text}
     </button>
   );

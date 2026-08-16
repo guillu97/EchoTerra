@@ -96,15 +96,15 @@ type MapSkillReport struct {
 // spends the PA. A Tétanisé hero may still cast (thinning the pack can free it).
 func (g *GameState) CastMapSkill(heroID, skillID string) (*MapSkillReport, error) {
 	if g.heroInCombat(heroID) != nil {
-		return nil, ActionError{"ce héros est en plein combat"}
+		return nil, actionErr("ce héros est en plein combat")
 	}
 	h := g.HeroByID(heroID)
 	if h == nil {
-		return nil, ActionError{"héros introuvable"}
+		return nil, actionErr("héros introuvable")
 	}
 	sk := MapSkillByID(skillID)
 	if sk == nil {
-		return nil, ActionError{"compétence inconnue"}
+		return nil, actionErr("compétence inconnue")
 	}
 	// Le héros doit posséder cette compétence (sa classe, ou la base sans classe).
 	owns := false
@@ -115,10 +115,10 @@ func (g *GameState) CastMapSkill(heroID, skillID string) (*MapSkillReport, error
 		}
 	}
 	if !owns {
-		return nil, ActionError{h.Name + " ne maîtrise pas « " + sk.Name + " »"}
+		return nil, actionErrf("%s ne maîtrise pas « %s »", h.Name, Name(sk.Name))
 	}
 	if h.PA < sk.PA {
-		return nil, ActionError{h.Name + " n'a pas assez de PA pour « " + sk.Name + " »"}
+		return nil, actionErrf("%s n'a pas assez de PA pour « %s »", h.Name, Name(sk.Name))
 	}
 
 	rep := &MapSkillReport{SkillID: sk.ID, Name: sk.Name}
@@ -148,7 +148,7 @@ func (g *GameState) CastMapSkill(heroID, skillID string) (*MapSkillReport, error
 func (g *GameState) castBlast(h *Hero, sk *MapSkillDef, rep *MapSkillReport) error {
 	m := g.packTargetNear(h.X, h.Y)
 	if m == nil {
-		return ActionError{"aucune cible à portée pour « " + sk.Name + " »"}
+		return actionErrf("aucune cible à portée pour « %s »", Name(sk.Name))
 	}
 	var stat int
 	switch sk.Stat {
@@ -189,14 +189,14 @@ func (g *GameState) castBlast(h *Hero, sk *MapSkillDef, rep *MapSkillReport) err
 func (g *GameState) castSnipe(h *Hero, sk *MapSkillDef, rep *MapSkillReport) error {
 	t := g.TileAt(h.X, h.Y)
 	if t == nil || t.MonsterID == "" {
-		return ActionError{"aucun monstre sur cette case"}
+		return actionErr("aucun monstre sur cette case")
 	}
 	m := g.Monsters[t.MonsterID]
 	if m == nil {
-		return ActionError{"ennemi introuvable"}
+		return actionErr("ennemi introuvable")
 	}
 	if m.HP > SnipeMaxHP {
-		return ActionError{"la cible est trop vigoureuse (PV > 5) pour un Tir précis"}
+		return actionErr("la cible est trop vigoureuse (PV > 5) pour un Tir précis")
 	}
 	rep.MonsterID, rep.Species, rep.Damage, rep.Slain, rep.X, rep.Y = m.ID, m.Species, m.HP, 1, m.X, m.Y
 	if m.Count > 1 {

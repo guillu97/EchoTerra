@@ -9,6 +9,7 @@ import { MapHeroBar } from "../components/MapHeroBar";
 import { CombatHeroBar } from "../components/CombatHeroBar";
 import { CombatControls } from "../components/CombatControls";
 import { mapSkillsForHero } from "../skills";
+import { useT } from "../i18n/useT";
 import { myActiveCombat } from "../combatUtils";
 import { formatHMS, useForageRemaining, useTurnRemaining } from "../useWave";
 
@@ -23,6 +24,7 @@ function ActionMenu() {
   const selHero = game?.heroes.find((h) => h.id === selectedHeroId);
   const forageIn = useForageRemaining(selHero);
 
+  const { t, tName, tDesc } = useT();
   if (!pos || !game) return null;
   const hero = selHero;
   if (!hero) return null;
@@ -73,11 +75,11 @@ function ActionMenu() {
       <div className="action-menu" style={{ left: pos.x, top: pos.y }}>
         <div className="am-title">
           {hero.name} · ⚡{hero.pa}
-          {stuck && <span className="am-stuck"> · Tétanisé</span>}
+          {stuck && <span className="am-stuck"> · {tName("Tétanisé")}</span>}
         </div>
         {onMonster && (
           <button className="am-fight" disabled={busy} onClick={() => run(startCombat)}>
-            ⚔️ Combattre
+            ⚔️ {t("Combattre")}
           </button>
         )}
         {/* Compétences de carte PAR CLASSE (remplacent la boule de feu universelle). */}
@@ -86,10 +88,10 @@ function ActionMenu() {
             key={sk.id}
             className="am-skill"
             disabled={busy || hero.pa < sk.pa}
-            title={sk.desc}
+            title={tDesc(sk.desc)}
             onClick={() => run(() => castSkill(sk.id))}
           >
-            {sk.icon} {sk.name} <i>-{sk.pa}</i>
+            {sk.icon} {tName(sk.name)} <i>-{sk.pa}</i>
           </button>
         ))}
         {/* Boire une ration d'eau du sac : +6 PA (repartir explorer une fois à sec). */}
@@ -97,10 +99,10 @@ function ActionMenu() {
           <button
             className="am-drink"
             disabled={busy}
-            title="Restaure 6 PA (consomme une ration d'eau du sac)"
+            title={t("Restaure 6 PA (consomme une ration d'eau du sac)")}
             onClick={() => run(drinkRation)}
           >
-            💧 Boire une ration <i>+6 PA · {rations}</i>
+            💧 {t("Boire une ration")} <i>+6 {t("PA")} · {rations}</i>
           </button>
         )}
         {/* MÉMORIAL : la ruine fut la ville d'une vraie expédition. L'épitaphe passe
@@ -108,7 +110,7 @@ function ActionMenu() {
             raison d'être venu. */}
         {ruin && ruin.fellAtWave ? (
           <div className="am-memorial">
-            <b>🏚️ {ruin.name}</b>
+            <b>🏚️ {tName(ruin.name)}</b>
             <span>{ruinEpitaph(ruin)}</span>
           </div>
         ) : null}
@@ -119,17 +121,17 @@ function ActionMenu() {
             disabled={noPa || stuck}
             onClick={() => run(ruinClear)}
           >
-            ⛏️ Déblayer {ruin.icon} <i>{ruin.paInvested}/{ruin.clearPa}</i>
+            ⛏️ {t("Déblayer")} {ruin.icon} <i>{ruin.paInvested}/{ruin.clearPa}</i>
           </button>
         )}
         {ruin && ruin.cleared && (
           <button
             className="am-ruin"
             disabled={busy || stuck || hero.pa < 2 || ruin.charges <= 0}
-            title={ruin.charges <= 0 ? "Donjon épuisé" : ""}
+            title={ruin.charges <= 0 ? t("Donjon épuisé") : ""}
             onClick={() => run(ruinExplore)}
           >
-            🏛️ Explorer {ruin.icon} <i>-2 · {ruin.charges} 💎</i>
+            🏛️ {t("Explorer")} {ruin.icon} <i>-2 · {ruin.charges} 💎</i>
           </button>
         )}
         {/* LES CONSIGNES : ce que ce héros fera tout seul juste avant la prochaine
@@ -137,35 +139,38 @@ function ActionMenu() {
             dure qu'UNE vague et n'engage jamais de combat (orders_standing.go). */}
         {!onTown && (
           <div className="am-orders">
-            <span className="am-orders-t">Si je ne reviens pas :</span>
+            <span className="am-orders-t">{t("Si je ne reviens pas :")}</span>
             <div className="am-orders-row">
               <button
                 className={hero.order === "shelter" ? "on" : ""}
                 disabled={busy || !canOrder}
                 onClick={() => setHeroOrder(hero.id, hero.order === "shelter" ? "" : "shelter")}
               >
-                🫥 Se cacher <i>-1</i>
+                🫥 {t("Se cacher")} <i>-1</i>
               </button>
               <button
                 className={hero.order === "return" ? "on" : ""}
                 disabled={busy || !canReturn}
                 onClick={() => setHeroOrder(hero.id, hero.order === "return" ? "" : "return")}
               >
-                🏰 Rentrer <i>-{townDist}</i>
+                🏰 {t("Rentrer")} <i>-{townDist}</i>
               </button>
             </div>
             {/* Pourquoi le bouton est éteint. Un `title` ne se survole pas sur un
                 téléphone : la raison doit être ÉCRITE. */}
             {!canOrder ? (
-              <span className="am-orders-why">Sans PA, aucune consigne ne peut s'exécuter.</span>
+              <span className="am-orders-why">{t("Sans PA, aucune consigne ne peut s'exécuter.")}</span>
             ) : !canReturn ? (
               <span className="am-orders-why">
-                {townDist} cases jusqu'à la ville pour {hero.pa} PA — trop loin : il se cacherait sur place.
+                {t("{d} cases jusqu'à la ville pour {pa} PA — trop loin : il se cacherait sur place.", {
+                  d: townDist,
+                  pa: hero.pa,
+                })}
               </span>
             ) : null}
           </div>
         )}
-        {onTown && <div className="am-note">🏰 En ville — fouille et cachette inutiles ici</div>}
+        {onTown && <div className="am-note">🏰 {t("En ville — fouille et cachette inutiles ici")}</div>}
         {/* Pas de fouille ni de cachette sur la case ville (la ville protège déjà et n'a
             rien à fouiller) — le serveur les refuse aussi. */}
         {!onTown && (
@@ -176,27 +181,27 @@ function ActionMenu() {
                 (le plus souvent des Débris, que la Recyclerie transforme). Le
                 client désactivait le bouton, rendant ce mode inatteignable. */}
             {foraging ? (
-              <button className="am-forage" disabled title="La récolte tourne toute seule, sans PA">
-                🔄 Fouille auto <i>{formatHMS(forageIn ?? 0)}</i>
+              <button className="am-forage" disabled title={t("La récolte tourne toute seule, sans PA")}>
+                🔄 {t("Fouille auto")} <i>{formatHMS(forageIn ?? 0)}</i>
               </button>
             ) : (
               <button disabled={noPa || stuck} onClick={() => run(search)}>
-                🔎 Fouiller <i>-1</i>
+                🔎 {t("Fouiller")} <i>-1</i>
               </button>
             )}
             <button
               disabled={noPa || stuck}
-              title={stuck ? "Tétanisé — impossible de se cacher" : ""}
+              title={stuck ? t("Tétanisé — impossible de se cacher") : ""}
               onClick={() => run(hide)}
             >
-              🫥 Se cacher <i>-1</i>
+              🫥 {t("Se cacher")} <i>-1</i>
             </button>
           </>
         )}
         {/* Escape only matters when the hero is stuck (Tétanisé) by the surrounding pack. */}
         {stuck && (
           <button disabled={noPa} onClick={() => run(escape)}>
-            🏃 S'échapper <i>-1</i>
+            🏃 {t("S'échapper")} <i>-1</i>
           </button>
         )}
       </div>
@@ -209,6 +214,7 @@ function ActionMenu() {
 // yellow diamonds on the map. Only map-wide tools remain here.
 function MapControls() {
   const { game, showOthers, toggleOthers, playerId, joinCombat, busy } = useStore();
+  const { t } = useT();
   if (!game) return null;
   const multiplayer = (game.players?.length ?? 0) > 1;
   // Un combat actif (parmi TOUS ceux en cours) où figurent MES héros → bouton
@@ -227,7 +233,7 @@ function MapControls() {
       {canJoin && (
         <div className="line">
           <button className="small red" disabled={busy} onClick={() => joinCombat()}>
-            ⚔️ Rejoindre le combat ({mine!.tileX},{mine!.tileY}) — tes héros y sont !
+            ⚔️ {t("Rejoindre le combat ({x},{y}) — tes héros y sont !", { x: mine!.tileX, y: mine!.tileY })}
           </button>
         </div>
       )}
@@ -235,10 +241,10 @@ function MapControls() {
         <div className="line">
           <button
             className={`small ${showOthers ? "red" : ""}`}
-            title="Afficher/masquer les héros des autres joueurs (sprites translucides)"
+            title={t("Afficher/masquer les héros des autres joueurs (sprites translucides)")}
             onClick={() => toggleOthers()}
           >
-            👥 Autres
+            👥 {t("Autres")}
           </button>
         </div>
       )}
@@ -250,6 +256,7 @@ function MapControls() {
 // surligné, morts grisés. Taper un ennemi affiche ses cases menacées (orange).
 function InitiativeBar() {
   const { combat, current, toggleThreat, threatUnitId } = useStore();
+  const { t, tName } = useT();
   if (!combat || combat.status !== "active") return null;
   return (
     <div className="init-bar">
@@ -270,10 +277,13 @@ function InitiativeBar() {
           <button
             key={`${id}-${i}`}
             className={cls}
-            title={`${u.name} · ${u.hp}/${u.maxHp} PV${u.side === "monster" ? " — menaces" : ""}`}
+            title={
+              `${tName(u.name)} · ${u.hp}/${u.maxHp} ${t("PV")}` +
+              (u.side === "monster" ? " — " + t("menaces") : "")
+            }
             onClick={() => u.side === "monster" && u.hp > 0 && toggleThreat(u.id)}
           >
-            {url ? <img src={url} alt={u.name} /> : <span>{u.side === "hero" ? "🧑" : "👹"}</span>}
+            {url ? <img src={url} alt={tName(u.name)} /> : <span>{u.side === "hero" ? "🧑" : "👹"}</span>}
             {u.id === current?.unitId && <i className="init-now">▶</i>}
           </button>
         );
@@ -286,6 +296,7 @@ function InitiativeBar() {
 // joués — au lieu du retour sec à la carte.
 function CombatEndScreen() {
   const { combat, returnToMap } = useStore();
+  const { t, tName } = useT();
   if (!combat || combat.status === "active") return null;
   const won = combat.status === "won";
   const fled = combat.status === "fled";
@@ -294,29 +305,29 @@ function CombatEndScreen() {
     <div className="combat-end">
       <div className="combat-end-card">
         <h2 className={won ? "win" : fled ? "flee" : "loss"}>
-          {won ? "🏆 Victoire !" : fled ? "🏃 Repli !" : "💀 Défaite…"}
+          {won ? "🏆 " + t("Victoire !") : fled ? "🏃 " + t("Repli !") : "💀 " + t("Défaite…")}
         </h2>
         <div className="combat-end-sub">
-          {combat.round} tour{combat.round > 1 ? "s" : ""} · {heroes.filter((u) => u.hp > 0).length}/
-          {heroes.length} héros debout
+          {combat.round > 1 ? t("{n} tours", { n: combat.round }) : t("1 tour")} ·{" "}
+          {t("{up}/{all} héros debout", { up: heroes.filter((u) => u.hp > 0).length, all: heroes.length })}
         </div>
         <div className="combat-end-heroes">
           {heroes.map((u) => (
             <div key={u.id} className={`ce-hero ${u.hp <= 0 ? "dead" : ""}`}>
-              <span className="ce-name">{u.hp <= 0 ? "☠️ " : ""}{u.name}</span>
-              <span className="ce-hp">{Math.max(0, u.hp)}/{u.maxHp} PV</span>
+              <span className="ce-name">{u.hp <= 0 ? "☠️ " : ""}{tName(u.name)}</span>
+              <span className="ce-hp">{Math.max(0, u.hp)}/{u.maxHp} {t("PV")}</span>
             </div>
           ))}
         </div>
         {won && (combat.rewards?.length ?? 0) > 0 && (
           <div className="combat-end-loot">
-            <div className="ce-loot-title">Butin</div>
+            <div className="ce-loot-title">{t("Butin")}</div>
             {combat.rewards!.map((r) => (
               <div key={r.heroId} className="ce-loot-row">
                 <span className="ce-name">{r.heroName}</span>
                 <span className="ce-items">
                   {r.items.map((it, i) => (
-                    <em key={i}>{it.name}{it.qty > 1 ? ` ×${it.qty}` : ""}</em>
+                    <em key={i}>{tName(it.name)}{it.qty > 1 ? ` ×${it.qty}` : ""}</em>
                   ))}
                 </span>
               </div>
@@ -325,11 +336,13 @@ function CombatEndScreen() {
         )}
         {fled && (
           <div className="combat-end-sub">
-            L'équipe s'est repliée — pas de butin, et le pack rôde toujours sur la case…
+            {t("L'équipe s'est repliée — pas de butin, et le pack rôde toujours sur la case…")}
           </div>
         )}
-        {!won && !fled && <div className="combat-end-sub">Les survivants battent en retraite vers la ville…</div>}
-        <button className="small green" onClick={() => returnToMap()}>↩ Retour à la carte</button>
+        {!won && !fled && (
+          <div className="combat-end-sub">{t("Les survivants battent en retraite vers la ville…")}</div>
+        )}
+        <button className="small green" onClick={() => returnToMap()}>↩ {t("Retour à la carte")}</button>
       </div>
     </div>
   );

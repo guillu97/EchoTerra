@@ -1,7 +1,6 @@
 package game
 
 import (
-	"fmt"
 	"time"
 )
 
@@ -259,11 +258,16 @@ func (g *GameState) trimBacklog(now time.Time) int {
 	}
 	skipped := int(cutoff.Sub(g.NextWaveAt)/WaveInterval) + 1
 	g.NextWaveAt = g.NextWaveAt.Add(time.Duration(skipped) * WaveInterval)
-	noun := "vagues passées"
+	// ⚠ DEUX GABARITS et non un %s qui recevrait « vague passée »/« vagues passées » :
+	// un argument porte un nom, jamais un morceau de phrase française (i18n.go) — et
+	// surtout, aucune langue ne s'accorde comme une autre. L'anglais n'a pas d'accord
+	// sur « wave » au singulier mais en a un sur le verbe ; livrer le singulier et le
+	// pluriel séparément laisse chaque langue faire ce qu'elle doit.
 	if skipped == 1 {
-		noun = "vague passée"
+		g.logTown("1 vague passée sans personne — la horde a rôdé sans attaquer.")
+	} else {
+		g.logTown("%d vagues passées sans personne — la horde a rôdé sans attaquer.", skipped)
 	}
-	g.logTown(fmt.Sprintf("%d %s sans personne — la horde a rôdé sans attaquer.", skipped, noun))
 	return skipped
 }
 

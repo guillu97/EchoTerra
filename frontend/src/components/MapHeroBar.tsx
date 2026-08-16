@@ -2,6 +2,7 @@ import { useStore } from "../store";
 import { myTeamHeroes } from "../townUtils";
 import { HeroChip } from "./HeroChip";
 import { formatHMS, useForageRemaining } from "../useWave";
+import { useT } from "../i18n/useT";
 
 // Barre de sélection des héros, posée sur la carte (vue Map uniquement). Une
 // pastille par héros de MON équipe : portrait, nom, barre de PV, PA, et un badge
@@ -18,6 +19,7 @@ export function MapHeroBar() {
   const selectedHeroId = useStore((s) => s.selectedHeroId);
   const focusHero = useStore((s) => s.focusHero);
   const openHero = useStore((s) => s.openHero);
+  const { t } = useT();
   // ⚠ avant tout retour anticipé : c'est un hook.
   const selected = game?.heroes.find((h) => h.id === selectedHeroId);
   const forageIn = useForageRemaining(selected);
@@ -48,18 +50,20 @@ export function MapHeroBar() {
         <div className="mhb-hint">
           {/* NEIGE FRAÎCHE (thème nordique) : c'est LA raison pour laquelle la récolte
               s'est arrêtée, et sans un mot ici le joueur ne peut pas la deviner. */}
+          {/* ⚠ ces phrases mêlent du texte et un nom en gras. Les découper en
+              morceaux traduisibles séparés donnerait un ordre de mots FRANÇAIS
+              imposé à toutes les langues ; on passe donc le nom en variable et on
+              laisse chaque langue placer le sujet où il va. */}
           {snowedIn ? (
-            <>❄️ <strong>{selected!.name}</strong> a la case ensevelie sous la neige — fouiller la
-              dégage et relance la récolte.</>
+            <>❄️ {t("{name} a la case ensevelie sous la neige — fouiller la dégage et relance la récolte.", { name: selected.name })}</>
           ) : forageIn !== null ? (
-            <>🔄 <strong>{selected.name}</strong> fouille sur place — prochaine trouvaille dans{" "}
-              <strong>{formatHMS(forageIn)}</strong> (sans PA ; bouger l'interrompt).</>
+            <>🔄 {t("{name} fouille sur place — prochaine trouvaille dans {time} (sans PA ; bouger l'interrompt).", { name: selected.name, time: formatHMS(forageIn) })}</>
           ) : selInTown ? (
-            <>🏰 <strong>{selected.name}</strong> est en ville — tape une case adjacente pour le faire sortir.</>
+            <>🏰 {t("{name} est en ville — tape une case adjacente pour le faire sortir.", { name: selected.name })}</>
           ) : selected.states.includes("Tétanisé") ? (
-            <>⚠️ <strong>{selected.name}</strong> est Tétanisé — tue le pack ou fuis.</>
+            <>⚠️ {t("{name} est Tétanisé — tue le pack ou fuis.", { name: selected.name })}</>
           ) : (
-            <>🎯 <strong>{selected.name}</strong> sélectionné — tape les losanges jaunes pour le déplacer.</>
+            <>🎯 {t("{name} sélectionné — tape les losanges jaunes pour le déplacer.", { name: selected.name })}</>
           )}
         </div>
       )}

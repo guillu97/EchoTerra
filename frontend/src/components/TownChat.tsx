@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useStore } from "../store";
 import { Overlay } from "../ui/Overlay";
 import { heroesInTown } from "../townUtils";
+import { useT } from "../i18n/useT";
 
 // La messagerie de la ville.
 //
@@ -21,6 +22,7 @@ export function TownChat() {
   const busy = useStore((s) => s.busy);
   const sendChat = useStore((s) => s.sendChat);
   const setTab = useStore((s) => s.setTab);
+  const { t } = useT();
   const [draft, setDraft] = useState("");
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -51,19 +53,19 @@ export function TownChat() {
   };
 
   return (
-    <Overlay variant="sheet" onClose={() => close(false)} title={`✉️ Messages de ${game.town.name}`}>
+    <Overlay variant="sheet" onClose={() => close(false)} title={"✉️ " + t("Messages de {town}", { town: game.town.name })}>
       <>
         {!canWrite ? (
           <div className="chat-locked">
             <div className="cl-icon">📮</div>
             <p>
-              <strong>Aucun de tes héros n'est en ville.</strong> Depuis le terrain, le courrier
-              n'arrive que si la ville a bâti la <strong>Poste</strong>.
+              <strong>{t("Aucun de tes héros n'est en ville.")}</strong>{" "}
+              {t("Depuis le terrain, le courrier n'arrive que si la ville a bâti la Poste.")}
             </p>
             <p className="cl-hint">
               {posteBuilt
-                ? "La Poste est en ruine — répare-la pour rétablir le courrier."
-                : "Ramène un héros en ville, ou trouve le « Plan de la Poste » et lance le chantier."}
+                ? t("La Poste est en ruine — répare-la pour rétablir le courrier.")
+                : t("Ramène un héros en ville, ou trouve le « Plan de la Poste » et lance le chantier.")}
             </p>
             <button
               className="pill"
@@ -72,7 +74,7 @@ export function TownChat() {
                 setTab("structure");
               }}
             >
-              🏗️ Ouvrir Bâtir
+              🏗️ {t("Ouvrir Bâtir")}
             </button>
           </div>
         ) : (
@@ -80,7 +82,7 @@ export function TownChat() {
             <div className="chat-list" ref={listRef}>
               {chat.length === 0 ? (
                 <div className="tj-empty">
-                  {locked ?? "Personne n'a encore écrit. Lance la conversation."}
+                  {locked ?? t("Personne n'a encore écrit. Lance la conversation.")}
                 </div>
               ) : (
                 chat.map((m) => (
@@ -88,8 +90,8 @@ export function TownChat() {
                     <div className="cm-head">
                       <span className="cm-who">{m.author}</span>
                       <span className="cm-when">
-                        {m.remote && <span title="Envoyé du terrain, via la Poste">📮 </span>}J{m.day} ·{" "}
-                        {hhmm(m.at)}
+                        {m.remote && <span title={t("Envoyé du terrain, via la Poste")}>📮 </span>}
+                        {t("J{n}", { n: m.day })} · {hhmm(m.at)}
                       </span>
                     </div>
                     <div className="cm-text">{m.text}</div>
@@ -109,22 +111,22 @@ export function TownChat() {
                 className="chat-input"
                 value={draft}
                 maxLength={240}
-                placeholder={posteBuilt && !inTown ? "Écrire du terrain (Poste)…" : "Écrire un message…"}
+                placeholder={posteBuilt && !inTown ? t("Écrire du terrain (Poste)…") : t("Écrire un message…")}
                 onChange={(e) => setDraft(e.target.value)}
-                aria-label="Votre message"
+                aria-label={t("Votre message")}
               />
               <button className="pill" type="submit" disabled={busy || !draft.trim()}>
-                Envoyer
+                {t("Envoyer")}
               </button>
             </form>
             <div className="chat-note">
-              Les messages sont partagés par toute la ville et passent par un filtre de modération.
+              {t("Les messages sont partagés par toute la ville et passent par un filtre de modération.")}
             </div>
           </>
         )}
 
         <button className="pill red ov-close" onClick={() => close(false)}>
-          Fermer
+          {t("Fermer")}
         </button>
       </>
     </Overlay>

@@ -14,7 +14,8 @@
     "test:reconnect": "node tests/reconnect.mjs",
     "test:endgame": "node tests/endgame.mjs",
     "test:weather": "node tests/weather.mjs",
-    "test:inventory": "node tests/inventory.mjs"
+    "test:inventory": "node tests/inventory.mjs",
+    "test:i18n": "node tests/i18n.mjs"
   },
   "dependencies": {
     "react": "^18.3.1",

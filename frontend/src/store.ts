@@ -14,9 +14,11 @@ import type {
   MyGameSummary,
   Recipe,
   User,
+  UserPrefs,
   WaveReport,
 } from "./api/types";
 import { bus, EV } from "./eventBus";
+import { detectLang, getLang, isLang, setLang, t, tDesc, tName, tServer, type Lang } from "./i18n";
 import { effectiveTownHeroId } from "./townUtils";
 import { myActiveCombat } from "./combatUtils";
 
@@ -133,7 +135,14 @@ export interface Settings {
   sfx: number;
   fps: 30 | 60 | 120;
   quality: "Normal" | "Medium" | "High" | "Very high";
-  language: string;
+  /**
+   * LA LANGUE CHOISIE SUR CET APPAREIL. `undefined` ne veut pas dire « français » : il
+   * veut dire QUE PERSONNE N'A CHOISI, et c'est alors la langue du navigateur qui
+   * s'applique (voir effectiveLang). La distinction est tout le réglage demandé — un
+   * défaut écrit en dur écraserait la préférence du navigateur dès le premier
+   * enregistrement, et plus personne ne verrait jamais sa propre langue.
+   */
+  language?: Lang;
   notif: { loot: boolean; wave: boolean; actionPoint: boolean; communication: boolean };
   voxelSmooth: boolean; // carte : terrain CONTINU lissé (true) ou blocs discrets (false)
   voxelBeauty: boolean; // passe beauté Tier 1 : tone mapping ACES + bloom + ciel/brume (mode CINÉMATIQUE)
@@ -166,7 +175,7 @@ const DEFAULT_SETTINGS: Settings = {
   sfx: 80,
   fps: 60,
   quality: "Very high", // rendu maximum par défaut
-  language: "Français",
+  // language: volontairement ABSENT — cf. Settings.language.
   notif: { loot: true, wave: true, actionPoint: true, communication: false },
   voxelSmooth: true,
   voxelBeauty: true, // mode CINÉMATIQUE (bloom + ACES) activé par défaut — décision utilisateur 2026-07-22
@@ -184,6 +193,12 @@ function loadSettings(): Settings {
     if (raw) {
       const saved = JSON.parse(raw) as Partial<Settings>;
       let s: Settings = { ...DEFAULT_SETTINGS, ...saved };
+      // Les installs d'avant l'i18n ont enregistré un NOM de langue décoratif
+      // (« Français », « Deutsch ») que l'écran Langue proposait sans rien traduire.
+      // Ce n'est pas un code de langue : le garder ferait suivre la personne avec une
+      // valeur qu'aucun catalogue ne connaît. On le jette, et le navigateur reprend la
+      // main — ce qui est le défaut voulu.
+      if (!isLang(s.language)) delete s.language;
       // migration UNIQUE : bascule voxel + rendu cinématique max sur les réglages
       // déjà sauvegardés (persistée pour ne pas réécraser un opt-out ultérieur).
       if (saved.renderPreset !== RENDER_PRESET) {
@@ -197,6 +212,46 @@ function loadSettings(): Settings {
   }
   return DEFAULT_SETTINGS;
 }
+
+/**
+ * LA LANGUE QUI S'APPLIQUE, et l'ordre de priorité qui la décide :
+ *
+ *   1. le compte  — ce que le joueur a choisi, enregistré en base, qui le suit d'un
+ *                   appareil à l'autre ;
+ *   2. l'appareil — son choix local, qui sert aussi à ceux qui jouent sans compte
+ *                   (jouer anonymement reste possible partout dans ce jeu) ;
+ *   3. le navigateur — le défaut demandé : personne ne doit avoir à régler quoi que
+ *                   ce soit pour lire le jeu dans sa langue.
+ *
+ * ⚠ le compte passe AVANT l'appareil, et pas l'inverse. Se connecter sur le téléphone
+ * d'un ami doit rendre SA langue, pas celle du propriétaire du téléphone ; et un choix
+ * fait sur le poste de bureau doit se retrouver sur le mobile, ce qui est précisément
+ * ce qu'on attend d'une préférence de compte.
+ */
+/**
+ * Applique une langue au moteur de traduction et rend celle qui s'est appliquée.
+ * `setLang` ne notifie l'arbre React que si la valeur a réellement bougé.
+ */
+function applyLang(deviceChoice: Lang | undefined, accountChoice?: string): Lang {
+  const l = effectiveLang(deviceChoice, accountChoice);
+  setLang(l);
+  return l;
+}
+
+function effectiveLang(deviceChoice: Lang | undefined, accountChoice?: string): Lang {
+  if (isLang(accountChoice)) return accountChoice;
+  if (deviceChoice) return deviceChoice;
+  return detectLang();
+}
+
+/**
+ * Les réglages sont lus UNE fois, et la langue posée AVANT le premier rendu : un écran
+ * qui s'affiche en français puis bascule en anglais dans la milliseconde se lit comme
+ * un bug. (La langue du COMPTE, elle, ne peut pas arriver aussi tôt — elle demande un
+ * aller-retour réseau ; voir la reprise de session en bas de ce fichier.)
+ */
+const BOOT_SETTINGS: Settings = loadSettings();
+applyLang(BOOT_SETTINGS.language);
 
 interface StoreState {
   // --- app shell ---
@@ -407,7 +462,15 @@ function predictMove(game: GameState, heroId: string, dx: number, dy: number): G
 }
 
 export const useStore = create<StoreState>((set, get) => {
+  // ⚠ `log` n'est affiché NULLE PART aujourd'hui (aucun composant ne le lit) : c'est
+  // une trace de mise au point, pas de l'interface. Ses messages restent donc en
+  // français et ne passent pas par `t()` — les traduire donnerait ~40 entrées de
+  // catalogue que personne ne verrait jamais. Si un écran vient un jour l'afficher,
+  // c'est ICI qu'il faudra reprendre.
   const pushLog = (msg: string) => set((s) => ({ log: [...s.log.slice(-40), msg] }));
+
+  /** Adopte les préférences qui viennent d'arriver avec une session. */
+  const adoptAccountPrefs = (prefs?: UserPrefs) => applyLang(get().settings.language, prefs?.language);
 
   // File de toasts. Avant, un échec d'action posait `error` (une seule chaîne,
   // écrasée par l'action suivante) et `pushLog` écrivait dans un tableau que
@@ -585,9 +648,15 @@ export const useStore = create<StoreState>((set, get) => {
     try {
       await fn();
     } catch (e: any) {
-      set({ error: e.message });
-      pushLog("⚠️ " + e.message);
-      notify(e.message, "error");
+      // ⚠ ON N'AFFICHE PAS `e.message` : c'est le français rendu par le serveur. Une
+      // ApiError porte en plus le gabarit et ses arguments (api/client.ts), et c'est
+      // `tServer` qui en fait une phrase dans la langue du joueur. Le repli reste le
+      // message d'origine, donc un refus qu'on aurait oublié de traduire s'affiche en
+      // français plutôt que de disparaître.
+      const shown = tServer({ key: e?.key, args: e?.args, text: e?.message ?? "" });
+      set({ error: shown });
+      pushLog("⚠️ " + shown);
+      notify(shown, "error");
     } finally {
       set({ busy: false });
     }
@@ -674,7 +743,7 @@ export const useStore = create<StoreState>((set, get) => {
     appScreen: "loading",
     tab: "home",
     settingsScreen: null,
-    settings: loadSettings(),
+    settings: BOOT_SETTINGS,
     townStatusOpen: false,
     townJournalOpen: false,
     townLedgerOpen: false,
@@ -769,7 +838,7 @@ export const useStore = create<StoreState>((set, get) => {
         const res = await api.townChatSend(game.id, text, playerId);
         set({ chat: res.messages, chatLocked: undefined, chatSeen: res.messages.length });
         saveChatSeen(game.id, res.messages.length);
-        if (res.message.filtered) notify("Message envoyé — un mot a été masqué par la modération.", "warn");
+        if (res.message.filtered) notify(t("Message envoyé — un mot a été masqué par la modération."), "warn");
       }),
 
     toggleCheat: () => set((s) => ({ cheatOpen: !s.cheatOpen })),
@@ -830,8 +899,9 @@ export const useStore = create<StoreState>((set, get) => {
     registerAccount: (email, name, password) =>
       withBusy(async () => {
         const res = await api.register(email, name, password);
-        setAuthToken(res.token);
+        setAuthToken(res.token ?? null);
         set({ user: res.user });
+        adoptAccountPrefs(res.prefs);
         get().setPlayerName(res.user.name);
         pushLog(`👤 Compte créé — bienvenue ${res.user.name} !`);
         await get().fetchMyGames();
@@ -840,8 +910,9 @@ export const useStore = create<StoreState>((set, get) => {
     loginAccount: (email, password) =>
       withBusy(async () => {
         const res = await api.login(email, password);
-        setAuthToken(res.token);
+        setAuthToken(res.token ?? null);
         set({ user: res.user });
+        adoptAccountPrefs(res.prefs);
         get().setPlayerName(res.user.name);
         pushLog(`👤 Connecté : ${res.user.name}.`);
         await get().fetchMyGames();
@@ -850,8 +921,9 @@ export const useStore = create<StoreState>((set, get) => {
     loginGoogleAccount: (credential) =>
       withBusy(async () => {
         const res = await api.loginGoogle(credential);
-        setAuthToken(res.token);
+        setAuthToken(res.token ?? null);
         set({ user: res.user });
+        adoptAccountPrefs(res.prefs);
         get().setPlayerName(res.user.name);
         pushLog(`👤 Connecté avec Google : ${res.user.name}.`);
         await get().fetchMyGames();
@@ -866,6 +938,10 @@ export const useStore = create<StoreState>((set, get) => {
         }
         setAuthToken(null);
         set({ user: undefined, myGames: [] });
+        // On quitte le compte : sa langue s'en va avec lui et l'appareil (ou, à défaut,
+        // le navigateur) reprend la main. Laisser la langue du compte en place ferait
+        // hériter le suivant d'un réglage qui n'est pas le sien.
+        applyLang(get().settings.language);
         pushLog("👋 Déconnecté.");
       }),
 
@@ -974,10 +1050,10 @@ export const useStore = create<StoreState>((set, get) => {
         adoptGame(await api.setHeroOrder(game.id, heroId, order, playerId ?? undefined));
         get().notify(
           order === "shelter"
-            ? "🫥 Consigne posée : se cacher avant la vague"
+            ? "🫥 " + t("Consigne posée : se cacher avant la vague")
             : order === "return"
-            ? "🏰 Consigne posée : rentrer et déposer"
-            : "Consigne retirée",
+            ? "🏰 " + t("Consigne posée : rentrer et déposer")
+            : t("Consigne retirée"),
         );
       }),
 
@@ -990,15 +1066,20 @@ export const useStore = create<StoreState>((set, get) => {
         if (!game) return;
         const heroId = effectiveTownHeroId(game, playerId, townHeroId);
         if (!heroId) {
-          get().notify("Il faut un de tes héros en ville pour monter à la Tour");
+          get().notify(t("Il faut un de tes héros en ville pour monter à la Tour"));
           return;
         }
         const res = await api.scoutWave(game.id, heroId, playerId ?? undefined);
         adoptGame(res.game);
         const f = res.forecast;
         get().notify(
-          `🔭 Horde estimée entre ${f.min} et ${f.max} — fiable à ${f.precision}%` +
-            (f.scouts > 1 ? ` (${f.scouts} observateurs)` : ""),
+          "🔭 " +
+            t("Horde estimée entre {min} et {max} — fiable à {pct}%", {
+              min: f.min,
+              max: f.max,
+              pct: f.precision,
+            }) +
+            (f.scouts > 1 ? " " + t("({n} observateurs)", { n: f.scouts }) : ""),
         );
       }),
 
@@ -1145,6 +1226,17 @@ export const useStore = create<StoreState>((set, get) => {
           localStorage.setItem(LS_SETTINGS, JSON.stringify(next));
         } catch {
           /* ignore */
+        }
+        if (patch.language !== undefined && patch.language !== s.settings.language) {
+          // Un choix EXPLICITE l'emporte sur tout, y compris sur ce que le compte
+          // portait : c'est le joueur qui vient de parler, à l'instant.
+          setLang(patch.language);
+          // ⚠ ET IL SUIT LA PERSONNE. C'est la demande : la langue s'enregistre dans
+          // les préférences du compte, comme un réglage de profil. Tir et oubli — un
+          // réseau coupé ne doit pas empêcher l'interface de changer de langue sous
+          // les yeux du joueur, qui a déjà son choix en localStorage et le retrouvera
+          // au prochain lancement. On ne se connecte pas pour choisir sa langue.
+          if (s.user) void api.savePrefs({ language: patch.language }).catch(() => {});
         }
         return { settings: next };
       }),
@@ -1338,7 +1430,14 @@ export const useStore = create<StoreState>((set, get) => {
         const name = game.heroes.find((h) => h.id === heroId)?.name ?? "Le héros";
         const res = await api.useItem(game.id, heroId, item, playerId);
         set({ game: res.game });
-        get().notify(`🍽️ ${name} utilise « ${item} » — ${res.effect?.desc ?? "c'est fait"}.`);
+        get().notify(
+          "🍽️ " +
+            t("{name} utilise « {item} » — {effect}", {
+              name,
+              item: tName(item),
+              effect: res.effect?.desc ? tDesc(res.effect.desc) : t("c'est fait"),
+            }),
+        );
         renderMap();
       }),
 
@@ -1348,7 +1447,7 @@ export const useStore = create<StoreState>((set, get) => {
         if (!game || !ownsHero(heroId)) return;
         const next = await api.equip(game.id, heroId, item, slot, playerId);
         set({ game: next });
-        get().notify(item ? `🗡️ Équipé : ${item}.` : "Emplacement libéré.");
+        get().notify(item ? "🗡️ " + t("Équipé : {item}.", { item: tName(item) }) : t("Emplacement libéré."));
         renderMap();
       }),
 
@@ -1716,12 +1815,23 @@ if (import.meta.env.DEV) {
   (window as any).__eg = { store: useStore, bus, EV };
 }
 
+/** La langue du compte, appliquée quand la session revient du serveur. */
+function applyAccountLang(prefs?: UserPrefs) {
+  applyLang(useStore.getState().settings.language, prefs?.language);
+}
+
 // Restore the account session at boot (silent — anonymous play stays possible).
 if (getAuthToken()) {
   api
     .me()
     .then((res) => {
       useStore.setState({ user: res.user });
+      // La langue du compte n'arrive qu'ICI, un aller-retour après le premier rendu :
+      // l'écran s'est donc déjà affiché dans la langue de l'appareil ou du navigateur,
+      // et bascule si le compte dit autre chose. C'est assumé — l'alternative serait
+      // un écran blanc le temps du réseau, pour un cas où les deux coïncident presque
+      // toujours.
+      applyAccountLang(res.prefs);
       if (!useStore.getState().playerName) useStore.getState().setPlayerName(res.user.name);
       void useStore.getState().fetchMyGames();
     })

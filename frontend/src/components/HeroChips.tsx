@@ -1,6 +1,7 @@
 import { useStore } from "../store";
 import { myTeamHeroes, effectiveTownHeroId } from "../townUtils";
 import { HeroChip } from "./HeroChip";
+import { useT } from "../i18n/useT";
 
 // La liste des personnages de l'écran VILLE.
 //
@@ -23,6 +24,7 @@ export function HeroChips() {
   const selectHero = useStore((s) => s.selectHero);
   const setTownHero = useStore((s) => s.setTownHero);
   const openHero = useStore((s) => s.openHero);
+  const { t } = useT();
   if (!game) return null;
 
   const roster = myTeamHeroes(game, playerId);
@@ -43,9 +45,9 @@ export function HeroChips() {
             note={
               inTown
                 ? h.id === workerId
-                  ? "⚒️ paie les PA"
+                  ? "⚒️ " + t("paie les PA")
                   : undefined
-                : "🥾 en expédition"
+                : "🥾 " + t("en expédition")
             }
             onSelect={() => {
               selectHero(h.id);

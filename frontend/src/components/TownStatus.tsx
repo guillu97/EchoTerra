@@ -3,6 +3,7 @@ import { Overlay } from "../ui/Overlay";
 import { useWaveRemaining, formatHMS } from "../useWave";
 import { buildingIcon, buildingName } from "../data/buildings";
 import { durColor } from "../tabs/HomeTab";
+import { useT } from "../i18n/useT";
 
 const DEFENSIVE = ["wall", "gate", "tower"];
 
@@ -13,14 +14,16 @@ export function TownStatus() {
   const game = useStore((s) => s.game);
   const close = useStore((s) => s.toggleTownStatus);
   const remaining = useWaveRemaining(game);
+  const { t, tName, tDesc } = useT();
   if (!open || !game) return null;
 
-  const t = game.town;
+  // ⚠ RENOMMÉ : cette variable s'appelait `t`, comme la fonction de traduction.
+  const town = game.town;
   const lw = game.lastWave;
-  const defensive = t.buildings.filter((b) => DEFENSIVE.includes(b.id));
+  const defensive = town.buildings.filter((b) => DEFENSIVE.includes(b.id));
 
   return (
-    <Overlay variant="sheet" onClose={() => close(false)} title="🏰 État de la ville">
+    <Overlay variant="sheet" onClose={() => close(false)} title={"🏰 " + t("État de la ville")}>
       <>
 
         {/* LA NATURE DE L'EXPÉDITION (backend theme.go). Un thème n'est pas qu'une
@@ -30,34 +33,34 @@ export function TownStatus() {
         {game.theme && game.theme.id !== "tempere" && (
           <div className="ts-theme">
             <b>
-              {game.theme.emoji} {game.theme.name}
+              {game.theme.emoji} {tName(game.theme.name)}
             </b>
-            <span>{game.theme.tagline}</span>
+            <span>{tDesc(game.theme.tagline)}</span>
           </div>
         )}
 
         <div className="ts-hp">
-          <span>🏰 PV ville {t.hp}/{t.maxHp}</span>
+          <span>🏰 {t("PV ville")} {town.hp}/{town.maxHp}</span>
           <div className="mini-bar" style={{ marginTop: 4 }}>
-            <i style={{ width: `${(t.hp / t.maxHp) * 100}%`, background: durColor(t.hp / t.maxHp) }} />
+            <i style={{ width: `${(town.hp / town.maxHp) * 100}%`, background: durColor(town.hp / town.maxHp) }} />
           </div>
         </div>
 
         <div className="ts-grid">
-          <div>🛡️ Défense <b>{t.defense}</b></div>
-          <div>⏳ Prochaine vague <b>{formatHMS(remaining)}</b></div>
-          <div>🌊 Vagues subies <b>{game.waveNumber}</b></div>
-          <div>📅 Jour <b>{game.day}</b></div>
+          <div>🛡️ {t("Défense")} <b>{town.defense}</b></div>
+          <div>⏳ {t("Prochaine vague")} <b>{formatHMS(remaining)}</b></div>
+          <div>🌊 {t("Vagues subies")} <b>{game.waveNumber}</b></div>
+          <div>📅 {t("Jour")} <b>{game.day}</b></div>
         </div>
 
-        <h4>Défense — total 🛡 {t.defense}</h4>
+        <h4>{t("Défense — total")} 🛡 {town.defense}</h4>
         <div className="ts-def">
           {defensive.map((b) => {
             const ratio = b.maxDurability > 0 ? b.durability / b.maxDurability : 0;
             const val = !b.built
-              ? "non construit"
+              ? t("non construit")
               : b.id === "gate" && b.open
-              ? "0 (ouverte)"
+              ? t("0 (ouverte)")
               : `+${b.defense}`;
             return (
               <div className="ts-defrow" key={b.id}>
@@ -71,27 +74,26 @@ export function TownStatus() {
           })}
           {/* LA GARNISON — le seul terme de la défense qu'on change en marchant. */}
           <div className="ts-defrow">
-            <span className="ts-dn">🧍 Garnison ({t.garrison ?? 0} aux remparts)</span>
-            <span className={`ts-dval ${(t.garrisonValue ?? 0) > 0 ? "" : "muted"}`}>
-              {(t.garrisonValue ?? 0) > 0 ? `+${t.garrisonValue}` : "personne"}
+            <span className="ts-dn">🧍 {t("Garnison ({n} aux remparts)", { n: town.garrison ?? 0 })}</span>
+            <span className={`ts-dval ${(town.garrisonValue ?? 0) > 0 ? "" : "muted"}`}>
+              {(town.garrisonValue ?? 0) > 0 ? `+${town.garrisonValue}` : t("personne")}
             </span>
             <span className="ts-dur muted">—</span>
           </div>
           <div className="ts-defnote">
-            La défense absorbe la horde ; une durabilité basse ou une porte ouverte la réduit.
-            Un héros présent dans les murs à l'heure de la vague DÉFEND — sans pouvoir récolter
-            ce tour-là. La garnison ne dépasse jamais ce que les bâtiments tiennent : on ne
-            défend que le rempart qu'on a bâti.
+            {t(
+              "La défense absorbe la horde ; une durabilité basse ou une porte ouverte la réduit. Un héros présent dans les murs à l'heure de la vague DÉFEND — sans pouvoir récolter ce tour-là. La garnison ne dépasse jamais ce que les bâtiments tiennent : on ne défend que le rempart qu'on a bâti.",
+            )}
           </div>
         </div>
 
-        <h4>Tous les bâtiments</h4>
+        <h4>{t("Tous les bâtiments")}</h4>
         <div className="ts-buildings">
-          {t.buildings.map((b) => (
+          {town.buildings.map((b) => (
             <div className="ts-b" key={b.id}>
               <span className="ts-name">
                 {b.built ? buildingIcon(b.id) : "🏗️"} {buildingName(b.id, b.name)}{" "}
-                {b.built ? <span className="lvl">Lv {b.level}</span> : <span className="muted">chantier</span>}
+                {b.built ? <span className="lvl">{t("Niv. {n}", { n: b.level })}</span> : <span className="muted">{t("chantier")}</span>}
                 {b.defense > 0 && <span className="ts-defbadge">🛡+{b.defense}</span>}
               </span>
               <div className="mini-bar">
@@ -104,22 +106,22 @@ export function TownStatus() {
 
         {lw && (
           <>
-            <h4>Dernière vague (#{lw.wave})</h4>
+            <h4>{t("Dernière vague (#{n})", { n: lw.wave })}</h4>
             <div className="ts-report">
-              <div>Horde <b>{lw.hordePower}</b> · Défense <b>{lw.defense}</b> · Dégâts ville <b className="lost">−{lw.townDamage}</b></div>
+              <div>{t("Horde")} <b>{lw.hordePower}</b> · {t("Défense")} <b>{lw.defense}</b> · {t("Dégâts ville")} <b className="lost">−{lw.townDamage}</b></div>
               {(lw.buildingsHit ?? []).length > 0 && (
-                <div>Bâtiments : {(lw.buildingsHit ?? []).map((h) => `${buildingName(h.id, h.name)} ${h.delta}`).join(", ")}</div>
+                <div>{t("Bâtiments :")} {(lw.buildingsHit ?? []).map((h) => `${buildingName(h.id, h.name)} ${h.delta}`).join(", ")}</div>
               )}
               {(lw.heroesHit ?? []).length > 0 && (
-                <div>Héros hors ville : {(lw.heroesHit ?? []).map((h) => `${h.name} ${h.delta}`).join(", ")}</div>
+                <div>{t("Héros hors ville :")} {(lw.heroesHit ?? []).map((h) => `${h.name} ${h.delta}`).join(", ")}</div>
               )}
-              <div>Monstres apparus : {lw.monstersSpawned}</div>
+              <div>{t("Monstres apparus :")} {lw.monstersSpawned}</div>
             </div>
           </>
         )}
 
         <button className="pill green ov-close" onClick={() => close(false)}>
-          Fermer
+          {t("Fermer")}
         </button>
       </>
     </Overlay>

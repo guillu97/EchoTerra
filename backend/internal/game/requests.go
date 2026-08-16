@@ -18,7 +18,6 @@ package game
 // nuit, on retrouve la marchandise dans son sac au réveil.
 
 import (
-	"fmt"
 	"strings"
 	"time"
 
@@ -54,11 +53,11 @@ func (r *TownRequest) Open() bool { return r.FilledBy == "" }
 func (g *GameState) PostRequest(playerID, item string, qty int) (*TownRequest, error) {
 	p := g.PlayerByID(playerID)
 	if p == nil {
-		return nil, ActionError{"joueur inconnu"}
+		return nil, actionErr("joueur inconnu")
 	}
 	item = strings.TrimSpace(item)
 	if item == "" {
-		return nil, ActionError{"que te faut-il ?"}
+		return nil, actionErr("que te faut-il ?")
 	}
 	if qty < 1 {
 		qty = 1
@@ -68,7 +67,7 @@ func (g *GameState) PostRequest(playerID, item string, qty int) (*TownRequest, e
 	}
 	for _, r := range g.Town.Requests {
 		if r.PlayerID == playerID && r.Open() {
-			return nil, ActionError{"tu as déjà une demande au Panneau — retire-la d'abord"}
+			return nil, actionErr("tu as déjà une demande au Panneau — retire-la d'abord")
 		}
 	}
 	r := &TownRequest{
@@ -77,7 +76,7 @@ func (g *GameState) PostRequest(playerID, item string, qty int) (*TownRequest, e
 	}
 	g.Town.Requests = append(g.Town.Requests, r)
 	g.trimRequests()
-	g.logTown(fmt.Sprintf("📌 %s demande %d %s au Panneau", p.Name, qty, item))
+	g.logTown("📌 %s demande %d %s au Panneau", p.Name, qty, item)
 	return r, nil
 }
 
@@ -88,12 +87,12 @@ func (g *GameState) CancelRequest(playerID, requestID string) error {
 			continue
 		}
 		if r.PlayerID != playerID {
-			return ActionError{"cette demande n'est pas la tienne"}
+			return actionErr("cette demande n'est pas la tienne")
 		}
 		g.Town.Requests = append(g.Town.Requests[:i], g.Town.Requests[i+1:]...)
 		return nil
 	}
-	return ActionError{"demande introuvable"}
+	return actionErr("demande introuvable")
 }
 
 // FillRequest honore la demande d'un camarade : le héros qui sert doit être EN VILLE,
@@ -103,10 +102,10 @@ func (g *GameState) CancelRequest(playerID, requestID string) error {
 func (g *GameState) FillRequest(requestID, heroID string) (*TownRequest, error) {
 	h := g.HeroByID(heroID)
 	if h == nil || h.HP <= 0 {
-		return nil, ActionError{"héros invalide"}
+		return nil, actionErr("héros invalide")
 	}
 	if h.X != g.Town.X || h.Y != g.Town.Y {
-		return nil, ActionError{h.Name + " doit être en ville pour servir une demande"}
+		return nil, actionErrf("%s doit être en ville pour servir une demande", h.Name)
 	}
 	var req *TownRequest
 	for _, r := range g.Town.Requests {
@@ -116,24 +115,24 @@ func (g *GameState) FillRequest(requestID, heroID string) (*TownRequest, error) 
 		}
 	}
 	if req == nil {
-		return nil, ActionError{"demande introuvable"}
+		return nil, actionErr("demande introuvable")
 	}
 	if !req.Open() {
-		return nil, ActionError{"cette demande a déjà été honorée par " + req.FilledBy}
+		return nil, actionErrf("cette demande a déjà été honorée par %s", req.FilledBy)
 	}
 	if req.PlayerID == g.OwnerOfHero(heroID) {
-		return nil, ActionError{"se servir soi-même n'est pas rendre service"}
+		return nil, actionErr("se servir soi-même n'est pas rendre service")
 	}
 	if have := g.storageQty(req.Item); have < req.Qty {
-		return nil, ActionError{fmt.Sprintf("la Banque n'a que %d %s sur les %d demandés", have, req.Item, req.Qty)}
+		return nil, actionErrf("la Banque n'a que %d %s sur les %d demandés", have, Name(req.Item), req.Qty)
 	}
 	// Le destinataire : le premier héros VIVANT du demandeur, où qu'il soit.
 	dest := g.firstLivingHeroOf(req.PlayerID)
 	if dest == nil {
-		return nil, ActionError{"le demandeur n'a plus de héros en vie"}
+		return nil, actionErr("le demandeur n'a plus de héros en vie")
 	}
 	if h.PA < requestFillPA {
-		return nil, ActionError{"PA insuffisants"}
+		return nil, actionErr("PA insuffisants")
 	}
 	h.PA -= requestFillPA
 	if h.PA == 0 {
@@ -143,7 +142,7 @@ func (g *GameState) FillRequest(requestID, heroID string) (*TownRequest, error) 
 	dest.AddLoot(Item{Type: itemTypeOf(req.Item), Name: req.Item, Qty: req.Qty})
 	req.FilledBy, req.FilledAt = h.Name, time.Now()
 	g.credit(heroID, func(c *Contribution) { c.Filled++ })
-	g.logTown(fmt.Sprintf("🤝 %s a servi la demande de %s (%d %s)", h.Name, req.Author, req.Qty, req.Item))
+	g.logTown("🤝 %s a servi la demande de %s (%d %s)", h.Name, req.Author, req.Qty, req.Item)
 	return req, nil
 }
 

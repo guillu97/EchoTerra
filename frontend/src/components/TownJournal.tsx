@@ -1,5 +1,6 @@
 import { useStore } from "../store";
 import { Overlay } from "../ui/Overlay";
+import { useT } from "../i18n/useT";
 
 // Town journal overlay (opened from the Panel building): every action performed IN
 // town — gate toggles, well draws, bank deposits, builds/repairs, town crafts —
@@ -8,6 +9,7 @@ export function TownJournal() {
   const open = useStore((s) => s.townJournalOpen);
   const game = useStore((s) => s.game);
   const close = useStore((s) => s.toggleTownJournal);
+  const { t, tServer } = useT();
   if (!open || !game) return null;
 
   const entries = game.town.log ?? [];
@@ -17,29 +19,30 @@ export function TownJournal() {
   };
 
   return (
-    <Overlay variant="sheet" onClose={() => close(false)} title="📋 Journal de la ville">
+    <Overlay variant="sheet" onClose={() => close(false)} title={"📋 " + t("Journal de la ville")}>
       <>
 
         {entries.length === 0 ? (
           <div className="tj-empty">
-            Rien à signaler pour l'instant — les actions faites en ville (porte, puits, Banque,
-            chantiers…) s'inscrivent ici.
+            {t(
+              "Rien à signaler pour l'instant — les actions faites en ville (porte, puits, Banque, chantiers…) s'inscrivent ici.",
+            )}
           </div>
         ) : (
           <div className="tj-list">
             {entries.map((e, i) => (
               <div className="tj-row" key={`${e.at}-${i}`}>
                 <span className="tj-when">
-                  J{e.day} · {hhmm(e.at)}
+                  {t("J{n}", { n: e.day })} · {hhmm(e.at)}
                 </span>
-                <span className="tj-text">{e.text}</span>
+                <span className="tj-text">{tServer(e)}</span>
               </div>
             ))}
           </div>
         )}
 
         <button className="pill red ov-close" onClick={() => close(false)}>
-          Fermer
+          {t("Fermer")}
         </button>
       </>
     </Overlay>

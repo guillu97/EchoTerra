@@ -84,6 +84,9 @@ func Open(dsn string) (*Store, error) {
 	if err := s.migrateAuth(); err != nil {
 		return nil, err
 	}
+	if err := s.migratePrefs(); err != nil {
+		return nil, err
+	}
 	if err := s.migrateChronicle(); err != nil {
 		return nil, err
 	}

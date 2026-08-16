@@ -3,6 +3,7 @@ import { NAV_TABS } from "../data/buildings";
 import { heroesInTown, TOWN_TABS } from "../townUtils";
 import { assetUrl, type AssetKey } from "../assets";
 import type { Tab } from "../store";
+import { useT } from "../i18n/useT";
 
 // Bottom navigation — onglets parchemin gravés, avec la CARTE en bouton central
 // surélevé (c'est l'écran principal du jeu, il mérite le pouce).
@@ -24,6 +25,7 @@ export function BottomNav() {
   const playerId = useStore((s) => s.playerId);
   const notify = useStore((s) => s.notify);
   const inTown = heroesInTown(game, playerId).length > 0;
+  const { t } = useT();
 
   // Badge « il se passe quelque chose ici » : chantiers ouverts côté Bâtir.
   // Volontairement factuel (nombre de chantiers en cours) plutôt qu'un calcul
@@ -34,17 +36,17 @@ export function BottomNav() {
   const badgeFor = (id: string) => (id === "structure" && openSites > 0 ? openSites : 0);
 
   return (
-    <nav className="bottom-nav" role="tablist" aria-label="Navigation principale">
-      {NAV_TABS.map((t) => {
-        const isTownTab = (TOWN_TABS as readonly string[]).includes(t.id);
+    <nav className="bottom-nav" role="tablist" aria-label={t("Navigation principale")}>
+      {NAV_TABS.map((nav) => {
+        const isTownTab = (TOWN_TABS as readonly string[]).includes(nav.id);
         const locked = isTownTab && !inTown;
-        const isMap = t.id === "map";
-        const active = tab === t.id;
-        const badge = badgeFor(t.id);
+        const isMap = nav.id === "map";
+        const active = tab === nav.id;
+        const badge = badgeFor(nav.id);
 
         return (
           <button
-            key={t.id}
+            key={nav.id}
             role="tab"
             aria-selected={active}
             aria-disabled={locked || undefined}
@@ -53,10 +55,10 @@ export function BottomNav() {
             }`}
             onClick={() => {
               if (locked) {
-                notify("Aucun de tes héros n'est en ville.", "warn");
+                notify(t("Aucun de tes héros n'est en ville."), "warn");
                 return;
               }
-              setTab(t.id as Tab);
+              setTab(nav.id as Tab);
             }}
           >
             <span className="ni" aria-hidden="true">
@@ -67,12 +69,15 @@ export function BottomNav() {
                 // n'étaient utilisés nulle part : la barre affichait des emoji,
                 // qui changent de dessin selon la plateforme. Emoji en repli si
                 // le sondage d'assets n'a pas trouvé le fichier.
-                <NavIcon id={t.id} fallback={t.icon} />
+                <NavIcon id={nav.id} fallback={nav.icon} />
               )}
             </span>
-            <span className="nl">{t.label}</span>
+            <span className="nl">{t(nav.label)}</span>
             {badge > 0 && (
-              <span className="nb" aria-label={`${badge} chantier${badge > 1 ? "s" : ""} en cours`}>
+              <span
+                className="nb"
+                aria-label={badge > 1 ? t("{n} chantiers en cours", { n: badge }) : t("1 chantier en cours")}
+              >
                 {badge}
               </span>
             )}

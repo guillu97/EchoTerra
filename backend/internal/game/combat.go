@@ -1174,23 +1174,37 @@ func (c *Combat) performAttack(att *CombatUnit, atk *AttackDef, tx, ty int) {
 // --- Player-driven actions -------------------------------------------------
 
 // ErrInvalidAction describes why a player action was rejected.
-type ErrInvalidAction struct{ Msg string }
+// Même contrat que ActionError : Key/Args rendent la phrase traduisible (i18n.go).
+type ErrInvalidAction struct {
+	Msg  string
+	Key  string
+	Args []any
+}
 
 func (e ErrInvalidAction) Error() string { return e.Msg }
+
+// invalidAction : un refus de combat à texte fixe.
+func invalidAction(text string) ErrInvalidAction { return ErrInvalidAction{Msg: text, Key: text} }
+
+// invalidActionf : un refus de combat composé.
+func invalidActionf(key string, args ...any) ErrInvalidAction {
+	m := newMsg(key, args...)
+	return ErrInvalidAction{Msg: m.Text, Key: m.Key, Args: m.Args}
+}
 
 // PlayerAction applies a hero action and then auto-resolves enemy turns.
 // action is one of "move", "attack", "skill", "defend", "push", "flee", "end".
 // The optional skillIdx selects WHICH iso skill for action=="skill" (default 0).
 func (c *Combat) PlayerAction(unitID, action string, tx, ty int, targetID string, skillIdx ...int) error {
 	if c.Status != "active" {
-		return ErrInvalidAction{"le combat est terminé"}
+		return invalidAction("le combat est terminé")
 	}
 	cur := c.CurrentUnit()
 	if cur == nil || cur.ID != unitID {
-		return ErrInvalidAction{"ce n'est pas le tour de cette unité"}
+		return invalidAction("ce n'est pas le tour de cette unité")
 	}
 	if cur.Side != "hero" {
-		return ErrInvalidAction{"cette unité n'est pas contrôlable"}
+		return invalidAction("cette unité n'est pas contrôlable")
 	}
 	// Nouveau lot d'action (C2) : le client diffe Seq et fait flotter les coups de
 	// LastHits — l'action du héros ET les tours IA qui s'enchaînent derrière.
@@ -1200,10 +1214,10 @@ func (c *Combat) PlayerAction(unitID, action string, tx, ty int, targetID string
 	switch action {
 	case "move":
 		if cur.hasState("Root") {
-			return ErrInvalidAction{cur.Name + " est entravé (Root)"}
+			return invalidActionf("%s est entravé (Root)", cur.Name)
 		}
 		if cur.Moved {
-			return ErrInvalidAction{cur.Name + " s'est déjà déplacé ce tour"}
+			return invalidActionf("%s s'est déjà déplacé ce tour", cur.Name)
 		}
 		ok := false
 		for _, t := range c.Reachable(cur) {
@@ -1213,7 +1227,7 @@ func (c *Combat) PlayerAction(unitID, action string, tx, ty int, targetID string
 			}
 		}
 		if !ok {
-			return ErrInvalidAction{"case hors de portée"}
+			return invalidAction("case hors de portée")
 		}
 		c.logf("%s se déplace.", cur.Name)
 		c.enterCell(cur, tx, ty)
@@ -1229,7 +1243,7 @@ func (c *Combat) PlayerAction(unitID, action string, tx, ty int, targetID string
 				idx = skillIdx[0]
 			}
 			if idx < 0 || idx >= len(skills) {
-				return ErrInvalidAction{"compétence inconnue"}
+				return invalidAction("compétence inconnue")
 			}
 			atk = skills[idx]
 		}
@@ -1242,10 +1256,10 @@ func (c *Combat) PlayerAction(unitID, action string, tx, ty int, targetID string
 		}
 		def := c.unitByID(targetID)
 		if def == nil || !def.inBattle() || def.Side == cur.Side {
-			return ErrInvalidAction{"cible invalide"}
+			return invalidAction("cible invalide")
 		}
 		if !c.canTarget(cur, &atk, def) {
-			return ErrInvalidAction{"cible hors de portée ou hors de vue"}
+			return invalidAction("cible hors de portée ou hors de vue")
 		}
 		c.performAttack(cur, &atk, def.X, def.Y)
 		c.endTurn()
@@ -1264,10 +1278,10 @@ func (c *Combat) PlayerAction(unitID, action string, tx, ty int, targetID string
 		// Portée 1 orthogonale (2 pour le Pionnier : « Poussée du Survivant »).
 		def := c.unitByID(targetID)
 		if def == nil || !def.inBattle() || def.Side == cur.Side {
-			return ErrInvalidAction{"cible invalide"}
+			return invalidAction("cible invalide")
 		}
 		if def.span() > 1 {
-			return ErrInvalidAction{def.Name + " est bien trop massif pour être poussé"}
+			return invalidActionf("%s est bien trop massif pour être poussé", Name(def.Name))
 		}
 		dx, dy := def.X-cur.X, def.Y-cur.Y
 		rng := 1
@@ -1276,7 +1290,7 @@ func (c *Combat) PlayerAction(unitID, action string, tx, ty int, targetID string
 		}
 		aligned := (dx == 0 && absI(dy) >= 1 && absI(dy) <= rng) || (dy == 0 && absI(dx) >= 1 && absI(dx) <= rng)
 		if !aligned {
-			return ErrInvalidAction{"cible hors de portée de poussée"}
+			return invalidAction("cible hors de portée de poussée")
 		}
 		c.pushUnit(cur, def, signI(dx), signI(dy))
 		c.endTurn()
@@ -1285,7 +1299,7 @@ func (c *Combat) PlayerAction(unitID, action string, tx, ty int, targetID string
 	case "flee":
 		// Lot C3 : fuite — le héros doit avoir rejoint le bord bas de l'arène.
 		if cur.Y != c.GridH-1 {
-			return ErrInvalidAction{"rejoins le bord bas de l'arène pour fuir"}
+			return invalidAction("rejoins le bord bas de l'arène pour fuir")
 		}
 		cur.Fled = true
 		c.logf("%s fuit le combat !", cur.Name)
@@ -1296,7 +1310,7 @@ func (c *Combat) PlayerAction(unitID, action string, tx, ty int, targetID string
 		c.endTurn()
 		return nil
 	}
-	return ErrInvalidAction{"action inconnue"}
+	return invalidAction("action inconnue")
 }
 
 // pushUnit (lot C3) : pousse def d'une case dans la direction (dx,dy).
@@ -1385,22 +1399,22 @@ func CombatHeal(name string) int { return ItemEffects[name].HP }
 // d'où le paramètre g (l'appelant tient déjà le verrou de la partie).
 func (c *Combat) UseItem(g *GameState, unitID, itemName string) error {
 	if c.Status != "active" {
-		return ErrInvalidAction{"le combat est terminé"}
+		return invalidAction("le combat est terminé")
 	}
 	cur := c.CurrentUnit()
 	if cur == nil || cur.ID != unitID {
-		return ErrInvalidAction{"ce n'est pas le tour de cette unité"}
+		return invalidAction("ce n'est pas le tour de cette unité")
 	}
 	if cur.Side != "hero" {
-		return ErrInvalidAction{"cette unité n'est pas contrôlable"}
+		return invalidAction("cette unité n'est pas contrôlable")
 	}
 	heal := CombatHeal(itemName)
 	if heal <= 0 {
-		return ErrInvalidAction{"cet objet ne s'utilise pas en combat"}
+		return invalidAction("cet objet ne s'utilise pas en combat")
 	}
 	h := g.HeroByID(cur.RefID)
 	if h == nil || heroItemQty(h, itemName) < 1 {
-		return ErrInvalidAction{"pas de « " + itemName + " » dans le sac"}
+		return invalidActionf("pas de « %s » dans le sac", Name(itemName))
 	}
 	removeHeroItem(h, itemName, 1)
 	c.Seq++

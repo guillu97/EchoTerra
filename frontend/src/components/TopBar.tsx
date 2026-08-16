@@ -4,6 +4,7 @@ import { HeroActionsMenu } from "./HeroActionsMenu";
 import { heroesInTown } from "../townUtils";
 import { useWaveRemaining, formatHMS } from "../useWave";
 import { assetUrl, type AssetKey } from "../assets";
+import { useT } from "../i18n/useT";
 
 // Portrait key for a hero class (same mapping as HeroOverlay).
 function portraitKey(classId?: string): AssetKey {
@@ -39,6 +40,7 @@ export function TopBar() {
   const inTown = heroesInTown(game, playerId).length > 0;
   const waveRemaining = useWaveRemaining(game);
   const catchingUp = useStore((s) => s.catchingUp);
+  const { t } = useT();
 
   // My team's cumulated PA (all heroes in a multi game, every hero in legacy solo).
   const myIds = game?.players?.find((p) => p.id === playerId)?.heroIds;
@@ -50,7 +52,7 @@ export function TopBar() {
 
   return (
     <header className="topbar">
-      <button className="avatar" title="Mes personnages" onClick={() => setHeroMenu((o) => !o)}>
+      <button className="avatar" title={t("Mes personnages")} onClick={() => setHeroMenu((o) => !o)}>
         {portrait ? <img src={portrait} alt="🙂" /> : "🙂"}
       </button>
       {heroMenu && <HeroActionsMenu onClose={() => setHeroMenu(false)} />}
@@ -67,7 +69,7 @@ export function TopBar() {
       <button
         className={`chip status ${hpClass}`}
         onClick={() => toggleTownStatus(true)}
-        title="État de la ville — PV et PA de ton équipe"
+        title={t("État de la ville — PV et PA de ton équipe")}
       >
         <span className="st-hp">🏰 {hpPct}%</span>
         <span className="st-sep" aria-hidden="true" />
@@ -80,22 +82,33 @@ export function TopBar() {
           onClick={() => toggleTownStatus(true)}
           title={
             game.town.forecast
-              ? `Horde estimée entre ${game.town.forecast.min} et ${game.town.forecast.max} contre ` +
-                `${game.town.forecast.defense} de défense · fiable à ${game.town.forecast.precision}%` +
+              ? t("Horde estimée entre {min} et {max} contre {def} de défense · fiable à {pct}%", {
+                  min: game.town.forecast.min,
+                  max: game.town.forecast.max,
+                  def: game.town.forecast.defense,
+                  pct: game.town.forecast.precision,
+                }) +
                 (game.town.forecast.tower === 0
-                  ? " (sans Tour de guet, on devine)"
-                  : ` (Tour niv.${game.town.forecast.tower}, ${game.town.forecast.scouts} observateur(s))`) +
+                  ? " " + t("(sans Tour de guet, on devine)")
+                  : " " +
+                    t("(Tour niv.{lvl}, {n} observateur(s))", {
+                      lvl: game.town.forecast.tower,
+                      n: game.town.forecast.scouts,
+                    })) +
                 (game.town.forecast.besieging > 0
-                  ? ` · ${game.town.forecast.besieging} créatures aux abords — les abattre fait baisser ce chiffre`
-                  : " · abords dégagés")
-              : "Prochaine vague — état de la ville"
+                  ? " · " +
+                    t("{n} créatures aux abords — les abattre fait baisser ce chiffre", {
+                      n: game.town.forecast.besieging,
+                    })
+                  : " · " + t("abords dégagés"))
+              : t("Prochaine vague — état de la ville")
           }
         >
           {/* Le monde est en train de rattraper les vagues de l'absence : le
               minuteur est à 0 par construction et ne veut plus rien dire. On le
               dit, au lieu d'afficher « 00:00 » pendant que la ville se fait
               frapper (voir store.refreshGame / game.CatchUpPending). */}
-          {catchingUp ? <>⏳ Rattrapage…</> : <>🌊 {formatHMS(waveRemaining)}</>}
+          {catchingUp ? <>⏳ {t("Rattrapage…")}</> : <>🌊 {formatHMS(waveRemaining)}</>}
           {/* Les dégâts ATTENDUS en FOURCHETTE, pas le numéro de vague : c'est le
               chiffre sur lequel le joueur peut agir, et son imprécision est elle-même
               une information (elle se paie en Tour de guet et en observateurs). */}
@@ -113,18 +126,18 @@ export function TopBar() {
       )}
 
       {inTown && (
-        <button className="iconbtn" title="Journal de la ville" onClick={() => toggleTownJournal(true)}>
+        <button className="iconbtn" title={t("Journal de la ville")} onClick={() => toggleTownJournal(true)}>
           📋
         </button>
       )}
       {/* La messagerie n'est PAS gatée sur la présence en ville : c'est la
           feuille qui explique le blocage (« construis la Poste »). Un bouton qui
           disparaît n'apprend rien à personne. */}
-      <button className="iconbtn chat" title="Messages de la ville" onClick={() => toggleChat(true)}>
+      <button className="iconbtn chat" title={t("Messages de la ville")} onClick={() => toggleChat(true)}>
         ✉️
         {unread > 0 && <span className="pip">{unread > 9 ? "9+" : unread}</span>}
       </button>
-      <button className="iconbtn" title="Paramètres" onClick={() => openSettings("menu")}>
+      <button className="iconbtn" title={t("Paramètres")} onClick={() => openSettings("menu")}>
         ⚙️
       </button>
     </header>

@@ -5,6 +5,8 @@ import { TownWorker, useWorkerPA } from "../components/TownWorker";
 import { heroesInTown } from "../townUtils";
 import { durColor } from "./HomeTab";
 import type { TownBuilding } from "../api/types";
+import { tName } from "../i18n";
+import { useT } from "../i18n/useT";
 
 type Sort = "status" | "name" | "level";
 
@@ -19,6 +21,7 @@ export function StructureTab() {
   const playerId = useStore((s) => s.playerId);
   const pa = useWorkerPA();
   const inTown = heroesInTown(game, playerId).length > 0;
+  const { t } = useT();
 
   const storage = game?.town.storage ?? [];
   const have = (name: string) => storage.find((i) => i.name === name)?.qty ?? 0;
@@ -32,27 +35,31 @@ export function StructureTab() {
     const byName = (a: TownBuilding, b: TownBuilding) =>
     buildingName(a.id, a.name).localeCompare(buildingName(b.id, b.name));
     return [
-      { key: "chantier", title: "🏗️ Chantiers en cours", items: list.filter((b) => b.underConstruction).sort(byName) },
-      { key: "plan", title: "📐 Plans à poser", items: list.filter((b) => !b.built && !b.underConstruction).sort(byName) },
-      { key: "built", title: "🏠 Construits", items: list.filter((b) => b.built && !b.underConstruction).sort(byName) },
+      { key: "chantier", title: "🏗️ " + t("Chantiers en cours"), items: list.filter((b) => b.underConstruction).sort(byName) },
+      { key: "plan", title: "📐 " + t("Plans à poser"), items: list.filter((b) => !b.built && !b.underConstruction).sort(byName) },
+      { key: "built", title: "🏠 " + t("Construits"), items: list.filter((b) => b.built && !b.underConstruction).sort(byName) },
     ].filter((g) => g.items.length > 0);
-  }, [game, sort]);
+  // ⚠ `t` en dépendance : les titres de groupe sont calculés ici, donc ils doivent
+  // être refaits au changement de langue.
+  }, [game, sort, t]);
 
   return (
     <div className="panel-screen">
       <div className="ps-head">
-        <strong>Structures</strong>
+        <strong>{t("Structures")}</strong>
         <div className="sortbar-inline">
           {(["status", "name", "level"] as Sort[]).map((k) => (
             <button key={k} className={sort === k ? "on" : ""} onClick={() => setSort(k)}>
-              {k === "status" ? "Statut" : k === "name" ? "A-Z" : "Lv"}
+              {k === "status" ? t("Statut") : k === "name" ? t("A-Z") : t("Niv.")}
             </button>
           ))}
         </div>
         {inTown && <span className="tb-chip pa">⚡{pa}</span>}
       </div>
       {!inTown && (
-        <div className="stock-note compact">🏙️ Reviens en ville pour construire/améliorer. Consultation seule.</div>
+        <div className="stock-note compact">
+          🏙️ {t("Reviens en ville pour construire/améliorer. Consultation seule.")}
+        </div>
       )}
       {inTown && <TownWorker />}
 
@@ -80,22 +87,31 @@ export function StructureTab() {
           });
           const canAct = open ? enoughMats && invest > 0 : pa >= 1 && unmet.length === 0 && hasPlan;
           const can = inTown && canAct && !busy && !maxed;
-          const label = maxed ? "Niv. max" : open ? `+${invest} PA` : b.built ? "📐 Améliorer" : "📐 Poser le plan";
-          const hint = !inTown
-            ? "Être en ville"
-            : maxed
-            ? "Niveau maximum atteint"
-            : unmet.length > 0
-            ? `Requiert ${unmet.map((r) => `${buildingName(r.building)} niv.${r.level}`).join(", ")}`
-            : !open && !hasPlan
-            ? `Trouve « ${plan} » et dépose-le à la Banque pour poser ce chantier`
-            : open && !enoughMats
-            ? "Matériaux manquants en Banque — les PA investis restent acquis"
+          const needs = unmet
+            .map((r) => `${buildingName(r.building)} ${t("niv.{n}", { n: r.level })}`)
+            .join(", ");
+          const label = maxed
+            ? t("Niv. max")
             : open
-            ? `Investir les PA du travailleur (${b.paInvested}/${b.cost.pa})`
+            ? `+${invest} ${t("PA")}`
+            : b.built
+            ? "📐 " + t("Améliorer")
+            : "📐 " + t("Poser le plan");
+          const hint = !inTown
+            ? t("Être en ville")
+            : maxed
+            ? t("Niveau maximum atteint")
+            : unmet.length > 0
+            ? t("Requiert {needs}", { needs })
+            : !open && !hasPlan
+            ? t("Trouve « {plan} » et dépose-le à la Banque pour poser ce chantier", { plan: tName(plan) })
+            : open && !enoughMats
+            ? t("Matériaux manquants en Banque — les PA investis restent acquis")
+            : open
+            ? t("Investir les PA du travailleur ({done}/{total})", { done: b.paInvested, total: b.cost.pa })
             : pa < 1
-            ? "PA insuffisants"
-            : "Poser le plan de chantier (1 PA)";
+            ? t("PA insuffisants")
+            : t("Poser le plan de chantier (1 PA)");
           return (
             <div className={`ps-row compact ${b.built ? "" : "site"}`} key={b.id}>
               <div className="ps-ic">{b.built ? buildingIcon(b.id) : "🏗️"}</div>
@@ -104,43 +120,43 @@ export function StructureTab() {
                   <span className="nm">{buildingName(b.id, b.name)}</span>
                   {b.built ? (
                     <>
-                      <span className="lvl">Lv {b.level}</span>
+                      <span className="lvl">{t("Niv. {n}", { n: b.level })}</span>
                       <span className="dur-mini" style={{ color: durColor(b.durability / b.maxDurability) }}>
                         🛡 {Math.round((b.durability / b.maxDurability) * 100)}%
                       </span>
                     </>
                   ) : (
-                    <span className="tag-type ttown">{open ? "en chantier" : "plan à poser"}</span>
+                    <span className="tag-type ttown">{open ? t("en chantier") : t("plan à poser")}</span>
                   )}
-                  {open && b.built && <span className="tag-type ttown">amélioration Lv {b.level + 1}</span>}
+                  {open && b.built && <span className="tag-type ttown">{t("amélioration niv. {n}", { n: b.level + 1 })}</span>}
                   {unmet.length > 0 && (
                     <span className="tag-type miss">
-                      🔒 requiert {unmet.map((r) => `${buildingName(r.building)} niv.${r.level}`).join(", ")}
+                      🔒 {t("requiert {needs}", { needs })}
                     </span>
                   )}
                 </div>
                 {!maxed && (
                   <div className="ps-sub cost">
-                    <span className="ing ok">⚡{b.cost.pa} PA</span>
+                    <span className="ing ok">⚡{b.cost.pa} {t("PA")}</span>
                     {plan !== "" && (
                       <span className={hasPlan ? "ing ok" : "ing miss"}>
-                        {" · "}📐 {plan} {have(plan)}/1
+                        {" · "}📐 {tName(plan)} {have(plan)}/1
                       </span>
                     )}
                     {mats.map((m, i) => (
                       <span key={i} className={have(m.name) >= m.qty ? "ing ok" : "ing miss"}>
                         {" · "}
-                        {m.name} {have(m.name)}/{m.qty}
+                        {tName(m.name)} {have(m.name)}/{m.qty}
                       </span>
                     ))}
                   </div>
                 )}
                 {open && (
-                  <div className="ps-progress" title={`${b.paInvested}/${b.cost.pa} PA investis`}>
+                  <div className="ps-progress" title={t("{done}/{total} PA investis", { done: b.paInvested, total: b.cost.pa })}>
                     <i style={{ width: `${Math.min(100, (b.paInvested / Math.max(1, b.cost.pa)) * 100)}%` }} />
                     <span>
-                      {b.paInvested}/{b.cost.pa} PA
-                      {!enoughMats && " · ⏸ matériaux manquants"}
+                      {b.paInvested}/{b.cost.pa} {t("PA")}
+                      {!enoughMats && " · ⏸ " + t("matériaux manquants")}
                     </span>
                   </div>
                 )}

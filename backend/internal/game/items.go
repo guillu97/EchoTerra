@@ -75,15 +75,15 @@ func UsableItem(name string) bool { _, ok := ItemEffects[name]; return ok }
 // joueur ne peut pas le récupérer.
 func (g *GameState) UseItem(heroID, name string) (*Hero, *ItemEffect, error) {
 	if g.heroInCombat(heroID) != nil {
-		return nil, nil, ActionError{"ce héros est en plein combat"}
+		return nil, nil, actionErr("ce héros est en plein combat")
 	}
 	h := g.HeroByID(heroID)
 	if h == nil || h.HP <= 0 {
-		return nil, nil, ActionError{"héros introuvable"}
+		return nil, nil, actionErr("héros introuvable")
 	}
 	eff, ok := ItemEffects[name]
 	if !ok {
-		return nil, nil, ActionError{name + " ne se consomme pas"}
+		return nil, nil, actionErrf("%s ne se consomme pas", Name(name))
 	}
 	// OÙ L'ON PREND L'OBJET. Dans le sac du héros ; et À DÉFAUT, s'il est EN VILLE, dans
 	// la Banque — on se restaure sur place, comme à une cantine.
@@ -98,14 +98,14 @@ func (g *GameState) UseItem(heroID, name string) (*Hero, *ItemEffect, error) {
 	inTown := h.X == g.Town.X && h.Y == g.Town.Y
 	fromBank := heroItemQty(h, name) < 1
 	if fromBank && !(inTown && g.storageQty(name) > 0) {
-		return nil, nil, ActionError{h.Name + " n'a pas « " + name + " » dans son sac"}
+		return nil, nil, actionErrf("%s n'a pas « %s » dans son sac", h.Name, Name(name))
 	}
 	if !g.itemWouldHelp(h, eff) {
-		return nil, nil, ActionError{"cela ne servirait à rien maintenant — " + h.Name + " est déjà au mieux"}
+		return nil, nil, actionErrf("cela ne servirait à rien maintenant — %s est déjà au mieux", h.Name)
 	}
 	if fromBank {
 		g.removeStorage(name, 1)
-		g.logTown("🍽️ " + h.Name + " a consommé « " + name + " » sur la réserve commune")
+		g.logTown("🍽️ %s a consommé « %s » sur la réserve commune", h.Name, name)
 	} else {
 		removeHeroItem(h, name, 1)
 	}

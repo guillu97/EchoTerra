@@ -102,30 +102,30 @@ func WeaponTechniqueOf(name string) (AttackDef, bool) { return weaponTechnique(W
 // la Banque après le combat, et parce que refuser le geste inverse serait arbitraire.
 func (c *Combat) SwapWeapon(g *GameState, unitID, itemName string) error {
 	if c.Status != "active" {
-		return ErrInvalidAction{"le combat est terminé"}
+		return invalidAction("le combat est terminé")
 	}
 	cur := c.CurrentUnit()
 	if cur == nil || cur.ID != unitID {
-		return ErrInvalidAction{"ce n'est pas le tour de cette unité"}
+		return invalidAction("ce n'est pas le tour de cette unité")
 	}
 	if cur.Side != "hero" {
-		return ErrInvalidAction{"cette unité n'est pas contrôlable"}
+		return invalidAction("cette unité n'est pas contrôlable")
 	}
 	h := g.HeroByID(cur.RefID)
 	if h == nil {
-		return ErrInvalidAction{"héros introuvable"}
+		return invalidAction("héros introuvable")
 	}
 	if itemName != "" {
 		def, ok := Equipment[itemName]
 		if !ok || def.Slot != SlotWeapon {
-			return ErrInvalidAction{"« " + itemName + " » n'est pas une arme"}
+			return invalidActionf("« %s » n'est pas une arme", Name(itemName))
 		}
 		if heroItemQty(h, itemName) < 1 {
-			return ErrInvalidAction{"pas de « " + itemName + " » dans le sac"}
+			return invalidActionf("pas de « %s » dans le sac", Name(itemName))
 		}
 	}
 	if h.Weapon == itemName {
-		return ErrInvalidAction{h.Name + " tient déjà cette arme"}
+		return invalidActionf("%s tient déjà cette arme", h.Name)
 	}
 	old := Equipment[h.Weapon]
 	// L'arme rangée retourne au sac AVANT que la nouvelle en sorte : elle n'est

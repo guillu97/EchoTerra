@@ -50,7 +50,12 @@ const browser = await chromium.launch({
   args: ["--use-gl=angle", "--use-angle=swiftshader", "--no-sandbox"],
 });
 // 390 × 844 : le plus étroit des téléphones courants, donc le pire cas.
-const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+// ⚠ LOCALE FIXÉE EN FRANÇAIS. Depuis l'i18n, l'interface suit `navigator.language` :
+// un Chromium headless démarre en anglais, et toutes les assertions de ce fichier —
+// écrites sur les libellés français — tombaient d'un coup. On épingle donc la langue
+// plutôt que de dupliquer chaque attente dans les deux langues ; c'est `test:i18n` qui
+// garde le catalogue, pas ces tests-ci.
+const page = await browser.newPage({ viewport: { width: 390, height: 844 }, locale: "fr-FR" });
 page.on("pageerror", (e) => console.log("  pageerror:", e.message));
 await page.goto(BASE);
 await waitState(page, () => !!window.__eg?.store, 30000, "app store");

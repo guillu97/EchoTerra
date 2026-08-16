@@ -3,6 +3,7 @@ import { useStore } from "../store";
 import { TownWorker } from "../components/TownWorker";
 import { buildingName } from "../data/buildings";
 import { heroesInTown, effectiveTownHeroId } from "../townUtils";
+import { useT } from "../i18n/useT";
 
 // « Tout » EN PREMIER et par défaut : les recettes sont réparties sur quatre catégories,
 // et sans vue d'ensemble on ne peut pas comparer ce qu'on pourrait faire avec ce qu'on a
@@ -28,6 +29,7 @@ export function CraftTab() {
   const townHeroId = useStore((s) => s.townHeroId);
   const playerId = useStore((s) => s.playerId);
   const [cat, setCat] = useState("all");
+  const { t, tName, tDesc } = useT();
   if (!game) return null;
 
   const inTown = heroesInTown(game, playerId).length > 0;
@@ -44,26 +46,28 @@ export function CraftTab() {
         <div className="tabs-scroll">
           {CATS.map((c) => (
             <button key={c.id} className={cat === c.id ? "on" : ""} onClick={() => setCat(c.id)}>
-              {c.label}
+              {t(c.label)}
             </button>
           ))}
         </div>
-        <span className="tb-chip pa">⚡ {pa} PA</span>
+        <span className="tb-chip pa">⚡ {t("{n} PA", { n: pa })}</span>
       </div>
 
       {inTown ? (
         <TownWorker />
       ) : (
-        <div className="craft-mode">🏕️ Terrain — {actor?.name ?? "—"} · recettes limitées (sac du héros)</div>
+        <div className="craft-mode">
+          🏕️ {t("Terrain — {name} · recettes limitées (sac du héros)", { name: actor?.name ?? "—" })}
+        </div>
       )}
       <div className="cap">
         {inTown
-          ? "Ingrédients pris dans la 🏦 Banque ; objets rangés dans la Banque."
-          : "Ingrédients pris dans le sac du héros ; pas d'atelier/forge en expédition."}
+          ? t("Ingrédients pris dans la 🏦 Banque ; objets rangés dans la Banque.")
+          : t("Ingrédients pris dans le sac du héros ; pas d'atelier/forge en expédition.")}
       </div>
 
       <div className="ps-list">
-        {list.length === 0 && <div className="empty">Aucune recette ici.</div>}
+        {list.length === 0 && <div className="empty">{t("Aucune recette ici.")}</div>}
         {list.map((r) => {
           const blocked = !inTown && !r.field; // needs a town building
           // In town, the recipe's building must be BUILT at its design level
@@ -79,24 +83,24 @@ export function CraftTab() {
               <div className="ps-ic">{r.building === "kitchen" ? "🍳" : "⚒️"}</div>
               <div className="ps-main">
                 <div className="ps-title">
-                  {r.name}
-                  {outQty} <span className="tag-type">{r.outputType}</span>
+                  {tName(r.name)}
+                  {outQty} <span className="tag-type">{t(r.outputType)}</span>
                   {r.building && (
                     <span className={`tag-type ${missingBld ? "miss" : ""}`}>
                       {buildingName(r.building, bld?.name)}
-                      {needLvl > 1 ? ` niv.${needLvl}` : ""}
+                      {needLvl > 1 ? " " + t("niv.{n}", { n: needLvl }) : ""}
                     </span>
                   )}
-                  {!r.field && <span className="tag-type ttown">ville</span>}
+                  {!r.field && <span className="tag-type ttown">{t("ville")}</span>}
                 </div>
                 <div className="ps-sub">
                   {r.ingredients.map((ing, i) => (
                     <span key={i} className={have(ing.name) >= ing.qty ? "ing ok" : "ing miss"}>
-                      {ing.name} {have(ing.name)}/{ing.qty}
+                      {tName(ing.name)} {have(ing.name)}/{ing.qty}
                       {i < r.ingredients.length - 1 ? " · " : ""}
                     </span>
                   ))}
-                  {r.effects && <span className="ing fx"> — {r.effects}</span>}
+                  {r.effects && <span className="ing fx"> — {tDesc(r.effects)}</span>}
                 </div>
               </div>
               <button
@@ -104,18 +108,21 @@ export function CraftTab() {
                 disabled={busy || blocked || missingBld || !enough || !canPay}
                 title={
                   blocked
-                    ? "Nécessite un bâtiment de la ville (atelier/forge)"
+                    ? t("Nécessite un bâtiment de la ville (atelier/forge)")
                     : missingBld
-                    ? `Nécessite ${buildingName(r.building, bld?.name)} niveau ${needLvl}`
+                    ? t("Nécessite {building} niveau {n}", {
+                        building: buildingName(r.building, bld?.name),
+                        n: needLvl,
+                      })
                     : !enough
-                    ? "Ingrédients manquants"
+                    ? t("Ingrédients manquants")
                     : !canPay
-                    ? "PA insuffisants"
+                    ? t("PA insuffisants")
                     : ""
                 }
                 onClick={() => craft(r.id)}
               >
-                {blocked || missingBld ? "🔒" : r.building === "kitchen" ? "Cook" : "Craft"}
+                {blocked || missingBld ? "🔒" : r.building === "kitchen" ? t("Cuisiner") : t("Fabriquer")}
                 <span className="c">-{r.paCost}</span>
               </button>
             </div>

@@ -3,6 +3,8 @@ import { useStore } from "../store";
 import { Overlay } from "../ui/Overlay";
 import type { Stats } from "../api/types";
 import { assetUrl, type AssetKey } from "../assets";
+import { t, tName, tDesc } from "../i18n";
+import { useT } from "../i18n/useT";
 
 function heroAssetKey(classId: string): AssetKey {
   const map: Record<string, AssetKey> = {
@@ -32,18 +34,20 @@ const ATTR_ROWS: { key: keyof Stats; label: string }[] = [
 
 function tierLabel(tier: number): string {
   switch (tier) {
-    case 1: return "Classe intermédiaire";
-    case 2: return "Classe avancée";
-    default: return "Sans classe";
+    case 1: return t("Classe intermédiaire");
+    case 2: return t("Classe avancée");
+    // ⚠ tName et non t : « Sans classe » est aussi le `class` que le SERVEUR pose sur
+    // un héros non évolué — c'est une donnée, elle a son entrée au catalogue des noms.
+    default: return tName("Sans classe");
   }
 }
 
 function bonusSummary(bonuses: Stats, paBonus: number): string {
   const parts: string[] = [];
   ATTR_ROWS.forEach(({ key, label }) => {
-    if (bonuses[key]) parts.push(`+${bonuses[key]} ${label}`);
+    if (bonuses[key]) parts.push(`+${bonuses[key]} ${t(label)}`);
   });
-  if (paBonus) parts.push(`+${paBonus} PA`);
+  if (paBonus) parts.push(t("+{n} PA", { n: paBonus }));
   return parts.join(" · ");
 }
 
@@ -61,6 +65,7 @@ export function HeroOverlay() {
   const equipItem = useStore((s) => s.equipItem);
   const myHeroes = useStore((s) => s.myHeroes);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const { t } = useT();
 
   if (!heroId || !game) return null;
   // Multiplayer: the ◀▶ roster cycle only walks MY team.
@@ -93,39 +98,39 @@ export function HeroOverlay() {
     <Overlay onClose={() => close()} cardClassName="hero-card-screen" labelledBy="hero-ov-title">
       <>
         <div className="hero-screen-head">
-          <span className="hss-title" id="hero-ov-title">Personnage</span>
+          <span className="hss-title" id="hero-ov-title">{t("Personnage")}</span>
           <button className="hero-close" onClick={() => close()}>✕</button>
         </div>
 
         {/* header with roster arrows */}
         <div className="hero-top">
-          <button className="hero-arrow" onClick={() => cycle(-1)} aria-label="précédent">◀</button>
+          <button className="hero-arrow" onClick={() => cycle(-1)} aria-label={t("précédent")}>◀</button>
           <div className="hero-portrait">
             {assetUrl(heroAssetKey(h.classId))
               ? <img src={assetUrl(heroAssetKey(h.classId))} alt="" className="portrait-img" />
               : "🔥"}
           </div>
           <div className="hero-id">
-            <div className="hero-name">{h.classTier === 0 ? "Sans classe" : h.class}</div>
+            <div className="hero-name">{tName(h.classTier === 0 ? "Sans classe" : h.class)}</div>
             <div className="hero-class">{tierLabel(h.classTier)} · {h.name}</div>
           </div>
-          <button className="hero-arrow" onClick={() => cycle(1)} aria-label="suivant">▶</button>
+          <button className="hero-arrow" onClick={() => cycle(1)} aria-label={t("suivant")}>▶</button>
           <button
             className="pill green evolve"
             disabled={maxed || !eligible || busy}
             onClick={() => setPickerOpen((v) => !v)}
           >
-            {maxed ? "Max" : eligible ? "Évoluer" : `Jour ${requiredDay}`}
+            {maxed ? t("Max") : eligible ? t("Évoluer") : t("Jour {n}", { n: requiredDay })}
           </button>
         </div>
 
         {pickerOpen && eligible && (
           <div className="evolve-picker">
-            <div className="ep-title">Choisis une évolution — {tierLabel(nextTier)}</div>
+            <div className="ep-title">{t("Choisis une évolution")} — {tierLabel(nextTier)}</div>
             {nextChoices.map((c) => (
               <div className="ep-option" key={c.id}>
                 <div className="ep-head">
-                  <strong>{c.name}</strong>
+                  <strong>{tName(c.name)}</strong>
                   <button
                     className="pill green ep-pick"
                     disabled={busy}
@@ -134,10 +139,10 @@ export function HeroOverlay() {
                       evolve(c.id);
                     }}
                   >
-                    Choisir
+                    {t("Choisir")}
                   </button>
                 </div>
-                <div className="ep-role">{c.role}</div>
+                <div className="ep-role">{tDesc(c.role)}</div>
                 <div className="ep-bonuses">{bonusSummary(c.bonuses, c.paBonus)}</div>
               </div>
             ))}
@@ -146,28 +151,28 @@ export function HeroOverlay() {
 
         <div className="hero-hpbar">
           <span>❤️ {h.hp}/{h.maxHp}</span>
-          <span>⚡ {h.pa}/{h.maxPa} PA</span>
-          <span className={`tag-loc ${here ? "in" : "out"}`}>{here ? "en ville" : "en expédition"}</span>
+          <span>⚡ {h.pa}/{h.maxPa} {t("PA")}</span>
+          <span className={`tag-loc ${here ? "in" : "out"}`}>{here ? t("en ville") : t("en expédition")}</span>
         </div>
 
         {/* ÉQUIPEMENT PORTÉ (backend equipment.go). Deux emplacements seulement — une
             arme, un équipement — et les bonus ne s'appliquent qu'AU COMBAT : ils sont
             prêtés à l'unité, jamais greffés sur les attributs ci-dessous. */}
-        <h4>Équipement</h4>
+        <h4>{t("Équipement")}</h4>
         <div className="gear-slots">
           {([
-            { slot: "arme", icon: "🗡️", label: "Arme", worn: h.weapon },
-            { slot: "equipement", icon: "🧥", label: "Équipement", worn: h.gear },
+            { slot: "arme", icon: "🗡️", label: t("Arme"), worn: h.weapon },
+            { slot: "equipement", icon: "🧥", label: t("Équipement"), worn: h.gear },
           ] as const).map(({ slot, icon, label, worn }) => (
             <div className="gear-slot" key={slot}>
               <span className="gear-ic">{icon}</span>
               <span className="gear-txt">
-                <b>{worn || <span className="muted">{label} — vide</span>}</b>
-                {worn && equipment[worn] && <span className="gear-desc">{equipment[worn].desc}</span>}
+                <b>{worn ? tName(worn) : <span className="muted">{t("{slot} — vide", { slot: label })}</span>}</b>
+                {worn && equipment[worn] && <span className="gear-desc">{tDesc(equipment[worn].desc)}</span>}
               </span>
               {worn && (
                 <button className="small" disabled={busy} onClick={() => equipItem(h.id, "", slot)}>
-                  Retirer
+                  {t("Retirer")}
                 </button>
               )}
             </div>
@@ -179,23 +184,23 @@ export function HeroOverlay() {
                   key={it.name}
                   className="small green"
                   disabled={busy}
-                  title={equipment[it.name]?.desc}
+                  title={tDesc(equipment[it.name]?.desc)}
                   onClick={() => equipItem(h.id, it.name, equipment[it.name].slot)}
                 >
-                  Équiper {it.name}
+                  {t("Équiper {item}", { item: tName(it.name) })}
                 </button>
               ))}
             </div>
           )}
         </div>
 
-        <h4>Attributs</h4>
+        <h4>{t("Attributs")}</h4>
         <div className="attr-grid">
           {ATTR_ROWS.map(({ key, label }) => {
             const bonus = h.classBonuses[key] ?? 0;
             return (
               <div className="attr" key={key}>
-                <span>{label}</span>
+                <span>{t(label)}</span>
                 <b>
                   {h.stats[key]}
                   {bonus > 0 && <span className="attr-bonus"> (+{bonus})</span>}
@@ -205,23 +210,24 @@ export function HeroOverlay() {
           })}
         </div>
 
-        <h4>Compétences uniques</h4>
+        <h4>{t("Compétences uniques")}</h4>
         {currentClass ? (
           currentClass.skills.map((sk) => (
             <div className="skill" key={sk.name}>
               <div className="skill-name">
                 <span className="skill-ic">{sk.scope === "map" ? "🗺️" : "⚔️"}</span>
-                {sk.name} <span className="tag-type">{sk.scope === "map" ? "Carte" : "Combat"}</span>
+                {tName(sk.name)}{" "}
+                <span className="tag-type">{sk.scope === "map" ? t("Carte") : t("Combat")}</span>
               </div>
-              <div className="skill-desc">{sk.desc}</div>
+              <div className="skill-desc">{tDesc(sk.desc)}</div>
             </div>
           ))
         ) : (
-          <div className="map-hint">Aucune classe — explore, combats et collecte pour débloquer une évolution.</div>
+          <div className="map-hint">{t("Aucune classe — explore, combats et collecte pour débloquer une évolution.")}</div>
         )}
 
         <button className="pill ov-close" onClick={() => close()}>
-          Retour
+          {t("Retour")}
         </button>
       </>
     </Overlay>

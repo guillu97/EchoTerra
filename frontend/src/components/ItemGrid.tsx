@@ -1,5 +1,7 @@
 import type { Item } from "../api/types";
 import { itemAssetUrl } from "../assets";
+import { tName } from "../i18n";
+import { useT } from "../i18n/useT";
 
 // Shared inventory renderer used by the Stock tab and the Hero screen so both views
 // stay visually and behaviourally consistent.
@@ -28,16 +30,18 @@ export function itemEmoji(it: Item): string {
 // marque d'un liseré doré ceux sur lesquels il y a quelque chose à faire.
 export function ItemGrid({
   items,
-  empty = "— vide —",
+  empty,
   onOpen,
   actionable,
 }: {
   items: Item[];
+  /** Phrase affichée quand la grille est vide. Déjà traduite par l'appelant. */
   empty?: string;
   onOpen?: (it: Item) => void;
   actionable?: (it: Item) => boolean;
 }) {
-  if (items.length === 0) return <div className="empty small">{empty}</div>;
+  const { t } = useT();
+  if (items.length === 0) return <div className="empty small">{empty ?? t("— vide —")}</div>;
   return (
     <div className="item-grid">
       {items.map((it) => {
@@ -47,7 +51,7 @@ export function ItemGrid({
           <div
             className={"item-cell" + (hot ? " usable" : "")}
             key={it.name}
-            title={it.name}
+            title={tName(it.name)}
             role={onOpen ? "button" : undefined}
             tabIndex={onOpen ? 0 : undefined}
             onClick={onOpen ? () => onOpen(it) : undefined}
@@ -57,7 +61,7 @@ export function ItemGrid({
               {url ? (
                 <img
                   src={url}
-                  alt={it.name}
+                  alt={tName(it.name)}
                   className="item-img"
                   onError={(e) => {
                     // fall back to the type emoji if the sprite is missing
@@ -70,7 +74,7 @@ export function ItemGrid({
               <span style={url ? { display: "none" } : undefined}>{itemEmoji(it)}</span>
             </div>
             <div className="item-qty">×{it.qty}</div>
-            <div className="item-name">{it.name}</div>
+            <div className="item-name">{tName(it.name)}</div>
           </div>
         );
       })}

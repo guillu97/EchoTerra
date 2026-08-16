@@ -4,6 +4,8 @@ import { useStore } from "../store";
 import { api } from "../api/client";
 import { loadGoogleIdentity } from "../googleAuth";
 import { Logo } from "../components/Logo";
+import { getLang } from "../i18n";
+import { useT } from "../i18n/useT";
 
 // Account screen: email+password login/register (free), Google Sign-In (free,
 // shown only when the server has a client id configured), "my games" resume list.
@@ -30,40 +32,40 @@ function AuthForms() {
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
+  const { t } = useT();
   const canSubmit = email.includes("@") && password.length >= 6;
 
   return (
     <div className="lobby-panel">
       <div className="lobby-card">
         <div className="lobby-card-title">
-          {mode === "login" ? "👤 Connexion" : "✨ Créer un compte"}
+          {mode === "login" ? "👤 " + t("Connexion") : "✨ " + t("Créer un compte")}
         </div>
         <div className="lobby-hint">
-          Un compte permet de te reconnaître dans les parties et de les reprendre depuis
-          n'importe quel appareil.
+          {t("Un compte permet de te reconnaître dans les parties et de les reprendre depuis n'importe quel appareil.")}
         </div>
         <label className="lobby-field">
-          <span>Email</span>
+          <span>{t("Email")}</span>
           <input
             type="email"
             value={email}
-            placeholder="toi@exemple.fr"
+            placeholder={t("toi@exemple.fr")}
             onChange={(e) => setEmail(e.target.value)}
           />
         </label>
         {mode === "register" && (
           <label className="lobby-field">
-            <span>Pseudo</span>
+            <span>{t("Pseudo")}</span>
             <input
               value={name}
               maxLength={20}
-              placeholder="Aventurier"
+              placeholder={t("Aventurier")}
               onChange={(e) => setName(e.target.value)}
             />
           </label>
         )}
         <label className="lobby-field">
-          <span>Mot de passe {mode === "register" && <em>(6 caractères min.)</em>}</span>
+          <span>{t("Mot de passe")} {mode === "register" && <em>{t("(6 caractères min.)")}</em>}</span>
           <input
             type="password"
             value={password}
@@ -77,13 +79,13 @@ function AuthForms() {
             mode === "login" ? loginAccount(email, password) : registerAccount(email, name, password)
           }
         >
-          {mode === "login" ? "Se connecter" : "Créer le compte"}
+          {mode === "login" ? t("Se connecter") : t("Créer le compte")}
         </button>
         <button
           className="pill ghost"
           onClick={() => setMode(mode === "login" ? "register" : "login")}
         >
-          {mode === "login" ? "Pas de compte ? Inscris-toi" : "Déjà un compte ? Connecte-toi"}
+          {mode === "login" ? t("Pas de compte ? Inscris-toi") : t("Déjà un compte ? Connecte-toi")}
         </button>
       </div>
 
@@ -91,7 +93,7 @@ function AuthForms() {
 
       {error && <div className="lobby-error">⚠️ {error}</div>}
       <button className="pill ghost" onClick={() => setScreen("title")}>
-        ← Retour
+        ← {t("Retour")}
       </button>
     </div>
   );
@@ -105,6 +107,7 @@ function GoogleCard() {
   const loginGoogleAccount = useStore((s) => s.loginGoogleAccount);
   const [status, setStatus] = useState<"loading" | "ready" | "off" | "error">("loading");
   const slot = useRef<HTMLDivElement>(null);
+  const { t } = useT();
 
   useEffect(() => {
     let cancelled = false;
@@ -128,7 +131,10 @@ function GoogleCard() {
           size: "large",
           text: "continue_with",
           shape: "pill",
-          locale: "fr",
+          // Le bouton officiel de Google se traduit tout seul — encore faut-il lui
+          // dire dans quelle langue : « fr » en dur laissait un bouton français au
+          // milieu d'une interface anglaise.
+          locale: getLang(),
         });
         setStatus("ready");
       } catch {
@@ -142,19 +148,19 @@ function GoogleCard() {
 
   return (
     <div className="lobby-card">
-      <div className="lobby-card-title">Autres connexions</div>
+      <div className="lobby-card-title">{t("Autres connexions")}</div>
       <div ref={slot} style={{ display: status === "ready" ? "flex" : "none", justifyContent: "center" }} />
-      {status === "loading" && <div className="lobby-hint">Vérification de Google…</div>}
+      {status === "loading" && <div className="lobby-hint">{t("Vérification de Google…")}</div>}
       {status === "off" && (
         <div className="lobby-hint">
-          Google : non configuré sur ce serveur (variable <code>ECHOTERRA_GOOGLE_CLIENT_ID</code>).
+          {t("Google : non configuré sur ce serveur (variable ECHOTERRA_GOOGLE_CLIENT_ID).")}
         </div>
       )}
       {status === "error" && (
-        <div className="lobby-hint">⚠️ Google inaccessible pour le moment — utilise l'email.</div>
+        <div className="lobby-hint">⚠️ {t("Google inaccessible pour le moment — utilise l'email.")}</div>
       )}
       <div className="lobby-hint">
-        Apple : nécessite le programme développeur Apple (payant) — non prévu.
+        {t("Apple : nécessite le programme développeur Apple (payant) — non prévu.")}
       </div>
     </div>
   );
@@ -163,6 +169,7 @@ function GoogleCard() {
 function Profile() {
   const { user, logoutAccount, myGames, fetchMyGames, resumeGame, busy, error, setScreen } =
     useStore();
+  const { t } = useT();
 
   useEffect(() => {
     fetchMyGames();
@@ -175,16 +182,15 @@ function Profile() {
         <div className="lobby-card-title">👤 {user.name}</div>
         <div className="lobby-hint">{user.email}</div>
         <button className="pill" disabled={busy} onClick={() => logoutAccount()}>
-          Se déconnecter
+          {t("Se déconnecter")}
         </button>
       </div>
 
       <div className="lobby-card">
-        <div className="lobby-card-title">🗺️ Mes parties</div>
+        <div className="lobby-card-title">🗺️ {t("Mes parties")}</div>
         {myGames.length === 0 && (
           <div className="lobby-hint">
-            Aucune partie liée à ce compte pour l'instant — les prochaines parties que tu crées ou
-            rejoins apparaîtront ici.
+            {t("Aucune partie liée à ce compte pour l'instant — les prochaines parties que tu crées ou rejoins apparaîtront ici.")}
           </div>
         )}
         {myGames.length > 0 && (
@@ -193,12 +199,12 @@ function Profile() {
               <button key={g.id} className="lobby-row" disabled={busy} onClick={() => resumeGame(g)}>
                 <span className="lobby-row-name">
                   {g.status === "lobby" ? "🎪" : g.status === "gameover" ? "💀" : "▶"}{" "}
-                  {g.name || "Partie"}
+                  {g.name || t("Partie")}
                 </span>
                 <span className="lobby-row-count">
                   {g.status === "lobby"
-                    ? `${g.players.length}/${g.minPlayers} joueurs`
-                    : `jour ${g.day} · vague ${g.waveNumber}`}
+                    ? t("{n}/{min} joueurs", { n: g.players.length, min: g.minPlayers })
+                    : t("jour {d} · vague {w}", { d: g.day, w: g.waveNumber })}
                 </span>
               </button>
             ))}
@@ -210,7 +216,7 @@ function Profile() {
 
       {error && <div className="lobby-error">⚠️ {error}</div>}
       <button className="pill ghost" onClick={() => setScreen("title")}>
-        ← Retour
+        ← {t("Retour")}
       </button>
     </div>
   );

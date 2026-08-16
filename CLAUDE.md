@@ -90,7 +90,10 @@ par le MÊME vent, vire-vents qui roulent VRAIMENT à l'écran au sud, rien du t
 « Aucun » qui SUPPRIME la couche au lieu de la figer; mêmes prérequis) ·
 `npm run test:inventory` (in frontend — **l'inventaire** : aucun nom d'objet tronqué sur un écran de
 390 px, et la FICHE d'objet — ce qu'il fait, « Utiliser », « Équiper », jusqu'à l'état serveur pour
-la ration puisée au puits; mêmes prérequis).
+la ration puisée au puits; mêmes prérequis) ·
+`npm run test:i18n` (in frontend — **l'internationalisation** : toute clé appelée a sa traduction et
+toute traduction sert encore, verbes fmt et substitutions concordants, noms de jeu couverts. Lit le
+code source, donc **ni navigateur ni serveur** — ~1 s, cf. §7d).
 
 **Déploiement Vercel (gratuit)** — voir `DEPLOY.md`. Preset **Services** (`vercel.json`) : service
 `frontend` (root `frontend/`, Vite, statique CDN) + service `backend` (root `backend/`, le preset Go
@@ -173,6 +176,10 @@ backend/
                                 sortent les chiffres de rétention (voir api/metrics.go)
   internal/store/store.go       SQLite OU Postgres (DSN postgres://): one row per game, state as JSON blob
                                 + table leaderboard (ScoreEntry, saveScore/Leaderboard — voir §5)
+  internal/game/i18n.go         LE TEXTE QUE LE SERVEUR COMPOSE: Msg{Key,Args,Text} + les marqueurs
+                                Name/NameList/ItemList (nom de JEU vs nom de PERSONNE) — voir §7d
+  internal/store/prefs.go       LES PRÉFÉRENCES d'un compte (blob JSON) — aujourd'hui la LANGUE, et
+                                elle seule: elle décrit la personne, pas la machine (§7d)
   internal/store/users.go       comptes (email unique, bcrypt ou Google) + sessions (token TTL 30j)
   internal/api/auth.go          register/login/logout/me/me/games, Bearer, userFromReq (anonyme OK)
   internal/api/google.go        Google Sign-In: /auth/config + /auth/google (id_token vérifié via tokeninfo)
@@ -187,7 +194,9 @@ frontend/src/
   eventBus.ts                   petit émetteur React <-> moteur voxel (noms EV.*)
   townUtils.ts                  heroesInTown, townPA, effectiveTownHeroId, TOWN_TABS
   useWave.ts                    useWaveRemaining (server nextWaveAt), formatHMS
-  api/{client.ts,types.ts}      REST client + TS DTOs mirroring Go JSON
+  api/{client.ts,types.ts}      REST client + TS DTOs mirroring Go JSON (ApiError porte key/args)
+  i18n/                         LA TRADUCTION: index.ts (t/tServer/tName/tDesc, détection navigateur),
+                                useT.ts (le pont React), en/ (le catalogue anglais en 3 morceaux) — §7d
   screens/                      LoadingScreen, TitleScreen, CinematicScreen, GameScreen, LobbyScreen,
                                 AccountScreen, LeaderboardScreen (classement, onglets par mode)
   components/                   TopBar, BottomNav, HeroChips, Logo, TownWorker(+useWorkerPA),
@@ -1091,6 +1100,10 @@ POST /api/auth/login                             {email,password} -> {user,token
 POST /api/auth/google                            {credential:id_token GIS} -> {user,token} (501 si non configuré)
 GET  /api/auth/me                                 (Bearer) -> {user}
 GET  /api/auth/me/games                           (Bearer) mes parties + myPlayerId (reprise multi-appareils)
+PUT  /api/auth/me/prefs                          (Bearer) {language} -> {prefs} — les PRÉFÉRENCES du
+                                                 titulaire (l'identité vient du JETON, jamais du
+                                                 corps) ; langue inconnue -> 400. /me, /login,
+                                                 /register et /google rendent `prefs` avec la session
 GET  /api/auth/me/chronicle                       (Bearer) ma chronique -> {runs,totals,titles}
                                                  (cosmétique ; réservé au titulaire, pas de vue publique)
 GET  /api/games?status=open|lobby|active          `open` = ce qu'on peut REJOINDRE (salons + expéditions
@@ -1178,6 +1191,12 @@ phrase fabriquée côté serveur ne peut pas être traduite côté client, et le
 niveau 2 : il manque 6 Pierre » ou « Gui a achevé la construction de Kitchen » (corrigé 2026-08-09,
 test `TestServerWrittenSentencesUseFrenchBuildingNames`).
 
+- **Langue** : l'app n'est plus « en français », elle est **en FR et en EN** — la langue suit le
+  navigateur par défaut et se règle dans Paramètres → Langue (§7d). Une chaîne française écrite en
+  dur reste un bug, mais pour une raison de plus qu'avant : elle ne se traduira pas. Toute phrase
+  affichée passe par `t()` / `tName()` / `tDesc()` ; les chaînes qui portent de la LOGIQUE DE JEU
+  (`"Ration d'eau"`, `"Plan "`, `"Tétanisé"`) ne se traduisent toujours JAMAIS sur le fil — elles se
+  rhabillent à l'affichage.
 - **App shell**: **full-bleed à toutes les tailles** — `.device` est simplement le conteneur plein
   viewport (100dvh) ; le cadre téléphone/tablette centré sur desktop a été SUPPRIMÉ (2026-07-13). Le
   breakpoint ≥1024px ne fait plus que des ajustements de tailles + plafonne les rangées larges
@@ -1663,6 +1682,89 @@ voxels, kind, arme, membres) + HUD. Hook DEV **`window.__cs`** `{select, play, s
 setSpeed, setTurntable, state, engine}` — pilotable en headless (vérif Playwright : poll par
 `page.evaluate`, jamais `waitForFunction`).
 
+## 7d. INTERNATIONALISATION (`frontend/src/i18n/`, `backend/internal/game/i18n.go`, 2026-08-16)
+
+**FR + EN**, la langue par défaut étant celle du NAVIGATEUR ; un choix explicite est retenu sur
+l'appareil ET enregistré dans les **préférences du compte** (`store/prefs.go`, table `user_prefs`,
+`PUT /api/auth/me/prefs`) pour suivre la personne d'un appareil à l'autre. Ordre de priorité :
+**compte > appareil > navigateur** (`effectiveLang` dans store.ts) — se connecter sur le téléphone
+d'un ami doit rendre SA langue, pas celle du propriétaire du téléphone. Les outils de dev (éditeur
+🗺️, studio 🧬, persos 🎭, voxels 🧊) restent en français : décision assumée, ils ne sont vus par
+aucun joueur.
+
+⚠ **SEULE LA LANGUE VA EN BASE.** Elle décrit la PERSONNE. La qualité graphique, la cadence
+d'animation et les effets de météo décrivent la MACHINE : les synchroniser imposerait au téléphone
+les réglages du poste de bureau, donc ils restent dans le `localStorage`. Tenir cette frontière en
+ajoutant une préférence.
+
+⚠⚠ **LA CLÉ DE TRADUCTION EST LA PHRASE FRANÇAISE**, jamais un identifiant inventé
+(`settings.title`). Trois raisons : le repli est gratuit et lisible (une traduction manquante affiche
+du français, pas une clé crue) ; le code reste lisible (`t("Paramètres")`) ; et les ~200 refus du
+serveur n'ont RIEN à inventer, leur phrase étant déjà leur identité. Le prix : reformuler le français
+casse le lien vers l'anglais **en silence** — c'est `npm run test:i18n` qui le rattrape, jamais l'œil.
+
+**Quatre fonctions** (`i18n/index.ts`), et un composant qui affiche du texte passe par `useT()` —
+`t()` lit un état de MODULE, donc sans abonnement il ne se redessinerait jamais au changement de
+langue (on ne remonte PAS l'arbre sur une `key` : ça détruirait les scènes voxel) :
+- `t("clé {x}", {x})` — l'interface, substitution NOMMÉE (une langue réordonne les phrases) ;
+- `tServer(msg)` — une phrase composée par le serveur, `%`-positionnelle ;
+- `tName(nom)` — un NOM DE JEU (objet, bâtiment, classe, créature, état, compétence) ;
+- `tDesc(desc)` — une description de catalogue.
+
+⚠ **LES NOMS DE JEU NE SE TRADUISENT PAS SUR LE FIL.** « Bois », « Pierre », « Ration d'eau »,
+« Tétanisé », « Plan de la Tour » sont des IDENTIFIANTS (`craft.go` cherche littéralement « Bois »,
+`thirst.go` pose l'état « Soif ») : ils voyagent en français et ne changent d'habit qu'à l'affichage,
+via `tName`. Corollaire : ajouter une langue ne demande aucune migration de base ni changement de
+protocole — juste un fichier de plus dans `i18n/en/`-like.
+
+**CE QUE LE SERVEUR ÉMET** (`game/i18n.go`) : `Msg{Key, Args, Text}` — le gabarit français (qui sert
+de clé), ses arguments, et le français déjà rendu (le repli). Porté par `ActionError`/`ErrInvalidAction`
+(via `actionErr`/`actionErrf`, `invalidAction`/`invalidActionf`), par `TownLogEntry`, par `TownOrder`,
+et par les réponses d'erreur HTTP (`errorKey`/`errorArgs`, cf. `ApiError` côté client).
+⚠ **POURQUOI PAS DE RENDU CÔTÉ SERVEUR** : le journal de la ville est **persisté et partagé** — une
+ligne est écrite une fois et relue par tous pendant des jours, et la langue de celui qui a posé la
+planche n'a aucune raison d'être celle de celui qui lit. Idem pour l'ordre du jour, recalculé par
+`Recompute` et STOCKÉ dans l'état, donc écrit par n'importe quelle requête — y compris le battement,
+qui n'a aucun joueur derrière lui.
+
+⚠ **UN ARGUMENT PORTE UN NOM, JAMAIS UNE SOUS-PHRASE.** Un `%s` qui recevrait « la Banque » ou
+« vagues passées » livrerait un morceau de français sans clé, donc intraduisible. Trois cas ont été
+corrigés à la source (`craft.go` ingrédient manquant → deux gabarits ; `sim.go` singulier/pluriel →
+deux gabarits ; `orders.go` fourchette « %d à %d » → deux `%d`).
+⚠⚠ **ET LE MARQUAGE `Name` / `NameList` / `ItemList` N'EST PAS COSMÉTIQUE** : un nom de JEU part en
+objet (`{"name":"Pierre"}`), un nom de PERSONNE en chaîne nue. Sans lui le client devrait deviner —
+et il devinerait mal le jour où quelqu'un s'appelle **Pierre**, à la fois prénom courant et matériau
+des remparts : « Pierre n'a plus de PA » deviendrait « Stone has no AP left ». `NameList` et
+`ItemList` voyagent DÉCOMPOSÉES pour la même raison : le client pose son propre connecteur (« or »
+plutôt que « ou ») et traduit chaque nom.
+⚠ **n'employer que `%s`, `%d`, `%%`** : le client réimplémente `fmt` en une ligne. Test dédié.
+
+**LE GARDE-FOU** — `npm run test:i18n` (aucun navigateur, ~1 s) lit LE CODE (TS du front, Go du
+serveur) et vérifie **dans les deux sens** : toute clé appelée a une traduction, toute traduction
+correspond à une clé appelée (une entrée orpheline masque le trou qu'elle a laissé en changeant de
+nom), les verbes fmt sont identiques et dans le même ORDRE (la substitution est positionnelle : un
+verbe déplacé affiche un nombre à la place d'un nom, et ça ne se voit pas à la relecture), les
+substitutions `{nommées}` concordent, et les **152 noms de jeu** des catalogues serveur ont leur
+entrée `data:`.
+⚠ **une première version du test filtrait les noms « purement ASCII »** pour écarter les noms anglais
+hérités du prototype — et jetait du même coup « Coup vif », « Frappe puissante », « Provocation »,
+noms français sans accent, restés en anglais… pardon, en français dans l'interface anglaise, sans
+que rien ne le signale. On n'écarte plus par jeu de caractères mais par FICHIER.
+⚠ **les tests navigateur épinglent `locale: "fr-FR"`** (`newPage`) : un Chromium headless démarre en
+anglais, et toutes leurs assertions — écrites sur les libellés français — tombaient d'un coup.
+
+⚠ **`store.log` (le journal de mise au point) n'est traduit NULLE PART** : aucun composant ne
+l'affiche aujourd'hui. Le traduire donnerait ~40 entrées de catalogue que personne ne verrait. Si un
+écran vient l'afficher, c'est dans `pushLog` qu'il faudra reprendre.
+
+⚠ **PIÈGE RÉCURRENT — la variable de boucle `t`.** `toasts.map((t) => …)`, `NAV_TABS.map((t) => …)`,
+`titles.filter((t) => …)` ombrent la fonction de traduction et la rendent inappelable dans le bloc
+(erreur TS « This expression is not callable »). Renommer la boucle, pas la traduction.
+⚠ **PIÈGE — les libellés en CONSTANTE DE MODULE** (`NAV_TABS`, `CATS`, `ATTR_ROWS`, les infobulles du
+classement…) restent EN FRANÇAIS dans la constante et se traduisent AU RENDU (`t(o.label)`) : une
+constante n'est évaluée qu'une fois, au chargement, donc un `t()` posé là figerait la langue du
+démarrage.
+
 ## 8. Conventions & gotchas
 
 - **CSS class collision**: do NOT use `town` as a tag/utility modifier — it collides with `.town
@@ -1672,6 +1774,9 @@ setSpeed, setTurntable, state, engine}` — pilotable en headless (vérif Playwr
   **`.mhb-badge.town`** — le badge « en ville » des pastilles de héros — héritait de `inset:0` et
   s'étalait sur TOUT le portrait qu'il recouvrait ; renommé `intown` (et `turn` en combat) le 2026-08-02.
   Trois fois le même piège : **greper `className=".*\btown\b"` avant d'ajouter un modificateur.**)
+- **Ne jamais nommer `t` une variable de boucle** (`toasts.map((t) => …)`, `NAV_TABS.map((t) => …)`,
+  `titles.filter((t) => …)`) : c'est le nom de la fonction de traduction, l'ombrer la rend
+  inappelable dans tout le bloc. Trois fichiers l'ont fait au moment de l'i18n (§7d).
 - **Les vues voxel** doivent retirer leurs écouteurs (bus / resize) au démontage — sinon une vue détruite
   continue de réagir aux événements et plante.
 - **Pas de React StrictMode** (le double-invoke monterait le moteur deux fois).

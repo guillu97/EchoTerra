@@ -17,6 +17,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 
+	"echoterra/internal/game"
 	"echoterra/internal/store"
 )
 
@@ -72,6 +73,48 @@ func (s *Server) authRoutes(r chi.Router) {
 	r.Get("/me", s.me)
 	r.Get("/me/games", s.myGames)
 	r.Get("/me/chronicle", s.myChronicle)
+	r.Put("/me/prefs", s.savePrefs)
+}
+
+// prefsOf rend les préférences d'un compte, en avalant l'erreur de lecture.
+//
+// ⚠ VOLONTAIRE : une base qui bafouille sur une préférence ne doit pas empêcher
+// quelqu'un de se connecter. Le client retombe alors sur la langue de son navigateur,
+// ce qui est exactement son comportement par défaut — l'échec est donc invisible et
+// sans conséquence, là où un 500 rendrait le jeu inaccessible.
+func (s *Server) prefsOf(u *store.User) store.Prefs {
+	p, err := s.store.PrefsFor(u.ID)
+	if err != nil {
+		return store.Prefs{}
+	}
+	return p
+}
+
+// savePrefs enregistre les préférences du TITULAIRE, et de personne d'autre : l'id du
+// compte vient du jeton de session, jamais du corps de la requête.
+func (s *Server) savePrefs(w http.ResponseWriter, r *http.Request) {
+	u := s.userFromReq(r)
+	if u == nil {
+		writeErr(w, http.StatusUnauthorized, "connexion requise")
+		return
+	}
+	var body store.Prefs
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeErr(w, http.StatusBadRequest, "corps invalide")
+		return
+	}
+	// On ne stocke qu'une langue qu'on sait servir : une valeur inconnue écrite ici
+	// suivrait le compte d'appareil en appareil et rendrait le jeu illisible partout à
+	// la fois, sans que rien n'indique d'où ça vient.
+	if body.Language != "" && !game.IsLang(body.Language) {
+		writeErr(w, http.StatusBadRequest, "langue inconnue")
+		return
+	}
+	if err := s.store.SavePrefs(u.ID, body); err != nil {
+		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"prefs": body})
 }
 
 func (s *Server) register(w http.ResponseWriter, r *http.Request) {
@@ -156,7 +199,9 @@ func (s *Server) issueSession(w http.ResponseWriter, u *store.User, code int) {
 		writeErr(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, code, map[string]any{"user": toPublic(u), "token": tok})
+	// Les préférences partent AVEC la session : la langue du joueur doit s'appliquer
+	// dès l'écran qui suit sa connexion, pas au prochain aller-retour.
+	writeJSON(w, code, map[string]any{"user": toPublic(u), "token": tok, "prefs": s.prefsOf(u)})
 }
 
 func (s *Server) logout(w http.ResponseWriter, r *http.Request) {
@@ -172,7 +217,7 @@ func (s *Server) me(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusUnauthorized, "non connecté")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"user": toPublic(u)})
+	writeJSON(w, http.StatusOK, map[string]any{"user": toPublic(u), "prefs": s.prefsOf(u)})
 }
 
 // myGames lists the games where a player is linked to my account, with my player id

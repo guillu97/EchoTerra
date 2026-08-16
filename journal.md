@@ -6,6 +6,82 @@
 
 ---
 
+## 2026-08-16 (120) — Le jeu parle deux langues
+
+Demande de Guillaume : « toute l'application traduite en plusieurs langues, le choix de la langue
+dans les menus, la langue par défaut celle du navigateur, et si quelqu'un change c'est sauvegardé en
+base dans ses préférences utilisateur ».
+
+**Cadré à deux décisions** (posées avant de commencer, parce qu'elles changent le volume d'un facteur
+quatre) : **FR + EN** complets plutôt que huit langues à moitié — l'écran Paramètres en listait déjà
+huit, mais c'était un décor, aucune n'existait ; et les **outils de dev** (éditeur 🗺️, studio 🧬,
+persos 🎭, voxels 🧊) restent en français, ils ne sont vus par aucun joueur.
+
+**Livré.** ~470 chaînes d'interface, ~200 phrases composées par le serveur, 152 noms de jeu. Langue
+par défaut = celle du NAVIGATEUR (`navigator.languages` lu EN ENTIER, pas seulement la première :
+un navigateur réglé « de-DE, fr-FR, en » n'a pas d'allemand ici mais son porteur lit le français).
+Un choix explicite est retenu sur l'appareil ET écrit dans les préférences du compte
+(`store/prefs.go`, table `user_prefs`, `PUT /api/auth/me/prefs`), avec la priorité **compte >
+appareil > navigateur** : se connecter sur le téléphone d'un ami doit rendre SA langue.
+
+**La décision structurante : la CLÉ EST LA PHRASE FRANÇAISE**, pas un identifiant inventé. Le repli
+devient gratuit et lisible (une traduction manquante affiche du français, jamais un `settings.title`
+cru en plein écran), le code reste lisible, et les ~200 refus du serveur n'ont RIEN à inventer —
+leur phrase est déjà leur identité. Le prix est réel et il est SILENCIEUX : reformuler le français
+casse le lien vers l'anglais sans erreur de compilation ni exception. D'où `npm run test:i18n`, qui
+est la seule chose qui tienne le contrat — il lit le code (TS et Go), pas le catalogue, et vérifie
+dans LES DEUX SENS.
+
+**Le serveur ne traduit rien, et c'est le journal de la ville qui l'impose.** Une ligne y est écrite
+UNE fois et relue par toute la ville pendant des jours : la langue de celui qui a posé la planche n'a
+aucune raison d'être celle de celui qui lit. Idem pour l'ordre du jour, recalculé par `Recompute` et
+STOCKÉ dans l'état, donc écrit par n'importe quelle requête — y compris le battement, qui n'a aucun
+joueur derrière lui. Le serveur émet donc un GABARIT + ses ARGUMENTS (`game.Msg`), et le français
+rendu à côté comme repli.
+
+⚠ **LE PIÈGE QUI A DEMANDÉ UN TYPE.** Un `%s` peut recevoir « Cuisine » (un nom de jeu, traduisible)
+ou « Ana » (un nom de personne, intouchable). Sans marquage, le client doit deviner — et il devine
+mal le jour où quelqu'un s'appelle **Pierre**, à la fois prénom très courant et matériau des
+remparts : « Pierre n'a plus de PA » serait devenu « Stone has no AP left ». D'où `Name`,
+sérialisé en objet (`{"name":"Pierre"}`) là où un nom de personne part en chaîne nue. Même logique
+pour `NameList` (« Pionnier ou Chasseur » : le client pose son propre « or ») et `ItemList`
+(« 6 Pierre, 2 Brique »).
+
+⚠ **Trois arguments portaient une SOUS-PHRASE française** et étaient donc intraduisibles en bloc :
+`craft.go` versait « la Banque »/« le sac » dans un `%s`, `sim.go` « vague passée »/« vagues
+passées », `orders.go` une fourchette « %d à %d » composée à part. Corrigés à la source — deux
+gabarits plutôt qu'un trou, ce qui laisse en prime chaque langue faire son accord.
+
+⚠ **Le test s'est menti à lui-même une fois.** Une première version filtrait les noms « purement
+ASCII » pour écarter les noms anglais hérités du prototype (`Wall`, `Bank`) — et jetait du même coup
+« Coup vif », « Frappe puissante », « Provocation », noms français sans accent, restés en français
+au milieu de l'interface anglaise sans que rien ne le signale. Le filtre est passé du jeu de
+caractères au FICHIER : 54 noms vérifiés → **152**.
+
+⚠ **Et les tests navigateur sont tombés en bloc** — pas à cause d'une régression, mais parce qu'un
+Chromium headless démarre en anglais et que leurs assertions sont écrites sur les libellés français.
+C'est la preuve que ça marche, et la correction est d'épingler `locale: "fr-FR"` au `newPage` plutôt
+que de dupliquer chaque attente.
+
+**Deux gardes de conception** notés parce qu'ils reviendront : `useT()` abonne le composant à la
+langue (on ne remonte PAS l'arbre sur une `key`, ça détruirait les scènes voxel) ; et les libellés
+posés en CONSTANTE DE MODULE restent en français dans la constante et se traduisent AU RENDU — une
+constante n'est évaluée qu'une fois et figerait la langue du démarrage.
+
+**Ce qui n'est PAS traduit, et pourquoi.** Le log de combat et `store.log` : aucun composant ne les
+affiche aujourd'hui (~40 entrées de catalogue que personne ne verrait). Les outils de dev, par
+décision. Et les noms de jeu sur le fil : ce sont des identifiants, ils se rhabillent à l'affichage.
+
+**Vérifié.** `npm run test:i18n` 7/7 · `test:map-tap` 8/8 · `test:inventory` 11/11 ·
+`test:combat-ui` 9/9 · `test:endgame` 8/8 · `test:reconnect` 8/8 · `test:weather` 18/18 (un premier
+passage à 17/18 sur un seuil de redraw limite, non reproduit — aucun fichier du moteur voxel n'est
+touché par ce lot) · `test:perf` 13/13 · `go vet` + `go test ./...` verts · `tsc -b` + `npm run build`.
+
+**À faire.** Ajouter une langue = un dossier dans `frontend/src/i18n/`, une ligne dans `LANGS` et une
+dans `game.Langs` — aucune migration de base, aucun changement de protocole.
+
+---
+
 ## 2026-08-12 (119) — Animer les biomes : la neige, le ciel et les vire-vents
 
 Demande de Guillaume : « animer les biomes — neige qui tombe (avec nuages cohérents), tumbleweeds

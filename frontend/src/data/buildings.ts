@@ -1,6 +1,7 @@
 // Layout/flavor config for the town buildings. Gameplay stats (level, durability,
 // capacity, build progress) come from the backend (game.town.buildings, matched by id).
 import type { AssetKey } from "../assets";
+import { t, tName } from "../i18n";
 
 // Tailles de salon proposées à la création. Le maximum reflète
 // worldgen.MaxPlayersPerGame côté serveur (20 équipes de 3 = 60 héros) ; la carte est
@@ -92,8 +93,20 @@ export function buildingIcon(id: string): string {
 // logique passe par l'id), donc on les traduit ici plutôt que dans le backend —
 // ça évite de migrer les parties déjà enregistrées.
 export function buildingName(id: string, fallback?: string): string {
-  return TOWN_BUILDINGS.find((b) => b.id === id)?.name ?? fallback ?? id;
+  const raw = TOWN_BUILDINGS.find((b) => b.id === id)?.name ?? fallback ?? id;
+  // ⚠ LA TRADUCTION SE FAIT ICI, au dernier moment, et le catalogue ci-dessus reste en
+  // français : ces noms sont des DONNÉES que le serveur compose aussi de son côté
+  // (`b.Label()` dans les phrases du journal), donc ils doivent rester comparables. On
+  // les rhabille à l'affichage, jamais sur le fil — même règle que pour les objets.
+  return tName(raw);
 }
+
+/** La phrase de présentation d'un bâtiment, dans la langue du joueur. */
+export function buildingBlurb(id: string): string {
+  const raw = TOWN_BUILDINGS.find((b) => b.id === id)?.blurb;
+  return raw ? t(raw) : "";
+}
+
 
 // Barre du bas. L'ordre place volontairement la CARTE au milieu : c'est l'écran
 // principal du jeu, et il est rendu en bouton central surélevé (voir BottomNav).

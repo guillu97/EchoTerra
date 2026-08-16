@@ -3,6 +3,7 @@ import { myTeamHeroes } from "../townUtils";
 import { mapSkillsForHero } from "../skills";
 import { HeroChip } from "./HeroChip";
 import type { Hero } from "../api/types";
+import { useT } from "../i18n/useT";
 
 // Dropdown anchored on the TopBar smiley: MY team's roster, one row per hero with
 // its map actions. The ⓘ button opens the character sheet; the action buttons
@@ -28,6 +29,7 @@ export function HeroActionsMenu({ onClose }: { onClose: () => void }) {
   const drinkRation = useStore((s) => s.drinkRation);
   const mapSkills = useStore((s) => s.mapSkills);
   const startCombat = useStore((s) => s.startCombat);
+  const { t, tName, tDesc } = useT();
   if (!game) return null;
 
   const roster = myTeamHeroes(game, playerId);
@@ -83,7 +85,7 @@ export function HeroActionsMenu({ onClose }: { onClose: () => void }) {
                   {/* Plus de bouton 🎯 : taper la pastille elle-même sélectionne
                       le héros et bascule sur la carte. */}
                   {onMonster && (
-                    <button className="hm-act fight" title="Combattre" disabled={busy} onClick={() => run(h, startCombat)}>
+                    <button className="hm-act fight" title={t("Combattre")} disabled={busy} onClick={() => run(h, startCombat)}>
                       ⚔️
                     </button>
                   )}
@@ -92,7 +94,7 @@ export function HeroActionsMenu({ onClose }: { onClose: () => void }) {
                     <button
                       key={sk.id}
                       className="hm-act"
-                      title={`${sk.name} (-${sk.pa} PA) — ${sk.desc}`}
+                      title={`${tName(sk.name)} (-${sk.pa} PA) — ${tDesc(sk.desc)}`}
                       disabled={busy || h.pa < sk.pa}
                       onClick={() => run(h, () => castSkill(sk.id))}
                     >
@@ -102,7 +104,7 @@ export function HeroActionsMenu({ onClose }: { onClose: () => void }) {
                   {canDrink && (
                     <button
                       className="hm-act"
-                      title={`Boire une ration d'eau (+6 PA) — ${rations} en réserve`}
+                      title={t("Boire une ration d'eau (+6 PA) — {n} en réserve", { n: rations })}
                       disabled={busy}
                       onClick={() => run(h, drinkRation)}
                     >
@@ -110,19 +112,19 @@ export function HeroActionsMenu({ onClose }: { onClose: () => void }) {
                     </button>
                   )}
                   {onTown ? (
-                    <span className="hm-note">🏰 en ville</span>
+                    <span className="hm-note">🏰 {t("en ville")}</span>
                   ) : (
                     <>
                       {/* ⚠ pas de garde `resources <= 0` : une case épuisée reste
                           fouillable (des Débris, que la Recyclerie transforme). */}
                       {h.forageAt ? (
-                        <span className="hm-note" title="Fouille automatique — sans PA">
-                          🔄 fouille auto
+                        <span className="hm-note" title={t("Fouille automatique — sans PA")}>
+                          🔄 {t("fouille auto")}
                         </span>
                       ) : (
                         <button
                           className="hm-act"
-                          title="Fouiller (-1 PA) — le héros continue ensuite tout seul"
+                          title={t("Fouiller (-1 PA) — le héros continue ensuite tout seul")}
                           disabled={noPa || stuck}
                           onClick={() => run(h, search)}
                         >
@@ -131,7 +133,7 @@ export function HeroActionsMenu({ onClose }: { onClose: () => void }) {
                       )}
                       <button
                         className="hm-act"
-                        title={stuck ? "Tétanisé — impossible de se cacher" : "Hide (-1 PA)"}
+                        title={stuck ? t("Tétanisé — impossible de se cacher") : t("Se cacher (-1 PA)")}
                         disabled={noPa || stuck}
                         onClick={() => run(h, hide)}
                       >
@@ -140,7 +142,7 @@ export function HeroActionsMenu({ onClose }: { onClose: () => void }) {
                     </>
                   )}
                   {stuck && (
-                    <button className="hm-act" title="S'échapper (-1 PA)" disabled={noPa} onClick={() => run(h, escape)}>
+                    <button className="hm-act" title={t("S'échapper (-1 PA)")} disabled={noPa} onClick={() => run(h, escape)}>
                       🏃
                     </button>
                   )}

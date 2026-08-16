@@ -201,13 +201,13 @@ func (g *GameState) JoinClosesAtWave() int {
 
 func (g *GameState) AddPlayer(name string, now time.Time) (*Player, error) {
 	if len(g.Players) >= g.MaxPlayers {
-		return nil, ActionError{fmt.Sprintf("partie complète (%d/%d joueurs)", len(g.Players), g.MaxPlayers)}
+		return nil, actionErrf("partie complète (%d/%d joueurs)", len(g.Players), g.MaxPlayers)
 	}
 	if !g.JoinOpen() {
 		if g.Status == StatusActive && g.IsPublic() {
-			return nil, ActionError{"les portes de cette expédition sont fermées (accueil terminé)"}
+			return nil, actionErr("les portes de cette expédition sont fermées (accueil terminé)")
 		}
-		return nil, ActionError{"la partie a déjà commencé"}
+		return nil, actionErr("la partie a déjà commencé")
 	}
 	if name == "" {
 		name = fmt.Sprintf("Aventurier %d", len(g.Players)+1)
@@ -234,7 +234,7 @@ func (g *GameState) AddPlayer(name string, now time.Time) (*Player, error) {
 	// des autres, et accepter du monde se paierait en soif.
 	if g.Status == StatusActive {
 		g.addWellRations(WellRationsPerHero * HeroesPerPlayer)
-		g.logTown(fmt.Sprintf("🤝 %s rejoint l'expédition avec %d héros", p.Name, HeroesPerPlayer))
+		g.logTown("🤝 %s rejoint l'expédition avec %d héros", p.Name, HeroesPerPlayer)
 	}
 	return p, nil
 }
@@ -247,14 +247,14 @@ var botNames = []string{"Marcel", "Odile", "Gustave", "Colette", "Firmin", "Suze
 // toward MinPlayers/MaxPlayers exactly like humans and field a 3-hero team.
 func (g *GameState) AddBot(hostID string, now time.Time) (*Player, error) {
 	if g.IsPublic() {
-		return nil, ActionError{"pas de bots dans une partie publique"}
+		return nil, actionErr("pas de bots dans une partie publique")
 	}
 	host := g.PlayerByID(hostID)
 	if host == nil {
-		return nil, ActionError{"joueur inconnu"}
+		return nil, actionErr("joueur inconnu")
 	}
 	if !host.Host {
-		return nil, ActionError{"seul l'hôte peut ajouter un bot"}
+		return nil, actionErr("seul l'hôte peut ajouter un bot")
 	}
 	name := botNames[len(g.Players)%len(botNames)]
 	// Avoid a duplicate name if a human already took it.
@@ -277,20 +277,20 @@ func (g *GameState) AddBot(hostID string, now time.Time) (*Player, error) {
 // MaybeAutoStart) — a manual start is rejected to keep the rule unambiguous.
 func (g *GameState) StartGame(playerID string, now time.Time) error {
 	if g.Status != StatusLobby {
-		return ActionError{"la partie a déjà commencé"}
+		return actionErr("la partie a déjà commencé")
 	}
 	if g.IsPublic() {
-		return ActionError{"partie publique — elle démarre automatiquement quand assez de joueurs ont rejoint"}
+		return actionErr("partie publique — elle démarre automatiquement quand assez de joueurs ont rejoint")
 	}
 	p := g.PlayerByID(playerID)
 	if p == nil {
-		return ActionError{"joueur inconnu"}
+		return actionErr("joueur inconnu")
 	}
 	if !p.Host {
-		return ActionError{"seul l'hôte peut lancer la partie"}
+		return actionErr("seul l'hôte peut lancer la partie")
 	}
 	if len(g.Players) < g.MinPlayers {
-		return ActionError{fmt.Sprintf("en attente de joueurs (%d/%d minimum)", len(g.Players), g.MinPlayers)}
+		return actionErrf("en attente de joueurs (%d/%d minimum)", len(g.Players), g.MinPlayers)
 	}
 	g.launch(now)
 	return nil
@@ -435,10 +435,10 @@ func (g *GameState) CheckHeroOwnership(playerID, heroID string) error {
 	}
 	p := g.PlayerByID(playerID)
 	if p == nil {
-		return ActionError{"joueur inconnu — reconnecte-toi à la partie"}
+		return actionErr("joueur inconnu — reconnecte-toi à la partie")
 	}
 	if !p.OwnsHero(heroID) {
-		return ActionError{"ce héros appartient à un autre joueur"}
+		return actionErr("ce héros appartient à un autre joueur")
 	}
 	return nil
 }
@@ -448,11 +448,11 @@ func (g *GameState) CheckHeroOwnership(playerID, heroID string) error {
 // of players remaining (0 means the lobby is now empty and can be deleted).
 func (g *GameState) RemovePlayer(playerID string) (int, error) {
 	if g.Status != StatusLobby {
-		return len(g.Players), ActionError{"impossible de quitter une partie déjà lancée"}
+		return len(g.Players), actionErr("impossible de quitter une partie déjà lancée")
 	}
 	p := g.PlayerByID(playerID)
 	if p == nil {
-		return len(g.Players), ActionError{"joueur inconnu"}
+		return len(g.Players), actionErr("joueur inconnu")
 	}
 	heroes := g.Heroes[:0]
 	for _, h := range g.Heroes {
@@ -493,17 +493,17 @@ func (g *GameState) RemovePlayer(playerID string) (int, error) {
 // games expulsion goes through a majority vote instead (VoteKick).
 func (g *GameState) KickPlayer(hostID, targetID string) (int, error) {
 	if g.IsPublic() {
-		return len(g.Players), ActionError{"partie publique — l'expulsion se décide par un vote"}
+		return len(g.Players), actionErr("partie publique — l'expulsion se décide par un vote")
 	}
 	host := g.PlayerByID(hostID)
 	if host == nil {
-		return len(g.Players), ActionError{"joueur inconnu"}
+		return len(g.Players), actionErr("joueur inconnu")
 	}
 	if !host.Host {
-		return len(g.Players), ActionError{"seul l'hôte peut expulser un joueur"}
+		return len(g.Players), actionErr("seul l'hôte peut expulser un joueur")
 	}
 	if hostID == targetID {
-		return len(g.Players), ActionError{"l'hôte ne peut pas s'expulser lui-même (quitter le salon)"}
+		return len(g.Players), actionErr("l'hôte ne peut pas s'expulser lui-même (quitter le salon)")
 	}
 	return g.RemovePlayer(targetID)
 }
@@ -514,21 +514,21 @@ func (g *GameState) KickPlayer(hostID, targetID string) (int, error) {
 // threshold, and whether the kick just happened.
 func (g *GameState) VoteKick(voterID, targetID string) (int, int, bool, error) {
 	if !g.IsPublic() {
-		return 0, 0, false, ActionError{"partie privée — seul l'hôte peut expulser"}
+		return 0, 0, false, actionErr("partie privée — seul l'hôte peut expulser")
 	}
 	if g.Status != StatusLobby {
-		return 0, 0, false, ActionError{"le vote d'expulsion n'existe qu'en salle d'attente"}
+		return 0, 0, false, actionErr("le vote d'expulsion n'existe qu'en salle d'attente")
 	}
 	voter := g.PlayerByID(voterID)
 	target := g.PlayerByID(targetID)
 	if voter == nil || target == nil {
-		return 0, 0, false, ActionError{"joueur inconnu"}
+		return 0, 0, false, actionErr("joueur inconnu")
 	}
 	if voter.Bot {
-		return 0, 0, false, ActionError{"les bots ne votent pas"}
+		return 0, 0, false, actionErr("les bots ne votent pas")
 	}
 	if voterID == targetID {
-		return 0, 0, false, ActionError{"impossible de voter contre soi-même (quitter le salon)"}
+		return 0, 0, false, actionErr("impossible de voter contre soi-même (quitter le salon)")
 	}
 	if g.KickVotes == nil {
 		g.KickVotes = map[string][]string{}
@@ -536,7 +536,7 @@ func (g *GameState) VoteKick(voterID, targetID string) (int, int, bool, error) {
 	votes := g.KickVotes[targetID]
 	for _, v := range votes {
 		if v == voterID {
-			return len(votes), g.kickMajority(targetID), false, ActionError{"tu as déjà voté contre ce joueur"}
+			return len(votes), g.kickMajority(targetID), false, actionErr("tu as déjà voté contre ce joueur")
 		}
 	}
 	votes = append(votes, voterID)

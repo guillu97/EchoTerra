@@ -2,6 +2,7 @@ import { useStore } from "../store";
 import { bus, EV } from "../eventBus";
 import { assetUrl, type AssetKey } from "../assets";
 import type { CombatUnit } from "../api/types";
+import { useT } from "../i18n/useT";
 
 // Portrait key for a hero class (same mapping as the map hero bar / TopBar).
 function portraitKey(classId?: string): AssetKey {
@@ -24,6 +25,7 @@ export function CombatHeroBar() {
   const combat = useStore((s) => s.combat);
   const current = useStore((s) => s.current);
   const playerId = useStore((s) => s.playerId);
+  const { t, tName } = useT();
   if (!combat) return null;
 
   // MES unités héros (légataire : toutes ; multi : celles que je possède).
@@ -51,7 +53,11 @@ export function CombatHeroBar() {
               key={u.id}
               className={`mhb-chip ${isTurn ? "sel" : ""} ${down ? "dead" : ""}`}
               disabled={down}
-              title={down ? `${u.name} est à terre` : `Centrer la caméra sur ${u.name}`}
+              title={
+                down
+                  ? t("{name} est à terre", { name: tName(u.name) })
+                  : t("Centrer la caméra sur {name}", { name: tName(u.name) })
+              }
               onClick={() => focus(u)}
             >
               <span className="mhb-pick">
@@ -68,7 +74,10 @@ export function CombatHeroBar() {
                   ) : null}
                 </span>
                 <span className="mhb-info">
-                  <span className="mhb-name">{u.name}</span>
+                  {/* tName : une unité MONSTRE porte le nom de son espèce, qui est une
+                      donnée de jeu ; un héros porte un nom de personne, que tName laisse
+                      passer intact faute d'entrée au catalogue. */}
+                  <span className="mhb-name">{tName(u.name)}</span>
                   <span className="mhb-hpbar">
                     <i className={hpClass} style={{ width: `${hpPct}%` }} />
                   </span>

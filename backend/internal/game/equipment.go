@@ -88,18 +88,18 @@ func EquipableItem(name string) (EquipDef, bool) { d, ok := Equipment[name]; ret
 // milieu d'une mêlée.
 func (g *GameState) Equip(heroID, name string) (*Hero, error) {
 	if g.heroInCombat(heroID) != nil {
-		return nil, ActionError{"ce héros est en plein combat"}
+		return nil, actionErr("ce héros est en plein combat")
 	}
 	h := g.HeroByID(heroID)
 	if h == nil || h.HP <= 0 {
-		return nil, ActionError{"héros introuvable"}
+		return nil, actionErr("héros introuvable")
 	}
 	def, ok := Equipment[name]
 	if !ok {
-		return nil, ActionError{name + " ne se porte pas"}
+		return nil, actionErrf("%s ne se porte pas", Name(name))
 	}
 	if heroItemQty(h, name) < 1 {
-		return nil, ActionError{h.Name + " n'a pas « " + name + " » dans son sac"}
+		return nil, actionErrf("%s n'a pas « %s » dans son sac", h.Name, Name(name))
 	}
 	// L'emplacement se libère d'abord : l'objet remplacé retourne au sac, il n'est
 	// jamais perdu.
@@ -119,14 +119,14 @@ func (g *GameState) Equip(heroID, name string) (*Hero, error) {
 // Unequip range un objet porté dans le sac.
 func (g *GameState) Unequip(heroID, slot string) (*Hero, error) {
 	if g.heroInCombat(heroID) != nil {
-		return nil, ActionError{"ce héros est en plein combat"}
+		return nil, actionErr("ce héros est en plein combat")
 	}
 	h := g.HeroByID(heroID)
 	if h == nil || h.HP <= 0 {
-		return nil, ActionError{"héros introuvable"}
+		return nil, actionErr("héros introuvable")
 	}
 	if slot != SlotWeapon && slot != SlotGear {
-		return nil, ActionError{"emplacement inconnu"}
+		return nil, actionErr("emplacement inconnu")
 	}
 	if err := g.unequipSlot(h, slot); err != nil {
 		return nil, err

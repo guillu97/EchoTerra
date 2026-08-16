@@ -1,6 +1,8 @@
 import { useStore } from "../store";
 import { Overlay } from "../ui/Overlay";
 import type { Contribution, GameState } from "../api/types";
+import { t } from "../i18n";
+import { useT } from "../i18n/useT";
 
 // LE REGISTRE DE CONTRIBUTION — « ce que la ville te doit ».
 //
@@ -16,6 +18,9 @@ import type { Contribution, GameState } from "../api/types";
 // qui se vend sur la survie de groupe.
 
 // Les six colonnes du registre, dans l'ordre du serveur.
+// ⚠ libellés gardés EN FRANÇAIS ici et traduits AU RENDU : une constante de module
+// n'est évaluée qu'une fois, donc un `t()` posé là figerait ces six mots dans la langue
+// du démarrage.
 const COLS: { key: keyof Contribution; icon: string; label: string }[] = [
   { key: "buildPa", icon: "🏗", label: "PA de chantier" },
   { key: "deposited", icon: "📦", label: "objets rapportés" },
@@ -79,15 +84,15 @@ export function LedgerRow({
     <div className={`lg-row${mine ? " mine" : ""}`}>
       <span className="lg-name">
         {bot ? "🤖 " : ""}
-        {c.name || "Aventurier"}
-        {mine && <span className="lg-you">toi</span>}
+        {c.name || t("Aventurier")}
+        {mine && <span className="lg-you">{t("toi")}</span>}
       </span>
       {filled.length === 0 ? (
-        <span className="lg-none">rien encore</span>
+        <span className="lg-none">{t("rien encore")}</span>
       ) : (
         <span className="lg-stats">
           {filled.map((col) => (
-            <span className="lg-stat" key={col.key} title={col.label}>
+            <span className="lg-stat" key={col.key} title={t(col.label)}>
               {col.icon} {c[col.key] as number}
             </span>
           ))}
@@ -115,11 +120,12 @@ export function LedgerTable({ game, playerId }: { game: GameState; playerId?: st
 // La légende des six colonnes — sans elle les pastilles sont des rébus sur un écran
 // où le survol n'existe pas.
 export function LedgerLegend() {
+  const { t } = useT();
   return (
     <div className="lg-legend">
       {COLS.map((c) => (
         <span key={c.key}>
-          {c.icon} {c.label}
+          {c.icon} {t(c.label)}
         </span>
       ))}
     </div>
@@ -132,29 +138,31 @@ export function TownLedger() {
   const game = useStore((s) => s.game);
   const playerId = useStore((s) => s.playerId);
   const close = useStore((s) => s.toggleTownLedger);
+  const { t } = useT();
   if (!open || !game) return null;
 
   const rows = buildLedger(game);
 
   return (
-    <Overlay variant="sheet" onClose={() => close(false)} title="🤝 Ce que la ville te doit">
+    <Overlay variant="sheet" onClose={() => close(false)} title={"🤝 " + t("Ce que la ville te doit")}>
       <>
         {rows.length === 0 ? (
           <div className="tj-empty">
-            Cette expédition n'a pas de joueurs enregistrés — le registre reste vide.
+            {t("Cette expédition n'a pas de joueurs enregistrés — le registre reste vide.")}
           </div>
         ) : (
           <>
             <div className="lg-intro">
-              Ce que chacun a apporté à {game.town.name || "la ville"}, dans l'ordre où vous êtes
-              arrivés. Ce n'est pas un classement.
+              {t("Ce que chacun a apporté à {town}, dans l'ordre où vous êtes arrivés. Ce n'est pas un classement.", {
+                town: game.town.name || t("la ville"),
+              })}
             </div>
             <LedgerTable game={game} playerId={playerId} />
             <LedgerLegend />
           </>
         )}
         <button className="pill red ov-close" onClick={() => close(false)}>
-          Fermer
+          {t("Fermer")}
         </button>
       </>
     </Overlay>

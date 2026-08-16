@@ -1,13 +1,17 @@
 import { useStore } from "../store";
 import { Overlay } from "../ui/Overlay";
 import type { Settings } from "../store";
+import { detectLang, LANG_FLAGS, LANG_NAMES, LANGS } from "../i18n";
+import { useT } from "../i18n/useT";
 
-const LANGUAGES = ["English", "Deutsch", "Italian", "Portugues", "Chinese", "Français", "Spanish", "Japanese"];
 const FPS_OPTS: Settings["fps"][] = [30, 60, 120];
 const QUALITY_OPTS: Settings["quality"][] = ["Normal", "Medium", "High", "Very high"];
 // Cadence de l'animation au repos (respiration des héros, monstres qui remuent).
 // 0 = figés tant que rien ne bouge : c'est le mode le plus économe, mais la
 // carte paraît morte. Voir voxel/unitAnim.ts.
+// ⚠ on garde ici les libellés EN FRANÇAIS et on les traduit au rendu : une constante
+// de module est évaluée une seule fois, au chargement, donc un `t()` posé ici figerait
+// ces quatre mots dans la langue de départ et ils ne changeraient plus jamais.
 const IDLE_ANIM_OPTS: { v: Settings["idleAnimFps"]; label: string }[] = [
   { v: 0, label: "Figée" },
   { v: 8, label: "Éco" },
@@ -34,15 +38,17 @@ function Banner({ title }: { title: string }) {
 export function SettingsOverlay() {
   const { settingsScreen, settings, appScreen, openSettings, closeSettings, updateSettings, leaveTown, toggleCheat } =
     useStore();
+  const user = useStore((s) => s.user);
+  const { t } = useT();
   const inGame = appScreen === "game";
 
   const Menu = (
     <div className="settings-pane">
-      <Banner title="Paramètres" />
+      <Banner title={t("Paramètres")} />
       <div className="settings-menu">
-        <button className="pill" onClick={() => openSettings("setting")}>Jeu</button>
-        <button className="pill" onClick={() => openSettings("language")}>Langue</button>
-        <button className="pill" onClick={() => openSettings("notifications")}>Notifications</button>
+        <button className="pill" onClick={() => openSettings("setting")}>{t("Jeu")}</button>
+        <button className="pill" onClick={() => openSettings("language")}>{t("Langue")}</button>
+        <button className="pill" onClick={() => openSettings("notifications")}>{t("Notifications")}</button>
         {inGame ? (
           <>
             {/* La triche a quitté la TopBar (8 éléments sur 390px, ça débordait)
@@ -54,13 +60,13 @@ export function SettingsOverlay() {
                 toggleCheat();
               }}
             >
-              🔧 Outils de test
+              🔧 {t("Outils de test")}
             </button>
-            <button className="pill red" onClick={() => leaveTown()}>Quitter la partie</button>
-            <button className="pill green" onClick={() => closeSettings()}>Reprendre</button>
+            <button className="pill red" onClick={() => leaveTown()}>{t("Quitter la partie")}</button>
+            <button className="pill green" onClick={() => closeSettings()}>{t("Reprendre")}</button>
           </>
         ) : (
-          <button className="pill green" onClick={() => closeSettings()}>Retour</button>
+          <button className="pill green" onClick={() => closeSettings()}>{t("Retour")}</button>
         )}
       </div>
     </div>
@@ -68,9 +74,9 @@ export function SettingsOverlay() {
 
   const Setting = (
     <div className="settings-pane">
-      <Banner title="Réglages du jeu" />
+      <Banner title={t("Réglages du jeu")} />
       <div className="row">
-        <span className="lbl">Volume — Musique ({settings.music}%)</span>
+        <span className="lbl">{t("Volume — Musique ({n}%)", { n: settings.music })}</span>
         <input
           type="range"
           min={0}
@@ -78,7 +84,7 @@ export function SettingsOverlay() {
           value={settings.music}
           onChange={(e) => updateSettings({ music: Number(e.target.value) })}
         />
-        <span className="lbl">SFX ({settings.sfx}%)</span>
+        <span className="lbl">{t("SFX ({n}%)", { n: settings.sfx })}</span>
         <input
           type="range"
           min={0}
@@ -88,7 +94,7 @@ export function SettingsOverlay() {
         />
       </div>
       <div className="row">
-        <span className="lbl">Fréquence d'affichage</span>
+        <span className="lbl">{t("Fréquence d'affichage")}</span>
         <div className="seg">
           {FPS_OPTS.map((f) => (
             <button key={f} className={settings.fps === f ? "on" : ""} onClick={() => updateSettings({ fps: f })}>
@@ -97,11 +103,11 @@ export function SettingsOverlay() {
           ))}
         </div>
         <span className="hint">
-          Réduire le taux de rafraîchissement économise la batterie et évite la surchauffe, mais peut affecter la fluidité.
+          {t("Réduire le taux de rafraîchissement économise la batterie et évite la surchauffe, mais peut affecter la fluidité.")}
         </span>
       </div>
       <div className="row">
-        <span className="lbl">Animation des personnages</span>
+        <span className="lbl">{t("Animation des personnages")}</span>
         <div className="seg">
           {IDLE_ANIM_OPTS.map((o) => (
             <button
@@ -109,19 +115,18 @@ export function SettingsOverlay() {
               className={settings.idleAnimFps === o.v ? "on" : ""}
               onClick={() => updateSettings({ idleAnimFps: o.v })}
             >
-              {o.label}
+              {t(o.label)}
             </button>
           ))}
         </div>
         <span className="hint">
-          Cadence de l'animation au repos : héros qui respirent, monstres qui remuent sur la carte.
-          « Figée » les immobilise tant que rien ne bouge — la carte ne se redessine plus du tout au
-          repos, c'est le réglage le plus économe en batterie. Les déplacements, attaques et morts
-          restent toujours pleinement animés.
+          {t(
+            "Cadence de l'animation au repos : héros qui respirent, monstres qui remuent sur la carte. « Figée » les immobilise tant que rien ne bouge — la carte ne se redessine plus du tout au repos, c'est le réglage le plus économe en batterie. Les déplacements, attaques et morts restent toujours pleinement animés.",
+          )}
         </span>
       </div>
       <div className="row">
-        <span className="lbl">Effets de météo</span>
+        <span className="lbl">{t("Effets de météo")}</span>
         <div className="seg">
           {WEATHER_OPTS.map((o) => (
             <button
@@ -129,19 +134,18 @@ export function SettingsOverlay() {
               className={settings.weatherFps === o.v ? "on" : ""}
               onClick={() => updateSettings({ weatherFps: o.v })}
             >
-              {o.label}
+              {t(o.label)}
             </button>
           ))}
         </div>
         <span className="hint">
-          Ce que le climat d'une expédition fait bouger : la neige qui tombe sous un ciel couvert
-          en pays nordique, les vire-vents qui roulent au désert. « Aucun » ne les fige pas — il les
-          supprime : plus une image demandée, plus un objet dans la scène. Une expédition tempérée
-          n'a pas de météo et ne coûte rien quel que soit ce réglage.
+          {t(
+            "Ce que le climat d'une expédition fait bouger : la neige qui tombe sous un ciel couvert en pays nordique, les vire-vents qui roulent au désert. « Aucun » ne les fige pas — il les supprime : plus une image demandée, plus un objet dans la scène. Une expédition tempérée n'a pas de météo et ne coûte rien quel que soit ce réglage.",
+          )}
         </span>
       </div>
       <div className="row">
-        <span className="lbl">Qualité graphique</span>
+        <span className="lbl">{t("Qualité graphique")}</span>
         <div className="seg">
           {QUALITY_OPTS.map((q) => (
             <button key={q} className={settings.quality === q ? "on" : ""} onClick={() => updateSettings({ quality: q })}>
@@ -149,11 +153,11 @@ export function SettingsOverlay() {
             </button>
           ))}
         </div>
-        <span className="hint">Baisser la qualité réduit l'usage de batterie et la surchauffe.</span>
+        <span className="hint">{t("Baisser la qualité réduit l'usage de batterie et la surchauffe.")}</span>
       </div>
       {(
         <div className="row">
-          <span className="lbl">Terrain voxel</span>
+          <span className="lbl">{t("Terrain voxel")}</span>
           <div className="seg">
             {[false, true].map((v) => (
               <button
@@ -161,18 +165,20 @@ export function SettingsOverlay() {
                 className={settings.voxelSmooth === v ? "on" : ""}
                 onClick={() => updateSettings({ voxelSmooth: v })}
               >
-                {v ? "Pentes voxel" : "Blocs"}
+                {v ? t("Pentes voxel") : t("Blocs")}
               </button>
             ))}
           </div>
           <span className="hint">
-            Pentes voxel = relief en petites marches de voxels (¼ de tuile, style diorama) ; Blocs = piliers pleine tuile. Carte monde uniquement.
+            {t(
+              "Pentes voxel = relief en petites marches de voxels (¼ de tuile, style diorama) ; Blocs = piliers pleine tuile. Carte monde uniquement.",
+            )}
           </span>
         </div>
       )}
       {(
         <div className="row">
-          <span className="lbl">Rendu beauté (expérimental)</span>
+          <span className="lbl">{t("Rendu beauté (expérimental)")}</span>
           <div className="seg">
             {[false, true].map((v) => (
               <button
@@ -180,18 +186,20 @@ export function SettingsOverlay() {
                 className={settings.voxelBeauty === v ? "on" : ""}
                 onClick={() => updateSettings({ voxelBeauty: v })}
               >
-                {v ? "Cinématique" : "Standard"}
+                {v ? t("Cinématique") : t("Standard")}
               </button>
             ))}
           </div>
           <span className="hint">
-            Lumière filmique (tone mapping ACES), halo lumineux sur les cristaux/fleurs, ciel dégradé et brume atmosphérique. Plus joli mais plus gourmand — coûte du GPU à chaque redraw.
+            {t(
+              "Lumière filmique (tone mapping ACES), halo lumineux sur les cristaux/fleurs, ciel dégradé et brume atmosphérique. Plus joli mais plus gourmand — coûte du GPU à chaque redraw.",
+            )}
           </span>
         </div>
       )}
       {(
         <div className="row">
-          <span className="lbl">Rendu Signac (divisionniste)</span>
+          <span className="lbl">{t("Rendu Signac (divisionniste)")}</span>
           <div className="seg">
             {[false, true].map((v) => (
               <button
@@ -199,21 +207,20 @@ export function SettingsOverlay() {
                 className={settings.voxelSignac === v ? "on" : ""}
                 onClick={() => updateSettings({ voxelSignac: v })}
               >
-                {v ? "Peinture" : "Normal"}
+                {v ? t("Peinture") : t("Normal|rendu")}
               </button>
             ))}
           </div>
           <span className="hint">
-            Chaque facette de voxel devient sa propre touche de couleur pure, à la manière de Paul
-            Signac : ombres violettes plutôt que grises, saturation haute, mélange optique. La touche
-            est ancrée au MONDE — elle tourne et se resserre avec la géométrie, et les arêtes restent
-            nettes.
+            {t(
+              "Chaque facette de voxel devient sa propre touche de couleur pure, à la manière de Paul Signac : ombres violettes plutôt que grises, saturation haute, mélange optique. La touche est ancrée au MONDE — elle tourne et se resserre avec la géométrie, et les arêtes restent nettes.",
+            )}
           </span>
         </div>
       )}
       {settings.voxelSignac && (
         <div className="row">
-          <span className="lbl">Intensité de la touche ({Math.round(settings.signacStrength * 100)}%)</span>
+          <span className="lbl">{t("Intensité de la touche ({n}%)", { n: Math.round(settings.signacStrength * 100) })}</span>
           <input
             type="range"
             min={0}
@@ -221,7 +228,7 @@ export function SettingsOverlay() {
             value={Math.round(settings.signacStrength * 100)}
             onChange={(e) => updateSettings({ signacStrength: Number(e.target.value) / 100 })}
           />
-          <span className="hint">Au minimum, seul le parti pris de couleur reste ; au maximum, la trame de touches domine.</span>
+          <span className="hint">{t("Au minimum, seul le parti pris de couleur reste ; au maximum, la trame de touches domine.")}</span>
         </div>
       )}
       <button className="pill green ov-close" onClick={() => openSettings("menu")}>
@@ -230,32 +237,62 @@ export function SettingsOverlay() {
     </div>
   );
 
+  // LE CHOIX DE LA LANGUE.
+  //
+  // ⚠ « Langue du navigateur » est une OPTION À PART ENTIÈRE, et c'est le défaut. Ce
+  // n'est pas la même chose que de cocher « Français » sur un navigateur français : ne
+  // rien choisir laisse le jeu suivre le navigateur pour toujours, y compris si son
+  // porteur en change ou joue depuis un autre appareil. C'est aussi le seul moyen de
+  // REVENIR au défaut une fois qu'on a choisi.
+  //
+  // Chaque langue s'écrit DANS SA LANGUE (« English », pas « Anglais ») : quelqu'un
+  // qui tombe sur cet écran sans comprendre un mot de la langue courante doit pouvoir
+  // y retrouver la sienne.
   const Language = (
     <div className="settings-pane">
-      <Banner title="Langue" />
+      <Banner title={t("Langue")} />
       <div className="langgrid">
-        {LANGUAGES.map((l) => (
+        <label key="auto">
+          <input
+            type="radio"
+            name="lang"
+            checked={settings.language === undefined}
+            onChange={() => updateSettings({ language: undefined })}
+          />
+          🌐 {t("Langue du navigateur")} ({LANG_NAMES[detectLang()]})
+        </label>
+        {LANGS.map((l) => (
           <label key={l}>
-            <input type="radio" name="lang" checked={settings.language === l} onChange={() => updateSettings({ language: l })} />
-            {l}
+            <input
+              type="radio"
+              name="lang"
+              checked={settings.language === l}
+              onChange={() => updateSettings({ language: l })}
+            />
+            {LANG_FLAGS[l]} {LANG_NAMES[l]}
           </label>
         ))}
       </div>
+      <span className="hint">
+        {user
+          ? t("Ta langue est enregistrée dans ton compte : tu la retrouveras sur tous tes appareils.")
+          : t("Ta langue est retenue sur cet appareil. Crée un compte pour la retrouver partout.")}
+      </span>
       <button className="pill green ov-close" onClick={() => openSettings("menu")}>
-        Retour
+        {t("Retour")}
       </button>
     </div>
   );
 
   const notifRows: { key: keyof Settings["notif"]; t: string; d: string }[] = [
-    { key: "loot", t: "Butin", d: "Me notifier de chaque fouille réussie." },
-    { key: "wave", t: "Vague", d: "Me notifier 10 minutes avant chaque vague." },
-    { key: "actionPoint", t: "Points d'action", d: "Me notifier quand la barre de PA est pleine." },
-    { key: "communication", t: "Messages", d: "Me notifier quand un ami envoie un message privé." },
+    { key: "loot", t: t("Butin"), d: t("Me notifier de chaque fouille réussie.") },
+    { key: "wave", t: t("Vague"), d: t("Me notifier 10 minutes avant chaque vague.") },
+    { key: "actionPoint", t: t("Points d'action"), d: t("Me notifier quand la barre de PA est pleine.") },
+    { key: "communication", t: t("Messages"), d: t("Me notifier quand un ami envoie un message privé.") },
   ];
   const Notifications = (
     <div className="settings-pane">
-      <Banner title="Notifications" />
+      <Banner title={t("Notifications")} />
       {notifRows.map((r) => (
         <div className="toggle-row" key={r.key}>
           <div>

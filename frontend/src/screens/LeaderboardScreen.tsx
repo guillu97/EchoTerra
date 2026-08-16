@@ -3,6 +3,8 @@ import { useStore } from "../store";
 import { Logo } from "../components/Logo";
 import { api } from "../api/client";
 import type { LeaderboardMode, ScoreEntry, Season } from "../api/types";
+import { tServer } from "../i18n";
+import { useT } from "../i18n/useT";
 
 const MEDALS = ["🥇", "🥈", "🥉"];
 
@@ -16,6 +18,8 @@ const THEME_BADGE: Record<string, string> = {
   desertique: "🏜️ Désertique",
 };
 
+// ⚠ libellés et infobulles gardés en français ici, traduits AU RENDU : une constante
+// de module n'est évaluée qu'une fois et figerait la langue du démarrage.
 const TABS: { mode: LeaderboardMode | ""; label: string; icon: string; hint: string }[] = [
   { mode: "", label: "Toutes", icon: "🏆", hint: "Toutes les villes, tous types de partie confondus." },
   { mode: "solo", label: "Solo", icon: "⚔️", hint: "Villes des parties solo (un joueur et ses bots)." },
@@ -41,6 +45,7 @@ export function LeaderboardScreen() {
   const [seasons, setSeasons] = useState<Season[]>([]);
   const [entries, setEntries] = useState<ScoreEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const { t } = useT();
 
   useEffect(() => {
     let alive = true;
@@ -62,13 +67,15 @@ export function LeaderboardScreen() {
     api
       .leaderboard(tab || undefined, season || undefined)
       .then((list) => alive && setEntries(list))
-      .catch((e) => alive && setError(e instanceof Error ? e.message : String(e)));
+      // ⚠ tServer et non e.message : une ApiError porte le gabarit du serveur, et
+      // c'est lui qui se traduit (api/client.ts).
+      .catch((e: any) => alive && setError(tServer({ key: e?.key, args: e?.args, text: e?.message ?? String(e) })));
     return () => {
       alive = false;
     };
   }, [tab, season]);
 
-  const active = TABS.find((t) => t.mode === tab) ?? TABS[0];
+  const active = TABS.find((tb) => tb.mode === tab) ?? TABS[0];
 
   return (
     <div className="screen parchment lobby-screen">
@@ -79,23 +86,23 @@ export function LeaderboardScreen() {
       </div>
       <Logo />
       <div className="lobby-panel lb-panel">
-        <div className="lobby-tabs lb-tabs" role="tablist" aria-label="Type de partie">
-          {TABS.map((t) => (
+        <div className="lobby-tabs lb-tabs" role="tablist" aria-label={t("Type de partie")}>
+          {TABS.map((tb) => (
             <button
-              key={t.mode || "all"}
+              key={tb.mode || "all"}
               role="tab"
-              aria-selected={t.mode === tab}
-              className={t.mode === tab ? "on" : ""}
-              onClick={() => setTab(t.mode)}
+              aria-selected={tb.mode === tab}
+              className={tb.mode === tab ? "on" : ""}
+              onClick={() => setTab(tb.mode)}
             >
-              <span aria-hidden="true">{t.icon}</span> {t.label}
+              <span aria-hidden="true">{tb.icon}</span> {t(tb.label)}
             </button>
           ))}
         </div>
 
         {seasons.length > 0 && (
           <div className="lb-seasons">
-            <label htmlFor="lb-season">📅 Saison</label>
+            <label htmlFor="lb-season">📅 {t("Saison")}</label>
             <select
               id="lb-season"
               value={season}
@@ -104,29 +111,29 @@ export function LeaderboardScreen() {
               {seasons.map((sn) => (
                 <option key={sn.id} value={sn.current ? "" : sn.id}>
                   {sn.label}
-                  {sn.current ? " (en cours)" : ""}
+                  {sn.current ? " " + t("(en cours)") : ""}
                 </option>
               ))}
-              <option value="all">Tous les temps</option>
+              <option value="all">{t("Tous les temps")}</option>
             </select>
           </div>
         )}
 
         <div className="lobby-card">
-          <div className="lobby-card-title">🏆 Classement des villes</div>
+          <div className="lobby-card-title">🏆 {t("Classement des villes")}</div>
           <div className="lobby-hint">
-            {active.hint} Survie la plus longue d'abord, monstres tués en départage.
+            {t(active.hint)} {t("Survie la plus longue d'abord, monstres tués en départage.")}{" "}
             {season === "all"
-              ? " Toutes saisons confondues."
-              : " Le classement repart à chaque saison — les précédentes restent consultables."}
+              ? t("Toutes saisons confondues.")
+              : t("Le classement repart à chaque saison — les précédentes restent consultables.")}
           </div>
           {error && <div className="lobby-error">⚠️ {error}</div>}
-          {!entries && !error && <div className="lobby-hint">Chargement…</div>}
+          {!entries && !error && <div className="lobby-hint">{t("Chargement…")}</div>}
           {entries && entries.length === 0 && (
             <div className="lobby-hint">
               {season === "all"
-                ? "Aucune ville dans ce classement — lance une première partie !"
-                : "Aucune ville dans cette saison — la place est libre."}
+                ? t("Aucune ville dans ce classement — lance une première partie !")
+                : t("Aucune ville dans cette saison — la place est libre.")}
             </div>
           )}
           {entries && entries.length > 0 && (
@@ -139,23 +146,23 @@ export function LeaderboardScreen() {
                         classement, il ne doit pas être tronqué par les badges.
                         En nœud de texte nu il ne pourrait pas rétrécir — d'où le
                         span dédié. */}
-                    <span className="lb-name">{e.townName || e.gameName || "Ville sans nom"}</span>
+                    <span className="lb-name">{e.townName || e.gameName || t("Ville sans nom")}</span>
                     <span className="lb-meta">
                       {/* Pastille d'état réduite à son emoji : en toutes lettres
                           elle ne laissait plus la place aux noms des joueurs. */}
                       <span
                         className={`lb-status ${e.gameOver ? "over" : "live"}`}
-                        title={e.gameOver ? "Ville tombée" : "Ville encore debout"}
-                        aria-label={e.gameOver ? "Ville tombée" : "Ville encore debout"}
+                        title={e.gameOver ? t("Ville tombée") : t("Ville encore debout")}
+                        aria-label={e.gameOver ? t("Ville tombée") : t("Ville encore debout")}
                       >
                         {e.gameOver ? "💀" : "⚔️"}
                       </span>
                       {/* Le badge de mode n'a de sens que dans l'onglet « Toutes ». */}
-                      {tab === "" && <span className="lb-mode">{MODE_BADGE[e.mode]}</span>}
+                      {tab === "" && <span className="lb-mode">{t(MODE_BADGE[e.mode])}</span>}
                       {/* La NATURE de la carte : deux villes de thèmes différents
                           n'ont pas affronté le même monde, le tableau doit le dire. */}
                       {e.theme && e.theme !== "tempere" && (
-                        <span className="lb-mode">{THEME_BADGE[e.theme] ?? e.theme}</span>
+                        <span className="lb-mode">{THEME_BADGE[e.theme] ? t(THEME_BADGE[e.theme]) : e.theme}</span>
                       )}
                       {e.players.length > 0 && (
                         <span className="lb-players">👥 {e.players.join(", ")}</span>
@@ -163,9 +170,9 @@ export function LeaderboardScreen() {
                     </span>
                   </span>
                   <span className="lb-scores">
-                    <span title="Vagues survécues">🌊 Vague {e.waves}</span>
-                    <span title="Jours tenus">📅 Jour {e.days}</span>
-                    <span title="Monstres tués">👹 {e.monstersKilled}</span>
+                    <span title={t("Vagues survécues")}>🌊 {t("Vague {n}", { n: e.waves })}</span>
+                    <span title={t("Jours tenus")}>📅 {t("Jour {n}", { n: e.days })}</span>
+                    <span title={t("Monstres tués")}>👹 {e.monstersKilled}</span>
                   </span>
                 </div>
               ))}
@@ -173,7 +180,7 @@ export function LeaderboardScreen() {
           )}
         </div>
         <button className="pill ghost" onClick={() => setScreen("title")}>
-          ← Retour
+          ← {t("Retour")}
         </button>
       </div>
     </div>

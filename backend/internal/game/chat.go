@@ -62,7 +62,7 @@ func (g *GameState) ChatAccess(playerID string) (remote bool, err error) {
 	}
 	p := g.PlayerByID(playerID)
 	if p == nil {
-		return false, ActionError{"joueur inconnu — reconnecte-toi à la partie"}
+		return false, actionErr("joueur inconnu — reconnecte-toi à la partie")
 	}
 	for _, id := range p.HeroIDs {
 		h := g.HeroByID(id)
@@ -73,7 +73,7 @@ func (g *GameState) ChatAccess(playerID string) (remote bool, err error) {
 	if g.PosteReady() {
 		return true, nil // the Poste carries the mail out to the expedition
 	}
-	return false, ActionError{"aucun de tes héros n'est en ville — construis la Poste pour écrire depuis le terrain"}
+	return false, actionErr("aucun de tes héros n'est en ville — construis la Poste pour écrire depuis le terrain")
 }
 
 // ChatFor returns the board as the given player may see it. Reading is gated by
@@ -127,7 +127,7 @@ func (g *GameState) PostChat(playerID, text string) (*ChatMessage, error) {
 	}
 	clean, filtered := Moderate(text)
 	if clean == "" {
-		return nil, ActionError{"message vide"}
+		return nil, actionErr("message vide")
 	}
 	now := time.Now()
 	for i := len(g.Town.Chat) - 1; i >= 0; i-- {
@@ -135,7 +135,7 @@ func (g *GameState) PostChat(playerID, text string) (*ChatMessage, error) {
 			continue
 		}
 		if now.Sub(g.Town.Chat[i].At) < chatMinInterval {
-			return nil, ActionError{"doucement — attends quelques secondes avant de renvoyer un message"}
+			return nil, actionErr("doucement — attends quelques secondes avant de renvoyer un message")
 		}
 		break // only the player's LAST message matters
 	}

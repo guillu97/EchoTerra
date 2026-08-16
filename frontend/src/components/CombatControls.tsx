@@ -20,6 +20,7 @@
 import { useEffect, useState } from "react";
 import { useStore } from "../store";
 import { useTurnRemaining } from "../useWave";
+import { useT } from "../i18n/useT";
 
 // Icône par archétype d'arme (weapons.go). Mains nues = poing.
 const WEAPON_ICON: Record<string, string> = {
@@ -42,6 +43,7 @@ export function CombatControls() {
   // Tiroirs : les objets et les armes du sac ne méritent pas une rangée
   // permanente — on ne s'en sert qu'à un moment précis du combat.
   const [drawer, setDrawer] = useState<"" | "items" | "swap">("");
+  const { t, tName, tDesc } = useT();
 
   const curUnit = combat?.units.find((u) => u.id === current?.unitId);
   const ended = !combat || combat.status !== "active";
@@ -90,11 +92,11 @@ export function CombatControls() {
   // Rang 1 — qui joue, avec quoi.
   const header = (
     <div className="cbt-head">
-      <span className="cbt-round">Round {combat.round}</span>
+      <span className="cbt-round">{t("Round {n}", { n: combat.round })}</span>
       {curUnit && (
         <>
           <span className={`cbt-who ${myTurn ? "mine" : ""}`}>
-            {curUnit.side === "hero" ? "🧑" : "👹"} {curUnit.name}
+            {curUnit.side === "hero" ? "🧑" : "👹"} {tName(curUnit.name)}
           </span>
           <span className="cbt-hp">
             <i style={{ width: `${Math.max(0, Math.min(100, (curUnit.hp / Math.max(1, curUnit.maxHp)) * 100))}%` }} />
@@ -105,11 +107,13 @@ export function CombatControls() {
               className="cbt-weapon"
               title={
                 curUnit.weaponName
-                  ? `${curUnit.weaponName}${curUnit.reach ? ` · portée ${curUnit.reach}` : ""}${curUnit.armor ? ` · armure ${curUnit.armor}` : ""}`
-                  : "Mains nues — aucune technique d'arme"
+                  ? tName(curUnit.weaponName) +
+                    (curUnit.reach ? " · " + t("portée {n}", { n: curUnit.reach }) : "") +
+                    (curUnit.armor ? " · " + t("armure {n}", { n: curUnit.armor }) : "")
+                  : t("Mains nues — aucune technique d'arme")
               }
             >
-              {weaponIcon(curUnit.weaponKind)} {curUnit.weaponName || "Mains nues"}
+              {weaponIcon(curUnit.weaponKind)} {curUnit.weaponName ? tName(curUnit.weaponName) : t("Mains nues")}
               {!!curUnit.reach && curUnit.reach > 1 && <i className="cbt-reach">⇢{curUnit.reach}</i>}
             </span>
           )}
@@ -127,7 +131,7 @@ export function CombatControls() {
     return (
       <div className="cbt-bar">
         {header}
-        <div className="cbt-hint">L'ennemi agit…</div>
+        <div className="cbt-hint">{t("L'ennemi agit…")}</div>
       </div>
     );
   }
@@ -135,7 +139,7 @@ export function CombatControls() {
     return (
       <div className="cbt-bar">
         {header}
-        <div className="cbt-hint">⏳ Tour d'un autre joueur…</div>
+        <div className="cbt-hint">⏳ {t("Tour d'un autre joueur…")}</div>
       </div>
     );
   }
@@ -145,7 +149,7 @@ export function CombatControls() {
     <div className="cbt-bar">
       {header}
       {!!combat.reinforceAt && !combat.reinforceDone && combat.round === combat.reinforceAt - 1 && (
-        <div className="cbt-hint warn">👹 Des renforts ennemis surgiront au prochain round !</div>
+        <div className="cbt-hint warn">👹 {t("Des renforts ennemis surgiront au prochain round !")}</div>
       )}
 
       {/* Rang 2 — les actions. `end` = termine le tour (pastille ⏻). */}
@@ -153,10 +157,16 @@ export function CombatControls() {
         <button
           className={`cbt-act atk ${combatMode === "attack" ? "on" : ""}`}
           disabled={busy}
-          title={`Attaque de base${curUnit.reach && curUnit.reach > 1 ? ` — portée ${curUnit.reach} (arme)` : " — au contact"} [A]`}
+          title={
+            t("Attaque de base") +
+            (curUnit.reach && curUnit.reach > 1
+              ? " — " + t("portée {n} (arme)", { n: curUnit.reach })
+              : " — " + t("au contact")) +
+            " [A]"
+          }
           onClick={() => { setDrawer(""); setCombatMode("attack"); }}
         >
-          ⚔️<span>Attaque</span>
+          ⚔️<span>{t("Attaque")}</span>
         </button>
 
         {skills.map((sk, i) => (
@@ -164,13 +174,16 @@ export function CombatControls() {
             key={sk.idx}
             className={`cbt-act ${sk.weapon ? "wpn" : "skill"} ${combatMode === "skill" && combatSkillIdx === sk.idx ? "on" : ""}`}
             disabled={busy || (!sk.selfCast && sk.targets.length === 0)}
-            title={`${sk.skill.desc || sk.skill.name}${sk.weapon ? ` — technique de ${curUnit.weaponName}` : ""}${
-              !sk.selfCast && sk.targets.length === 0 ? " — aucune cible à portée" : ""
-            } [${i + 1}]`}
+            title={
+              (tDesc(sk.skill.desc) || tName(sk.skill.name)) +
+              (sk.weapon ? " — " + t("technique de {weapon}", { weapon: tName(curUnit.weaponName ?? "") }) : "") +
+              (!sk.selfCast && sk.targets.length === 0 ? " — " + t("aucune cible à portée") : "") +
+              ` [${i + 1}]`
+            }
             onClick={() => { setDrawer(""); selectCombatSkill(sk.idx); }}
           >
             {sk.weapon ? weaponIcon(curUnit.weaponKind) : "✨"}
-            <span>{sk.skill.name}</span>
+            <span>{tName(sk.skill.name)}</span>
             {sk.selfCast && <i className="cbt-end">⏻</i>}
           </button>
         ))}
@@ -178,29 +191,29 @@ export function CombatControls() {
         <button
           className={`cbt-act ${combatMode === "push" ? "on" : ""}`}
           disabled={busy || (current?.pushTargets ?? []).length === 0}
-          title="Pousser un ennemi d'une case : collision 2 dégâts, eau = piégé, chute ≥2 = +2 [E]"
+          title={t("Pousser un ennemi d'une case : collision 2 dégâts, eau = piégé, chute ≥2 = +2") + " [E]"}
           onClick={() => { setDrawer(""); setCombatMode("push"); }}
         >
-          👐<span>Pousser</span>
+          👐<span>{t("Pousser")}</span>
         </button>
 
         <button
           className="cbt-act def"
           disabled={busy}
-          title="-50 % de dégâts subis jusqu'à ton prochain tour (termine le tour) [D]"
+          title={t("-50 % de dégâts subis jusqu'à ton prochain tour (termine le tour)") + " [D]"}
           onClick={() => void combatDefend()}
         >
-          🛡️<span>Défendre</span><i className="cbt-end">⏻</i>
+          🛡️<span>{t("Défendre")}</span><i className="cbt-end">⏻</i>
         </button>
 
         {items.length > 0 && (
           <button
             className={`cbt-act ${drawer === "items" ? "on" : ""}`}
             disabled={busy}
-            title="Consommer un objet du sac (termine le tour)"
+            title={t("Consommer un objet du sac (termine le tour)")}
             onClick={() => setDrawer(drawer === "items" ? "" : "items")}
           >
-            🧪<span>Objets</span><i className="cbt-n">{items.length}</i>
+            🧪<span>{t("Objets")}</span><i className="cbt-n">{items.length}</i>
           </button>
         )}
 
@@ -208,24 +221,28 @@ export function CombatControls() {
           <button
             className={`cbt-act ${drawer === "swap" ? "on" : ""}`}
             disabled={busy}
-            title="Dégainer une autre arme du sac (termine le tour)"
+            title={t("Dégainer une autre arme du sac (termine le tour)")}
             onClick={() => setDrawer(drawer === "swap" ? "" : "swap")}
           >
-            🔁<span>Arme</span><i className="cbt-n">{swaps.length}</i>
+            🔁<span>{t("Arme")}</span><i className="cbt-n">{swaps.length}</i>
           </button>
         )}
 
         <button
           className="cbt-act"
           disabled={busy || !onBottomEdge}
-          title={onBottomEdge ? "Quitter le combat par le bord bas — pas de butin, le pack reste" : "Rejoins le bord bas de l'arène pour fuir"}
+          title={
+            onBottomEdge
+              ? t("Quitter le combat par le bord bas — pas de butin, le pack reste")
+              : t("Rejoins le bord bas de l'arène pour fuir")
+          }
           onClick={() => void combatFlee()}
         >
-          🏃<span>Fuir</span><i className="cbt-end">⏻</i>
+          🏃<span>{t("Fuir")}</span><i className="cbt-end">⏻</i>
         </button>
 
-        <button className="cbt-act end" disabled={busy} title="Fin du tour [Espace]" onClick={() => void endTurn()}>
-          ⏭<span>Fin</span>
+        <button className="cbt-act end" disabled={busy} title={t("Fin du tour") + " [" + t("Espace") + "]"} onClick={() => void endTurn()}>
+          ⏭<span>{t("Fin")}</span>
         </button>
       </div>
 
@@ -234,18 +251,18 @@ export function CombatControls() {
         <div className="cbt-drawer">
           {items.map((it) => (
             <button key={it.name} className="cbt-pick" disabled={busy} onClick={() => { setDrawer(""); void combatUseItem(it.name); }}>
-              🧪 {it.name} ×{it.qty} <i className="heal">+{it.heal} PV</i>
+              🧪 {tName(it.name)} ×{it.qty} <i className="heal">{t("+{n} PV", { n: it.heal })}</i>
             </button>
           ))}
         </div>
       )}
       {drawer === "swap" && (
         <div className="cbt-drawer">
-          <div className="cbt-drawer-note">Changer d'arme coûte le tour — mais change ta technique.</div>
+          <div className="cbt-drawer-note">{t("Changer d'arme coûte le tour — mais change ta technique.")}</div>
           {swaps.map((w) => (
             <button key={w.name} className="cbt-pick" disabled={busy} onClick={() => { setDrawer(""); void combatSwapWeapon(w.name); }}>
-              {weaponIcon(w.kind)} {w.name}
-              {w.technique && <i className="tech">✨ {w.technique}</i>}
+              {weaponIcon(w.kind)} {tName(w.name)}
+              {w.technique && <i className="tech">✨ {tName(w.technique)}</i>}
             </button>
           ))}
         </div>
@@ -266,9 +283,9 @@ export function CombatControls() {
                   disabled={busy}
                   title={
                     est?.rear
-                      ? "Attaque de dos : +25 %, ignore la couverture"
+                      ? t("Attaque de dos : +25 %, ignore la couverture")
                       : est?.cover
-                        ? "Cible à couvert : −25 % à distance"
+                        ? t("Cible à couvert : −25 % à distance")
                         : ""
                   }
                   onClick={() => combatUnitClick(id)}
@@ -280,7 +297,7 @@ export function CombatControls() {
                   onFocus={() => setAimUnit(id)}
                   onBlur={() => setAimUnit(undefined)}
                 >
-                  <b>{combatMode === "push" ? "👐" : lethal ? "☠️" : "🎯"} {u?.name}</b>
+                  <b>{combatMode === "push" ? "👐" : lethal ? "☠️" : "🎯"} {tName(u?.name)}</b>
                   {u && <em>{Math.max(0, u.hp)}/{u.maxHp}</em>}
                   {est && (
                     <i className="dmg-est">
@@ -294,8 +311,8 @@ export function CombatControls() {
           ) : (
             <span className="cbt-hint">
               {combatMode === "push"
-                ? "Aucun ennemi aligné à portée de poussée."
-                : "Aucune cible à portée — déplace-toi (cases vertes)."}
+                ? t("Aucun ennemi aligné à portée de poussée.")
+                : t("Aucune cible à portée — déplace-toi (cases vertes).")}
             </span>
           )}
         </div>

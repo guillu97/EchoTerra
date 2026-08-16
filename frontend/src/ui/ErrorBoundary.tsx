@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
+import { t } from "../i18n";
 
 // Filet de sécurité : sans lui, une exception de rendu vidait le <div id="root">
 // et laissait un écran BLANC, sans le moindre indice de ce qui s'est passé.
@@ -22,14 +23,15 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, { error?: 
           <div className="crash-ic" aria-hidden="true">
             🪵
           </div>
-          <h1 className="crash-title">Quelque chose a cassé</h1>
+          <h1 className="crash-title">{t("Quelque chose a cassé")}</h1>
           <p className="crash-text">
-            L'affichage a rencontré une erreur inattendue. Ta partie est enregistrée côté serveur —
-            recharger devrait suffire à reprendre où tu en étais.
+            {t(
+              "L'affichage a rencontré une erreur inattendue. Ta partie est enregistrée côté serveur — recharger devrait suffire à reprendre où tu en étais.",
+            )}
           </p>
           <pre className="crash-detail">{this.state.error.message}</pre>
           <button className="pill red ov-close" onClick={() => location.reload()}>
-            Recharger le jeu
+            {t("Recharger le jeu")}
           </button>
         </div>
       </div>

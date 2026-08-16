@@ -1,4 +1,5 @@
 import { useStore } from "../store";
+import { useT } from "../i18n/useT";
 
 // Pile de toasts, en bas de l'écran, au-dessus de la barre de navigation.
 //
@@ -8,22 +9,25 @@ import { useStore } from "../store";
 export function Toasts() {
   const toasts = useStore((s) => s.toasts);
   const dismiss = useStore((s) => s.dismissToast);
+  const { t } = useT();
 
   if (toasts.length === 0) return null;
 
   return (
     <div className="toasts" role="status" aria-live="polite">
-      {toasts.map((t) => (
+      {/* ⚠ la variable de boucle NE PEUT PLUS s'appeler `t` : c'est le nom de la
+          fonction de traduction, et l'ombrer ici la rendrait inappelable. */}
+      {toasts.map((toast) => (
         <button
-          key={t.id}
-          className={`toast-item ${t.tone}`}
-          onClick={() => dismiss(t.id)}
-          title="Masquer"
+          key={toast.id}
+          className={`toast-item ${toast.tone}`}
+          onClick={() => dismiss(toast.id)}
+          title={t("Masquer")}
         >
           <span className="ti-ic" aria-hidden="true">
-            {t.tone === "error" ? "⚠️" : t.tone === "ok" ? "✅" : t.tone === "warn" ? "🔔" : "💬"}
+            {toast.tone === "error" ? "⚠️" : toast.tone === "ok" ? "✅" : toast.tone === "warn" ? "🔔" : "💬"}
           </span>
-          <span className="ti-msg">{t.msg}</span>
+          <span className="ti-msg">{toast.msg}</span>
         </button>
       ))}
     </div>

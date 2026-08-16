@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useStore } from "../store";
+import { useT } from "../i18n/useT";
 
 // L'ORDRE DU JOUR — ce que la ville demande, maintenant.
 //
@@ -16,6 +17,7 @@ import { useStore } from "../store";
 export function TownOrders() {
   const game = useStore((s) => s.game);
   const [open, setOpen] = useState(false);
+  const { t, tServer } = useT();
   const orders = game?.town.orders ?? [];
   if (!game || game.status !== "active" || orders.length === 0) return null;
 
@@ -29,10 +31,10 @@ export function TownOrders() {
         className="orders-head"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        title={open ? "Replier l'ordre du jour" : "Voir l'ordre du jour"}
+        title={open ? t("Replier l'ordre du jour") : t("Voir l'ordre du jour")}
       >
         <span className="orders-icon">{head.icon}</span>
-        <span className="orders-text">{head.text}</span>
+        <span className="orders-text">{tServer(head)}</span>
         {rest.length > 0 && <span className="orders-more">{open ? "▾" : `+${rest.length}`}</span>}
       </button>
       {open && rest.length > 0 && (
@@ -40,7 +42,7 @@ export function TownOrders() {
           {rest.map((o, i) => (
             <li key={i} className={o.urgent ? "urgent" : ""}>
               <span className="orders-icon">{o.icon}</span>
-              <span>{o.text}</span>
+              <span>{tServer(o)}</span>
             </li>
           ))}
         </ul>

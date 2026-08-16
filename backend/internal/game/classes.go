@@ -1,7 +1,5 @@
 package game
 
-import "fmt"
-
 // Class tiers. Heroes start at ClassTierNone ("Sans classe", no bonuses) and evolve
 // sequentially: an intermediate class (tier 1) once EvolveDayIntermediate has passed,
 // then an advanced class (tier 2) EvolveDayAdvanced days later.
@@ -152,10 +150,10 @@ func ClassByID(id string) *ClassDef {
 func (g *GameState) EvolveHero(heroID, classID string) error {
 	h := g.HeroByID(heroID)
 	if h == nil {
-		return ActionError{"héros introuvable"}
+		return actionErr("héros introuvable")
 	}
 	if h.ClassTier >= ClassTierAdvanced {
-		return ActionError{h.Name + " a déjà atteint sa classe avancée"}
+		return actionErrf("%s a déjà atteint sa classe avancée", h.Name)
 	}
 	nextTier := h.ClassTier + 1
 	minDay := EvolveDayIntermediate
@@ -163,11 +161,11 @@ func (g *GameState) EvolveHero(heroID, classID string) error {
 		minDay = EvolveDayAdvanced
 	}
 	if g.Day < minDay {
-		return ActionError{fmt.Sprintf("%s ne peut évoluer qu'à partir du jour %d (actuellement jour %d)", h.Name, minDay, g.Day)}
+		return actionErrf("%s ne peut évoluer qu'à partir du jour %d (actuellement jour %d)", h.Name, minDay, g.Day)
 	}
 	cls := ClassByID(classID)
 	if cls == nil || cls.Tier != nextTier {
-		return ActionError{"classe invalide pour cette évolution"}
+		return actionErr("classe invalide pour cette évolution")
 	}
 	// Tech-tree prerequisite: an advanced class requires one of its parent classes
 	// (Gardien ← Pionnier ; Récupérateur ← Chasseur/Éclaireur ; Herboriste ← Éclaireur).
@@ -188,7 +186,8 @@ func (g *GameState) EvolveHero(heroID, classID string) error {
 					names = append(names, req)
 				}
 			}
-			return ActionError{fmt.Sprintf("%s exige d'être %s", cls.Name, joinOr(names))}
+			// NameList et non joinOr : le client joint lui-même, avec SON connecteur.
+			return actionErrf("%s exige d'être %s", Name(cls.Name), NameList(names))
 		}
 	}
 

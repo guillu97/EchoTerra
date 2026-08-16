@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useStore } from "../store";
 import { buildingName } from "../data/buildings";
+import { useT } from "../i18n/useT";
 
 // LE MOMENT DE LA VAGUE.
 //
@@ -31,6 +32,7 @@ export function WaveCinematic() {
 
 function WaveCinematicRun({ cinema }: { cinema: NonNullable<ReturnType<typeof useStore.getState>["waveCinema"]> }) {
   const dismiss = useStore((s) => s.dismissWaveCinema);
+  const { t } = useT();
   const [phase, setPhase] = useState<Phase>("strike");
 
   useEffect(() => {
@@ -74,55 +76,58 @@ function WaveCinematicRun({ cinema }: { cinema: NonNullable<ReturnType<typeof us
       className={`wavecine ${phase}`}
       role="dialog"
       aria-modal="true"
-      aria-label={`Vague ${r.wave}`}
+      aria-label={t("Vague {n}", { n: r.wave })}
       // Taper pendant la frappe passe au rapport : on ne retient personne.
       onClick={() => (phase === "strike" ? setPhase("report") : undefined)}
     >
       <div className="wc-sky" />
       <div className="wc-strike">
-        <div className="wc-kicker">{many ? `${waves} vagues pendant ton absence` : `Jour ${r.day}`}</div>
-        <div className="wc-title">VAGUE {r.wave}</div>
-        <div className="wc-sub">
-          {breached ? "La horde a percé les défenses" : "Les murs ont tenu"}
+        <div className="wc-kicker">
+          {many ? t("{n} vagues pendant ton absence", { n: waves }) : t("Jour {n}", { n: r.day })}
         </div>
-        {townDamage > 0 && <div className="wc-hit">−{townDamage} PV</div>}
+        <div className="wc-title">{t("VAGUE {n}", { n: r.wave })}</div>
+        <div className="wc-sub">{breached ? t("La horde a percé les défenses") : t("Les murs ont tenu")}</div>
+        {townDamage > 0 && <div className="wc-hit">{t("−{n} PV", { n: townDamage })}</div>}
       </div>
 
       {phase === "report" && (
         <div className="wc-card">
           <div className="wc-head">
-            <span className="wc-h-title">📜 Rapport de vague</span>
+            <span className="wc-h-title">📜 {t("Rapport de vague")}</span>
             <span className="wc-h-day">
-              {many ? `Vagues ${r.wave - waves + 1}–${r.wave}` : `Vague ${r.wave}`} · Jour {r.day}
+              {many
+                ? t("Vagues {from}–{to}", { from: r.wave - waves + 1, to: r.wave })
+                : t("Vague {n}", { n: r.wave })}{" "}
+              · {t("Jour {n}", { n: r.day })}
             </span>
           </div>
 
           <div className="wc-duel">
             <div className="wc-side horde">
               <span className="wc-n">{r.hordePower}</span>
-              <span className="wc-l">Horde</span>
+              <span className="wc-l">{t("Horde")}</span>
             </div>
-            <span className="wc-vs">vs</span>
+            <span className="wc-vs">{t("vs")}</span>
             <div className="wc-side def">
               <span className="wc-n">{r.defense}</span>
-              <span className="wc-l">Défense</span>
+              <span className="wc-l">{t("Défense")}</span>
             </div>
           </div>
 
           <ul className="wc-lines">
             <li>
-              <span>🏰 Ville</span>
+              <span>🏰 {t("Ville")}</span>
               <b className={townDamage > 0 ? "bad" : "ok"}>
-                {townDamage > 0 ? `−${townDamage} PV` : "intacte"}
+                {townDamage > 0 ? t("−{n} PV", { n: townDamage }) : t("intacte")}
               </b>
             </li>
             <li>
-              <span>❤️ PV restants</span>
+              <span>❤️ {t("PV restants")}</span>
               <b>{r.townHpAfter}</b>
             </li>
             {buildingsHit.length > 0 && (
               <li>
-                <span>🧱 Bâtiments</span>
+                <span>🧱 {t("Bâtiments")}</span>
                 <b className="bad">
                   {buildingsHit.map((b) => `${buildingName(b.id, b.name)} ${b.delta}`).join(" · ")}
                 </b>
@@ -130,14 +135,14 @@ function WaveCinematicRun({ cinema }: { cinema: NonNullable<ReturnType<typeof us
             )}
             {heroesHit.length > 0 && (
               <li>
-                <span>⚔️ Hors les murs</span>
+                <span>⚔️ {t("Hors les murs")}</span>
                 <b className="bad">{heroesHit.map((h) => `${h.name} ${h.delta}`).join(" · ")}</b>
               </li>
             )}
             {r.monstersSpawned > 0 && (
               <li>
-                <span>👹 Renforts</span>
-                <b>+{r.monstersSpawned} packs</b>
+                <span>👹 {t("Renforts")}</span>
+                <b>{t("+{n} packs", { n: r.monstersSpawned })}</b>
               </li>
             )}
           </ul>
@@ -148,9 +153,9 @@ function WaveCinematicRun({ cinema }: { cinema: NonNullable<ReturnType<typeof us
               l'écran de fin) — le joueur restait bloqué sur son rapport, sans
               retour au menu ni nouvelle partie. Le rapport de la dernière vague
               se lit, PUIS on rend la main. */}
-          {r.gameOver && <div className="wc-fallen">💀 La ville est tombée.</div>}
+          {r.gameOver && <div className="wc-fallen">💀 {t("La ville est tombée.")}</div>}
           <button className="pill red wc-go" onClick={dismiss} autoFocus>
-            {r.gameOver ? "Voir le bilan" : "Continuer"}
+            {r.gameOver ? t("Voir le bilan") : t("Continuer")}
           </button>
         </div>
       )}

@@ -1,4 +1,5 @@
 import type {
+  AuthResult,
   CatchUpResult,
   ChatMessage,
   Chronicle,
@@ -21,6 +22,7 @@ import type {
   ScoreEntry,
   SeasonList,
   User,
+  UserPrefs,
 } from "./types";
 
 export interface JoinResponse {
@@ -64,9 +66,9 @@ async function req<T>(method: string, url: string, body?: unknown): Promise<T> {
     });
   } catch {
     // `fetch` rejette avec « Failed to fetch » (ou « Load failed » sur Safari) :
-    // illisible, et en anglais dans une interface française. Ce cas-là est en
-    // pratique toujours le même — plus de réseau, ou serveur injoignable.
-    throw new Error("Connexion au serveur perdue — vérifie ta connexion.");
+    // illisible, et dans une langue qui n'est pas forcément celle du joueur. Ce cas-là
+    // est en pratique toujours le même — plus de réseau, ou serveur injoignable.
+    throw new ApiError("Connexion au serveur perdue — vérifie ta connexion.");
   }
   const text = await res.text();
   let data: any = null;
@@ -75,13 +77,37 @@ async function req<T>(method: string, url: string, body?: unknown): Promise<T> {
       data = JSON.parse(text);
     } catch {
       // Réponse non-JSON (page d'erreur d'un proxy, 502 HTML…).
-      if (!res.ok) throw new Error(`Le serveur a répondu ${res.status}.`);
+      if (!res.ok) throw new ApiError(`Le serveur a répondu ${res.status}.`, "Le serveur a répondu %d.", [res.status]);
     }
   }
   if (!res.ok) {
-    throw new Error((data && data.error) || `Le serveur a répondu ${res.status}.`);
+    if (data && data.error) throw new ApiError(data.error, data.errorKey, data.errorArgs);
+    throw new ApiError(`Le serveur a répondu ${res.status}.`, "Le serveur a répondu %d.", [res.status]);
   }
   return data as T;
+}
+
+/**
+ * Une erreur d'API qui SAIT SE TRADUIRE.
+ *
+ * `message` reste le français rendu par le serveur — c'est ce que voit une console,
+ * un journal, ou tout code qui ne sait rien de l'i18n. `key`/`args` portent le gabarit
+ * et ses substitutions (backend/internal/game/i18n.go) : c'est ce que `store.notify`
+ * fait passer par `tServer` pour l'afficher dans la langue du joueur.
+ *
+ * ⚠ toujours lever une ApiError plutôt qu'un Error nu : un `throw new Error(...)` perd
+ * la clé en silence, et le message ressort en français au milieu d'une interface
+ * anglaise sans que rien ne le signale.
+ */
+export class ApiError extends Error {
+  key?: string;
+  args?: (string | number)[];
+  constructor(message: string, key?: string, args?: (string | number)[]) {
+    super(message);
+    this.name = "ApiError";
+    this.key = key ?? message;
+    this.args = args;
+  }
 }
 
 export const api = {
@@ -144,18 +170,22 @@ export const api = {
   authConfig: () => req<{ googleClientId: string }>("GET", "/api/auth/config"),
 
   register: (email: string, name: string, password: string) =>
-    req<{ user: User; token: string }>("POST", "/api/auth/register", { email, name, password }),
+    req<AuthResult>("POST", "/api/auth/register", { email, name, password }),
 
   login: (email: string, password: string) =>
-    req<{ user: User; token: string }>("POST", "/api/auth/login", { email, password }),
+    req<AuthResult>("POST", "/api/auth/login", { email, password }),
 
   // credential = the ID token minted by Google Identity Services in the browser.
-  loginGoogle: (credential: string) =>
-    req<{ user: User; token: string }>("POST", "/api/auth/google", { credential }),
+  loginGoogle: (credential: string) => req<AuthResult>("POST", "/api/auth/google", { credential }),
 
   logout: () => req<{ ok: boolean }>("POST", "/api/auth/logout", {}),
 
-  me: () => req<{ user: User }>("GET", "/api/auth/me"),
+  me: () => req<AuthResult>("GET", "/api/auth/me"),
+
+  // Les préférences de COMPTE (store/prefs.go) — aujourd'hui la seule est la langue.
+  // Elles suivent la personne d'un appareil à l'autre, contrairement aux réglages de
+  // rendu qui décrivent la machine et restent dans le localStorage.
+  savePrefs: (prefs: UserPrefs) => req<{ prefs: UserPrefs }>("PUT", "/api/auth/me/prefs", prefs),
 
   // Monter à la Tour estimer la vague : chaque JOUEUR qui le fait resserre la
   // fourchette pour toute la ville (backend orders.go ScoutWave).

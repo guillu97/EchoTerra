@@ -20,6 +20,8 @@ import type { Hero, Item, ItemEffect, EquipDef } from "../api/types";
 import { itemAssetUrl } from "../assets";
 import { Overlay } from "../ui/Overlay";
 import { itemEmoji } from "./ItemGrid";
+import { t, tName, tDesc } from "../i18n";
+import { useT } from "../i18n/useT";
 
 const TYPE_LABEL: Record<string, string> = {
   aliment: "Aliment",
@@ -44,10 +46,11 @@ const STAT_LABEL: Record<string, string> = {
 /** Les lignes « ce que ça fait » d'un consommable (backend game/items.go). */
 function useLines(e: ItemEffect): string[] {
   const out: string[] = [];
-  if (e.pa) out.push(`+${e.pa} PA`);
-  if (e.hp) out.push(`+${e.hp} PV`);
-  if (e.clearsAll) out.push("retire TOUS les états");
-  else if (e.clears?.length) out.push(`retire ${e.clears.join(", ")}`);
+  if (e.pa) out.push(t("+{n} PA", { n: e.pa }));
+  if (e.hp) out.push(t("+{n} PV", { n: e.hp }));
+  if (e.clearsAll) out.push(t("retire TOUS les états"));
+  // ⚠ les ÉTATS sont des identifiants de jeu (« Tétanisé », « Soif ») : tName, pas t.
+  else if (e.clears?.length) out.push(t("retire {states}", { states: e.clears.map(tName).join(", ") }));
   return out;
 }
 
@@ -70,11 +73,11 @@ function gearLines(d: EquipDef): string[] {
   const out: string[] = [];
   for (const k of ["force", "dexterite", "agilite", "endurance"] as const) {
     const v = d[k];
-    if (v) out.push(`${v > 0 ? "+" : ""}${v} ${STAT_LABEL[k]}`);
+    if (v) out.push(`${v > 0 ? "+" : ""}${v} ${t(STAT_LABEL[k])}`);
   }
-  if (d.armor) out.push(`armure ${d.armor} (dégâts subis en moins)`);
-  if (d.reach) out.push(`portée ${d.reach} (l'attaque de base atteint plus loin)`);
-  if (d.vsCursed) out.push(`+${d.vsCursed} contre les créatures maudites`);
+  if (d.armor) out.push(t("armure {n} (dégâts subis en moins)", { n: d.armor }));
+  if (d.reach) out.push(t("portée {n} (l'attaque de base atteint plus loin)", { n: d.reach }));
+  if (d.vsCursed) out.push(t("+{n} contre les créatures maudites", { n: d.vsCursed }));
   return out;
 }
 
@@ -105,6 +108,7 @@ export function ItemSheet({
   onEquip: () => void;
   onClose: () => void;
 }) {
+  const { t } = useT();
   const url = itemAssetUrl(item);
   const effects = effect ? useLines(effect) : [];
   const worn = gear ? gearLines(gear) : [];
@@ -117,28 +121,28 @@ export function ItemSheet({
             {url ? <img src={url} alt="" /> : <span>{itemEmoji(item)}</span>}
           </div>
           <div className="isheet-id">
-            <b id="item-sheet-title">{item.name}</b>
+            <b id="item-sheet-title">{tName(item.name)}</b>
             <span className="muted">
-              {TYPE_LABEL[item.type] ?? item.type} · ×{item.qty} · {ownerName}
+              {t(TYPE_LABEL[item.type] ?? item.type)} · ×{item.qty} · {ownerName}
             </span>
           </div>
-          <button className="hero-close" onClick={onClose} aria-label="Fermer">✕</button>
+          <button className="hero-close" onClick={onClose} aria-label={t("Fermer")}>✕</button>
         </div>
 
         {effect && (
           <div className="isheet-block">
-            <h5>🍽️ En le consommant</h5>
-            {effects.length > 0 && <div className="isheet-tags">{effects.map((t) => <span key={t}>{t}</span>)}</div>}
-            {effect.desc && <p>{effect.desc}</p>}
+            <h5>🍽️ {t("En le consommant")}</h5>
+            {effects.length > 0 && <div className="isheet-tags">{effects.map((l) => <span key={l}>{l}</span>)}</div>}
+            {effect.desc && <p>{tDesc(effect.desc)}</p>}
           </div>
         )}
 
         {gear && (
           <div className="isheet-block">
-            <h5>{gear.slot === "arme" ? "🗡️" : "🧥"} Porté — {SLOT_LABEL[gear.slot] ?? gear.slot}</h5>
-            {worn.length > 0 && <div className="isheet-tags">{worn.map((t) => <span key={t}>{t}</span>)}</div>}
-            {gear.desc && <p>{gear.desc}</p>}
-            <p className="muted small">Ces bonus ne jouent qu'au combat.</p>
+            <h5>{gear.slot === "arme" ? "🗡️" : "🧥"} {t("Porté")} — {t(SLOT_LABEL[gear.slot] ?? gear.slot)}</h5>
+            {worn.length > 0 && <div className="isheet-tags">{worn.map((l) => <span key={l}>{l}</span>)}</div>}
+            {gear.desc && <p>{tDesc(gear.desc)}</p>}
+            <p className="muted small">{t("Ces bonus ne jouent qu'au combat.")}</p>
           </div>
         )}
 
@@ -146,8 +150,12 @@ export function ItemSheet({
           <div className="isheet-block">
             <p className="muted">
               {isPlan
-                ? "Plan de construction : dépose-le à la Banque, il sera consommé quand la ville posera ce chantier."
-                : "Ni consommable ni portable : c'est une ressource — elle sert aux recettes de l'Atelier et aux chantiers, une fois déposée à la Banque."}
+                ? t(
+                    "Plan de construction : dépose-le à la Banque, il sera consommé quand la ville posera ce chantier.",
+                  )
+                : t(
+                    "Ni consommable ni portable : c'est une ressource — elle sert aux recettes de l'Atelier et aux chantiers, une fois déposée à la Banque.",
+                  )}
             </p>
           </div>
         )}
@@ -155,20 +163,22 @@ export function ItemSheet({
         <div className="isheet-actions">
           {effect && (
             <button className="isheet-use" disabled={busy || !canUse} onClick={onUse}>
-              🍽️ Utiliser
+              🍽️ {t("Utiliser")}
             </button>
           )}
           {gear && (
             <button className="isheet-equip" disabled={busy || !canEquip} onClick={onEquip}>
-              {gear.slot === "arme" ? "🗡️" : "🧥"} Équiper
+              {gear.slot === "arme" ? "🗡️" : "🧥"} {t("Équiper")}
             </button>
           )}
-          <button onClick={onClose}>Fermer</button>
+          <button onClick={onClose}>{t("Fermer")}</button>
         </div>
         {/* Pourquoi un bouton est éteint — sans ça le joueur croit à une panne. */}
         {effect && !canUse && whyNoUse && <p className="isheet-why muted small">{whyNoUse}</p>}
         {gear && !canEquip && (
-          <p className="isheet-why muted small">On ne s'équipe que depuis le sac d'un héros, pas depuis la Banque.</p>
+          <p className="isheet-why muted small">
+            {t("On ne s'équipe que depuis le sac d'un héros, pas depuis la Banque.")}
+          </p>
         )}
       </div>
     </Overlay>
