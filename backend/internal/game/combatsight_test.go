@@ -33,9 +33,9 @@ func sightCombat(t *testing.T) (*GameState, *Combat, *CombatUnit, *CombatUnit) {
 	return gs, c, hu, mu
 }
 
-func TestSightIsLimitedAndFollowsPrecision(t *testing.T) {
+func TestSightIsLimitedAndFollowsPerception(t *testing.T) {
 	_, c, hu, mu := sightCombat(t)
-	hu.Stats.Precision = 0
+	hu.Stats.Perception = 0
 	hu.Sight = hu.sight()
 	hu.X, hu.Y = 0, 0
 	mu.X, mu.Y = 0, 6 // six cases : hors de portée d'œil
@@ -43,8 +43,9 @@ func TestSightIsLimitedAndFollowsPrecision(t *testing.T) {
 	if c.VisibleTo("hero", mu) {
 		t.Fatalf("à %d de portée, l'ennemi ne doit pas être visible à six cases", hu.Sight)
 	}
-	// la précision ACHÈTE la portée
-	hu.Stats.Precision = 12 // portée 3 + 12/3 = 7
+	// la PERCEPTION achète la portée (et elle seule : la Précision, elle, n'achète que
+	// le coup critique — les deux étaient confondues au premier jet, à tort)
+	hu.Stats.Perception = 12 // portée 3 + 12/3 = 7
 	hu.Sight = hu.sight()
 	if !c.VisibleTo("hero", mu) {
 		t.Fatalf("une grande précision doit porter jusqu'à six cases (portée %d)", hu.Sight)
@@ -54,7 +55,7 @@ func TestSightIsLimitedAndFollowsPrecision(t *testing.T) {
 // ON NE FRAPPE QUE CE QU'ON VOIT — la conséquence qui compte vraiment.
 func TestCannotTargetWhatYouCannotSee(t *testing.T) {
 	_, c, hu, mu := sightCombat(t)
-	hu.Stats.Precision, hu.Sight = 0, 0
+	hu.Stats.Perception, hu.Sight = 0, 0
 	hu.Sight = hu.sight()
 	// une arme de très longue portée, mais un ennemi hors de vue
 	atk := AttackDef{Name: "Tir long", Kind: "special", Targets: manhattanCells(1, 6), DmgStat: "dexterite"}
@@ -77,7 +78,7 @@ func TestCannotTargetWhatYouCannotSee(t *testing.T) {
 // effet d'affichage, la position voyagerait quand même.
 func TestHiddenUnitsAreNotServed(t *testing.T) {
 	_, c, hu, mu := sightCombat(t)
-	hu.Stats.Precision, hu.X, hu.Y = 0, 0, 0
+	hu.Stats.Perception, hu.X, hu.Y = 0, 0, 0
 	hu.Sight = hu.sight()
 	mu.X, mu.Y = 0, 6
 	view := c.SightView("hero")
@@ -100,7 +101,7 @@ func TestHiddenUnitsAreNotServed(t *testing.T) {
 func TestEclairerRevealsAnArea(t *testing.T) {
 	_, c, hu, mu := sightCombat(t)
 	hu.ClassID = "eclaireur"
-	hu.Stats.Precision, hu.X, hu.Y = 0, 0, 0
+	hu.Stats.Perception, hu.X, hu.Y = 0, 0, 0
 	hu.Sight = hu.sight()
 	mu.X, mu.Y = 0, 5
 	if c.VisibleTo("hero", mu) {
@@ -134,7 +135,7 @@ func TestEclairerRevealsAnArea(t *testing.T) {
 // LA RÈGLE EST SYMÉTRIQUE : un monstre ne cible pas non plus ce qu'il ne voit pas.
 func TestMonstersObeyTheSameSight(t *testing.T) {
 	_, c, hu, mu := sightCombat(t)
-	mu.Stats.Precision = 0
+	mu.Stats.Perception = 0
 	mu.Sight = mu.sight()
 	mu.X, mu.Y = 0, 0
 	hu.X, hu.Y = 0, 6
@@ -153,7 +154,7 @@ func TestMonstersObeyTheSameSight(t *testing.T) {
 // tension, c'est une panne.
 func TestBlindCombatStillConverges(t *testing.T) {
 	_, c, hu, mu := sightCombat(t)
-	hu.Stats.Precision, mu.Stats.Precision = 0, 0
+	hu.Stats.Precision, mu.Stats.Perception = 0, 0
 	hu.Sight, mu.Sight = hu.sight(), mu.sight()
 	hu.X, hu.Y = 0, 0
 	mu.X, mu.Y = 0, 6

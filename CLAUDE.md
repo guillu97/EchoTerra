@@ -510,12 +510,24 @@ DE DÉPLACEMENT (`Move = 2+agi/3`) et `Initiative = agi*10+rand` · **Endurance*
 subis ET les PV (`8+end*2` à la création, `+2` par point gagné à l'ÉVOLUTION — `EvolveHero` ne les
 recalculait pas, un gardien à 7 d'endurance gardait les 16 PV de ses 4 points de départ) ·
 **Précision** la chance de COUP CRITIQUE (`critPct` : ×1,5 dégâts, 3 %/point, plafond 40 %) ·
+**Perception** JUSQU'OÙ ON VOIT — rayon de brouillard levé sur la CARTE (`sightRadius` :
+`1 + perception/4`) ET portée d'œil en COMBAT (`sight` : `3 + perception/3`) ·
 **Athlétisme** LA HAUTEUR FRANCHISSABLE, en combat ET sur la carte (`climbFrom` : `plancher +
 athlétisme/5`, plancher **2** en arène et **1** sur la carte — voir « LE RELIEF ARRÊTE »). ⚠ **les deux dernières ne
 faisaient RIEN** avant cet audit : Athlétisme n'était lu par aucune ligne de code, Précision ne portait
 les dégâts que de DEUX capacités sur tout le jeu — alors que `classes.go` donne `Athletisme: 5` comme
 bonus PRINCIPAL à trois classes sur six (éclaireur, récupérateur, herboriste), qui échangeaient donc
-leur évolution contre cinq points de rien. ⚠ **pas de jet de toucher, et il ne faut pas en ajouter** :
+leur évolution contre cinq points de rien. ⚠ **la PERCEPTION est une 7ᵉ statistique ajoutée le 2026-08-16**, après un premier jet
+qui chargeait la vision sur la Précision : les cinq autres paires racontent chacune UNE
+idée vue sous deux angles (Endurance = encaisser : PV + réduction ; Agilité = vitesse :
+déplacement + initiative), alors que « frapper juste » et « savoir ce qu'il y a là » sont
+deux idées différentes. Elle ne fait qu'une chose, mais sur les DEUX surfaces du jeu — et
+elle a un PROPRIÉTAIRE : l'Éclaireur (Perception 5), qui n'avait aucune identité chiffrée
+(voir « LES SIX PROFILS »). Elle a aussi supprimé le `if h.ClassID == "eclaireur"` codé en
+dur dans `fog.go` : la vision d'une classe est devenue un profil et non une exception du
+moteur. ⚠ le rayon de carte est la valeur la PLUS dangereuse du jeu à toucher (à rayon 0,
+mesuré : 2 tuiles de montagne en 12 vagues = défaite arithmétique), d'où le `/4` serré.
+⚠ **pas de jet de toucher, et il ne faut pas en ajouter** :
 rater son tour dans un jeu qu'on joue deux fois par jour est une punition, pas une tension — d'où le
 critique, qui est une pointe de dégâts ANNONCÉE (`CritChance` → `critPct`/`critMax` servis à côté de la
 fourchette, jamais fondus dedans). ⚠ l'agilité reste en ESCALIER (`/3`) : une Cape de plumes (+2) ne
@@ -959,8 +971,8 @@ absent rend l'objet SILENCIEUSEMENT invisible.
 
 **LA VISION EN COMBAT** (`game/combatsight.go`, 2026-08-16) — l'arène servait TOUT :
 chaque unité connaissait chaque ennemi à travers les piliers dès le premier round.
-Désormais `Sight = 3 + précision/3` (la **PRÉCISION** : elle donnait le critique
-— repérer le point faible —, elle donne la portée à laquelle on distingue), vision MISE
+Désormais `Sight = 3 + perception/3` (la **PERCEPTION**, 7ᵉ statistique — la Précision portait les
+deux au premier jet, à tort : voir §« LES STATISTIQUES »), vision MISE
 EN COMMUN par camp, ligne de vue via `hasLOS`, et le **contact voit toujours** (sinon une
 unité collée à un rocher devenait invisible pour celle qui la touche). `canTarget` exige
 de VOIR — c'est la conséquence qui compte. ⚠ **`SightView` RETIRE les unités invisibles
@@ -1112,7 +1124,8 @@ l'attaque de base — c'est ce qui fait d'un arc autre chose qu'une épée aux c
 MIROIRS, armure comprise, sinon la prévisualisation d'attaque ment. ⚠ **Athlétisme et Précision ont enfin leurs objets** (2026-08-16) : **Bottes cloutées** (+3 ath,
 Atelier niv.**1** — délibéré, elles ouvrent des ZONES DE CARTE et les réserver au niveau 2 fermerait
 une partie du monde derrière une chaîne de construction qu'une petite expédition n'atteint pas),
-**Œil-de-lynx** (+3 précision) et **Stylet d'écorcheur** (dague, +1 force/+4 précision — la dague
+**Œil-de-lynx** (+3 PERCEPTION — un lynx ne frappe pas mieux, il VOIT plus loin : c'est
+le seul équipement qui agrandit le champ de vision, sur la carte comme dans l'arène) et **Stylet d'écorcheur** (dague, +1 force/+4 précision — la dague
 devient la voie du coup PLACÉ face à l'épée du coup lourd). Les deux statistiques n'étaient portées
 par AUCUN objet, ce qui se tenait tant qu'elles ne faisaient rien. Les bots PORTENT ce qu'ils
 trouvent (`botEquip`) mais ⚠ **NE FORGENT PAS** : mesuré, leur faire fabriquer des armes coûte deux
@@ -1188,6 +1201,23 @@ DÉCODER LE CORPS UNE SEULE FOIS (`decodePlayer` consomme le flux — sinon le c
 Bank, paid by the chosen *town worker*, output to the Bank. **Field mode** (no hero in town): only `field`
 recipes (kitchen/campfire), ingredients from the **selected hero's bag**, paid by that hero, output to the bag.
 Forge/workshop recipes are town-only (`field:false`).
+
+**LES SIX PROFILS DE CLASSE** (`classes.go`, différenciés 2026-08-16) — le catalogue
+portait SIX classes pour **TROIS blocs de statistiques** : Pionnier == Gardien (Force 5,
+End 3) et Éclaireur == Récupérateur == Herboriste (Ath 5, Agi 3, End 2). L'Éclaireur — la
+classe de la vision — était donc le clone chiffré de l'Herboriste, et choisir sa classe
+n'engageait rien de mesurable. Chaque bloc vaut désormais **10 points** et raconte ce que
+la classe sait faire, en accord avec ses propres compétences : **Pionnier** F5·At3·E2 (il
+ouvre le passage, et il GRIMPE — ce que son passif promet) · **Chasseur** D5·P3·E2 (ses
+deux tirs portent à la dextérité, la précision place le coup) · **Éclaireur** Pe5·A3·E2
+(l'ŒIL) · **Gardien** E5·F5 (le mur) · **Récupérateur** At5·E3·F2 (celui qui va chercher
+loin) · **Herboriste** P4·D3·E3 (son Aspersion acide frappe DÉJÀ à la précision).
+⚠ **différencier ne doit ni hiérarchiser ni AMAIGRIR** : un premier jet répartissait
+joliment mais faisait passer la somme d'endurance du catalogue de 14 à 11 — et comme
+l'endurance porte les PV, la survie médiane a chuté (mesuré : 18 → 17 à quatre joueurs,
+19 → 17 à douze). Deux tests le gardent (`TestEveryClassHasItsOwnStatProfile`,
+`TestClassBonusesAreWorthTheSame`) et `botEvolve` choisit désormais sur la statistique que
+la classe fait fructifier. Tests : `perception_test.go`.
 
 **Hero classes & evolution** (`classes.go`) — heroes start at tier 0 ("Sans classe"). Two evolution gates:
 - **Jour 2** (`EvolveDayIntermediate`): unlock intermediate classes — **Pionnier**, **Chasseur**, **Éclaireur**.

@@ -13,19 +13,20 @@ package game
 // adverse dès qu'UN de ses membres la voit — la vision est mise en commun, comme dans
 // n'importe quel jeu de tactique : trois héros forment un champ, pas trois lucarnes.
 //
-// LA STATISTIQUE, ET POURQUOI CELLE-LÀ. **La Précision.** C'est l'œil : elle donnait
-// déjà le coup critique (repérer le point faible), elle donne maintenant la portée à
-// laquelle on distingue quelque chose. Une statistique qui fait deux choses n'est pas
-// une anomalie ici — l'Endurance porte les PV ET la réduction de dégâts, l'Agilité le
-// déplacement ET l'initiative. Ce qui compte, c'est que les deux effets racontent la
-// même idée, et « voir » les raconte toutes les deux.
+// LA STATISTIQUE : **la PERCEPTION** (game.go).
 //
-// ⚠ L'ÉCLAIREUR N'EST PAS LA STATISTIQUE, C'EST LA CAPACITÉ. La classe qui voit loin
-// n'a pas de bonus de Précision (ses points vont en athlétisme et en agilité) : son
-// avantage est ACTIF, c'est « Éclairer » — elle désigne une zone et tout ce qui s'y
-// trouve devient visible pour toute l'équipe, y compris hors de portée. C'est la
-// demande telle qu'elle a été formulée, et c'est un meilleur design qu'un bonus passif :
-// une compétence se joue, se choisit, et se paie d'un tour.
+// ⚠ CE FUT D'ABORD LA PRÉCISION, ET C'ÉTAIT UNE ERREUR. L'argument était qu'une
+// statistique peut faire deux choses — l'Endurance porte les PV ET la réduction,
+// l'Agilité le déplacement ET l'initiative. Mais dans ces deux cas c'est UNE idée vue
+// sous deux angles ; « frapper juste » et « savoir ce qu'il y a là » sont deux idées
+// différentes, et les coller ensemble tenait de la rhétorique. La Perception ne fait
+// qu'UNE chose — jusqu'où je vois — mais elle la fait sur les DEUX surfaces du jeu :
+// le rayon de brouillard levé sur la carte (fog.go) et la portée d'œil dans l'arène.
+//
+// ⚠ L'ÉCLAIREUR LA PORTE (Perception 5), et c'est ce qui lui donne enfin une identité
+// chiffrée : il était jusque-là le clone statistique du Récupérateur et de
+// l'Herboriste. Sa capacité « Éclairer » reste par-dessus — elle désigne une zone que
+// même sa vue n'atteint pas — parce qu'une classe se joue autant qu'elle se chiffre.
 //
 // ⚠ LA RÈGLE EST SYMÉTRIQUE. Les monstres ne ciblent que ce qu'ils voient, avec la même
 // formule. Une vision que seul le joueur subirait ne serait pas une règle mais un
@@ -43,8 +44,8 @@ const (
 	// exactement l'endroit où on le veut. Plus bas, le combat deviendrait un
 	// tâtonnement ; c'est un jeu qu'on joue deux fois par jour, pas un roguelike.
 	combatSightBase = 3
-	// combatSightPerPrecision : un point de portée tous les N points de précision.
-	combatSightPerPrecision = 3
+	// combatSightPerPerception : un point de portée tous les N points de perception.
+	combatSightPerPerception = 3
 	// spotRounds : combien de rounds une unité désignée par « Éclairer » reste
 	// visible pour toute l'équipe, où qu'elle soit.
 	spotRounds = 2
@@ -54,7 +55,7 @@ const (
 
 // Sight rend la portée de vision de l'unité.
 func (u *CombatUnit) sight() int {
-	s := combatSightBase + u.Stats.Precision/combatSightPerPrecision
+	s := combatSightBase + u.Stats.Perception/combatSightPerPerception
 	if s < 1 {
 		s = 1
 	}

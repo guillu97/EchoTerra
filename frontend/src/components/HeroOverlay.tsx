@@ -36,6 +36,7 @@ const ATTR_ROWS: { key: keyof Stats; label: string; what: string }[] = [
   { key: "force", label: "Force", what: "Dégâts de l'attaque de mêlée et de la plupart des techniques." },
   { key: "dexterite", label: "Dextérité", what: "Dégâts des tirs et des compétences à distance (arc, chasseur)." },
   { key: "precision", label: "Précision", what: "Chance de coup critique (×1,5 dégâts) — 3 % par point, plafond 40 %." },
+  { key: "perception", label: "Perception", what: "Jusqu'où on voit : le brouillard levé sur la carte, et la portée d'œil en combat." },
   { key: "agilite", label: "Agilité", what: "Initiative (ordre des tours) et cases de déplacement en combat." },
   { key: "endurance", label: "Endurance", what: "Points de vie (+2 par point) et dégâts encaissés en moins." },
   { key: "athletisme", label: "Athlétisme", what: "Hauteur franchissable — sur la carte (escarpements) comme en combat (terrasses)." },

@@ -6,6 +6,91 @@
 
 ---
 
+## 2026-08-16 (123) — La Perception : une septième statistique, et six classes enfin distinctes
+
+Retour de Guillaume sur le lot précédent : « Sight = 3 + précision/3, ça je ne suis pas sûr —
+peut-être qu'il faut rajouter une stat ? »
+
+**Il avait raison, et en vérifiant j'ai trouvé un argument plus fort que le sien.**
+
+### Pourquoi la Précision ne pouvait pas porter la vision
+
+J'avais justifié le double emploi par un précédent : l'Endurance porte les PV ET la réduction de
+dégâts, l'Agilité le déplacement ET l'initiative. Mais dans ces deux cas c'est **une** idée vue sous
+deux angles — encaisser, aller vite. « Frapper juste » et « savoir ce qu'il y a là » sont deux idées
+DIFFÉRENTES. Ma justification était de la rhétorique, pas du design.
+
+### Le vrai problème, que je n'avais pas vu
+
+Six classes, **trois blocs de statistiques** :
+
+| Bloc | Classes |
+|---|---|
+| Force 5 · End 3 | pionnier, **gardien** |
+| Dext 5 · Agi 3 · End 2 | chasseur |
+| Ath 5 · Agi 3 · End 2 | éclaireur, **récupérateur**, **herboriste** |
+
+L'**Éclaireur — la classe de la vision — était le clone chiffré du Récupérateur et de l'Herboriste**.
+Tout ce qui le distinguait était passif. Choisir sa classe n'engageait rien de mesurable.
+
+Et la vision de CARTE n'avait aucune statistique du tout : rayon 1 pour tout le monde, avec un
+`if h.ClassID == "eclaireur"` codé en dur. Tous les héros étaient des explorateurs interchangeables,
+au moment même où l'exploration devenait le cœur du jeu avec le brouillard.
+
+### Livré
+
+**La PERCEPTION**, 7ᵉ statistique. Elle ne fait qu'UNE chose — jusqu'où je vois — mais sur les DEUX
+surfaces : `1 + perception/4` de rayon sur la carte, `3 + perception/3` de portée d'œil en combat. La
+Précision redevient mono-usage (le coup critique). L'**Œil-de-lynx** devient l'objet de la Perception
+plutôt que de la Précision : un lynx ne frappe pas mieux, il voit plus loin.
+
+⚠ **Le `if ClassID == "eclaireur"` a disparu** de `fog.go` : sa vision vient de sa Perception 5, comme
+celle de tout le monde vient de la sienne. La classe cesse d'être une exception dans le moteur pour
+devenir un profil — et n'importe qui portant l'Œil-de-lynx voit loin sans être éclaireur, ce qu'on
+attend d'un objet.
+
+⚠ **Chaque espèce porte une Perception**, et pas la même : sans elle, toutes retombaient sur la portée
+de base et une limace voyait aussi loin qu'une chauve-souris. Écholocation de la chauve-souris (6),
+œil du rapace (5), flair du loup (5), contre l'arbre (1) et la limace (1).
+
+**Les six blocs de classe, différenciés** — 10 points chacun, chacun en accord avec ses propres
+compétences : Pionnier F5·At3·E2 (il ouvre le passage, et il GRIMPE — ce que son passif promettait
+sans jamais le faire) · Chasseur D5·P3·E2 · Éclaireur Pe5·A3·E2 · Gardien E5·F5 · Récupérateur
+At5·E3·F2 · Herboriste P4·D3·E3 (son Aspersion acide frappait DÉJÀ à la précision, sans qu'il en ait).
+
+### Le piège du rééquilibrage
+
+Un premier jet répartissait joliment — Gardien Endurance 6, zéro pour trois classes — et faisait
+passer la somme d'endurance du catalogue de **14 à 11**. Comme l'endurance porte les PV depuis
+l'audit, la survie médiane a chuté : **18 → 17 à quatre joueurs, 19 → 17 à douze**. Différencier ne
+doit ni hiérarchiser ni AMAIGRIR. Toutes les classes en gardent désormais.
+
+### Fonctionnel (vérifié)
+
+- `go test ./...` vert. 6 tests neufs (`perception_test.go`) : la Perception porte les DEUX visions,
+  la Précision n'achète plus rien de la vue (mais toujours le critique), l'Œil-de-lynx élargit la
+  vision de CARTE (le piège de l'équipement absent de `Hero.Stats`, déjà rencontré avec les Bottes),
+  les six profils sont distincts, ils valent tous le même nombre de points, et l'Éclaireur est bien
+  le plus perceptif.
+- Trois tests existants mis à jour — ils affirmaient l'ancien contrat (la vision venait de la
+  Précision, l'Éclaireur était un cas particulier, le Pionnier donnait Endurance 3).
+- **Équilibrage rétabli et l'échelle tient** : médianes 14 · 18 à 1 et 4 joueurs, et 3/3 des
+  expéditions de vingt survivent à 20 vagues. `TestBigExpeditionsGoFurther` et le plancher de 12
+  passent.
+- `npm run test:fog` 8/8, `test:combat-ui` 12/12, `test:map-tap` 8/8, `test:inventory` 11/11 ;
+  `tsc` + `build` propres ; fiche de personnage vérifiée à **390 px** — sept attributs, zéro
+  débordement.
+- Le Studio de données suit (schéma `StatsDef`, éditeur de stats, les six blocs de classe).
+
+### À faire
+
+- Les valeurs de Perception des espèces sont posées à l'estime : personne n'a encore mesuré si une
+  chauve-souris à 6 rend le combat plus dur qu'il ne faut.
+- L'Herboriste n'a plus de Perception : il ne reste qu'un porteur de la statistique (l'Éclaireur).
+  À revoir si la vision devient un axe qu'on veut voir partagé.
+
+---
+
 ## 2026-08-16 (122) — Le brouillard de guerre, la tour de guet, et la vision en combat
 
 Demande de Guillaume : « construire une tour sur les montagnes les plus hautes, offrant une vue

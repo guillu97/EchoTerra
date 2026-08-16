@@ -16,6 +16,10 @@ export interface Stats {
   endurance: number;
   athletisme: number;
   precision: number;
+  // PERCEPTION : jusqu'où on voit — rayon de brouillard sur la CARTE et portée d'œil
+  // en COMBAT (backend game.go). Optionnelle : une partie enregistrée avant la
+  // statistique ne la porte pas.
+  perception?: number;
 }
 
 // One line of the town journal (Panel building) — mirrors game.TownLogEntry.

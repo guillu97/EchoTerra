@@ -36,7 +36,9 @@ func TestEvolveToIntermediateAppliesBonuses(t *testing.T) {
 	if h.Stats.Force != forceBefore+5 {
 		t.Fatalf("Force bonus not applied: %d -> %d", forceBefore, h.Stats.Force)
 	}
-	if h.ClassBonuses.Force != 5 || h.ClassBonuses.Endurance != 3 {
+	// Le Pionnier : Force 5 · Athlétisme 3 · Endurance 2 (classes.go). Les six blocs
+	// ont été différenciés — il partageait le sien avec le Gardien.
+	if h.ClassBonuses.Force != 5 || h.ClassBonuses.Athletisme != 3 || h.ClassBonuses.Endurance != 2 {
 		t.Fatalf("ClassBonuses not recorded: %+v", h.ClassBonuses)
 	}
 	if h.MaxPA != paBefore+1 || h.PA != 7 {

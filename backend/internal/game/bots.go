@@ -487,11 +487,16 @@ func (g *GameState) botEvolve(h *Hero) bool {
 	var pick string
 	switch h.ClassTier {
 	case 0:
+		// ⚠ ON CHOISIT SUR LA STAT QUE LA CLASSE FAIT FRUCTIFIER, maintenant que les
+		// six profils sont distincts (classes.go) : le tireur sur la dextérité,
+		// l'œil sur la perception, le bélier par défaut. Le critère d'avant comparait
+		// la Précision à l'Agilité, deux statistiques qu'aucune de ces trois classes
+		// ne portait plus.
 		switch {
-		case h.Stats.Precision >= h.Stats.Agilite && h.Stats.Precision >= h.Stats.Force:
-			pick = "chasseur"
-		case h.Stats.Agilite > h.Stats.Force:
+		case h.Stats.Perception >= h.Stats.Dexterite && h.Stats.Perception >= h.Stats.Force:
 			pick = "eclaireur"
+		case h.Stats.Dexterite >= h.Stats.Force:
+			pick = "chasseur"
 		default:
 			pick = "pionnier"
 		}
@@ -503,7 +508,9 @@ func (g *GameState) botEvolve(h *Hero) bool {
 		case "chasseur":
 			pick = "recuperateur"
 		case "eclaireur":
-			if h.Stats.Athletisme >= h.Stats.Agilite {
+			// Herboriste = la main sûre et l'œil (précision/perception) ;
+			// Récupérateur = celui qui va chercher loin (athlétisme).
+			if h.Stats.Precision >= h.Stats.Athletisme {
 				pick = "herboriste"
 			} else {
 				pick = "recuperateur"

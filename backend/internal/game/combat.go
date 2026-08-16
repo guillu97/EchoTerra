@@ -615,6 +615,7 @@ func NewCombat(gs *GameState, heroes []*Hero, monster *Monster, starterID string
 		// existeraient, leur effet non.
 		u.Stats.Athletisme += gear.Athletisme
 		u.Stats.Precision += gear.Precision
+		u.Stats.Perception += gear.Perception
 		u.Armor, u.Reach, u.VsCursed, u.RangedStat = armor, reach, vsCursed, rangedStat
 		u.WeaponName, u.WeaponKind = h.Weapon, WeaponArchetype(h.Weapon)
 		// L'agilité gagnée doit compter pour le DÉPLACEMENT : Move a été calculé au-dessus

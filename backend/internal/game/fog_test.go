@@ -102,13 +102,19 @@ func TestContactExplorationVision(t *testing.T) {
 	if g.TileAt(7, 5).Discovered || g.TileAt(5, 7).Discovered {
 		t.Fatal("un héros normal ne voit PAS à deux cases — le brouillard reste serré")
 	}
+	// ⚠ LA VISION N'EST PLUS UN CAS PARTICULIER DE CLASSE. C'était un
+	// `if h.ClassID == "eclaireur"` codé en dur ; elle vient maintenant de la
+	// PERCEPTION (game.go), que l'Éclaireur porte à 5. La classe cesse d'être une
+	// exception dans le moteur pour devenir un profil — et n'importe qui portant
+	// l'Œil-de-lynx voit loin sans être éclaireur, ce qu'on attend d'un objet.
 	h.ClassID = "eclaireur"
+	h.Stats.Perception += 5 // le bonus de la classe
 	g.RevealVision()
 	if !g.TileAt(7, 5).Discovered || !g.TileAt(7, 7).Discovered {
-		t.Fatal("l'Éclaireur doit voir une case PLUS LOIN que les autres (rayon 2)")
+		t.Fatal("un héros à forte Perception doit voir une case PLUS LOIN (rayon 2)")
 	}
 	if g.TileAt(2, 5).Discovered {
-		t.Fatal("l'Éclaireur ne voit pas à 3 cases — sa vision reste un bonus, pas une carte")
+		t.Fatal("sa vision reste un bonus, pas une carte")
 	}
 }
 

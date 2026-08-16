@@ -59,9 +59,15 @@ const (
 	// réparée, donc défaite garantie quoi que fassent les joueurs. Le rayon 1 garde le
 	// brouillard signifiant (on ne voit pas loin) tout en rendant la prospection
 	// possible ; l'Éclaireur conserve sa case d'avance par-dessus.
-	heroSightRadius      = 1 // rayon Chebyshev vu par un héros normal
-	eclaireurSightRadius = 2 // passif Éclaireur : voit une case plus loin
-	townSightRadius      = 3 // le bourg éclaire un anneau un peu plus large
+	heroSightRadius = 1 // rayon Chebyshev de base, avant Perception
+	// mapSightPerPerception : une case de vision de plus tous les N points de
+	// Perception. ⚠ RÉGLÉ SERRÉ, et volontairement : le rayon de vision de carte est
+	// la valeur la plus dangereuse du jeu à toucher — à rayon 0, la mesure avait donné
+	// DEUX tuiles de montagne découvertes en douze vagues, donc zéro pierre, donc
+	// défaite arithmétique quoi que fassent les joueurs. À /4, un héros neuf (2 à 4 de
+	// Perception) gagne 0 ou 1 case, et un Éclaireur évolué (7 à 9) en gagne deux.
+	mapSightPerPerception = 4
+	townSightRadius       = 3 // le bourg éclaire un anneau un peu plus large
 )
 
 // --- mémoire par joueur : un bit par case ------------------------------------
@@ -128,13 +134,21 @@ func (g *GameState) PlayerKnows(playerID string, x, y int) bool {
 
 // --- vision courante ----------------------------------------------------------
 
-// sightRadius rend le champ de vision d'un héros, bonus de Cartographe compris.
+// sightRadius rend le champ de vision d'un héros : base + PERCEPTION + Cartographe.
+//
+// ⚠ PLUS DE CAS PARTICULIER « ÉCLAIREUR ». Sa vision était un `if h.ClassID ==
+// "eclaireur"` codé en dur ; elle vient maintenant de sa Perception 5, comme celle de
+// tout le monde vient de la sienne. La classe cesse d'être une exception dans le moteur
+// pour devenir un profil — et un héros qui porte l'Œil-de-lynx voit loin sans être
+// éclaireur, ce qui est exactement ce qu'on attend d'un objet.
+//
+// ⚠ L'ÉQUIPEMENT COMPTE (heroGear) : les bonus ne sont prêtés qu'à l'unité de combat et
+// ne touchent jamais `Hero.Stats`, donc hors combat il faut les rajouter à la main —
+// même piège que le franchissement (climb.go).
 func (g *GameState) sightRadius(h *Hero, mapperBonus int) int {
-	r := heroSightRadius
-	if h.ClassID == "eclaireur" {
-		r = eclaireurSightRadius // « Observation large » (passif)
-	}
-	return r + mapperBonus
+	w, gr := heroGear(h)
+	perception := h.Stats.Perception + w.Perception + gr.Perception
+	return heroSightRadius + perception/mapSightPerPerception + mapperBonus
 }
 
 // mapperBonus : ce que le Cartographe ajoute à la vision de chaque héros, et ce qu'il

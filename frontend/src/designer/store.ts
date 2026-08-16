@@ -122,7 +122,7 @@ export const useDesigner = create<DesignerState>((set, get) => {
         setDoc({ ...doc, recipes: [...doc.recipes, r] });
       } else if (tab === "classes") {
         const id = freshId("nouvelle-classe", doc.classes.map((c) => c.id));
-        const c: HeroClassDef = { id, name: "Nouvelle classe", tier: 1, day: 2, requires: [], role: "", bonuses: { force: 0, dexterite: 0, agilite: 0, endurance: 0, athletisme: 0, precision: 0 }, paBonus: 0, skills: [], appearance: { map: "char-scout", icon: "char-scout" } };
+        const c: HeroClassDef = { id, name: "Nouvelle classe", tier: 1, day: 2, requires: [], role: "", bonuses: { force: 0, dexterite: 0, agilite: 0, endurance: 0, athletisme: 0, precision: 0, perception: 0 }, paBonus: 0, skills: [], appearance: { map: "char-scout", icon: "char-scout" } };
         setDoc({ ...doc, classes: [...doc.classes, c] });
       } else if (tab === "terrains") {
         const id = freshId("nouveau-terrain", doc.terrains.map((r) => r.id));
@@ -134,7 +134,7 @@ export const useDesigner = create<DesignerState>((set, get) => {
         setDoc({ ...doc, resources: [...doc.resources, r] });
       } else {
         const id = freshId("nouveau-monstre", doc.monsters.map((m) => m.id));
-        const m: MonsterDef = { id, name: "Nouveau monstre", icon: "👾", appearance: "mob-slime", hp: 8, stats: { force: 2, dexterite: 0, agilite: 2, endurance: 2, athletisme: 0, precision: 2 }, packMin: 1, packMax: 2, biomes: [], attacks: [], drops: [], notes: "" };
+        const m: MonsterDef = { id, name: "Nouveau monstre", icon: "👾", appearance: "mob-slime", hp: 8, stats: { force: 2, dexterite: 0, agilite: 2, endurance: 2, athletisme: 0, precision: 2, perception: 2 }, packMin: 1, packMax: 2, biomes: [], attacks: [], drops: [], notes: "" };
         setDoc({ ...doc, monsters: [...doc.monsters, m] });
       }
       const s = get();

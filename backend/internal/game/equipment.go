@@ -46,6 +46,7 @@ type EquipDef struct {
 	// combien on frappe fort.
 	Athletisme int `json:"athletisme,omitempty"`
 	Precision  int `json:"precision,omitempty"`
+	Perception int `json:"perception,omitempty"`
 	// Armor : dégâts SUBIS en moins, à chaque coup encaissé (plancher 1 : rien ne rend
 	// invulnérable).
 	Armor int `json:"armor,omitempty"`
@@ -97,9 +98,10 @@ var Equipment = map[string]EquipDef{
 	// C'est délibérément binaire — un objet qui ouvre une porte se lit mieux qu'un
 	// objet qui l'entrouvre.
 	"Bottes cloutées": {Slot: SlotGear, Athletisme: 3, Desc: "+3 athlétisme : franchit les escarpements (carte et combat)"},
-	// L'œil : la précision en version défensive-de-loin, pour qui ne veut pas troquer
-	// son arme. Un cran sous le stylet, puisqu'il n'occupe pas la main.
-	"Œil-de-lynx": {Slot: SlotGear, Precision: 3, Desc: "+3 précision (coups critiques)"},
+	// L'ŒIL : l'objet de la PERCEPTION, et pas de la précision — un lynx ne frappe pas
+	// mieux, il VOIT plus loin. C'est le seul équipement qui agrandit le champ de
+	// vision, sur la carte comme dans l'arène.
+	"Œil-de-lynx": {Slot: SlotGear, Perception: 3, Desc: "+3 perception : voit plus loin (carte et combat)"},
 }
 
 // EquipableItem reports whether this item can be worn, and in which slot.
@@ -193,6 +195,7 @@ func equipBonuses(h *Hero) (stats Stats, armor, reach, vsCursed int, rangedStat 
 		stats.Endurance += d.Endurance
 		stats.Athletisme += d.Athletisme
 		stats.Precision += d.Precision
+		stats.Perception += d.Perception
 		armor += d.Armor
 		vsCursed += d.VsCursed
 		if d.Reach > reach {

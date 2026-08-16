@@ -51,6 +51,24 @@ type Stats struct {
 	Endurance  int `json:"endurance"`
 	Athletisme int `json:"athletisme"`
 	Precision  int `json:"precision"`
+	// Perception : JUSQU'OÙ ON VOIT — le rayon de brouillard levé sur la CARTE
+	// (fog.go) et la portée d'œil en COMBAT (combatsight.go).
+	//
+	// ⚠ POURQUOI UNE SEPTIÈME STATISTIQUE plutôt que de charger la Précision, qui
+	// portait les deux : les cinq autres paires racontent chacune UNE idée vue sous
+	// deux angles (l'Endurance c'est encaisser — les PV et la réduction ; l'Agilité
+	// c'est la vitesse — le déplacement et l'initiative). « Frapper juste » et
+	// « savoir ce qu'il y a là » sont deux idées DIFFÉRENTES, et les coller ensemble
+	// tenait de la rhétorique, pas du design.
+	//
+	// ⚠ ET SURTOUT, ELLE A UN PROPRIÉTAIRE. L'Éclaireur — la classe de la vision —
+	// était statistiquement IDENTIQUE au Récupérateur et à l'Herboriste (les six
+	// classes ne portaient que TROIS blocs distincts) : tout ce qui le distinguait
+	// était passif. La Perception lui donne enfin une identité chiffrée. Au passage,
+	// la vision de CARTE n'avait aucune statistique du tout — tous les héros étaient
+	// des explorateurs interchangeables, alors que l'exploration est devenue le cœur
+	// du jeu avec le brouillard.
+	Perception int `json:"perception"`
 }
 
 // Item is a stack of loot in a hero inventory.

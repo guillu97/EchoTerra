@@ -46,6 +46,7 @@ export interface StatsDef {
   endurance: number;
   athletisme: number;
   precision: number;
+  perception: number;
 }
 
 // One cell offset of a targeting/damage shape, relative to its anchor (the
@@ -207,6 +208,7 @@ export const emptyStats = (): StatsDef => ({
   endurance: 0,
   athletisme: 0,
   precision: 0,
+  perception: 0,
 });
 
 // --- seeds: the CURRENT game data --------------------------------------------
@@ -248,27 +250,27 @@ const seedRecipes = (): RecipeDef[] => [
 ];
 
 const seedClasses = (): HeroClassDef[] => [
-  { id: "pionnier", name: "Pionnier", tier: 1, day: 2, requires: [], role: "Robuste et débrouillard, il ouvre la voie et affronte les obstacles de front.", bonuses: { ...emptyStats(), force: 5, endurance: 3 }, paBonus: 1, skills: [
+  { id: "pionnier", name: "Pionnier", tier: 1, day: 2, requires: [], role: "Robuste et débrouillard, il ouvre la voie et affronte les obstacles de front.", bonuses: { ...emptyStats(), force: 5, athletisme: 3, endurance: 2 }, paBonus: 1, skills: [
     { name: "Poussée du Survivant", scope: "map", pa: 1, desc: "Force un passage là où les autres doivent contourner.", effects: "ignore 1 case bloquée" },
     { name: "Frappe de la mort qui tue", scope: "iso", pa: 2, desc: "Attaque puissante.", effects: "+5 dégâts", targets: manhattanCells(1, 1), damage: [] },
   ], appearance: { map: "char-builder", icon: "char-builder" } },
-  { id: "chasseur", name: "Chasseur", tier: 1, day: 2, requires: [], role: "Traqueur précis qui trouve et élimine sa cible.", bonuses: { ...emptyStats(), dexterite: 5, agilite: 3, endurance: 2 }, paBonus: 1, skills: [
+  { id: "chasseur", name: "Chasseur", tier: 1, day: 2, requires: [], role: "Traqueur précis qui trouve et élimine sa cible.", bonuses: { ...emptyStats(), dexterite: 5, precision: 3, endurance: 2 }, paBonus: 1, skills: [
     { name: "Tir précis", scope: "map", pa: 1, desc: "Élimine un monstre affaibli sur sa case.", effects: "tue si PV pack ≤ 5" },
     { name: "Tir de zone", scope: "iso", pa: 2, desc: "Dégâts de zone.", effects: "+3 dégâts par case touchée", targets: manhattanCells(2, 3), damage: [{ dx: 0, dy: 0 }, ...manhattanCells(1, 1)] },
   ], appearance: { map: "char-archer", icon: "char-archer" } },
-  { id: "eclaireur", name: "Éclaireur", tier: 1, day: 2, requires: [], role: "Discret et rapide, il voit loin et repère les dangers avant les autres.", bonuses: { ...emptyStats(), athletisme: 5, agilite: 3, endurance: 2 }, paBonus: 0, skills: [
+  { id: "eclaireur", name: "Éclaireur", tier: 1, day: 2, requires: [], role: "Discret et rapide, il voit loin et repère les dangers avant les autres.", bonuses: { ...emptyStats(), perception: 5, agilite: 3, endurance: 2 }, paBonus: 0, skills: [
     { name: "Observation Large", scope: "map", pa: 0, desc: "Vision étendue autour de lui.", effects: "+1 case de vision (passif)" },
     { name: "Éclairer", scope: "iso", pa: 0, desc: "Illumine 4 cases.", effects: "passif" },
   ], appearance: { map: "char-scout", icon: "char-scout" } },
-  { id: "gardien", name: "Gardien", tier: 2, day: 4, requires: ["pionnier"], role: "Protecteur du groupe et du territoire : encaisse et sécurise les zones dangereuses.", bonuses: { ...emptyStats(), force: 5, endurance: 3 }, paBonus: 1, skills: [
+  { id: "gardien", name: "Gardien", tier: 2, day: 4, requires: ["pionnier"], role: "Protecteur du groupe et du territoire : encaisse et sécurise les zones dangereuses.", bonuses: { ...emptyStats(), endurance: 5, force: 5 }, paBonus: 1, skills: [
     { name: "Rassure", scope: "map", pa: 0, desc: "Compte pour 3 héros face à une horde.", effects: "poids 3 dans le calcul Tétanisé (passif)" },
     { name: "Posture défensive", scope: "iso", pa: 1, desc: "Réduit les dégâts subis.", effects: "-50% dégâts jusqu'au prochain tour", targets: [{ dx: 0, dy: 0 }], damage: [] },
   ], appearance: { map: "char-knight", icon: "char-knight" } },
-  { id: "recuperateur", name: "Récupérateur", tier: 2, day: 4, requires: ["chasseur", "eclaireur"], role: "Récupère tout ce qui traîne : fragments, restes, débris, matériaux et objets tombés.", bonuses: { ...emptyStats(), athletisme: 5, agilite: 3, endurance: 2 }, paBonus: 1, skills: [
+  { id: "recuperateur", name: "Récupérateur", tier: 2, day: 4, requires: ["chasseur", "eclaireur"], role: "Récupère tout ce qui traîne : fragments, restes, débris, matériaux et objets tombés.", bonuses: { ...emptyStats(), athletisme: 5, endurance: 3, force: 2 }, paBonus: 1, skills: [
     { name: "Sac élargi", scope: "map", pa: 0, desc: "Transporte plus lors d'une fouille.", effects: "+1 ressource par fouille (passif)" },
     { name: "Récupération", scope: "iso", pa: 0, desc: "Butin supplémentaire sur les ennemis vaincus.", effects: "+1 trophée par victoire (passif)" },
   ], appearance: { map: "char-merchant", icon: "char-merchant" } },
-  { id: "herboriste", name: "Herboriste & Minéral", tier: 2, day: 4, requires: ["eclaireur"], role: "Récolte les plantes, herbes rares et minerais simples.", bonuses: { ...emptyStats(), athletisme: 5, agilite: 3, endurance: 2 }, paBonus: 1, skills: [
+  { id: "herboriste", name: "Herboriste & Minéral", tier: 2, day: 4, requires: ["eclaireur"], role: "Récolte les plantes, herbes rares et minerais simples.", bonuses: { ...emptyStats(), precision: 4, dexterite: 3, endurance: 3 }, paBonus: 1, skills: [
     { name: "Récolte Délicate", scope: "map", pa: 0, desc: "Récolte assurée sur plantes et minéraux.", effects: "+1 ressource plante/minerai (passif)" },
     { name: "Résistance", scope: "iso", pa: 0, desc: "Résiste aux biomes hostiles.", effects: "immunisé froid/chaleur/toxique (passif)" },
   ], appearance: { map: "char-healer", icon: "char-healer" } },

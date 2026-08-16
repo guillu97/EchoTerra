@@ -228,10 +228,15 @@ type SpeciesDef struct {
 	Drops      []DropDef // loot when the pack is defeated
 }
 
+// ⚠ CHAQUE ESPÈCE PORTE UNE PERCEPTION, et pas la même : sans elle, toutes
+// retomberaient sur la portée d'œil de base (combatsight.go) et une limace verrait
+// aussi loin qu'une chauve-souris. La valeur suit la bête — l'écholocation de la
+// chauve-souris (6) et l'œil du rapace (5) contre l'arbre (1) et la limace (1) — ce qui
+// donne à l'approche une texture différente selon ce qu'on affronte.
 var Species = []SpeciesDef{
 	{
 		ID: "slime", Name: "Slime Vorace", Icon: "🟣", Appearance: "mob-slime", HP: 9,
-		Stats:   Stats{Force: 2, Agilite: 1, Endurance: 4, Precision: 2},
+		Stats:   Stats{Force: 2, Agilite: 1, Endurance: 4, Precision: 2, Perception: 1},
 		PackMin: 1, PackMax: 2,
 		Biomes: []Biome{BiomeSand, BiomeGrass, BiomeForest, BiomeMountain, BiomeSnow},
 		Attacks: []AttackDef{
@@ -242,7 +247,7 @@ var Species = []SpeciesDef{
 	},
 	{
 		ID: "goblin", Name: "Goblin Pillard", Icon: "👺", Appearance: "mob-goblin", HP: 6,
-		Stats:   Stats{Force: 4, Agilite: 4, Endurance: 1, Precision: 2},
+		Stats:   Stats{Force: 4, Agilite: 4, Endurance: 1, Precision: 2, Perception: 3},
 		PackMin: 1, PackMax: 3,
 		Biomes: []Biome{BiomeSand, BiomeGrass, BiomeForest, BiomeMountain, BiomeSnow},
 		Attacks: []AttackDef{
@@ -253,7 +258,7 @@ var Species = []SpeciesDef{
 	},
 	{
 		ID: "windelemental", Name: "Elementaire de Vent", Icon: "🌀", Appearance: "mob-windelemental", HP: 10,
-		Stats:   Stats{Dexterite: 2, Agilite: 3, Endurance: 5, Precision: 2},
+		Stats:   Stats{Dexterite: 2, Agilite: 3, Endurance: 5, Precision: 2, Perception: 3},
 		PackMin: 1, PackMax: 3,
 		Biomes: []Biome{BiomeSand, BiomeGrass, BiomeForest, BiomeMountain, BiomeSnow},
 		Attacks: []AttackDef{
@@ -264,7 +269,7 @@ var Species = []SpeciesDef{
 	},
 	{
 		ID: "bat", Name: "Chauve souris", Icon: "🦇", Appearance: "mob-bat", HP: 8,
-		Stats:   Stats{Force: 2, Agilite: 2, Endurance: 2, Precision: 2},
+		Stats:   Stats{Force: 2, Agilite: 2, Endurance: 2, Precision: 2, Perception: 6},
 		PackMin: 1, PackMax: 6,
 		Biomes: []Biome{BiomeMountain, BiomeForest},
 		Attacks: []AttackDef{
@@ -274,7 +279,7 @@ var Species = []SpeciesDef{
 	},
 	{
 		ID: "harpie-prairie", Name: "Harpie de Prairie", Icon: "🪶", Appearance: "mob-ghost", HP: 7,
-		Stats:   Stats{Force: 3, Dexterite: 2, Agilite: 5, Endurance: 1, Athletisme: 3, Precision: 3},
+		Stats:   Stats{Force: 3, Dexterite: 2, Agilite: 5, Endurance: 1, Athletisme: 3, Precision: 3, Perception: 5},
 		PackMin: 1, PackMax: 3,
 		Biomes: []Biome{BiomeGrass, BiomeSand},
 		Attacks: []AttackDef{
@@ -285,7 +290,7 @@ var Species = []SpeciesDef{
 	},
 	{
 		ID: "dryade-corrompue", Name: "Dryade Corrompue", Icon: "🌳", Appearance: "mob-mushroomling", HP: 9,
-		Stats:   Stats{Force: 3, Dexterite: 1, Agilite: 1, Endurance: 4, Precision: 3},
+		Stats:   Stats{Force: 3, Dexterite: 1, Agilite: 1, Endurance: 4, Precision: 3, Perception: 1},
 		PackMin: 1, PackMax: 2,
 		Biomes: []Biome{BiomeForest},
 		Attacks: []AttackDef{
@@ -296,7 +301,7 @@ var Species = []SpeciesDef{
 	},
 	{
 		ID: "araignee-cristalline", Name: "Araignée Cristalline", Icon: "🕷️", Appearance: "mob-spider", HP: 8,
-		Stats:   Stats{Force: 2, Dexterite: 4, Agilite: 3, Endurance: 2, Precision: 4},
+		Stats:   Stats{Force: 2, Dexterite: 4, Agilite: 3, Endurance: 2, Precision: 4, Perception: 4},
 		PackMin: 1, PackMax: 4,
 		Biomes: []Biome{BiomeMountain, BiomeSnow},
 		Attacks: []AttackDef{
@@ -307,7 +312,7 @@ var Species = []SpeciesDef{
 	},
 	{
 		ID: "loup-garou", Name: "Loup-garou", Icon: "🐺", Appearance: "mob-wolf", HP: 12,
-		Stats:   Stats{Force: 5, Agilite: 4, Endurance: 3, Athletisme: 2, Precision: 2},
+		Stats:   Stats{Force: 5, Agilite: 4, Endurance: 3, Athletisme: 2, Precision: 2, Perception: 5},
 		PackMin: 1, PackMax: 2,
 		Biomes: []Biome{BiomeForest, BiomeGrass},
 		Attacks: []AttackDef{
@@ -318,7 +323,7 @@ var Species = []SpeciesDef{
 	},
 	{
 		ID: "harpie-givre", Name: "Harpie de Givre", Icon: "❄️", Appearance: "mob-ghost", HP: 9,
-		Stats:   Stats{Force: 3, Dexterite: 3, Agilite: 4, Endurance: 2, Athletisme: 2, Precision: 4},
+		Stats:   Stats{Force: 3, Dexterite: 3, Agilite: 4, Endurance: 2, Athletisme: 2, Precision: 4, Perception: 5},
 		PackMin: 1, PackMax: 3,
 		Biomes: []Biome{BiomeSnow, BiomeMountain},
 		Attacks: []AttackDef{
@@ -329,7 +334,7 @@ var Species = []SpeciesDef{
 	},
 	{
 		ID: "roi-gobelin", Name: "Roi Gobelin sur Sanglier Géant", Icon: "👑", Appearance: "mob-orc", HP: 20,
-		Stats:   Stats{Force: 6, Dexterite: 1, Agilite: 2, Endurance: 6, Athletisme: 2, Precision: 3},
+		Stats:   Stats{Force: 6, Dexterite: 1, Agilite: 2, Endurance: 6, Athletisme: 2, Precision: 3, Perception: 4},
 		PackMin: 1, PackMax: 1, Boss: true,
 		Biomes: []Biome{BiomeGrass, BiomeForest},
 		Attacks: []AttackDef{
@@ -341,7 +346,7 @@ var Species = []SpeciesDef{
 	},
 	{
 		ID: "arbre-ancien", Name: "Arbre Vivant Ancien", Icon: "🌲", Appearance: "mob-mushroomling", HP: 25,
-		Stats:   Stats{Force: 6, Endurance: 8, Precision: 2},
+		Stats:   Stats{Force: 6, Endurance: 8, Precision: 2, Perception: 2},
 		PackMin: 1, PackMax: 1, Boss: true,
 		Biomes: []Biome{BiomeForest},
 		Attacks: []AttackDef{

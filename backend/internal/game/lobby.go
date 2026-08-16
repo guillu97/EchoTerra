@@ -121,11 +121,15 @@ func (g *GameState) PlayerByID(id string) *Player {
 
 // starterStats is the pool of starting stat blocks (from the GDD early game),
 // cycled over join order so a full lobby stays balanced.
+// ⚠ La PERCEPTION suit le profil du bloc et n'est pas uniforme : le bagarreur et le
+// costaud voient mal (2), l'escarmoucheur voit bien (4). C'est ce qui fait qu'une
+// équipe de trois héros a déjà, dès la première vague, un « œil » désigné — sans quoi
+// la statistique ne se remarquerait qu'à l'évolution.
 var starterStats = []Stats{
-	{Force: 4, Dexterite: 2, Agilite: 3, Endurance: 4, Athletisme: 3, Precision: 2},
-	{Force: 2, Dexterite: 4, Agilite: 4, Endurance: 2, Athletisme: 3, Precision: 4},
-	{Force: 3, Dexterite: 3, Agilite: 2, Endurance: 5, Athletisme: 4, Precision: 2},
-	{Force: 3, Dexterite: 2, Agilite: 4, Endurance: 3, Athletisme: 2, Precision: 4},
+	{Force: 4, Dexterite: 2, Agilite: 3, Endurance: 4, Athletisme: 3, Precision: 2, Perception: 2},
+	{Force: 2, Dexterite: 4, Agilite: 4, Endurance: 2, Athletisme: 3, Precision: 4, Perception: 4},
+	{Force: 3, Dexterite: 3, Agilite: 2, Endurance: 5, Athletisme: 4, Precision: 2, Perception: 2},
+	{Force: 3, Dexterite: 2, Agilite: 4, Endurance: 3, Athletisme: 2, Precision: 4, Perception: 3},
 }
 
 // NewStarterHero builds the classless starting hero for the i-th player to join,

@@ -453,7 +453,7 @@ function RecipeForm({ r }: { r: RecipeDef }) {
   );
 }
 
-const STAT_KEYS = ["force", "dexterite", "agilite", "endurance", "athletisme", "precision"] as const;
+const STAT_KEYS = ["force", "dexterite", "agilite", "endurance", "athletisme", "precision", "perception"] as const;
 
 function ClassForm({ c }: { c: HeroClassDef }) {
   const doc = useDesigner((s) => s.doc);

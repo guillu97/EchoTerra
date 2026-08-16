@@ -48,12 +48,42 @@ type ClassDef struct {
 	Appearance ClassAppearance `json:"appearance"`
 }
 
+// LES SIX PROFILS SONT DISTINCTS — et ne l'étaient pas.
+//
+// Le catalogue portait SIX classes pour TROIS blocs de statistiques seulement :
+// Pionnier == Gardien (Force 5, Endurance 3), et Éclaireur == Récupérateur ==
+// Herboriste (Athlétisme 5, Agilité 3, Endurance 2). Autrement dit, l'Éclaireur — la
+// classe de la vision — était chiffré exactement comme l'Herboriste, et tout ce qui
+// les séparait était passif. Choisir sa classe n'engageait donc rien de mesurable.
+//
+// Chaque bloc vaut désormais 10 points, et chacun raconte ce que la classe SAIT FAIRE,
+// en accord avec ses propres compétences :
+//
+//	Pionnier     Force 5 · Athlétisme 3 · Endurance 2   il ouvre le passage (et il GRIMPE,
+//	                                                    ce que son passif de carte promet)
+//	Chasseur     Dextérité 5 · Précision 3 · Endurance 2 ses deux tirs portent à la dextérité,
+//	                                                    la précision place le coup
+//	Éclaireur    Perception 5 · Agilité 3 · Endurance 2  l'ŒIL : il voit ce que les autres ratent
+//	Gardien      Endurance 5 · Force 5                  le mur : le seul à être haut dans les deux
+//	Récupérateur Athlétisme 5 · Endurance 3 · Force 2   celui qui va chercher LOIN et rapporte
+//	Herboriste   Précision 4 · Dextérité 3 · Endurance 3 la main sûre (son Aspersion acide
+//	                                                    frappe DÉJÀ à la précision)
+//
+// ⚠ Le total est le même pour toutes (10) : différencier ne doit pas hiérarchiser.
+//
+// ⚠⚠ ET LA SOMME D'ENDURANCE DU CATALOGUE EST UN RÉGLAGE À PART ENTIÈRE. Un premier jet
+// répartissait joliment (Gardien 6, et zéro pour trois classes) — mais le catalogue
+// passait de 14 points d'endurance à 11, et comme l'endurance porte les PV depuis
+// l'audit, la survie médiane a chuté d'une à deux vagues (mesuré : 18 → 17 à quatre
+// joueurs, 19 → 17 à douze). Différencier ne doit pas non plus AMAIGRIR : toutes les
+// classes en gardent désormais, et le total est remonté.
+
 // Classes is the evolution catalog from the 🧙 Classes tab of the design.
 var Classes = []ClassDef{
 	{
 		ID: "pionnier", Name: "Pionnier", Tier: ClassTierIntermediate, Day: EvolveDayIntermediate,
 		Role:    "Robuste et débrouillard, il ouvre la voie et affronte les obstacles de front.",
-		Bonuses: Stats{Force: 5, Endurance: 3},
+		Bonuses: Stats{Force: 5, Athletisme: 3, Endurance: 2},
 		PABonus: 1,
 		Skills: []ClassSkill{
 			{Name: "Poussée du Survivant", Scope: "map", PA: 1, Desc: "Force un passage là où les autres doivent contourner.", Effects: "ignore 1 case bloquée"},
@@ -64,7 +94,7 @@ var Classes = []ClassDef{
 	{
 		ID: "chasseur", Name: "Chasseur", Tier: ClassTierIntermediate, Day: EvolveDayIntermediate,
 		Role:    "Traqueur précis qui trouve et élimine sa cible.",
-		Bonuses: Stats{Dexterite: 5, Agilite: 3, Endurance: 2},
+		Bonuses: Stats{Dexterite: 5, Precision: 3, Endurance: 2},
 		PABonus: 1,
 		Skills: []ClassSkill{
 			{Name: "Tir précis", Scope: "map", PA: 1, Desc: "Élimine un monstre affaibli sur sa case.", Effects: "tue si PV pack ≤ 5"},
@@ -75,10 +105,13 @@ var Classes = []ClassDef{
 	{
 		ID: "eclaireur", Name: "Éclaireur", Tier: ClassTierIntermediate, Day: EvolveDayIntermediate,
 		Role:    "Discret et rapide, il voit loin et repère les dangers avant les autres.",
-		Bonuses: Stats{Athletisme: 5, Agilite: 3, Endurance: 2},
+		Bonuses: Stats{Perception: 5, Agilite: 3, Endurance: 2},
 		Skills: []ClassSkill{
-			{Name: "Observation Large", Scope: "map", Desc: "Vision étendue autour de lui.", Effects: "+1 case de vision (passif)"},
-			{Name: "Éclairer", Scope: "iso", Desc: "Illumine 4 cases.", Effects: "passif"},
+			// ⚠ « Observation Large » n'est plus un cas particulier codé en dur : c'est
+			// sa PERCEPTION qui porte sa vision, sur la carte comme dans l'arène. La
+			// classe cesse d'être une exception dans le moteur pour devenir un profil.
+			{Name: "Observation Large", Scope: "map", Desc: "Sa Perception lève le brouillard plus loin que quiconque.", Effects: "+5 perception : rayon de vision élargi (passif)"},
+			{Name: "Éclairer", Scope: "iso", PA: 1, Desc: "Désigne une zone : tout ce qui s'y trouve devient visible pour l'équipe.", Effects: "révèle un rayon 2 pendant 2 rounds"},
 		},
 		Appearance: ClassAppearance{Map: "char-scout", Icon: "char-scout"},
 	},
@@ -86,7 +119,7 @@ var Classes = []ClassDef{
 		ID: "gardien", Name: "Gardien", Tier: ClassTierAdvanced, Day: EvolveDayAdvanced,
 		Requires: []string{"pionnier"},
 		Role:     "Protecteur du groupe et du territoire : encaisse et sécurise les zones dangereuses.",
-		Bonuses:  Stats{Force: 5, Endurance: 3},
+		Bonuses:  Stats{Endurance: 5, Force: 5},
 		PABonus:  1,
 		Skills: []ClassSkill{
 			{Name: "Rassure", Scope: "map", Desc: "Compte pour 3 héros face à une horde.", Effects: "poids 3 dans le calcul Tétanisé (passif)"},
@@ -98,7 +131,7 @@ var Classes = []ClassDef{
 		ID: "recuperateur", Name: "Récupérateur", Tier: ClassTierAdvanced, Day: EvolveDayAdvanced,
 		Requires: []string{"chasseur", "eclaireur"},
 		Role:     "Récupère tout ce qui traîne : fragments, restes, débris, matériaux et objets tombés.",
-		Bonuses:  Stats{Athletisme: 5, Agilite: 3, Endurance: 2},
+		Bonuses:  Stats{Athletisme: 5, Endurance: 3, Force: 2},
 		PABonus:  1,
 		Skills: []ClassSkill{
 			{Name: "Sac élargi", Scope: "map", Desc: "Transporte plus lors d'une fouille.", Effects: "+1 ressource par fouille (passif)"},
@@ -110,7 +143,7 @@ var Classes = []ClassDef{
 		ID: "herboriste", Name: "Herboriste & Minéral", Tier: ClassTierAdvanced, Day: EvolveDayAdvanced,
 		Requires: []string{"eclaireur"},
 		Role:     "Récolte les plantes, herbes rares et minerais simples.",
-		Bonuses:  Stats{Athletisme: 5, Agilite: 3, Endurance: 2},
+		Bonuses:  Stats{Precision: 4, Dexterite: 3, Endurance: 3},
 		PABonus:  1,
 		Skills: []ClassSkill{
 			{Name: "Récolte Délicate", Scope: "map", Desc: "Récolte assurée sur plantes et minéraux.", Effects: "+1 ressource plante/minerai (passif)"},
@@ -198,12 +231,14 @@ func (g *GameState) EvolveHero(heroID, classID string) error {
 	h.Stats.Endurance += cls.Bonuses.Endurance
 	h.Stats.Athletisme += cls.Bonuses.Athletisme
 	h.Stats.Precision += cls.Bonuses.Precision
+	h.Stats.Perception += cls.Bonuses.Perception
 	h.ClassBonuses.Force += cls.Bonuses.Force
 	h.ClassBonuses.Dexterite += cls.Bonuses.Dexterite
 	h.ClassBonuses.Agilite += cls.Bonuses.Agilite
 	h.ClassBonuses.Endurance += cls.Bonuses.Endurance
 	h.ClassBonuses.Athletisme += cls.Bonuses.Athletisme
 	h.ClassBonuses.Precision += cls.Bonuses.Precision
+	h.ClassBonuses.Perception += cls.Bonuses.Perception
 	h.MaxPA += cls.PABonus
 	h.PA += cls.PABonus
 	// L'ENDURANCE PORTE LES PV. `NewStarterHero` pose `hp = 8 + endurance*2`, mais
