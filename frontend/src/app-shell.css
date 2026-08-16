@@ -613,6 +613,47 @@ body {
   .topbar .town-name {
     display: none;
   }
+  /* …et même sans le nom, la barre déborde : sept éléments à 390 px, dont le compteur
+     de faveur (mythic.go) qui en fait un de plus. On resserre les gouttières et les
+     chips plutôt que de retirer une information — chacun est le raccourci d'un panneau
+     qu'aucun autre écran n'ouvre. */
+  .topbar {
+    gap: var(--s-1);
+    padding-left: max(var(--s-3), env(safe-area-inset-left));
+    padding-right: max(var(--s-3), env(safe-area-inset-right));
+  }
+  .topbar .chip {
+    padding: 5px var(--s-2);
+    font-size: var(--t-xs);
+  }
+}
+/* Sur les téléphones les plus étroits (≤430 px : iPhone mini/SE, Pixel « a »), la
+   rangée reste 24 px trop large une fois le compteur de faveur ajouté — MESURÉ, pas
+   estimé. On rogne les boutons-icônes en LARGEUR seulement : la hauteur reste à 44 px,
+   donc la cible tactile garde sa surface utile (c'est la hauteur qui manque au pouce
+   sur une barre, pas la largeur). */
+@media (max-width: 430px) {
+  .topbar {
+    column-gap: 3px;
+  }
+  .topbar .iconbtn {
+    width: 40px;
+  }
+  .topbar .chip {
+    padding: 5px var(--s-1);
+    gap: 2px;
+  }
+  .topbar .chip.status {
+    gap: var(--s-1);
+  }
+}
+/* LE FILET : si malgré tout la rangée ne tient pas (police système agrandie, écran de
+   320 px), elle passe à la ligne. Un bouton ⚙️ coupé par le bord de l'écran est
+   inatteignable et ne se signale pas — c'est le seul défaut de cette barre qu'un joueur
+   ne peut pas contourner. */
+.topbar {
+  flex-wrap: wrap;
+  row-gap: var(--s-2);
 }
 .topbar .town-name {
   font-family: var(--font-title);
@@ -691,6 +732,22 @@ body {
   color: #fff;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.02em;
+}
+/* LA FAVEUR DES DIEUX (mythic.go). Doré et non rouge : ce n'est pas une alerte, c'est
+   une réserve — et le doré est déjà la couleur des PA, dont la faveur est la cousine
+   (une monnaie qu'on dépense). `ready` la fait ressortir quand un dieu PEUT être appelé :
+   c'est le seul moment où ce chip demande une action. */
+.chip.favor {
+  background: linear-gradient(180deg, #fff4d6, #f0dcae);
+  border-color: var(--gold);
+  color: #8a5c10;
+  font-variant-numeric: tabular-nums;
+}
+.chip.favor.ready {
+  background: linear-gradient(180deg, #ffe9a8, #f0c85a);
+  border-color: #b98a16;
+  color: #6b4308;
+  box-shadow: 0 0 0 2px rgba(212, 168, 42, 0.35), var(--sh-card);
 }
 .iconbtn {
   /* 30×30 était sous le minimum tactile (44px iOS / 48dp Android). */
@@ -1178,6 +1235,12 @@ body {
 .ing.fx {
   color: var(--ink-muted);
   font-style: italic;
+}
+/* Ce qu'une offrande verse aux dieux (mythic.go) : doré et non muet, parce que c'est
+   la seule raison de fabriquer une décoration. */
+.ing.favor {
+  color: #8a5c10;
+  font-weight: 800;
 }
 
 /* Structure grouping by state (default "Statut" sort): chantiers / plans / built */
@@ -4775,4 +4838,172 @@ body {
   font-size: var(--t-sm);
   line-height: var(--lh-body);
   text-align: left;
+}
+
+/* ─── LE TEMPLE (mythic.go) ────────────────────────────────────────────────────
+   La faveur des dieux, ce qui veille sur la ville, et le scrutin. Le panneau doit
+   tenir sur un téléphone tout en laissant lire trois cartes de dieu : d'où des
+   cartes empilées, à l'icône large et au texte qui s'enroule (jamais tronqué —
+   il n'y a pas de survol au doigt). */
+.temple-modal {
+  width: min(420px, 94%);
+  max-height: 88dvh;
+  overflow-y: auto;
+}
+.favor-gauge {
+  margin: var(--s-3) 0;
+}
+.favor-gauge .fg-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-2);
+}
+.favor-gauge .fg-count {
+  font-family: var(--font-title);
+  font-size: var(--t-xl);
+  font-weight: 800;
+  color: #8a5c10;
+  font-variant-numeric: tabular-nums;
+}
+.favor-gauge .fg-count i {
+  font-style: normal;
+  font-size: var(--t-sm);
+  color: var(--ink-soft);
+}
+.favor-gauge .fg-note {
+  font-size: var(--t-xs);
+  color: var(--ink-soft);
+  text-align: right;
+}
+.favor-gauge .fg-hint {
+  margin-top: var(--s-2);
+  font-size: var(--t-xs);
+  line-height: var(--lh-snug);
+  color: var(--ink-soft);
+}
+/* Ce qui veille DÉJÀ sur la ville, avec la vague où la faveur se retirera : c'est ce
+   qui permet de préparer la suivante au lieu de la découvrir éteinte. */
+.temple-active {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  margin: var(--s-3) 0;
+  padding: var(--s-2);
+  border: 1.5px solid var(--gold);
+  border-radius: var(--r-md);
+  background: linear-gradient(180deg, #fff8e6, #f7ecd0);
+}
+.temple-active .ta-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-size: var(--t-sm);
+}
+.temple-active .ta-ic {
+  font-size: var(--t-lg);
+}
+.temple-active .ta-nm {
+  font-weight: 800;
+  color: var(--ink);
+}
+.temple-active .ta-until {
+  margin-left: auto;
+  font-size: var(--t-xs);
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+.god-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin-top: var(--s-2);
+}
+.god-card {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-3);
+  width: 100%;
+  text-align: left;
+  padding: var(--s-3);
+  border-radius: var(--r-md);
+  border: 1.5px solid var(--line-2);
+  background: var(--parch-0);
+  cursor: pointer;
+}
+.god-card:hover:not(:disabled) {
+  border-color: var(--gold);
+}
+.god-card.mine {
+  border-color: var(--gold);
+  background: linear-gradient(180deg, #fff4d6, #f4e2af);
+}
+.god-card.held {
+  opacity: 0.75;
+}
+.god-card:disabled {
+  cursor: default;
+}
+.god-card .gc-ic {
+  font-size: 26px;
+  line-height: 1;
+}
+.god-card .gc-main {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.god-card .gc-nm {
+  font-family: var(--font-title);
+  font-weight: 800;
+  font-size: var(--t-md);
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  flex-wrap: wrap;
+}
+.god-card .gc-dom,
+.god-card .gc-held {
+  font-style: normal;
+  font-size: var(--t-xs);
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: var(--r-pill);
+  background: #efe0bd;
+  color: #7a5410;
+}
+.god-card .gc-held {
+  background: #cfe6cf;
+  color: #2f6b34;
+}
+.god-card .gc-boon {
+  font-size: var(--t-sm);
+  color: var(--ink-2);
+  /* Jamais tronqué : au doigt il n'y a pas de survol pour révéler la suite. */
+  overflow-wrap: anywhere;
+}
+.god-card .gc-tag {
+  font-size: var(--t-xs);
+  color: var(--ink-soft);
+  font-style: italic;
+  overflow-wrap: anywhere;
+}
+.god-card .gc-votes {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  font-size: var(--t-sm);
+  font-weight: 800;
+  color: #8a5c10;
+  font-variant-numeric: tabular-nums;
+}
+.god-card .gc-votes i {
+  font-style: normal;
+  font-size: var(--t-xs);
+  font-weight: 600;
+  color: var(--ink-soft);
 }

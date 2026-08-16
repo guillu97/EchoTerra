@@ -208,6 +208,7 @@ interface StoreState {
   townStatusOpen: boolean; // town status panel overlay
   townJournalOpen: boolean; // town journal overlay (Panel building)
   townLedgerOpen: boolean; // registre de contribution (Panel building) — cf. TownLedger.tsx
+  templeOpen: boolean; // le Temple : faveur, dieux, scrutin — cf. TemplePanel.tsx
   chatOpen: boolean; // messagerie de la ville (feuille ✉️)
   chat: ChatMessage[]; // board content — served by its own gated route, never by the game payload
   chatSeen: number; // how many messages this device had seen (drives the unread pip)
@@ -267,6 +268,9 @@ interface StoreState {
   toggleTownStatus: (open?: boolean) => void;
   toggleTownJournal: (open?: boolean) => void;
   toggleTownLedger: (open?: boolean) => void;
+  toggleTemple: (open?: boolean) => void;
+  // Voter pour le dieu que la ville appelle. `godId` vide retire sa voix.
+  voteBlessing: (godId: string) => Promise<void>;
   toggleChat: (open?: boolean) => void;
   dismissWaveCinema: () => void;
   refreshChat: () => Promise<void>; // sondage silencieux de la messagerie
@@ -678,6 +682,7 @@ export const useStore = create<StoreState>((set, get) => {
     townStatusOpen: false,
     townJournalOpen: false,
     townLedgerOpen: false,
+    templeOpen: false,
     chatOpen: false,
     chat: [],
     chatSeen: 0,
@@ -730,6 +735,7 @@ export const useStore = create<StoreState>((set, get) => {
       set((s) => ({ townJournalOpen: open === undefined ? !s.townJournalOpen : open })),
     toggleTownLedger: (open) =>
       set((s) => ({ townLedgerOpen: open === undefined ? !s.townLedgerOpen : open })),
+    toggleTemple: (open) => set((s) => ({ templeOpen: open === undefined ? !s.templeOpen : open })),
 
     toggleChat: (open) => {
       const next = open === undefined ? !get().chatOpen : open;
@@ -999,6 +1005,26 @@ export const useStore = create<StoreState>((set, get) => {
         get().notify(
           `🔭 Horde estimée entre ${f.min} et ${f.max} — fiable à ${f.precision}%` +
             (f.scouts > 1 ? ` (${f.scouts} observateurs)` : ""),
+        );
+      }),
+
+    // LE SCRUTIN DU TEMPLE (backend mythic.go). Gratuit, sans héros, et sans effet
+    // immédiat : le dépouillement a lieu quand la vague tombe. On le DIT dans le toast,
+    // sinon un joueur qui vote et ne voit rien changer croit que ça n'a pas marché.
+    voteBlessing: (godId) =>
+      withBusy(async () => {
+        const { game, playerId } = get();
+        if (!game || !playerId) {
+          get().notify("Il faut rejoindre l'expédition pour voter");
+          return;
+        }
+        const next = await api.voteBlessing(game.id, playerId, godId);
+        adoptGame(next);
+        const god = next.theme?.pantheon?.gods.find((g) => g.id === godId);
+        get().notify(
+          god
+            ? `${god.icon} Voix donnée à ${god.name} — le dieu élu répondra à la prochaine vague`
+            : "Voix retirée",
         );
       }),
 

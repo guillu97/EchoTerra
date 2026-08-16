@@ -12,6 +12,7 @@ import { TownStatus } from "../components/TownStatus";
 import { TownJournal } from "../components/TownJournal";
 import { TownLedger } from "../components/TownLedger";
 import { TownChat } from "../components/TownChat";
+import { TemplePanel } from "../components/TemplePanel";
 import { WaveCinematic } from "../components/WaveCinematic";
 import { GameOver } from "../components/GameOver";
 import { CheatPanel } from "../components/CheatPanel";
@@ -62,6 +63,7 @@ export function GameScreen() {
       <TownJournal />
       <TownLedger />
       <TownChat />
+      <TemplePanel />
       <WaveCinematic />
       <GameOver />
       <CheatPanel />

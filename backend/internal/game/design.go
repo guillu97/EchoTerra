@@ -64,13 +64,18 @@ var Terrains = map[Biome]TerrainDef{
 		// cuisine, poste) ont des plans COMMUNS dans les biomes proches de la ville
 		// (sable/prairie) ; les avancés (tour/mairie) restent modérés (forêt/montagne).
 		{"objet", "Plan de la Recyclerie", 1, 3}, {"objet", "Plan de la Cuisine", 1, 1},
-		{"objet", "Plan de la Poste", 1, 2},
+		{"objet", "Plan de la Poste", 1, 2}, {"objet", "Plan du Temple", 1, 1},
 	}},
 	BiomeGrass: {Searchable: true, ResourcesMin: 3, ResourcesMax: 6, Drops: []DropDef{
 		{"plante", "Fleur", 1, 1}, {"animal", "Viande", 1, 1}, {"objet", "Débris", 1, 1},
 		{"plante", "Baie sauvage", 1, 2}, {"plante", "Fibre végétale", 1, 2},
 		{"objet", "Plan de la Cuisine", 1, 3}, {"objet", "Plan de la Recyclerie", 1, 2},
 		{"objet", "Plan de la Poste", 1, 3},
+		// LE PLAN DU TEMPLE (mythic.go) : trouvable dans la prairie et sur la grève,
+		// c'est-à-dire à côté de la ville. La faveur des dieux est un PILIER du jeu, pas
+		// une spécialité rare : le gater sur une ruine en aurait privé la moitié des
+		// parties, et le compteur ⚡ serait resté une décoration d'interface.
+		{"objet", "Plan du Temple", 1, 2},
 		// Les GRAINES ANCIENNES du Verger : une vieille friche en garde. Poids faible —
 		// la source abondante reste la ferme en ruine — mais elles doivent exister hors
 		// des ruines, sinon le Verger serait otage d'UN type de ruine sur la carte
@@ -527,6 +532,28 @@ var BuildingDesigns = map[string]BuildingDesign{
 			{Materials: []Item{{"plante", "Graines anciennes", 1}, {"objet", "Bois", 3}}, Effects: "regarnit 2 cases proches par vague"},
 			{Materials: []Item{{"plante", "Graines anciennes", 2}, {"objet", "Bois", 6}, {"objet", "Corde", 1}}, Effects: "regarnit 4 cases proches par vague"},
 			{Materials: []Item{{"plante", "Graines anciennes", 3}, {"objet", "Planche", 2}, {"objet", "Cœur de chêne ancien", 1}}, Effects: "regarnit 6 cases proches par vague"},
+		},
+	},
+	// ─── LE TEMPLE (2026-08-16, mythic.go) ─────────────────────────────────────
+	//
+	// Il n'est PAS une sixième spécialité : les cinq précédentes se disputent la même
+	// enveloppe de matériaux pour cinq axes de survie, le Temple ouvre un pilier à part
+	// — la faveur des dieux, qu'on gagne en ornant la ville et qu'on dépense en
+	// bénédictions votées. D'où un prérequis à la portée de toutes les villes
+	// (l'Atelier, debout dès le départ, et qui est justement là qu'on fabrique la déco)
+	// et un plan qu'on trouve sans avoir à déblayer une ruine : un pilier de jeu que la
+	// moitié des parties n'atteindrait jamais ne serait pas un pilier.
+	//
+	// Ses trois niveaux ne rendent pas les dieux plus forts : ils augmentent le nombre
+	// de bénédictions SIMULTANÉES (1, 2, 3). Une ville niveau 1 doit trancher entre
+	// tenir, récolter et frapper ; une ville niveau 3 a payé le droit de ne plus
+	// choisir.
+	"temple": {
+		Requires: []BuildingRequire{{"workshop", 1}},
+		Levels: []BuildingLevelDef{
+			{Materials: []Item{{"objet", "Bois", 3}, {"minerai", "Pierre", 3}}, Effects: "1 bénédiction à la fois"},
+			{Materials: []Item{{"objet", "Bois", 6}, {"minerai", "Pierre", 6}, {"objet", "Planche", 1}}, Effects: "2 bénédictions à la fois"},
+			{Materials: []Item{{"objet", "Bois", 9}, {"minerai", "Brique", 2}, {"minerai", "Minerai d'or", 1}}, Effects: "3 bénédictions à la fois"},
 		},
 	},
 	"caserne": {

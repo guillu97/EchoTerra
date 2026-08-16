@@ -26,6 +26,7 @@ export function TopBar() {
   const toggleTownStatus = useStore((s) => s.toggleTownStatus);
   const toggleTownJournal = useStore((s) => s.toggleTownJournal);
   const toggleChat = useStore((s) => s.toggleChat);
+  const toggleTemple = useStore((s) => s.toggleTemple);
   const chatSeen = useStore((s) => s.chatSeen);
   const game = useStore((s) => s.game);
   const playerId = useStore((s) => s.playerId);
@@ -47,6 +48,16 @@ export function TopBar() {
 
   const selHero = game?.heroes.find((h) => h.id === selectedHeroId) ?? myHeroes[0];
   const portrait = assetUrl(portraitKey(selHero?.classId));
+
+  // LA FAVEUR (mythic.go) : le compteur ⚡ et son seuil viennent du serveur, jamais
+  // d'une constante recopiée ici.
+  const pantheon = game?.theme?.pantheon;
+  const favor = game?.town.favor ?? 0;
+  const favorGoal = game?.town.favorGoal ?? 20;
+  const templeB = game?.town.buildings?.find((b) => b.id === "temple");
+  const templeStanding = !!templeB?.built && templeB.durability > 0;
+  const freeSlot = (game?.town.blessings?.length ?? 0) < (game?.town.blessingSlots ?? 0);
+  const favorReady = templeStanding && favor >= favorGoal && freeSlot;
 
   return (
     <header className="topbar">
@@ -112,6 +123,26 @@ export function TopBar() {
         </button>
       )}
 
+      {/* LA FAVEUR DES DIEUX (backend mythic.go). Affichée seulement quand elle a un
+          sens — un Temple debout, ou de la faveur déjà accumulée : sur une barre qui
+          déborde déjà à 390 px, un compteur à zéro pour une ville sans temple ne serait
+          que du bruit. L'icône est celle du PANTHÉON (⚡ grec, 🔨 nordique, ☥ égyptien),
+          ce qui la distingue au passage des PA, qui portent aussi la foudre. */}
+      {(favor > 0 || templeStanding) && (
+        <button
+          className={"chip favor" + (favorReady ? " ready" : "")}
+          onClick={() => toggleTemple(true)}
+          title={
+            templeStanding
+              ? `Faveur des dieux ${favor}/${favorGoal} — ${
+                  favorReady ? "un dieu peut être appelé au Temple" : "fabrique des offrandes à l'Atelier"
+                }`
+              : `Faveur des dieux ${favor}/${favorGoal} — il reste à bâtir le ${pantheon?.temple ?? "Temple"}`
+          }
+        >
+          {pantheon?.favor ?? "⚡"} {favor}
+        </button>
+      )}
       {inTown && (
         <button className="iconbtn" title="Journal de la ville" onClick={() => toggleTownJournal(true)}>
           📋

@@ -37,6 +37,9 @@ export function CraftTab() {
   const source = inTown ? game.town.storage ?? [] : actor?.inventory ?? [];
   const have = (name: string) => source.find((i) => i.name === name)?.qty ?? 0;
   const list = cat === "all" ? recipes : recipes.filter((r) => r.category === cat);
+  // L'icône de la faveur est celle du PANTHÉON de cette terre (⚡ grec, 🔨 nordique,
+  // ☥ égyptien) — servie par le payload, jamais recopiée ici.
+  const favorIcon = game.theme?.pantheon?.favor ?? "⚡";
 
   return (
     <div className="panel-screen">
@@ -96,7 +99,16 @@ export function CraftTab() {
                       {i < r.ingredients.length - 1 ? " · " : ""}
                     </span>
                   ))}
-                  {r.effects && <span className="ing fx"> — {r.effects}</span>}
+                  {/* LA FAVEUR (backend mythic.go) : ce que l'offrande verse aux dieux.
+                      Elle est mise en avant plutôt que noyée dans `effects`, parce que
+                      c'est la SEULE raison de fabriquer une décoration. */}
+                  {!!r.favor && (
+                    <span className="ing favor">
+                      {" "}
+                      — {favorIcon} +{r.favor} faveur
+                    </span>
+                  )}
+                  {r.effects && !r.favor && <span className="ing fx"> — {r.effects}</span>}
                 </div>
               </div>
               <button

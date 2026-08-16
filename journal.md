@@ -6,6 +6,95 @@
 
 ---
 
+## 2026-08-16 (120) — La faveur des dieux : offrandes, Temple, bénédictions votées
+
+Demande de Guillaume : « un aspect mythique — les objets de déco donnent des faveurs aux dieux au lieu
+du moral (compteur d'éclairs à la Age of Mythology), avec assez d'éclairs on choisit des bénédictions
+(Odin/Loki/Thor au nord, trois dieux égyptiens au désert), plus un bâtiment TEMPLE spécifique au biome
+où l'on VOTE pour la faveur, appliquée dès la vague d'après. Le biome de base doit être grec. »
+
+**Ce qui manquait, et pourquoi ça tombait juste.** La catégorie « déco » du craft annonçait « moral de
+la ville » depuis le premier jour du catalogue. Le moral n'existe **nulle part** dans le code — §9 le
+listait encore comme un reste de design non implémenté. Fabriquer un totem produisait donc un objet
+qui allait dormir en Banque et n'agissait sur rien : la dernière grande promesse en texte du
+catalogue, après les niveaux 2-3 (lot 2026-08-10), l'équipement et les objets consommables.
+
+**Livré** (`game/mythic.go`, bâtiment `temple`, `components/TemplePanel.tsx`) : les offrandes versent
+de la **faveur** ; la ville la **vote** au Temple ; le dieu élu répond **dès la vague suivante** ;
+la bénédiction **expire** au bout de 4 vagues. Trois panthéons — **Olympe** (grec, le thème tempéré,
+donc le défaut), **Ásgard** (Thor/Loki/Odin), **Douat** (Râ/Osiris/Sekhmet) — et trois modèles voxel
+de temple, un par panthéon.
+
+**Les quatre règles qui tiennent le système**, et qui sont tout le travail de conception :
+
+1. **La faveur se paie en matériaux de CONSTRUCTION.** Un totem, c'est 3 Bois ; une stèle, 3 Pierre ;
+   un brasero, une Brique et du Charbon. La ferveur est donc en concurrence directe avec la muraille,
+   les remparts et — au nord — les foyers. C'est la règle des contraintes de thème (§8 de
+   RETENTION-PLAN), et sans elle la faveur ne serait qu'une seconde monnaie qu'on ramasse en plus.
+2. **Une bénédiction EXPIRE.** Sans expiration, une ville empile les boons jusqu'à devenir imprenable
+   et le compteur n'a plus rien à dire passé la vague 10. La faveur est une monnaie qui tourne.
+3. **On VOTE.** Même esprit que `VoteKick` : c'est une ville qui appelle un dieu. Gratuit (un vote est
+   une décision, pas un travail — le faire payer en PA donnerait le dernier mot au plus riche), sans
+   héros en ville (un joueur en expédition a son mot à dire), et dépouillé **quand la vague tombe** :
+   dans un jeu où chacun passe cinq minutes par jour, l'intervalle entre deux vagues EST le scrutin.
+   Aucun quorum — à moitié endormie, une expédition n'invoquerait jamais rien.
+4. **Un panthéon est une PEAU.** Les trois servent les mêmes trois domaines avec les mêmes chiffres
+   (rempart +8 de défense, moisson +1 par trouvaille, lame +2 de force). Un thème se TIRE ; s'il
+   pouvait donner de meilleurs dieux, ce serait une punition au hasard. Même contrat que les armes de
+   thème, et même test (`TestPantheonsAreLateralNotStronger`).
+
+⚠ **Le dépouillement doit être DÉTERMINISTE, ex æquo compris.** Premier réflexe : parcourir la map des
+voix en gardant le mieux placé. C'eût été un vainqueur dépendant de l'ordre d'itération de Go, donc
+deux instances rejouant la même période auraient appelé deux dieux différents — exactement les deux
+fuites de déterminisme corrigées le 2026-08-09. Le dépouillement parcourt le PANTHÉON dans son ordre,
+qui départage les égalités ; un test le rejoue vingt fois.
+
+⚠ **Les joueurs-IA n'y touchent pas, et c'est un choix.** Ils bâtissent le Temple comme n'importe quel
+site dont le plan est en Banque, mais ils ne fabriquent pas d'offrandes (le bois est déjà la matière
+la plus disputée ; CLAUDE.md a mesuré deux fois qu'élargir leur craft coûtait des vagues) et surtout
+**ils ne votent pas** : à vingt robots contre un humain, leurs voix décideraient du dieu à sa place.
+
+⚠ **Le plan du Temple tombe de la FOUILLE ORDINAIRE**, pas seulement des ruines. Les cinq bâtiments de
+spécialité sont rares exprès — mesuré, une ville n'en bâtit que 1 à 3. Un PILIER de jeu que la moitié
+des parties n'atteindrait jamais n'en serait pas un.
+
+**Mesuré (l'instrument d'équilibrage, 5 graines × 6 tailles, avant/après).** Médianes de survie
+1·2·4·8·12·20 joueurs : **15·16·17·17·16·20 → 15·15·17·19·19·20**. Rien ne s'effondre, l'échelle reste
+croissante, et l'écart tient au fait que le nouveau plan décale le flux de hasard des tables de butin.
+Le pilier est invisible pour la simulation (les bots ne votent pas), ce qui est le résultat voulu :
+il ne change pas la difficulté de fond, il donne quelque chose à décider.
+
+⚠ **La barre du haut ne tenait plus.** Le compteur en fait un septième élément, sur une barre où le
+bouton ⚙️ était **déjà coupé** par le bord de l'écran à 390 px (visible sur la capture de Guillaume,
+avant même cet ajout). Mesuré : 414 px de contenu pour 390 de large. Resserré (gouttières, chips,
+boutons-icônes à 40 px de LARGE mais toujours 44 de haut) → **380 px, une seule rangée**, plus un filet
+`flex-wrap` pour qu'un écran plus étroit fasse passer à la ligne au lieu de découper. Un bouton hors de
+l'écran est inatteignable et ne se signale pas : c'est le seul défaut de cette barre qu'un joueur ne
+peut pas contourner.
+
+⚠ **Deux modèles voxel repris APRÈS rendu**, et aucun des deux défauts n'était lisible dans le code.
+Le temple égyptien empilait pylônes, salle hypostyle, mâts à bannière et obélisques dans la même grille
+de 20 : la dalle plate de la salle passait devant les tours en projection dimétrique et mangeait tout
+le bâtiment. Un modèle vu à trois centimètres n'a droit qu'à UNE silhouette — deux tours, un linteau,
+deux aiguilles, le reste retiré. Et le hof nordique disparaissait sous la neige : posée sur toute la
+largeur des trois toitures, elle effaçait les bardeaux sombres, c'est-à-dire le bois debout, tout le
+sujet du bâtiment. La neige ne coiffe plus que les faîtes — c'est le CONTRASTE qui fait l'hiver, le
+même réglage que la palette du terrain nordique.
+
+**Vérifié.** `go test ./...` vert (dont `game/mythic_test.go` 14 cas et `api/mythic_test.go`) ·
+`npm run test:mythic` 13/13 (neuf) · `test:map-tap` 8/8 · `test:inventory` 11/11 · `test:endgame` 8/8 ·
+`test:combat-ui` 9/9 · `test:reconnect` 8/8 · `test:perf` 13/13 · `tsc -b` + `npm run build` ·
+`cmd/balance -sweep`. ⚠ `test:weather` est **instable sur cette machine** (17/18 puis 18/18 sur deux
+exécutions consécutives du même code, et la branche de référence échoue aussi, sur un autre point) —
+contention CPU avec les serveurs de dev, pas une régression ; à revérifier au calme.
+
+**À faire.** Les bots ne cuisinent aucune offrande : une ville 100 % IA n'atteindra jamais un dieu.
+C'est délibéré aujourd'hui, mais ça mériterait d'être mesuré (une offrande de bois par tranche de
+Banque bien remplie, par exemple). Et le Temple n'a pas encore de rôle dans le récit de fin de partie
+— la ville qui a tenu sous une bénédiction pourrait le raconter.
+
+---
+
 ## 2026-08-12 (119) — Animer les biomes : la neige, le ciel et les vire-vents
 
 Demande de Guillaume : « animer les biomes — neige qui tombe (avec nuages cohérents), tumbleweeds

@@ -81,6 +81,10 @@ export const TOWN_BUILDINGS: BuildingLayout[] = [
   { id: "armurerie",   name: "Armurerie",   icon: "⚔️", assetKey: "building-workshop", blurb: "Arme les héros : force accrue en combat. Le seul bâtiment dont l'effet sort des murs.", primary: "", island: "ne", x: 30, y: 62 },
   { id: "caserne",     name: "Caserne",     icon: "🛡️", assetKey: "building-wall",     blurb: "Loge la garnison : les héros présents défendent davantage, sans ajouter un point de pierre.", primary: "", island: "ne", x: 66, y: 62 },
   { id: "verger",      name: "Verger",      icon: "🌱", assetKey: "building-kitchen",  blurb: "Regarnit les cases proches à chaque vague — la réponse à une carte qui s'épuise.", primary: "", island: "sw", x: 62, y: 62 },
+  // LE TEMPLE (backend mythic.go) : le pilier mythique. Son NOM change avec le panthéon
+  // (« Hof des Ases », « Temple de Râ ») — celui-ci est le générique, et l'écran du
+  // Temple affiche le nom propre servi par le serveur.
+  { id: "temple",      name: "Temple",      icon: "🏛️", assetKey: "building-townhall", blurb: "Les offrandes fabriquées à l'Atelier y deviennent la faveur des dieux — et c'est là que la ville vote la bénédiction qu'elle appelle.", primary: "Appeler un dieu", island: "core", x: 50, y: 24 },
 ];
 
 export function buildingIcon(id: string): string {

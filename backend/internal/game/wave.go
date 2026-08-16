@@ -132,7 +132,11 @@ const casernePerLevel = 4
 
 func (g *GameState) TownDefense() int {
 	_, garrison := g.GarrisonDefense()
-	return g.buildingsDefense() + garrison
+	// La bénédiction du REMPART (mythic.go) s'ajoute APRÈS le plafond de garnison : ce
+	// plafond dit « on ne défend que le rempart qu'on a bâti », et une faveur divine
+	// n'est pas de la pierre. L'y enfermer l'aurait rendue invisible dans une ville qui
+	// a déjà du monde aux créneaux — c'est-à-dire précisément quand on l'invoque.
+	return g.buildingsDefense() + garrison + g.blessingRampartDefense()
 }
 
 // Recompute refreshes derived fields (town defense, hero "Tétanisé", building costs,
@@ -140,7 +144,12 @@ func (g *GameState) TownDefense() int {
 func (g *GameState) Recompute() {
 	g.backfillBuildings()
 	g.Town.Garrison, g.Town.GarrisonValue = g.GarrisonDefense()
-	g.Town.Defense = g.buildingsDefense() + g.Town.GarrisonValue
+	g.Town.Defense = g.buildingsDefense() + g.Town.GarrisonValue + g.blessingRampartDefense()
+	// LA FAVEUR (mythic.go) : dérivés servis au client pour qu'il n'ait pas à recopier
+	// les nombres du serveur — ce qu'un dieu coûte, et combien de bénédictions le Temple
+	// peut tenir à ce niveau.
+	g.Town.FavorGoal = BlessingCost
+	g.Town.BlessingSlots = g.BlessingSlots()
 	g.recomputeTetanise()
 	g.RevealVision() // grow the shared fog-of-war reveal set from current positions
 	// Quels héros en ville ont ÉPUISÉ leur quota d'eau du jour (une ration, deux avec
@@ -346,6 +355,13 @@ func (g *GameState) processWave(now time.Time, safeTown bool) {
 		// journée écoulée. Ne fait rien hors du thème désertique.
 		g.applyThirst()
 	}
+
+	// LA FAVEUR DES DIEUX (mythic.go), AVANT que la horde soit chiffrée. Ce qui a expiré
+	// libère sa place, puis le scrutin ouvert au Temple est dépouillé : la bénédiction
+	// votée pendant l'intervalle « s'applique dès la vague d'après », et la première
+	// vague qu'elle couvre est celle qui tombe maintenant.
+	g.expireBlessings()
+	g.resolveBlessingVote()
 
 	besieging := g.besiegingCreatures()
 	power := hordePower(g.WaveNumber, g.hordeScale(), besieging)

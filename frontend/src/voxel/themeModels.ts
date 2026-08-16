@@ -16,6 +16,12 @@ const THEMED = new Set([
   "bld-townhall-desertique",
   "site-epave-desertique",
   "site-epave-nordique",
+  // LE TEMPLE (mythic.go) : « spécifique au biome » était la demande, et c'est le seul
+  // bâtiment dont la forme DIT quelque chose du jeu — le panthéon qu'on prie. Péristyle
+  // grec en tempéré (la clé de base), hof à pignons de bois au nord, pylône et obélisques
+  // au sud.
+  "bld-temple-nordique",
+  "bld-temple-desertique",
 ]);
 
 /** La clé à utiliser pour ce modèle sous ce thème (la base si rien n'est prévu). */

@@ -281,6 +281,11 @@ func (g *GameState) searchLoot(h *Hero, t *Tile, td TerrainDef) *Item {
 	if h.ClassID == "herboriste" && (it.Type == "plante" || it.Type == "minerai") {
 		it.Qty++
 	}
+	// LA BÉNÉDICTION DE LA MOISSON (mythic.go) : la terre rend davantage tant que le
+	// dieu veille. Elle SE CUMULE avec les passifs de classe — ce sont deux sources
+	// différentes, et une ville qui a payé vingt faveurs doit le voir même si son
+	// Récupérateur creuse déjà mieux que les autres.
+	it.Qty += g.blessingHarvestBonus()
 	h.AddLoot(it)
 	return &it
 }
