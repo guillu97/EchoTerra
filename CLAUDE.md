@@ -93,7 +93,11 @@ par le MÊME vent, vire-vents qui roulent VRAIMENT à l'écran au sud, rien du t
 la ration puisée au puits; mêmes prérequis) ·
 `npm run test:structures` (in frontend — **l'onglet Bâtir** : aucun bâtiment dont le plan n'est pas
 en Banque, le plan trouvé qui fait apparaître SON chantier, et le doseur de PA jusqu'au `points`
-envoyé au serveur; mêmes prérequis).
+envoyé au serveur; mêmes prérequis) ·
+`npm run test:wave-chip` (in frontend — **la pastille de vague** : elle MESURE le contraste sur les
+pixels peints (capture → canvas → percentiles de luminance), dans les deux états, et vérifie que la
+TopBar tient à 390 px avec le badge le plus large; **aucun serveur de dev requis**, c'est du CSS pur
+sur du balisage statique).
 
 **Déploiement Vercel (gratuit)** — voir `DEPLOY.md`. Preset **Services** (`vercel.json`) : service
 `frontend` (root `frontend/`, Vite, statique CDN) + service `backend` (root `backend/`, le preset Go
@@ -1172,6 +1176,18 @@ de la P… » et « Plan de la C… » sont le MÊME texte à l'écran ; elle le
 lignes (`overflow-wrap: anywhere`, clamp à 3 en garde-fou). Réflexe à garder pour toute nouvelle
 étiquette : le vérifier à 390 px de large, garde-fou `npm run test:inventory` (qui mesure
 `scrollWidth` contre `clientWidth`, c'est-à-dire le navigateur et non une estimation).
+⚠⚠ **UN TOKEN DE COULEUR POSÉ SUR UN FOND FAIT DU MÊME TOKEN EST UN PIÈGE MUET** : `.chip.wave
+.wave-dmg` était `color: var(--red)` sur un dégradé qui FINIT sur `var(--red)` — contraste **1,40:1
+mesuré**, un chiffre invisible ; et `.chip.wave.fatal { color: var(--red) }` faisait le même coup au
+chip ENTIER, minuteur compris, au moment où il compte le plus (rapporté en jeu 2026-08-16). Deux
+règles : un badge se détache par son **FOND** (encre translucide), jamais par sa teinte ; et une
+alerte **AJOUTE** du contraste, elle n'en retire pas. Garde-fou `npm run test:wave-chip`, qui MESURE
+les pixels peints. Corollaire : **un débordement de TopBar se mesure** (`scrollWidth` contre
+`clientWidth`), il ne se constate pas à l'œil — la barre débordait de 41 px à 390 px, ⚙️ hors écran,
+depuis l'ajout de ce badge, sans que personne le voie sur les captures. Enfin, **un chiffre nu ment**
+(« −0/16 » a été lu comme une fraction, pas comme la fourchette de PV qu'il est) : les phrases de la
+prévision sont écrites UNE fois dans `src/forecast.ts`, servent la pastille + son `aria-label` + son
+`title` + la feuille « État de la ville », et la version longue DOIT exister ailleurs qu'en `title=`.
 L'app est **en français** : les chaînes anglaises restantes sont des bugs — SAUF celles qui portent
 de la logique de jeu (`"Ration d'eau"`, `"Plan "`, `"Tétanisé"`), à ne jamais traduire. Les noms de
 bâtiments s'affichent via `buildingName(id)` (`data/buildings.ts`), pas via `b.name` du serveur —

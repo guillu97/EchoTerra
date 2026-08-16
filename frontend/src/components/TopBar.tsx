@@ -3,6 +3,7 @@ import { useStore } from "../store";
 import { HeroActionsMenu } from "./HeroActionsMenu";
 import { heroesInTown } from "../townUtils";
 import { useWaveRemaining, formatHMS } from "../useWave";
+import { damageRange, damageSentence, precisionSentence, besiegingSentence } from "../forecast";
 import { assetUrl, type AssetKey } from "../assets";
 
 // Portrait key for a hero class (same mapping as HeroOverlay).
@@ -48,6 +49,10 @@ export function TopBar() {
   const selHero = game?.heroes.find((h) => h.id === selectedHeroId) ?? myHeroes[0];
   const portrait = assetUrl(portraitKey(selHero?.classId));
 
+  // La prévision de vague, mise en mots par forecast.ts — la MÊME phrase sert la
+  // pastille, son aria-label, son title et la feuille « État de la ville ».
+  const fc = game?.town.forecast;
+
   return (
     <header className="topbar">
       <button className="avatar" title="Mes personnages" onClick={() => setHeroMenu((o) => !o)}>
@@ -76,18 +81,11 @@ export function TopBar() {
 
       {game?.status === "active" && (
         <button
-          className={"chip wave" + (game.town.forecast?.atRisk ? " fatal" : "")}
+          className={"chip wave" + (fc?.atRisk ? " fatal" : "")}
           onClick={() => toggleTownStatus(true)}
           title={
-            game.town.forecast
-              ? `Horde estimée entre ${game.town.forecast.min} et ${game.town.forecast.max} contre ` +
-                `${game.town.forecast.defense} de défense · fiable à ${game.town.forecast.precision}%` +
-                (game.town.forecast.tower === 0
-                  ? " (sans Tour de guet, on devine)"
-                  : ` (Tour niv.${game.town.forecast.tower}, ${game.town.forecast.scouts} observateur(s))`) +
-                (game.town.forecast.besieging > 0
-                  ? ` · ${game.town.forecast.besieging} créatures aux abords — les abattre fait baisser ce chiffre`
-                  : " · abords dégagés")
+            fc
+              ? `${damageSentence(fc)} ${precisionSentence(fc)} ${besiegingSentence(fc)}`
               : "Prochaine vague — état de la ville"
           }
         >
@@ -99,14 +97,16 @@ export function TopBar() {
           {/* Les dégâts ATTENDUS en FOURCHETTE, pas le numéro de vague : c'est le
               chiffre sur lequel le joueur peut agir, et son imprécision est elle-même
               une information (elle se paie en Tour de guet et en observateurs). */}
+          {/* ⚠ IL PORTE SON UNITÉ, et son séparateur est « … » : écrit « −0/16 » nu,
+              il a été lu comme une fraction (« 0 sur 16 ») par le joueur qui l'a
+              rapporté — et le title, seule explication, est invisible au doigt. La
+              version longue vit dans la feuille qu'ouvre ce bouton. */}
           {/* Pendant le rattrapage, la prévision porte sur une vague qui n'est pas
               la prochaine que le joueur verra tomber : on la tait (et la barre
               reste courte sur un téléphone). */}
-          {!catchingUp && game.town.forecast && game.town.forecast.damageMax > 0 && (
-            <i className="wave-dmg">
-              −{game.town.forecast.damageMin}
-              {game.town.forecast.damageMax !== game.town.forecast.damageMin &&
-                `/${game.town.forecast.damageMax}`}
+          {!catchingUp && fc && fc.damageMax > 0 && (
+            <i className="wave-dmg" aria-label={damageSentence(fc)}>
+              {damageRange(fc)} PV
             </i>
           )}
         </button>

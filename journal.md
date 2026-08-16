@@ -6,6 +6,45 @@
 
 ---
 
+## 2026-08-16 (121) — « −0/16 en rouge sur rouge » : la pastille de vague se lit enfin
+
+Rapporté en jeu, capture à l'appui : « −0/16 en rouge sur rouge sans savoir ce que c'est, je pense
+que c'est buggé ». C'étaient **trois bugs empilés**, et la capture les montrait tous les trois.
+
+**1. Rouge sur rouge, littéralement.** `.chip.wave .wave-dmg` était `color: var(--red)` (#c0392b)
+posé sur le dégradé du chip, qui **finit exactement sur --red**. Contraste **mesuré 1,40:1** — pas
+« peu lisible » : invisible. Et `.chip.wave.fatal { color: var(--red) }` faisait le même coup au chip
+**entier**, minuteur compris, au moment précis où il compte le plus. Un badge se détache par son
+**FOND**, pas par sa teinte : encre translucide, blanc dessus (7,9 puis 10,7:1 après l'ombre).
+
+**2. Le chiffre ne disait pas ce qu'il était.** « −0/16 » se lit comme une **fraction** (« 0 sur
+16 ») alors que c'est une **fourchette de PV**. Le badge porte désormais son unité et un « … » —
+`frontend/src/forecast.ts` écrit la phrase **une seule fois** pour la pastille, son `aria-label`, son
+`title` et la feuille. Et surtout : **la feuille qu'ouvre la pastille ne parlait pas de la
+prévision** — l'unique explication était un `title=`, que le doigt ne révèle jamais (même piège que
+les noms d'objets tronqués, entrée 113). `TownStatus` porte maintenant le bloc en toutes lettres :
+dégâts attendus, horde vs défense, d'où vient la précision, et le levier (les assiégeants).
+
+**3. ⚠ LA BARRE DÉBORDAIT DÉJÀ, et personne ne l'avait vu.** Mesuré à 390px : **41px de trop** avec
+l'ancien badge — le nom de ville écrasé à **0px** et le **⚙️ hors de l'écran**. C'est visible sur la
+capture du joueur, qui ne le signalait pas. Écrire le badge en entier portait ça à 91px : impossible
+de livrer la correction sans corriger le débordement d'abord. Le badge passe **sous** le minuteur
+dans la MÊME pastille à ≤460px (175,7px → 98,5px), gouttières et marges resserrées — mêmes cibles
+tactiles. C'est la même réponse que la fusion PV+PA en un chip, pour la même raison.
+
+**Vérifié** : `npm run test:wave-chip` (nouveau) **mesure les pixels peints** — capture, décodage
+canvas, percentiles 2/98 de la luminance, rapport de contraste — plutôt que de relire la feuille de
+style. Sur le code d'avant il échoue 3/6 (1,40:1 ×3) ; après, 6/6. Il vérifie aussi que la barre tient
+à 390px avec le badge le plus large que le jeu puisse produire. `tsc -b` + `build` verts ;
+`test:inventory` 11/11, `test:map-tap` 8/8, `test:endgame` 8/8, `test:combat-ui` 9/9, `test:perf`
+13/13 (un premier passage rouge, reproduit vert ensuite — flaky, hors de ce diff).
+
+**À retenir** : un token de couleur posé sur un fond fait du même token est un piège muet — aucun
+lint ne l'attrape, et sur un chip en dégradé il ne se voit qu'en bas. Et un débordement de barre se
+mesure (`scrollWidth`), il ne se constate pas à l'œil sur une capture où il ressemble à du cadrage.
+
+---
+
 ## 2026-08-16 (120) — Bâtir : on ne montre que ce qu'on a trouvé, et on dose ses PA
 
 Retour de jeu de Guillaume, capture à l'appui (onglet Bâtir sur téléphone) : « les plans qui n'ont
