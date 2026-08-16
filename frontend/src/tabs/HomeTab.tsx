@@ -47,11 +47,19 @@ function BuildingMenu({ layout, b, onClose }: { layout: BuildingLayout; b: TownB
   const townFull = !!game && game.town.hp >= game.town.maxHp;
   const townStone = (game?.town.storage.find((it) => it.name === "Pierre")?.qty ?? 0) > 0;
 
-  // Well: the daily ration is per-hero (the selected town worker). Figure out whether
-  // that worker has already drunk today so we can label/disable the button.
+  // Puits : la ration est PAR HÉROS et par jour, et le puits la met dans le SAC — on
+  // n'a donc rien bu en la puisant (boire, c'est le bouton 💧 de la carte, +6 PA). Deux
+  // conséquences pour l'étiquette :
+  //  - on dit « puisé », jamais « bu » ;
+  //  - le quota épuisé se lit sur la liste DÉRIVÉE du serveur (`waterDrawnToday`), pas
+  //    sur `drewWaterDay` : ce champ ne porte que le JOUR de la dernière ration, donc le
+  //    comparer au jour courant grisait le puits dès la PREMIÈRE alors qu'une Cuisine
+  //    niveau 2 en autorise une seconde (dailyWaterAllowance côté serveur).
   const workerId = game ? effectiveTownHeroId(game, playerId, townHeroId) : undefined;
   const worker = game?.heroes.find((h) => h.id === workerId);
-  const workerDrankToday = !!worker && worker.drewWaterDay === game?.day;
+  const waterAllowance = game?.town.waterAllowance ?? 1;
+  const waterDrawn = worker && worker.drewWaterDay === game?.day ? worker.drewWaterCount ?? 1 : 0;
+  const workerWaterDone = !!worker && (game?.town.waterDrawnToday ?? []).includes(worker.id);
   const wellEmpty = b.capacity <= 0;
 
   // Townhall revive: needs a fallen hero; free and unlimited at level 3, otherwise
@@ -129,27 +137,40 @@ function BuildingMenu({ layout, b, onClose }: { layout: BuildingLayout; b: TownB
           </div>
         )}
         {b.id === "well" && (
-          <div className="durab">
-            💧 Eau {b.capacity}/{b.maxCapacity}
-            <Bar value={b.capacity} max={b.maxCapacity} color="#3da5ff" />
-          </div>
+          <>
+            <div className="durab">
+              💧 Eau {b.capacity}/{b.maxCapacity}
+              <Bar value={b.capacity} max={b.maxCapacity} color="#3da5ff" />
+            </div>
+            {/* Ce que le puits fait VRAIMENT : la ration part dans le SAC, elle ne se
+                boit qu'ensuite sur le terrain. Sans cette phrase « puiser » et « boire »
+                se confondent, et le joueur croit avoir dépensé son eau sans y toucher. */}
+            <div className="bm-def">
+              La ration part dans le sac de {worker?.name ?? "l'ouvrier"} — elle se boit ensuite
+              (💧 sur la carte, +6 PA).
+            </div>
+          </>
         )}
 
         <div className="act">
           {b.id === "well" && (
             <button
               className="primary"
-              disabled={busy || wellEmpty || workerDrankToday || !worker}
+              disabled={busy || wellEmpty || workerWaterDone || !worker}
               onClick={() => townAction("well", "water")}
             >
               <span>
-                💧 {workerDrankToday
-                  ? `${worker?.name ?? "Le héros"} a déjà bu aujourd'hui`
+                💧 {workerWaterDone
+                  ? waterAllowance > 1
+                    ? `${worker?.name ?? "Le héros"} a puisé ses ${waterAllowance} rations`
+                    : `${worker?.name ?? "Le héros"} a déjà puisé sa ration`
                   : wellEmpty
                   ? "Puits à sec"
-                  : `Puiser de l'eau${worker ? ` (${worker.name})` : ""}`}
+                  : `Puiser une ration${worker ? ` (${worker.name})` : ""}`}
               </span>
-              <span className="c">1/jour</span>
+              <span className="c">
+                {waterDrawn}/{waterAllowance} auj.
+              </span>
             </button>
           )}
           {/* LA TOUR DE GUET : monter observer la horde. Ce n'est pas un bonus solo —

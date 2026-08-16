@@ -300,10 +300,15 @@ type GameState struct {
 		GarrisonValue int             `json:"garrisonValue"` // ce qu'elles ajoutent, plafond compris
 		Buildings     []*TownBuilding `json:"buildings"`
 		Storage       []Item          `json:"storage"` // shared stash (the House/Bank)
-		// WaterDrawnToday lists the in-town hero IDs who have already taken their daily
-		// Well ration this game.day (derived; refreshed by Recompute). The Well "water"
-		// action is limited to one ration per hero per day.
+		// WaterDrawnToday lists the in-town hero IDs who have ÉPUISÉ their daily Well
+		// allowance this game.day (derived; refreshed by Recompute).
 		WaterDrawnToday []string `json:"waterDrawnToday"`
+		// WaterAllowance : rations qu'un héros peut tirer du puits par jour (une, deux
+		// avec une Cuisine niveau 2 — dailyWaterAllowance). Dérivé, servi au client pour
+		// qu'il n'ait pas à recopier la règle : il ne voit que `drewWaterDay`, qui porte
+		// le JOUR de la dernière ration et non le quota — le comparer au jour courant
+		// grisait le puits dès la PREMIÈRE ration alors qu'il en restait une.
+		WaterAllowance int `json:"waterAllowance"`
 		// Log is the town journal (Panel building): every action performed IN town —
 		// gate toggles, well draws, bank deposits, builds/repairs, town crafts —
 		// newest first, capped (see logTown). Shared by all players.

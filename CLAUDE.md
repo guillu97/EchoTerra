@@ -726,7 +726,13 @@ ajouté après coup n'atteindrait aucune partie en cours.
   2 PA). Suivi `Town.ReviveDay/RevivesToday`. Bouton « 🛏️ Ressusciter <héros> » dans le modal Home.
 - `water` (Well) → **FREE**, draws **one Ration d'eau per in-town hero per `game.day`**: charged to the selected
   town worker (`heroID`), decrements Well `capacity`, clears that hero's `Soif`, and drops the ration into **that
-  hero's bag** (not the Bank). Tracked via `Hero.DrewWaterDay`; derived `town.waterDrawnToday` lists who drank today.
+  hero's bag** (not the Bank). Tracked via `Hero.DrewWaterDay` + `DrewWaterCount` ; dérivés
+  `town.waterDrawnToday` (qui a ÉPUISÉ son quota) et `town.waterAllowance` (le quota lui-même).
+  ⚠ **PUISER N'EST PAS BOIRE, et l'interface ne doit jamais dire « a bu »** (rapporté en jeu 2026-08-16) :
+  l'action met une ration dans le SAC ; boire est un geste séparé, sur la carte. ⚠ et le puits s'éteint sur
+  `waterDrawnToday`, **jamais** sur `drewWaterDay == day` : ce champ porte le JOUR de la dernière ration et
+  non le quota, donc le comparer au jour courant grisait le puits dès la PREMIÈRE ration alors qu'une Cuisine
+  niveau 2 (`dailyWaterAllowance`) en autorise une seconde — l'effet payé restait inatteignable au joueur.
   **Sur la CARTE**, un héros peut BOIRE une Ration d'eau de son sac (`DrinkRation`, route `/drink`, boutons 💧) :
   +6 PA (`RationPA`, plafonné à MaxPA), purge Fatigue/Soif, refusé sans ration ou à PA plein — sans coûter de PA.
 - `toggle` (Gate) → 1 PA, flips `open` (open = 0 defense; matches Neko's "qui a laissé la porte ouverte" chat).

@@ -6,6 +6,46 @@
 
 ---
 
+## 2026-08-16 (128) — Le puits disait « a déjà bu ». On n'avait rien bu.
+
+Retour de Guillaume, capture à l'appui : le modal du Puits affiche **« Brisa a déjà bu aujourd'hui »**
+— « il ne faut pas écrire ça parce qu'on n'a pas forcément bu ».
+
+### Deux bugs, pas un
+
+**1. La phrase est fausse.** L'action `water` ne fait pas boire : elle met une **Ration d'eau dans le
+sac** du héros (`AddLoot`). Boire est un geste SÉPARÉ, sur la carte (`DrinkRation`, +6 PA). Le serveur
+disait déjà « a déjà puisé sa part d'eau » et le journal « a puisé une ration » — seule l'interface
+parlait de boire, et elle laissait croire qu'on avait dépensé une eau à laquelle on n'avait pas touché.
+
+**2. Le bouton s'éteignait une ration trop tôt.** `HomeTab` jugeait sur
+`worker.drewWaterDay === game.day`. Or ce champ porte le **JOUR de la dernière ration**, pas un quota :
+une **Cuisine niveau 2** en autorise DEUX (`dailyWaterAllowance`, lot des niveaux 2-3). Le serveur, lui,
+tenait le compte juste (`DrewWaterCount`) et dérivait déjà `town.waterDrawnToday` en connaissance de
+l'allocation — le client ne le lisait pas. Une ville qui avait payé son Atelier, ses matériaux et ses PA
+pour monter la Cuisine ne pouvait pas puiser sa seconde ration : **l'effet acheté restait inatteignable**.
+
+### Livré
+
+- `Town.WaterAllowance` (dérivé, posé par `Recompute` à côté de `WaterDrawnToday`) : le quota voyage
+  jusqu'au client au lieu d'y être recopié — même règle que `FavorGoal`/`BlessingSlots`.
+- `HomeTab` s'éteint sur `waterDrawnToday` (la vérité serveur), pas sur `drewWaterDay`.
+- Les mots : « Puiser une ration », « a déjà puisé sa ration » / « a puisé ses 2 rations », compteur
+  `1/2 auj.` au lieu du « 1/jour » figé, et une ligne qui dit où va la ration (« part dans le sac de
+  Brisa — elle se boit ensuite, 💧 sur la carte, +6 PA »).
+
+### Vérifié
+
+`go test ./...` (tout vert, dont le nouveau `TestWaterAllowanceIsServedAndGatesTheDrawnList` : quota
+servi, un héros à 1/2 ration ne compte PAS comme épuisé, à 2/2 si) · `npx tsc -b` · `npm run build`.
+
+### À faire
+
+Rien d'ouvert sur l'eau. À surveiller ailleurs : le même piège (un client qui recopie une règle de
+quota au lieu de lire le dérivé) existe partout où un bâtiment de niveau 2-3 desserre une limite.
+
+---
+
 ## 2026-08-16 (127) — « Quand je bouge ça déplace les nuages » : la caméra n'avait aucune borne
 
 Retour de Guillaume, capture à l'appui : sur l'onglet **Ville**, le bourg réduit à une vignette dans

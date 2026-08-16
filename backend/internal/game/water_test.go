@@ -113,3 +113,36 @@ func TestWaterDrawnTodayDerivedField(t *testing.T) {
 		t.Fatalf("WaterDrawnToday should list h1, got %v", g.Town.WaterDrawnToday)
 	}
 }
+
+// Le QUOTA voyage jusqu'au client, et un héros qui a puisé UNE ration alors qu'il y a
+// droit à deux ne compte pas pour épuisé : l'interface n'a que ces deux champs pour
+// décider d'éteindre le puits, elle ne peut pas recopier dailyWaterAllowance.
+func TestWaterAllowanceIsServedAndGatesTheDrawnList(t *testing.T) {
+	g, h1, _ := newWaterTestGame()
+	if g.Town.WaterAllowance != 1 {
+		t.Fatalf("une ration par jour par défaut, servi %d", g.Town.WaterAllowance)
+	}
+
+	k := g.buildingByID("kitchen")
+	k.Built, k.Level, k.Durability = true, 2, k.MaxDurability
+	if err := g.TownAction("well", "water", 1, h1.ID); err != nil {
+		t.Fatalf("première ration refusée : %v", err)
+	}
+	g.Recompute()
+	if g.Town.WaterAllowance != 2 {
+		t.Fatalf("Cuisine niveau 2 : deux rations par jour, servi %d", g.Town.WaterAllowance)
+	}
+	if len(g.Town.WaterDrawnToday) != 0 {
+		t.Fatalf("il reste une ration à h1, il ne doit pas figurer comme épuisé : %v", g.Town.WaterDrawnToday)
+	}
+	if h1.DrewWaterCount != 1 || h1.DrewWaterDay != g.Day {
+		t.Fatalf("compteur du jour mal tenu : jour %d, %d ration(s)", h1.DrewWaterDay, h1.DrewWaterCount)
+	}
+	if err := g.TownAction("well", "water", 1, h1.ID); err != nil {
+		t.Fatalf("seconde ration refusée : %v", err)
+	}
+	g.Recompute()
+	if len(g.Town.WaterDrawnToday) != 1 || g.Town.WaterDrawnToday[0] != h1.ID {
+		t.Fatalf("quota épuisé, h1 doit figurer : %v", g.Town.WaterDrawnToday)
+	}
+}

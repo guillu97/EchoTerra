@@ -167,7 +167,13 @@ export interface Hero {
   states: string[];
   inventory: Item[];
   bars: Record<string, number>;
+  // ⚠ le JOUR de la dernière ration puisée au puits, PAS un quota : le comparer au jour
+  // courant dit « il a puisé aujourd'hui », jamais « il n'a plus droit à rien » (une
+  // Cuisine niveau 2 en autorise deux). Pour savoir si le quota est épuisé, lire
+  // `town.waterDrawnToday` — c'est le serveur qui l'a dérivé (backend wave.go).
   drewWaterDay: number;
+  // Rations puisées CE jour-là (absent = aucune). Sert l'affichage « 1/2 auj. ».
+  drewWaterCount?: number;
   // FRANCHISSEMENT : l'écart de hauteur que ce héros passe d'un pas sur la carte
   // (backend climb.go). ⚠ SERVI, JAMAIS RECALCULÉ ICI : la valeur dépend de
   // l'athlétisme ET de l'équipement porté, or les bonus d'équipement ne sont pas
@@ -565,7 +571,11 @@ export interface GameState {
     garrisonValue?: number;
     buildings: TownBuilding[];
     storage: Item[];
+    // Les héros EN VILLE qui ont ÉPUISÉ leur quota d'eau du jour (dérivé serveur : il
+    // tient compte de l'allocation ci-dessous). C'est LUI qui grise le puits.
     waterDrawnToday: string[];
+    // Rations qu'un héros peut puiser par jour : 1, ou 2 avec une Cuisine niveau 2.
+    waterAllowance?: number;
     // Town journal (Panel building): in-town actions, newest first, capped server-side.
     log?: TownLogEntry[];
     // How many messages the board holds. The messages THEMSELVES never ride this

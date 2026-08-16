@@ -168,6 +168,7 @@ func (g *GameState) Recompute() {
 		}
 	}
 	g.Town.WaterDrawnToday = drawn
+	g.Town.WaterAllowance = allowance
 	total := 0
 	for _, it := range g.Town.Storage {
 		total += it.Qty
