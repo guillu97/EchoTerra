@@ -161,6 +161,8 @@ func (c *Combat) refreshWeapon(u *CombatUnit, h *Hero, old EquipDef) {
 	u.Stats.Dexterite += now.Dexterite - old.Dexterite
 	u.Stats.Agilite += now.Agilite - old.Agilite
 	u.Stats.Endurance += now.Endurance - old.Endurance
+	u.Stats.Athletisme += now.Athletisme - old.Athletisme
+	u.Stats.Precision += now.Precision - old.Precision
 	_, armor, reach, vsCursed, rangedStat := equipBonuses(h)
 	u.Armor, u.Reach, u.VsCursed, u.RangedStat = armor, reach, vsCursed, rangedStat
 	u.WeaponName, u.WeaponKind = h.Weapon, WeaponArchetype(h.Weapon)

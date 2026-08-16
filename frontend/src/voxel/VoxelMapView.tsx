@@ -694,19 +694,36 @@ class MapWorld {
       this.overlays.add(im);
     }
 
-    // sélection + losanges de déplacement (mêmes règles que MapScene : ortho,
-    // eau connue infranchissable, porte construite fermée = ville scellée)
+    // sélection + losanges de déplacement : ortho, eau connue infranchissable, porte
+    // construite fermée = ville scellée, et FALAISE trop haute (backend climb.go).
+    //
+    // ⚠ UN LOSANGE EST UNE PROMESSE. En proposer un que le serveur refusera est pire
+    // que ne rien proposer : au doigt, on tape et il ne se passe rien. Le relief est
+    // donc filtré ICI, avec la valeur de franchissement SERVIE par le serveur
+    // (`hero.climb`) et jamais recalculée — l'équipement n'est pas dans `stats`.
+    // À la place, la falaise reçoit un liseré ROUGE : « on voit qu'on ne passe pas »,
+    // ce qui vaut mieux qu'une case simplement vide, indistinguable d'un bord de
+    // carte. C'est ce liseré qui dit au joueur qu'il faut faire le tour.
     const hero = this.selectedHero();
     if (hero) {
       const gate = game.town.buildings?.find((b) => b.id === "gate");
       const gateClosed = !!gate && gate.built && !gate.open;
       const heroOnTown = hero.x === game.town.x && hero.y === game.town.y;
+      const here = tileAt(hero.x, hero.y);
+      const climb = hero.climb ?? 1;
       for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
         const nx = hero.x + dx, ny = hero.y + dy;
         const t = tileAt(nx, ny);
         if (!t) continue;
         if (t.discovered && t.biome === 0) continue; // eau connue
         if (gateClosed && (heroOnTown || (nx === game.town.x && ny === game.town.y))) continue;
+        // ⚠ seulement sur une case DÉCOUVERTE : le brouillard sert une tuile vierge
+        // (hauteur 0), donc juger son relief inventerait une falaise là où le serveur
+        // laisse explorer au contact.
+        if (t.discovered && here && Math.abs(t.height - here.height) > climb) {
+          quad(nx, ny, topOf(nx, ny), 0xff5544, 0.42);
+          continue;
+        }
         quad(nx, ny, topOf(nx, ny), 0xffe066, 0.55);
       }
     }

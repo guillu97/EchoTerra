@@ -602,6 +602,11 @@ func newWorld(width, height int, seed int64, theme *game.ThemeDef) *game.GameSta
 	// base sont hors d'atteinte et on ne peut jamais amorcer la construction.
 	ensureNearbyBiomes(gs)
 	ensureSnowCap(gs)
+	// LE RELIEF DEVIENT UN OBSTACLE (escarpments.go) — en DERNIER, une fois les
+	// biomes définitifs : cette passe relève des hauteurs sans jamais toucher à un
+	// biome, donc elle doit voir la carte que les joueurs auront vraiment (le biais
+	// de thème et les deux garanties de gisement sont déjà passés).
+	carveEscarpments(gs, rand.New(rand.NewSource(seed^0x5CA49)))
 	gs.Town.HP, gs.Town.MaxHP = 100, 100
 	gs.Town.Buildings = game.DefaultBuildings()
 	gs.Town.Storage = []game.Item{}

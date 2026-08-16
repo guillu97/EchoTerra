@@ -191,13 +191,10 @@ func (u *CombatUnit) tickCooldowns() {
 // Elle porte désormais la MOBILITÉ VERTICALE : grimper la terrasse, c'est prendre
 // la hauteur, et la hauteur donne déjà un bonus de dégâts (dmgMods). L'athlète ne
 // frappe pas plus fort, il arrive là où les autres ne montent pas.
-func (u *CombatUnit) climbLimit() int {
-	c := 2 + u.Stats.Athletisme/4
-	if c < 2 {
-		c = 2
-	}
-	return c
-}
+// ⚠ MÊME FORMULE QUE LA CARTE (climb.go) : un seul diviseur, deux planchers. Le
+// joueur n'a qu'une règle à apprendre, et l'arène garde son plancher de 2 — la
+// valeur qui y était codée en dur, donc personne ne perd de terrain jouable.
+func (u *CombatUnit) climbLimit() int { return climbFrom(u.Stats.Athletisme, arenaClimbBase) }
 
 // critPct : chance de coup critique (×1.5 dégâts), en pourcentage.
 //
@@ -599,6 +596,12 @@ func NewCombat(gs *GameState, heroes []*Hero, monster *Monster, starterID string
 		u.Stats.Dexterite += gear.Dexterite
 		u.Stats.Agilite += gear.Agilite
 		u.Stats.Endurance += gear.Endurance
+		// ⚠ Les deux statistiques ressuscitées par l'audit voyagent AUSSI : sans ces
+		// deux lignes, des bottes de grimpeur ne feraient rien sur les terrasses de
+		// l'arène et un stylet de précision n'ajouterait aucun critique — les objets
+		// existeraient, leur effet non.
+		u.Stats.Athletisme += gear.Athletisme
+		u.Stats.Precision += gear.Precision
 		u.Armor, u.Reach, u.VsCursed, u.RangedStat = armor, reach, vsCursed, rangedStat
 		u.WeaponName, u.WeaponKind = h.Weapon, WeaponArchetype(h.Weapon)
 		// L'agilité gagnée doit compter pour le DÉPLACEMENT : Move a été calculé au-dessus

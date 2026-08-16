@@ -94,6 +94,26 @@ var Recipes = []Recipe{
 		Ingredients: []Item{{"animal", "Plume de harpie", 3}, {"objet", "Cuir", 1}}, Effects: "Équipement : +2 agilité (esquive)"},
 	{ID: "werewolf_cloak", Name: "Cape de garou", Category: "forge", Building: "workshop", BuildingLevel: 2, OutputType: "arme", PACost: 2,
 		Ingredients: []Item{{"animal", "Fourrure maudite", 1}, {"objet", "Cuir", 1}}, Effects: "Équipement : +2 endurance"},
+	// LES OBJETS DE L'ATHLÉTISME ET DE LA PRÉCISION (equipment.go). Ces deux
+	// statistiques n'étaient portées par AUCUN objet — ce qui se tenait tant qu'elles
+	// ne faisaient rien, et plus du tout depuis qu'elles décident où l'on peut aller
+	// et à quelle fréquence on frappe un point faible.
+	//
+	// ⚠ LES BOTTES SONT AU NIVEAU 1 DE L'ATELIER, et c'est le seul choix de gating qui
+	// compte ici : elles ouvrent des ZONES DE CARTE (les escarpements, worldgen). Les
+	// réserver au niveau 2 reviendrait à fermer une partie du monde derrière une
+	// chaîne de construction qu'une petite expédition n'atteint pas — or c'est
+	// justement la petite expédition qui a besoin d'aller chercher loin. Le cuir et la
+	// corde suffisent : deux matériaux qu'on transforme dès le premier atelier.
+	{ID: "climbing_boots", Name: "Bottes cloutées", Category: "forge", Building: "workshop", BuildingLevel: 1, OutputType: "arme", PACost: 2,
+		Ingredients: []Item{{"objet", "Cuir", 1}, {"objet", "Corde", 1}, {"minerai", "Minerai de fer", 1}},
+		Effects: "Équipement : +3 athlétisme — franchit les escarpements (carte et combat)"},
+	{ID: "lynx_eye", Name: "Œil-de-lynx", Category: "forge", Building: "workshop", BuildingLevel: 2, OutputType: "arme", PACost: 2,
+		Ingredients: []Item{{"objet", "Soie cristalline", 1}, {"animal", "Plume de harpie", 1}, {"objet", "Cuir", 1}},
+		Effects: "Équipement : +3 précision (coups critiques)"},
+	{ID: "skinner_stiletto", Name: "Stylet d'écorcheur", Category: "forge", Building: "workshop", BuildingLevel: 2, OutputType: "arme", PACost: 2,
+		Ingredients: []Item{{"minerai", "Minerai d'argent", 1}, {"animal", "Croc", 1}, {"objet", "Corde", 1}},
+		Effects: "Arme : +1 force, +4 précision (coups critiques)"},
 	{ID: "leather_armor", Name: "Armure de cuir", Category: "forge", Building: "workshop", BuildingLevel: 2, OutputType: "arme", PACost: 2,
 		Ingredients: []Item{{"objet", "Cuir", 2}, {"objet", "Corde", 1}}, Effects: "Équipement : -2 dégâts subis en combat"},
 	// --- déco ---

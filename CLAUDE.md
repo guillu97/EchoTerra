@@ -501,13 +501,14 @@ SUPPRIMÉS.)
   (Escape). Tests exhaustifs : `tetanise_test.go`.
 - **Caché**: from **Hide** (1 PA) — the hero is skipped by the next wave's attack, then concealment is consumed.
 
-**LES STATISTIQUES ET CE QU'ELLES FONT** (`combat.go`, audit 2026-08-16) — **Force** dégâts par
-défaut · **Dextérité** dégâts des tirs et des capacités à distance · **Agilité** `Move = 2+agi/3` et
-`Initiative = agi*10+rand` · **Endurance** `−end/2` aux dégâts subis ET les PV (`8+end*2` à la
-création, `+2` par point gagné à l'ÉVOLUTION — `EvolveHero` ne les recalculait pas, un gardien à 7
-d'endurance gardait les 16 PV de ses 4 points de départ) · **Précision** la chance de COUP CRITIQUE
-(`critPct` : ×1,5 dégâts, 3 %/point, plafond 40 %) · **Athlétisme** la HAUTEUR FRANCHISSABLE
-(`climbLimit` : 2 niveaux + 1 tous les 4 points, lu par `passable`). ⚠ **les deux dernières ne
+**LES STATISTIQUES ET CE QU'ELLES FONT** (`combat.go` + `climb.go`, audit 2026-08-16) — **Force**
+dégâts par défaut · **Dextérité** dégâts des tirs et des capacités à distance · **Agilité** LA PORTÉE
+DE DÉPLACEMENT (`Move = 2+agi/3`) et `Initiative = agi*10+rand` · **Endurance** `−end/2` aux dégâts
+subis ET les PV (`8+end*2` à la création, `+2` par point gagné à l'ÉVOLUTION — `EvolveHero` ne les
+recalculait pas, un gardien à 7 d'endurance gardait les 16 PV de ses 4 points de départ) ·
+**Précision** la chance de COUP CRITIQUE (`critPct` : ×1,5 dégâts, 3 %/point, plafond 40 %) ·
+**Athlétisme** LA HAUTEUR FRANCHISSABLE, en combat ET sur la carte (`climbFrom` : `plancher +
+athlétisme/5`, plancher **2** en arène et **1** sur la carte — voir « LE RELIEF ARRÊTE »). ⚠ **les deux dernières ne
 faisaient RIEN** avant cet audit : Athlétisme n'était lu par aucune ligne de code, Précision ne portait
 les dégâts que de DEUX capacités sur tout le jeu — alors que `classes.go` donne `Athletisme: 5` comme
 bonus PRINCIPAL à trois classes sur six (éclaireur, récupérateur, herboriste), qui échangeaient donc
@@ -518,6 +519,42 @@ fourchette, jamais fondus dedans). ⚠ l'agilité reste en ESCALIER (`/3`) : une
 change le déplacement que si elle fait franchir un multiple de 3. La fiche de personnage
 (`HeroOverlay`) RÉPÈTE ces phrases sous chaque attribut — pas dans un `title`, il n'y a pas de survol
 sur un téléphone. Tests : `turneconomy_test.go`.
+
+**LE RELIEF ARRÊTE — escarpements de carte** (`game/climb.go` + `worldgen/escarpments.go`,
+2026-08-16) — `Tile.Height` était commenté « cosmetic » et l'était : `MoveHero` acceptait n'importe
+quel pas orthogonal quelle que soit la dénivellation, et la carte ne POUVAIT pas porter de falaise
+(`smoothLevels`, genMaxStep 1, garantit des marches ≤ 1). Désormais une marche > `HeroClimb(h)` est
+REFUSÉE — sur la carte comme dans l'arène, avec la même statistique et le même diviseur.
+- **Le franchissement** : `climbFrom(athlétisme, plancher)` = `plancher + ath/5`. Plancher **2** en
+  arène (la valeur qui y était codée en dur : personne ne perd de terrain jouable, et être bloqué
+  dans un espace clos de 7×7 serait une punition arbitraire) et **1** sur la carte (le monde a des
+  détours par construction). Calibré sur les valeurs réelles : les quatre blocs de départ donnent
+  2·3·3·4 d'athlétisme, donc **aucun héros neuf ne grimpe** ; éclaireur/récupérateur/herboriste
+  (+5) passent à 7-9, et les **Bottes cloutées** (+3) suffisent à n'importe qui.
+- ⚠ **SYMÉTRIQUE** (valeur absolue) : une descente vertigineuse arrête autant qu'une montée — une
+  règle asymétrique produirait « j'y suis allé et je ne peux plus revenir ». ⚠ **le BROUILLARD ne
+  bloque jamais** (`ClientView` sert une tuile vierge, hauteur 0 : refuser sur une hauteur que le
+  joueur n'a pas vue transformerait l'exploration au contact en tirage au sort). ⚠ un refus de
+  relief **ne coûte pas de PA**. ⚠ **`Hero.Climb` est un champ DÉRIVÉ** refait par `Recompute` et
+  servi au client : les bonus d'équipement ne sont pas dans `Stats`, donc un miroir client-side
+  divergerait au premier objet ajouté.
+- ⚠ **LA HORDE IGNORE LE RELIEF** (`migrateMonstersTowardTown` ne regarde que la praticabilité) et
+  ça doit le rester : gater la migration ferait dépendre la difficulté du tirage du terrain, alors
+  que la courbe de survie est réglée à la mesure.
+- **Les MESAS** (`carveEscarpments`, dernière passe de `newWorld`) : sommet plat à `base+2`, pied
+  nivelé à `base`, donc une falaise de **2 exactement** sur tout le pourtour. Une partie reçoit des
+  RAMPES (`base+1`, deux marches de 1) ; `sealedPlateauPct` 45 % n'en reçoit AUCUNE — ce sont les
+  zones qui n'existent que pour qui grimpe. ⚠ **une mesa ne change AUCUN biome** (tables de fouille,
+  spawns d'espèces, `ensureNearbyBiomes` et la liste de courses des bots voient la carte d'avant) et
+  ⚠ **c'est une POCHE, jamais un mur** — convexe, entourée d'un anneau praticable, donc en sceller
+  ne coupe jamais une région. ⚠⚠ **TROIS approches ont été mesurées et jetées avant celle-ci** (rive
+  partielle, massif de biome, disques de +1) : toutes rendaient **0,0 à 1,2 %** de carte gardée, la
+  dernière parce qu'un disque sur une PENTE a toujours un côté amont à fleur du terrain. Détail
+  complet dans l'en-tête d'`escarpments.go` — ne pas les retenter. Mesuré aujourd'hui : **6,2 %** de
+  la carte demande de grimper, **<0,01 %** est hors d'atteinte même en grimpant. Garanties testées :
+  marche max 2, bois et pierre (montagne **OU NEIGE** — une carte nordique peut n'avoir aucune tuile
+  de biome montagne) atteignables sans athlétisme. Tests : `worldgen/escarpments_test.go`,
+  `game/climb_test.go`.
 
 **L'ÉCONOMIE DU TOUR — un déplacement, une action, et des RECHARGES** (`combat.go`, 2026-08-16) —
 « on peut se déplacer puis faire dix fois la même attaque » (retour utilisateur). Mesuré : dix attaques
@@ -1021,7 +1058,8 @@ indépendant des joueurs. C'est cette action qui fait de l'ÉPUISEMENT DE LA CAR
 l'arithmétique de la horde, la vraie limite d'une longue partie. Bornée aux PV manquants (ne gaspille
 ni PA ni pierre) et refusée sur une ville intacte. Tests `townrepair_test.go`.
 
-**ÉQUIPEMENT** (`equipment.go`, `GET /api/equipment`, `POST /heroes/{h}/equip`, 2026-08-10) — la
+**ÉQUIPEMENT** (`equipment.go`, `GET /api/equipment`, `POST /heroes/{h}/equip`, 2026-08-10 ;
+objets d'athlétisme et de précision 2026-08-16) — la
 forge produisait lames, arcs, capes et armures dont les effets n'étaient QUE DU TEXTE : on montait
 l'Atelier au niveau 2, on fabriquait l'objet, il rejoignait la Banque et n'en ressortait jamais.
 **DEUX EMPLACEMENTS** (`SlotWeapon` « arme », `SlotGear` « equipement ») — assez pour qu'un choix se
@@ -1034,7 +1072,12 @@ s'empileraient à chaque combat). Quatre effets réels : stats (force/dext/agili
 moins, appliqué APRÈS les multiplicateurs, plancher 1), `Reach` (l'arme change les `Targets` de
 l'attaque de base — c'est ce qui fait d'un arc autre chose qu'une épée aux chiffres différents) et
 `VsCursed` (l'argent contre les loups-garous). ⚠ `damageWith` et `EstimateDamage` doivent rester
-MIROIRS, armure comprise, sinon la prévisualisation d'attaque ment. Les bots PORTENT ce qu'ils
+MIROIRS, armure comprise, sinon la prévisualisation d'attaque ment. ⚠ **Athlétisme et Précision ont enfin leurs objets** (2026-08-16) : **Bottes cloutées** (+3 ath,
+Atelier niv.**1** — délibéré, elles ouvrent des ZONES DE CARTE et les réserver au niveau 2 fermerait
+une partie du monde derrière une chaîne de construction qu'une petite expédition n'atteint pas),
+**Œil-de-lynx** (+3 précision) et **Stylet d'écorcheur** (dague, +1 force/+4 précision — la dague
+devient la voie du coup PLACÉ face à l'épée du coup lourd). Les deux statistiques n'étaient portées
+par AUCUN objet, ce qui se tenait tant qu'elles ne faisaient rien. Les bots PORTENT ce qu'ils
 trouvent (`botEquip`) mais ⚠ **NE FORGENT PAS** : mesuré, leur faire fabriquer des armes coûte deux
 vagues aux grandes expéditions (le fer d'une lame est celui du portail niveau 3). Tests :
 `equipment_test.go`.

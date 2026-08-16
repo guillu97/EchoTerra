@@ -89,6 +89,14 @@ func (g *GameState) MoveHero(heroID string, dx, dy int) error {
 		}
 		return ActionError{"case inaccessible"}
 	}
+	// LE RELIEF ARRÊTE (climb.go). Une case découverte dont la marche dépasse ce que
+	// ce héros escalade est refusée : il faut faire le tour, chausser des bottes, ou
+	// emmener quelqu'un dont c'est le métier. ⚠ APRÈS le cas de l'eau sous brouillard
+	// et AVANT la dépense de PA : un refus de relief ne coûte rien, puisque le joueur
+	// pouvait le voir (la case est découverte, sa hauteur est servie).
+	if g.TooSteep(h, h.X, h.Y, nx, ny) {
+		return ActionError{"escarpement trop raide pour " + h.Name + " — contourne-le ou gagne en athlétisme"}
+	}
 	// A built, closed gate seals the town in BOTH directions.
 	if g.GateClosed() {
 		if nx == g.Town.X && ny == g.Town.Y {
@@ -192,7 +200,11 @@ func (g *GameState) EscapeHero(heroID string) error {
 		if g.GateClosed() && nx == g.Town.X && ny == g.Town.Y {
 			continue
 		}
-		if t := g.TileAt(nx, ny); t != nil && t.Biome.Walkable() {
+		// Le relief arrête aussi une retraite (climb.go) : on se replie par l'autre
+		// axe. ⚠ Un héros acculé contre une falaise peut donc ne pas bouger du tout —
+		// c'est voulu, c'est le prix d'être monté là-haut, et le PA est déjà dépensé
+		// exactement comme sur un trébuchement.
+		if t := g.TileAt(nx, ny); t != nil && t.Biome.Walkable() && !g.TooSteep(h, h.X, h.Y, nx, ny) {
 			h.X, h.Y = nx, ny
 			h.RemoveState("Caché")
 			break

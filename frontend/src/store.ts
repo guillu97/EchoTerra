@@ -386,6 +386,11 @@ function predictMove(game: GameState, heroId: string, dx: number, dy: number): G
   const t = game.tiles[ny * game.width + nx];
   if (!t || !t.discovered) return null; // brume : issue inconnue (cf. ci-dessus)
   if (t.biome === 0) return null; // eau connue — le serveur refuse
+  // LE RELIEF (backend climb.go) : une falaise plus haute que le franchissement du
+  // héros est refusée. On ne prédit pas le refus, on s'abstient — le serveur rendra
+  // le message qui explique quoi faire (contourner, ou gagner en athlétisme).
+  const from = game.tiles[hero.y * game.width + hero.x];
+  if (from && Math.abs((t.height ?? 0) - (from.height ?? 0)) > (hero.climb ?? 1)) return null;
   const gate = game.town.buildings?.find((b) => b.id === "gate");
   if (gate?.built && !gate.open) {
     const toTown = nx === game.town.x && ny === game.town.y;

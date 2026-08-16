@@ -38,7 +38,7 @@ const ATTR_ROWS: { key: keyof Stats; label: string; what: string }[] = [
   { key: "precision", label: "Précision", what: "Chance de coup critique (×1,5 dégâts) — 3 % par point, plafond 40 %." },
   { key: "agilite", label: "Agilité", what: "Initiative (ordre des tours) et cases de déplacement en combat." },
   { key: "endurance", label: "Endurance", what: "Points de vie (+2 par point) et dégâts encaissés en moins." },
-  { key: "athletisme", label: "Athlétisme", what: "Hauteur franchissable en combat : la terrasse haute, donc le bonus de hauteur." },
+  { key: "athletisme", label: "Athlétisme", what: "Hauteur franchissable — sur la carte (escarpements) comme en combat (terrasses)." },
 ];
 
 function tierLabel(tier: number): string {
@@ -213,7 +213,16 @@ export function HeroOverlay() {
                   {h.stats[key]}
                   {bonus > 0 && <span className="attr-bonus"> (+{bonus})</span>}
                 </b>
-                <em className="attr-what">{what}</em>
+                <em className="attr-what">
+                  {what}
+                  {/* Le franchissement EFFECTIF, équipement compris : c'est le
+                      chiffre qui décide des falaises qu'on gravit, et il ne se
+                      déduit pas de la statistique seule (les bonus d'équipement ne
+                      sont pas dans `stats`). Servi par le serveur. */}
+                  {key === "athletisme" && h.climb !== undefined && (
+                    <b className="attr-climb"> · franchit {h.climb} niveau{h.climb > 1 ? "x" : ""}</b>
+                  )}
+                </em>
               </div>
             );
           })}

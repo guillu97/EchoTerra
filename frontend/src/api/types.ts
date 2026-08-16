@@ -153,6 +153,12 @@ export interface Hero {
   inventory: Item[];
   bars: Record<string, number>;
   drewWaterDay: number;
+  // FRANCHISSEMENT : l'écart de hauteur que ce héros passe d'un pas sur la carte
+  // (backend climb.go). ⚠ SERVI, JAMAIS RECALCULÉ ICI : la valeur dépend de
+  // l'athlétisme ET de l'équipement porté, or les bonus d'équipement ne sont pas
+  // dans `stats` — un miroir client-side devrait relire le catalogue d'équipement et
+  // divergerait au premier objet ajouté. Le serveur décide, on affiche.
+  climb?: number;
   // CONSIGNE PERMANENTE : ce que le héros fera tout seul juste avant la prochaine
   // vague si son joueur n'est pas revenu. Ne dure qu'UNE vague, n'engage jamais de
   // combat — un filet, pas un pilote automatique (backend orders_standing.go).

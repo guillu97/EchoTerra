@@ -142,6 +142,12 @@ func (g *GameState) Recompute() {
 	g.Town.Garrison, g.Town.GarrisonValue = g.GarrisonDefense()
 	g.Town.Defense = g.buildingsDefense() + g.Town.GarrisonValue
 	g.recomputeTetanise()
+	// Le franchissement de chaque héros (climb.go) : dérivé de l'athlétisme ET de
+	// l'équipement porté, donc il change quand on chausse des bottes — d'où le
+	// recalcul ici plutôt qu'une valeur posée à la création.
+	for _, h := range g.Heroes {
+		h.Climb = HeroClimb(h)
+	}
 	g.RevealVision() // grow the shared fog-of-war reveal set from current positions
 	// Quels héros en ville ont ÉPUISÉ leur quota d'eau du jour (une ration, deux avec
 	// une Cuisine niveau 2 — cf. dailyWaterAllowance) : c'est ce que l'interface grise.

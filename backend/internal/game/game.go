@@ -120,6 +120,13 @@ type Hero struct {
 	// PRÊTÉS à l'unité de combat, jamais greffés sur Stats (ils s'empileraient).
 	Weapon string `json:"weapon,omitempty"`
 	Gear   string `json:"gear,omitempty"`
+	// Climb : l'écart de hauteur que ce héros franchit d'un pas sur la carte
+	// (climb.go). ⚠ CHAMP DÉRIVÉ, refait par `Recompute` comme `town.defense` — il
+	// n'est jamais une source de vérité, et il existe pour que le CLIENT n'ait pas à
+	// recalculer la règle : l'équipement n'est pas dans `Stats`, donc un miroir
+	// client-side aurait à relire le catalogue d'équipement et divergerait au premier
+	// objet ajouté. Le serveur décide, le client affiche.
+	Climb int `json:"climb"`
 	// ClassID identifies the hero's current class in the Classes catalog ("" while
 	// "Sans classe"). ClassTier mirrors its tier (see ClassTier* consts). ClassBonuses
 	// accumulates the stat bonuses already folded into Stats by EvolveHero, kept only

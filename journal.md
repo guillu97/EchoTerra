@@ -6,6 +6,115 @@
 
 ---
 
+## 2026-08-16 (121) — Les objets des deux statistiques, et le relief qui arrête enfin
+
+Demande de Guillaume : « ajoute les objets pour ces capacités. Et parmi les stats actuelles : une
+stat qui améliore la range de déplacement, une stat qui améliore les hauteurs atteignables. Pour la
+hauteur il faut que ça fonctionne en combat ET sur la map, rendant des zones inaccessibles si pas
+assez de stats (si trop escarpé et qu'on doit faire le tour). »
+
+### Les deux rôles demandés, attribués aux stats existantes
+
+- **Portée de déplacement → AGILITÉ** (`Move = 2 + agi/3`), qui le faisait déjà : rien à inventer,
+  seulement à l'écrire (la fiche de personnage le dit maintenant).
+- **Hauteurs atteignables → ATHLÉTISME**, désormais en combat ET sur la carte, avec **une seule
+  formule et un seul diviseur** : `plancher + athlétisme/5`. Plancher **2** en arène (la valeur qui
+  y était codée en dur : personne ne perd de terrain jouable, et rester bloqué dans un 7×7 clos
+  serait arbitraire), **1** sur la carte. Calibré sur les vraies valeurs : les quatre blocs de
+  départ donnent 2·3·3·4, donc **aucun héros neuf ne grimpe** ; les trois classes qui portaient
+  `Athletisme: 5` pour rien passent à 7-9 et deviennent les grimpeuses de l'expédition.
+
+### Les objets
+
+**Bottes cloutées** (+3 ath), **Œil-de-lynx** (+3 précision), **Stylet d'écorcheur** (dague, +1
+force / +4 précision — la dague devient la voie du coup PLACÉ face à l'épée du coup lourd). Les deux
+statistiques n'étaient portées par AUCUN objet, ce qui se tenait tant qu'elles ne faisaient rien.
+⚠ **Les bottes sont à l'Atelier niveau 1**, seul choix de gating qui compte ici : elles ouvrent des
+ZONES DE CARTE, et les réserver au niveau 2 fermerait une partie du monde derrière une chaîne de
+construction qu'une petite expédition n'atteint pas. ⚠ Piège évité : les bonus d'équipement ne sont
+PRÊTÉS qu'à l'unité de combat et ne touchent jamais `Hero.Stats` — sans une addition explicite, des
+bottes de grimpeur n'auraient rien fait là où elles ont le plus de sens, sur la falaise.
+
+### Le relief : TROIS approches mesurées et jetées avant la bonne
+
+C'est tout l'intérêt de cette entrée. `Tile.Height` était commenté « cosmetic » et l'était
+vraiment ; pire, la carte ne POUVAIT pas porter de falaise, `smoothLevels` (genMaxStep 1)
+garantissant des marches ≤ 1. Il a donc fallu en fabriquer — et les trois premières façons
+semblaient toutes correctes en lecture :
+
+1. **Relever une partie de la BORDURE des massifs** (60 % des tuiles de rive). Produit 685 marches
+   de 2 sur une carte 60²… pour un **détour médian de 0** et 1,2 % de tuiles hautes gardées. Une
+   bordure dont 40 % des cases restent basses est une passoire.
+2. **Relever le MASSIF entier** (composante connexe de biome montagne/neige) : **0,05 %** de carte
+   gardée. La raison ne se voit qu'à la mesure — dans ce générateur, un biome HAUT n'est presque
+   jamais un relief HAUT. `biomeFromLevel` ne rend « montagne » qu'au niveau 5/6 alors que le
+   lissage rabote les sommets (c'est déjà pourquoi la neige n'existait pas avant `snowCaps`) : il
+   reste **six** tuiles de relief authentique par carte 60². Les ~340 autres tuiles de biome haut
+   viennent d'`ensureNearbyBiomes` et d'`applyThemeBias`, qui changent le biome SANS toucher à la
+   hauteur. J'escarpais une plaine peinte en gris.
+3. **Des disques relevés de +1**, rive adoucie au tirage. Encore **0,00 %**, et deux fuites : chaque
+   tuile écartée du bord restait à son altitude en touchant le plateau d'un côté et la plaine de
+   l'autre — c'était donc un col ; et surtout un disque posé sur une PENTE a toujours un côté amont
+   où le +1 le met à FLEUR du terrain voisin. Une élévation uniforme sur un sol qui ne l'est pas ne
+   produit pas une marche uniforme.
+
+**Ce qui marche : de vraies MESAS.** Sommet plat à `base+2`, pied nivelé à `base` — la seule
+construction qui donne une marche CONSTANTE, et elle vaut 2 : infranchissable sans athlétisme,
+franchissable avec. Une partie des mesas reçoit des RAMPES (`base+1`, deux marches de 1) ;
+**45 % n'en reçoivent aucune** et ne s'atteignent qu'en grimpant. C'est ce dernier réglage, et rien
+d'autre, qui répond à « des zones inaccessibles » — tant que chaque hauteur gardait un passage, tout
+restait atteignable par un détour.
+
+**Mesuré : 6,2 % de la carte demande de grimper, moins de 0,01 % est hors d'atteinte même en
+grimpant.**
+
+⚠ **Une mesa ne change AUCUN biome** : c'est ce qui rend la passe sûre. Tables de fouille, biomes
+d'apparition des espèces, `ensureNearbyBiomes` et la liste de courses des bots (qui cherche
+littéralement « Bois » et « Pierre ») voient exactement la carte d'avant. ⚠ **Une mesa est une
+POCHE, jamais un mur** — convexe, entourée d'un anneau praticable : en sceller ne coupe jamais une
+région, et c'est ce qui autorise à le faire.
+
+### Deux bugs trouvés en écrivant les garanties
+
+- Le filet « bois et pierre restent atteignables » **remontait le chemin de la cible vers le
+  bourg**, en alignant chaque tuile sur son parent — lequel était ensuite réaligné sur le sien, ce
+  qui défaisait la correction précédente. Il ne rattrapait rien (carte 40², graine 2). Corrigé : on
+  rabote **du bourg vers la cible**, chaque tuile s'alignant sur un parent déjà définitif.
+- Le même filet ne cherchait que le biome **montagne**. Or `ensureNearbyBiomes` remplit son quota de
+  pierre avec de la montagne **OU de la neige** : mesuré, une carte nordique 40² peut contenir
+  ZÉRO tuile de biome montagne et n'en être pas moins parfaitement pourvue. La garantie échouait
+  sur une carte saine.
+
+### Fonctionnel (vérifié)
+
+- `go test ./...` vert. Six tests de carte (`game/climb_test.go`) : la falaise arrête, un refus de
+  relief ne coûte PAS de PA, l'athlétisme ouvre, les BOTTES ouvrent, le brouillard ne bloque jamais
+  (sinon l'exploration au contact deviendrait un tirage au sort), la retraite obéit au relief, et
+  les nouveaux objets arrivent bien jusqu'à l'unité de combat.
+- Six tests de génération (`worldgen/escarpments_test.go`), dont un **bout en bout** qui vaut les
+  autres réunis : sur une carte réellement générée, un héros ordinaire est arrêté par une falaise et
+  le même héros chaussé la gravit. Les invariants sont gardés : marche max 2 (sinon un grimpeur
+  lui-même serait bloqué), part de carte gardée entre 2 et 20 %, bois et pierre toujours
+  atteignables sans athlétisme.
+- Vérifié EN JEU au navigateur : un héros marché jusqu'à une falaise voit la case en **rouge**, la
+  barre écrit « franchit 1 niveau — les cases rouges sont trop escarpées : contourne, ou gagne en
+  athlétisme (Bottes cloutées) », et le serveur refuse le pas **sans facturer le PA** (3 → 3).
+- `npx tsc -b` / `npm run build` propres ; `test:combat-ui` 12-13/13, `test:map-tap` 8/8,
+  `test:inventory` 11/11.
+- **Équilibrage inchangé** : médiane 18 vagues à 4 joueurs, 2/3 survivantes à 12 joueurs. Les bots
+  travaillent près du bourg et les mesas se posent à 9 cases minimum — elles ne les gênent pas.
+
+### À faire
+
+- Les bots ne cherchent pas les mesas et ne forgent pas de bottes : les hauteurs scellées sont pour
+  l'instant du contenu de joueur humain. À reprendre si l'on veut que l'IA exploite ces zones.
+- L'agilité reste en escalier (`/3`) : une Cape de plumes (+2) ne change souvent rien au
+  déplacement. C'est la dernière statistique dont l'effet est en partie invisible.
+- Rien n'indique encore sur la carte QUE la mesa cache quelque chose : ses ressources se découvrent
+  en montant. Un repère visible de loin lui donnerait une raison d'y aller.
+
+---
+
 ## 2026-08-16 (120) — Audit des stats, économie du tour et recharges : le combat cesse de se jouer tout seul
 
 Demande de Guillaume : « auditer les stats et leur apport sur les combats + l'apport des items à ces

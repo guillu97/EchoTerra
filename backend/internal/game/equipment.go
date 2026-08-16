@@ -39,6 +39,13 @@ type EquipDef struct {
 	Dexterite int    `json:"dexterite,omitempty"`
 	Agilite   int    `json:"agilite,omitempty"`
 	Endurance int    `json:"endurance,omitempty"`
+	// Athletisme / Precision : les deux statistiques que l'audit du 2026-08-16 a
+	// ressuscitées (franchissement des reliefs / coup critique). Elles n'étaient
+	// portées par AUCUN objet — ce qui était cohérent tant qu'elles ne faisaient
+	// rien, et ne l'est plus du tout depuis qu'elles décident où l'on peut aller et
+	// combien on frappe fort.
+	Athletisme int `json:"athletisme,omitempty"`
+	Precision  int `json:"precision,omitempty"`
 	// Armor : dégâts SUBIS en moins, à chaque coup encaissé (plancher 1 : rien ne rend
 	// invulnérable).
 	Armor int `json:"armor,omitempty"`
@@ -75,9 +82,24 @@ var Equipment = map[string]EquipDef{
 	"Khopesh de verre": {Slot: SlotWeapon, Weapon: ArchSword, Force: 3, Desc: "+3 force au combat (verre des dunes)"},
 	"Harpon de givre":  {Slot: SlotWeapon, Weapon: ArchSpear, Force: 2, Reach: 2, Desc: "+2 force, attaque à portée 2"},
 
+	// LES OBJETS DE PRÉCISION. La dague était déjà l'arme du « neutraliser plutôt que
+	// tuer » (technique Coup bas, 30 % d'étourdissement) : lui donner la précision en
+	// fait la voie du coup PLACÉ, en face de l'épée qui est celle du coup lourd. Deux
+	// façons de gagner un échange, et un vrai arbitrage à l'atelier.
+	"Stylet d'écorcheur": {Slot: SlotWeapon, Weapon: ArchDagger, Force: 1, Precision: 4, Desc: "+1 force, +4 précision (coups critiques)"},
+
 	"Cape de plumes": {Slot: SlotGear, Agilite: 2, Desc: "+2 agilité (déplacement, initiative)"},
 	"Cape de garou":  {Slot: SlotGear, Endurance: 2, Desc: "+2 endurance (encaisse mieux)"},
 	"Armure de cuir": {Slot: SlotGear, Armor: 2, Desc: "−2 dégâts subis à chaque coup"},
+	// LES BOTTES — le seul objet du jeu qui change où l'on peut ALLER, sur la carte
+	// comme dans l'arène (climb.go). +3 suffit : les quatre blocs de départ donnent
+	// 2 à 4 d'athlétisme, donc n'importe quel héros chaussé franchit l'escarpement.
+	// C'est délibérément binaire — un objet qui ouvre une porte se lit mieux qu'un
+	// objet qui l'entrouvre.
+	"Bottes cloutées": {Slot: SlotGear, Athletisme: 3, Desc: "+3 athlétisme : franchit les escarpements (carte et combat)"},
+	// L'œil : la précision en version défensive-de-loin, pour qui ne veut pas troquer
+	// son arme. Un cran sous le stylet, puisqu'il n'occupe pas la main.
+	"Œil-de-lynx": {Slot: SlotGear, Precision: 3, Desc: "+3 précision (coups critiques)"},
 }
 
 // EquipableItem reports whether this item can be worn, and in which slot.
@@ -169,6 +191,8 @@ func equipBonuses(h *Hero) (stats Stats, armor, reach, vsCursed int, rangedStat 
 		stats.Dexterite += d.Dexterite
 		stats.Agilite += d.Agilite
 		stats.Endurance += d.Endurance
+		stats.Athletisme += d.Athletisme
+		stats.Precision += d.Precision
 		armor += d.Armor
 		vsCursed += d.VsCursed
 		if d.Reach > reach {

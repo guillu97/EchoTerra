@@ -2412,6 +2412,12 @@ body {
 }
 /* La phrase passe sous le couple libellé/valeur : `flex-basis: 100%` la met à la
    ligne sans avoir à emboîter un conteneur de plus. */
+/* Le franchissement effectif, sous l'Athlétisme : le seul chiffre de la fiche qui
+   décide d'où l'on peut ALLER, donc il se détache du reste de la phrase. */
+.attr-climb {
+  color: #ffd166;
+  font-weight: 700;
+}
 .attr-what {
   flex: 0 0 100%;
   font-style: normal;
