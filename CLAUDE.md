@@ -90,7 +90,10 @@ par le MÊME vent, vire-vents qui roulent VRAIMENT à l'écran au sud, rien du t
 « Aucun » qui SUPPRIME la couche au lieu de la figer; mêmes prérequis) ·
 `npm run test:inventory` (in frontend — **l'inventaire** : aucun nom d'objet tronqué sur un écran de
 390 px, et la FICHE d'objet — ce qu'il fait, « Utiliser », « Équiper », jusqu'à l'état serveur pour
-la ration puisée au puits; mêmes prérequis).
+la ration puisée au puits; mêmes prérequis) ·
+`npm run test:structures` (in frontend — **l'onglet Bâtir** : aucun bâtiment dont le plan n'est pas
+en Banque, le plan trouvé qui fait apparaître SON chantier, et le doseur de PA jusqu'au `points`
+envoyé au serveur; mêmes prérequis).
 
 **Déploiement Vercel (gratuit)** — voir `DEPLOY.md`. Preset **Services** (`vercel.json`) : service
 `frontend` (root `frontend/`, Vite, statique CDN) + service `backend` (root `backend/`, le preset Go
@@ -1237,6 +1240,22 @@ test `TestServerWrittenSentencesUseFrenchBuildingNames`).
   plan » 1 PA), **🏠 Construits** (bouton « 📐 Améliorer » = pose le plan d'amélioration). Tris A-Z/Lv
   = liste plate. Coût affiché = TOTAL du chantier (PA + matériaux vs Banque) ; actions exigent un
   héros en ville (consultation sinon).
+  ⚠ **UN PLAN QU'ON N'A PAS TROUVÉ N'EST PAS LISTÉ** (2026-08-16, `townUtils.buildingKnown` : bâti ·
+  en chantier · pas de plan requis · plan en Banque). Dix bâtiments sur seize ne s'ouvrent qu'avec un
+  plan qui ne tombe que des ruines et de la fouille : les afficher avant alignait SIX lignes
+  « 📐 Plan de X 0/1 » à bouton mort au-dessus des chantiers réellement ouvrables (rapporté en jeu).
+  Le même juge sert aux TROIS écrans qui NOMMENT un bâtiment — Structures, `TownStatus` (ses deux
+  listes) et les **pastilles de `VoxelTownView`** (la parcelle d'un site inconnu reste une friche
+  anonyme) : cacher ici et nommer là serait le pire des deux mondes. Une ligne de pied de liste dit
+  COMBIEN de bâtiments attendent leur plan **sans les nommer** — le catalogue doit se deviner plus
+  grand que la ville (c'est le moteur des ruines), pas se lire comme une liste de courses. Rien à
+  changer côté serveur : `orders.go` ne parle que des plans DÉJÀ en Banque et `botShoppingList`
+  ignore déjà les sites sans plan.
+  ⚠ **LE JOUEUR DOSE SES PA** (même jour) : un chantier ouvert porte un `− / valeur / + / tout`
+  (`.ps-invest`, état local par bâtiment) plafonné aux PA du travailleur ET au restant du chantier ;
+  le défaut reste « tout » (le geste d'avant, en un tap). Le serveur acceptait déjà n'importe quel
+  `points` (`TownAction`, testé en Go) — c'était l'interface qui imposait le tout-ou-rien, alors que
+  les PA d'un héros SONT sa journée. Garde-fou : `npm run test:structures`.
 - **Home**: en surimpression du plan, une **bulle** reprend le DERNIER message de la messagerie (clic =
   ouvre la feuille ✉️) et la **liste des personnages** (`HeroChips`, colonne à gauche au-dessus de la nav)
   aligne une `HeroChip` par héros de MON équipe. Taper un héros EN VILLE le sélectionne **et** en fait

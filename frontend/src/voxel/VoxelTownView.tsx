@@ -21,7 +21,7 @@ import * as THREE from "three";
 import { signacify } from "./signacMaterial";
 import { TOWN_BUILDINGS } from "../data/buildings";
 import { heroAssetUrl, heroTexKey, libUrl } from "../assets";
-import { myTeamHeroes } from "../townUtils";
+import { buildingKnown, myTeamHeroes } from "../townUtils";
 import { useStore } from "../store";
 import { durColor } from "../tabs/HomeTab";
 import { clearOwned, VoxelEngine } from "./engine";
@@ -204,8 +204,11 @@ export function VoxelTownView({
         // pastille. Sans elle, quatre bâtiments sur dix (mairie, tour, cuisine,
         // recyclerie en début de partie) étaient introuvables depuis la Ville —
         // c'était le principal défaut de cohérence de l'onglet.
+        // ⚠ SAUF si son PLAN n'a pas encore été trouvé (townUtils.buildingKnown) :
+        // la parcelle reste alors une friche anonyme, comme dans Structures. Nommer
+        // ici un bâtiment que l'autre écran cache serait le pire des deux mondes.
         if (!b.built && !b.underConstruction) {
-          if (pl.primary) list.push({ buildingId: pl.bid, world: spotAtGround(pl) });
+          if (pl.primary && buildingKnown(g, b)) list.push({ buildingId: pl.bid, world: spotAtGround(pl) });
           continue;
         }
         const variant = b.built
