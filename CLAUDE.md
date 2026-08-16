@@ -881,7 +881,13 @@ des assiégeants : tuer fait baisser le chiffre sous les yeux du joueur. Répons
 
 **Consignes permanentes** (`orders_standing.go`, 2026-08-09) — `Hero.Order` (`shelter` | `return`),
 posée gratuitement, exécutée par `runStandingOrders()` juste AVANT `attackHeroesOutside` puis
-**consommée**. Trois bornes délibérées : une seule vague, jamais de combat ni de fouille, et `return`
+**consommée**. ⚠ **le menu ne PROPOSE que ce qui peut s'exécuter** (2026-08-12) : le serveur ne part
+que si `distance ≤ PA` et se rabat SILENCIEUSEMENT sur « se cacher » sinon — l'interface offrait donc
+« 🏰 Rentrer » à un héros à 1 PA au bout du monde, promettant un retour qui n'aurait jamais eu lieu
+(rapporté en jeu). `MapTab` calcule le MIROIR de cette règle (distance de Manhattan vs PA COURANTS —
+les consignes s'exécutent avant la régénération de vague, donc le PA affiché est bien celui qui
+servira), affiche le coût `-N` sur le bouton, et **écrit la raison** quand il est éteint ; à 0 PA les
+DEUX consignes s'éteignent, puisqu'aucune ne pourrait tourner. Garde-fou : `npm run test:map-tap`. Trois bornes délibérées : une seule vague, jamais de combat ni de fouille, et `return`
 ne se met en marche que si la ville est atteignable (sinon il se cache — brûler ses PA pour finir à
 découvert est le piège que les bots ont connu). Réponse au trou T4 : les PA non dépensés sont PERDUS,
 donc une soirée manquée coûtait une journée de travail. ⚠ c'est un FILET, pas un pilote automatique —

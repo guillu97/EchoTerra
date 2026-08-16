@@ -4213,6 +4213,19 @@ body {
   color: var(--ink);
   font-weight: 600;
 }
+.am-orders-row button:disabled {
+  opacity: 0.45;
+}
+.am-orders-row button i {
+  font-style: normal;
+  opacity: 0.7;
+}
+/* La raison d'un bouton éteint, ÉCRITE : un `title` ne se survole pas au doigt. */
+.am-orders-why {
+  font-size: var(--t-xs);
+  line-height: var(--lh-tight);
+  color: var(--ink-muted);
+}
 
 /* ── La chronique de compte (P7) ─────────────────────────────────────────────
    Ce qu'un compte garde des villes tombées. Cosmétique : aucun de ces chiffres

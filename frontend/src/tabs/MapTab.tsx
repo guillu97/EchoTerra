@@ -44,6 +44,20 @@ function ActionMenu() {
   // Boire une ration : possible si le héros en a une ET n'est pas déjà au max de PA.
   const rations = hero.inventory.find((it) => it.name === "Ration d'eau")?.qty ?? 0;
   const canDrink = rations > 0 && hero.pa < hero.maxPa;
+  // RENTRER, EST-CE SEULEMENT POSSIBLE ? MIROIR de `runStandingOrders`
+  // (orders_standing.go) : le serveur ne part que si `distance ≤ PA`, sinon la
+  // consigne se rabat SILENCIEUSEMENT sur « se cacher » — marcher sans pouvoir
+  // atteindre les murs, c'est brûler ses PA pour finir à découvert. L'interface
+  // proposait « 🏰 Rentrer » à un héros à 1 PA au bout du monde : le bouton
+  // promettait un retour qui n'aurait jamais eu lieu.
+  // ⚠ le PA comparé est bien le PA COURANT : les consignes s'exécutent AVANT la
+  // régénération de la vague (wave.go), donc ce qu'on voit est ce qui servira.
+  const townDist = Math.abs(game.town.x - hero.x) + Math.abs(game.town.y - hero.y);
+  // ⚠ et SANS PA, aucune consigne ne s'exécute (runStandingOrders passe son tour) :
+  // se cacher en coûte un, rentrer en coûte un par case. Les deux boutons doivent
+  // donc s'éteindre ensemble — sinon on pose une consigne qui ne fera rien.
+  const canOrder = hero.pa > 0;
+  const canReturn = canOrder && townDist <= hero.pa;
   // Fouille AUTOMATIQUE : une fois le PA payé, le héros continue de fouiller sa
   // case tout seul. Le bouton devient un compte à rebours (voir forage.go).
   const foraging = !!hero.forageAt;
@@ -127,19 +141,28 @@ function ActionMenu() {
             <div className="am-orders-row">
               <button
                 className={hero.order === "shelter" ? "on" : ""}
-                disabled={busy}
+                disabled={busy || !canOrder}
                 onClick={() => setHeroOrder(hero.id, hero.order === "shelter" ? "" : "shelter")}
               >
-                🫥 Se cacher
+                🫥 Se cacher <i>-1</i>
               </button>
               <button
                 className={hero.order === "return" ? "on" : ""}
-                disabled={busy}
+                disabled={busy || !canReturn}
                 onClick={() => setHeroOrder(hero.id, hero.order === "return" ? "" : "return")}
               >
-                🏰 Rentrer
+                🏰 Rentrer <i>-{townDist}</i>
               </button>
             </div>
+            {/* Pourquoi le bouton est éteint. Un `title` ne se survole pas sur un
+                téléphone : la raison doit être ÉCRITE. */}
+            {!canOrder ? (
+              <span className="am-orders-why">Sans PA, aucune consigne ne peut s'exécuter.</span>
+            ) : !canReturn ? (
+              <span className="am-orders-why">
+                {townDist} cases jusqu'à la ville pour {hero.pa} PA — trop loin : il se cacherait sur place.
+              </span>
+            ) : null}
           </div>
         )}
         {onTown && <div className="am-note">🏰 En ville — fouille et cachette inutiles ici</div>}

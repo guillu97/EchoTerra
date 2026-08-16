@@ -110,6 +110,17 @@ explique à quoi il sert. Vérifié à trois niveaux dans `test:inventory` : ce 
 l'ORDRE réellement envoyé (requête interceptée), et pour le seul chemin jouable de bout en bout — la
 ration puisée au puits — l'effet mesuré sur l'ÉTAT SERVEUR (PA 5 → 6, ration consommée).
 
+**Sixième retour — « Rentrer » proposé au bout du monde.** Capture : un héros à 1 PA, très loin de
+la ville, et le menu lui propose quand même la consigne « 🏰 Rentrer ». Le serveur, lui, ne part que
+si `distance ≤ PA` et se rabat SILENCIEUSEMENT sur « se cacher » (marcher sans pouvoir atteindre les
+murs, c'est brûler ses PA pour finir à découvert) : le bouton promettait un retour qui n'aurait
+jamais eu lieu. `MapTab` porte désormais le MIROIR de la règle — distance de Manhattan contre les PA
+COURANTS (les consignes s'exécutent AVANT la régénération de vague, donc le PA affiché est bien celui
+qui servira) —, montre le coût `-N` sur le bouton, et ÉCRIT la raison quand il est éteint. Même
+correction pour un héros à 0 PA : les deux consignes s'éteignent, puisqu'aucune ne pourrait tourner
+(cas visible sur la même capture, Brisa à 0/7). Trois checks ajoutés à `test:map-tap`, vérifiés en
+échec sur le code d'avant (6/8) et verts après (8/8).
+
 **À faire.** Rien de bloquant. Si un quatrième thème arrive, sa météo est une entrée de plus dans
 `makeWeather` et `weatherPropKeys` — et il faudra la MESURER, pas la relire.
 

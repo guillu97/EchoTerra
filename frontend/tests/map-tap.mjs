@@ -195,6 +195,58 @@ check(
   out.ground ? `case (${out.ground.x},${out.ground.y}) -> ${out.ground.got}` : "aucune case voisine libre",
 );
 
+// ── LES CONSIGNES PERMANENTES NE PROMETTENT QUE CE QUI EST POSSIBLE ─────────
+// Le menu proposait « 🏰 Rentrer » à un héros à 1 PA au bout du monde (rapporté en
+// jeu, capture à l'appui). Le serveur, lui, ne part que si `distance ≤ PA` et se
+// rabat SILENCIEUSEMENT sur « se cacher » (orders_standing.go) : le bouton
+// promettait un retour qui n'aurait jamais eu lieu. Et sans PA, AUCUNE consigne ne
+// s'exécute. On mesure les trois cas — et la raison doit être ÉCRITE, pas mise dans
+// un `title` qu'aucun doigt ne survole.
+const orders = async (pa, dx) => {
+  await page.evaluate(({ pa, dx }) => {
+    const st = window.__eg.store;
+    const g = structuredClone(st.getState().game);
+    const h = g.heroes[0];
+    h.x = g.town.x + dx;
+    h.y = g.town.y;
+    h.pa = pa;
+    st.setState({ game: g, selectedHeroId: h.id });
+    window.__eg.bus.emit(window.__eg.EV.MapHeroMenu, { sx: 120, sy: 200 });
+  }, { pa, dx });
+  await wait(400);
+  const out = await page.evaluate(() => {
+    const row = document.querySelector(".am-orders-row");
+    if (!row) return null;
+    const b = [...row.querySelectorAll("button")];
+    return {
+      shelter: !b[0]?.disabled,
+      ret: !b[1]?.disabled,
+      why: document.querySelector(".am-orders-why")?.textContent?.trim() ?? "",
+    };
+  });
+  await page.evaluate(() => document.querySelector(".menu-backdrop")?.click());
+  await wait(250);
+  return out;
+};
+const far = await orders(1, 7);
+check(
+  "consigne « Rentrer » refusée quand la ville est hors de portée, avec la raison écrite",
+  !!far && !far.ret && far.shelter && /trop loin/.test(far.why),
+  far ? `rentrer=${far.ret ? "on" : "off"} · ${far.why || "aucune raison affichée"}` : "menu absent",
+);
+const near = await orders(5, 3);
+check(
+  "…et proposée quand elle est atteignable",
+  !!near && near.ret && !near.why,
+  near ? `rentrer=${near.ret ? "on" : "off"} (3 cases, 5 PA)` : "menu absent",
+);
+const dry = await orders(0, 3);
+check(
+  "aucune consigne proposée sans PA (aucune ne s'exécuterait)",
+  !!dry && !dry.ret && !dry.shelter && /PA/.test(dry.why),
+  dry ? `cacher=${dry.shelter ? "on" : "off"} rentrer=${dry.ret ? "on" : "off"} · ${dry.why}` : "menu absent",
+);
+
 await browser.close();
 const ok = results.filter((r) => r.ok).length;
 console.log(`\n${ok === results.length ? "PASS" : "FAIL"} — ${ok}/${results.length} checks ok`);
