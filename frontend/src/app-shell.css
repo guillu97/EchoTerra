@@ -1225,6 +1225,59 @@ body {
   color: var(--ink);
   text-shadow: 0 1px 1px rgba(255, 255, 255, 0.5);
 }
+/* Combien de PA je pose ICI : le doseur d'un chantier (Structure). Les PA d'un
+   héros sont sa journée — poser « tout » doit rester le geste par défaut, pas le
+   seul geste possible. Cibles ≥ 34px : c'est un damier de petits boutons, donc
+   sous le plancher --tap des familles de chrome, mais jamais sous le doigt. */
+.ps-invest {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  margin-top: var(--s-2);
+}
+.ps-invest .stepbtn {
+  min-width: 34px;
+  height: 34px;
+  padding: 0 var(--s-2);
+  border-radius: var(--r-sm);
+  border: 1px solid rgba(120, 86, 40, 0.28);
+  background: var(--cream);
+  color: var(--ink);
+  font-size: var(--t-sm);
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+}
+.ps-invest .stepbtn.wide {
+  min-width: 44px;
+  font-size: var(--t-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+}
+.ps-invest .stepbtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.ps-invest .amt {
+  min-width: 62px;
+  text-align: center;
+  font-size: var(--t-sm);
+  font-weight: 800;
+  color: var(--ink);
+}
+.ps-invest .amt i {
+  font-style: normal;
+  font-weight: 700;
+  color: var(--ink-muted);
+}
+/* Le catalogue est plus grand que la liste : on le DIT, sans nommer les plans
+   qu'on n'a pas trouvés (ce serait la liste de courses qu'on vient d'enlever). */
+.ps-unknown {
+  border-radius: var(--r-md);
+  margin-top: var(--s-4);
+  font-style: italic;
+}
 .town.dim::after {
   content: "";
   position: absolute;

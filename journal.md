@@ -6,6 +6,59 @@
 
 ---
 
+## 2026-08-16 (120) — Bâtir : on ne montre que ce qu'on a trouvé, et on dose ses PA
+
+Retour de jeu de Guillaume, capture à l'appui (onglet Bâtir sur téléphone) : « les plans qui n'ont
+pas été découverts ne doivent pas apparaître » et « les personnages peuvent choisir le nombre de PA
+à investir dans les structures ».
+
+**1. Un plan qu'on n'a pas trouvé n'existe pas encore.** Dix bâtiments du catalogue (mairie, tour,
+cuisine, recyclerie, poste + les cinq spécialités) ne s'ouvrent qu'avec un plan qui ne tombe que des
+ruines et de la fouille. La liste les alignait quand même : sur la capture, SIX lignes « 📐 Plan de
+X 0/1 » avec un bouton « Poser le plan » qui ne pouvait rien faire, au-dessus des trois chantiers
+réellement ouvrables. Un écran d'action transformé en liste de courses infaisable.
+
+`townUtils.buildingKnown()` est le seul juge (bâti · en chantier · pas de plan requis · plan en
+Banque) et il sert aux TROIS endroits qui nomment un bâtiment : la liste **Structures**, l'**état de
+la ville** (les deux listes) et les **pastilles de la vue Ville** — la parcelle d'un site inconnu
+reste une friche anonyme. Le faire à un seul endroit aurait donné le pire des deux mondes : un
+bâtiment caché ici, nommé là. Le seul déclencheur est le plan qui arrive en Banque, donc la
+découverte se voit : le chantier apparaît.
+
+⚠ Ce qui n'a PAS été supprimé : une ligne de pied de liste dit combien de bâtiments attendent encore
+leur plan, **sans les nommer**. Le joueur doit savoir que le catalogue est plus grand que sa ville —
+c'est le moteur des ruines — sans qu'on lui rende la liste de courses qu'on vient d'enlever.
+Rien côté serveur : l'ordre du jour ne parlait déjà que des plans DÉJÀ en Banque (orders.go §6), et
+`botShoppingList` ignorait déjà les sites sans plan.
+
+**2. Les PA d'un héros sont sa journée.** Le bouton investissait tout d'un coup (« +7 PA ») : aucun
+moyen d'en poser 3 ici et de garder 4 pour rentrer ou pour un second chantier — alors que le serveur
+accepte n'importe quel montant depuis toujours (`TownAction(..., points, ...)`, testé en Go). Doseur
+`− / valeur / + / tout` sous la barre de progression, plafonné à ce que le travailleur a en poche et
+à ce qu'il reste à faire ; le défaut reste « tout », donc le geste d'avant tient en un tap.
+
+**Le garde-fou** : `npm run test:structures` mesure ce qui est RENDU (la liste, le doseur) et
+l'ORDRE ENVOYÉ (`"points":3` quand on choisit 3) ; la comptabilité de l'investissement partiel est
+déjà couverte en Go. Sur le code d'AVANT : 3/10. Plus deux captures à 390 px (la liste tombe à
+6 lignes lisibles ; la ville n'affiche plus que les six pastilles de ses bâtiments réels).
+
+**3. Et donc le toast** (demandé dans la foulée). Une fois les sites inconnus retirés de la liste, le
+seul signe qu'un chantier vient de s'ouvrir était UNE LIGNE DE PLUS dans un onglet qu'on n'ouvre pas
+forcément. Deux moments, deux messages : le plan qui tombe dans le sac d'un de MES héros (« dépose-le
+à la Banque ») et le plan qui arrive en BANQUE (« nouveau chantier débloqué : X » — vaut aussi pour
+le plan qu'un coéquipier vient de déposer). Un seul point de branchement, `useStore.subscribe` : le
+toast part quelle que soit la route par laquelle l'état arrive (dépôt, sondage, rattrapage, bot).
+
+⚠ **deux gardes, et ce sont eux tout le travail** : on ne compare que deux états de la MÊME partie
+(sinon reprendre une partie déverse un toast par plan déjà en Banque) et seules les APPARITIONS
+parlent (sinon le sondage de 20 s toaste en boucle — et le dépôt, qui vide le sac ET remplit la
+Banque dans le même état, ne produit qu'UN message). Les deux sont testés.
+
+**Vérifié.** `npm run test:structures` **14/14** · `test:inventory` 11/11 · `test:map-tap` 8/8 ·
+`tsc -b` + `npm run build`.
+
+---
+
 ## 2026-08-12 (119) — Animer les biomes : la neige, le ciel et les vire-vents
 
 Demande de Guillaume : « animer les biomes — neige qui tombe (avec nuages cohérents), tumbleweeds
