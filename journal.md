@@ -76,6 +76,18 @@ redescend d'un cran → **0,97 tuile**, sous le palmier (1,16). Vérifié en tui
   des cases inconnues à 0 (= eau), donc une case révélée à la main reste un lac aux yeux du
   vire-vent et le test mesurerait sa propre bidouille.
 
+**Troisième retour — le nom au-dessus du héros volait les taps.** Capture à l'appui : la plaque de
+nom flottait une tête entière trop haut (portée à 0,82 pour un personnage qui mesure `HERO_HEIGHT`
+0,6) **et** elle portait l'étiquette de picking de son héros. Viser la case derrière un coéquipier
+tapait donc son nom, ce qui le sélectionnait au lieu de déplacer le héros actif. Mesuré en balayant
+une colonne de pixels au-dessus des pieds : le jeu répondait « c'est lui » sur **deux bandes** — le
+corps (0 à 20 px) puis, DÉTACHÉE, la plaque (28 à 36 px). Une étiquette n'est pas un personnage :
+noms, badges ☠ et libellé de combat sont désormais `unpicked` (le rayon les traverse et touche ce
+qu'elles recouvrent), et posés juste au-dessus de la tête. Les badges de monstre suivent en plus la
+taille RÉELLE de la créature — à hauteur fixe ils s'enfonçaient dans un boss (1,8×) et flottaient très
+au-dessus d'une limace (0,8×). Deux checks ajoutés à `test:map-tap`, vérifiés en ÉCHEC sur le code
+d'avant (2/5) et verts après.
+
 **À faire.** Rien de bloquant. Si un quatrième thème arrive, sa météo est une entrée de plus dans
 `makeWeather` et `weatherPropKeys` — et il faudra la MESURER, pas la relire.
 

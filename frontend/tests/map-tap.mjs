@@ -119,8 +119,35 @@ const out = await page.evaluate(({ leadId, mateId }) => {
     const t = g.tiles[y * g.width + x];
     return t && !t.discovered ? 1.5 : w.smooth.heightAt(x, y) + 0.05;
   };
-  // corps du héros piloté, des pieds à la tête
-  const body = [0.05, 0.2, 0.35, 0.5, 0.65, 0.8].map((dy) => ({ dy, got: tap(lead.x, topOf(lead.x, lead.y) + dy, lead.y) }));
+  // corps du héros piloté, des pieds à la tête (un héros mesure HERO_HEIGHT = 0,6)
+  const body = [0.05, 0.2, 0.35, 0.5].map((dy) => ({ dy, got: tap(lead.x, topOf(lead.x, lead.y) + dy, lead.y) }));
+  // ÉTIQUETTE DE NOM, juste AU-DESSUS de la tête : elle ne doit rien voler. Elle
+  // était pickable ET portée trop haut (0,82 pour un héros de 0,6), si bien que
+  // viser une case derrière un coéquipier tapait son nom — donc le sélectionnait
+  // au lieu de déplacer le héros actif. Rapporté en jeu.
+  // L'ÉTIQUETTE DE NOM N'EST PAS UN PERSONNAGE. Elle était pickable et portée à
+  // 0,82 pour un héros qui mesure 0,6 : elle flottait une tête entière trop haut
+  // ET répondait « c'est lui ». Viser la case derrière un coéquipier tapait donc
+  // son nom, et le sélectionnait au lieu de déplacer le héros actif (rapporté en
+  // jeu). On vise ICI le centre de l'étiquette telle qu'elle est dans la scène :
+  // aucun objet portant un `heroId` ne doit s'y trouver.
+  const foot = topOf(lead.x, lead.y);
+  let lbl = null;
+  w.sprites.traverse((o) => {
+    if (o.isSprite && o.position.y > foot + 0.3 &&
+        Math.abs(o.position.x - lead.x) < 0.5 && Math.abs(o.position.z - lead.y) < 0.5) lbl = o;
+  });
+  const plate = (() => {
+    if (!lbl) return { found: false };
+    const v = new V3(lbl.position.x, lbl.position.y, lbl.position.z).project(engine.camera);
+    const hits = engine.pick(((v.x + 1) / 2) * engine.cssW, ((1 - v.y) / 2) * engine.cssH);
+    let heroHits = 0;
+    for (const h of hits) {
+      for (let n = h.object; n; n = n.parent) if (n.userData?.pickTag?.heroId) { heroHits++; break; }
+    }
+    return { found: true, above: +(lbl.position.y - foot).toFixed(2), heroHits };
+  })();
+
   // corps du coéquipier (case VOISINE : c'est là que le déplacement gagnait)
   const mateAdj = Math.abs(mate.x - lead.x) + Math.abs(mate.y - lead.y) === 1;
   const mateBody = [0.2, 0.4, 0.6].map((dy) => ({ dy, got: tap(mate.x, topOf(mate.x, mate.y) + dy, mate.y) }));
@@ -135,7 +162,7 @@ const out = await page.evaluate(({ leadId, mateId }) => {
     ground = { x: nx, y: ny, got: tap(nx, topOf(nx, ny), ny) };
     break;
   }
-  return { body, mateBody, mateAdj, ground };
+  return { body, plate, mateBody, mateAdj, ground };
 }, { leadId: setup.leadId, mateId: setup.mateId });
 
 const bodyBad = out.body.filter((r) => r.got !== "MENU");
@@ -143,6 +170,18 @@ check(
   "taper le héros piloté ouvre son menu d'actions (jamais un déplacement)",
   bodyBad.length === 0,
   out.body.map((r) => `+${r.dy}:${r.got}`).join(" "),
+);
+check(
+  "l'étiquette de nom ne se tape pas (ce n'est pas le personnage)",
+  out.plate.found && out.plate.heroHits === 0,
+  out.plate.found ? `${out.plate.heroHits} objet(s) « héros » sous l'étiquette` : "étiquette introuvable",
+);
+// HERO_HEIGHT = 0.6 (voxel/characters.ts) : l'étiquette se pose juste au-dessus de
+// la tête, pas une tête plus haut.
+check(
+  "l'étiquette de nom est posée sur la tête",
+  out.plate.found && out.plate.above <= 0.7,
+  out.plate.found ? `+${out.plate.above} au-dessus des pieds (héros = 0.6)` : "étiquette introuvable",
 );
 const mateBad = out.mateBody.filter((r) => !r.got.startsWith("SELECT"));
 check(

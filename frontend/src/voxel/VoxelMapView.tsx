@@ -26,7 +26,7 @@ import { themedKey, themedKeysFor } from "./themeModels";
 import { PROP_KEYS, scatterProps } from "./scatter";
 import { buildCascade, findCascadeSite, type Cascade } from "./cascade";
 import { makeWeather, weatherPropKeys, WeatherLayer } from "./weather";
-import { ALL_CHAR_KEYS, CharLibrary, setRigOpacity } from "./characters";
+import { ALL_CHAR_KEYS, CharLibrary, HERO_HEIGHT, setRigOpacity } from "./characters";
 import { UnitAnimator } from "./unitAnim";
 import { makeLabel } from "./labels";
 import { heroTexKey as heroKey } from "../assets";
@@ -142,6 +142,15 @@ function renderHeight(t: { biome: number; height: number }): number {
 // le picking la préfère au terrain qu'il masque. `heroId` n'est posé que sur MES
 // héros — taper un personnage, c'est le viser lui, jamais marcher.
 type PickTag = { x: number; y: number; heroId?: string };
+/** Une ÉTIQUETTE flottante (nom, badge) n'est pas un objet du monde : le rayon la
+ *  traverse pour toucher ce qu'elle recouvre. Sans ça elle vole les taps du sol
+ *  qu'elle cache — et comme elle flotte AU-DESSUS, le sol qu'elle cache est une
+ *  case voisine, précisément celle qu'on visait. */
+function unpicked<T extends THREE.Object3D>(o: T): T {
+  o.raycast = () => undefined;
+  return o;
+}
+
 /** Remonte la hiérarchie (les rigs sont des groupes) jusqu'à l'objet étiqueté. */
 function pickTagOf(o: THREE.Object3D | null): PickTag | undefined {
   for (let n = o; n; n = n.parent) {
@@ -789,7 +798,7 @@ class MapWorld {
       const ac = game.combats![id];
       if (ac.status !== "active") continue;
       quad(ac.tileX, ac.tileY, topOf(ac.tileX, ac.tileY), 0xff4433, 0.45);
-      const lbl = makeLabel("⚔️ Combat !", "#ffd166", 0.3);
+      const lbl = unpicked(makeLabel("⚔️ Combat !", "#ffd166", 0.3));
       lbl.center.set(0.5, 0);
       lbl.position.set(ac.tileX, topOf(ac.tileX, ac.tileY) + 0.95, ac.tileY);
       this.sprites.add(lbl);
@@ -817,9 +826,12 @@ class MapWorld {
         pickable(billboard(libUrl("monsters", tex), m.x, m.y, { size: 0.6 * mScale }), { x: m.x, y: m.y });
       // badge de danger : icône + taille du pack, teinte jaune (peu) → rouge (beaucoup)
       const danger = Math.min(Math.max((m.count - 1) / 5, 0), 1);
-      const badge = pickable(makeLabel(`☠ ${m.count}`, dangerColor(danger), 0.24 + danger * 0.08), { x: m.x, y: m.y });
+      // Même règle que les noms de héros : un badge ne se tape pas, et il se pose
+      // sur la taille RÉELLE de la créature — à hauteur fixe il s'enfonçait dans un
+      // boss (1,8× un héros) et flottait très au-dessus d'une limace (0,8×).
+      const badge = unpicked(makeLabel(`☠ ${m.count}`, dangerColor(danger), 0.24 + danger * 0.08));
       badge.center.set(0.5, 0);
-      badge.position.set(m.x, top + 0.62, m.y);
+      badge.position.set(m.x, top + HERO_HEIGHT * mScale + 0.05, m.y);
       this.sprites.add(badge);
     }
 
@@ -864,9 +876,17 @@ class MapWorld {
         this.sprites.add(pickable(mesh.root, tag));
         this.animator.sync(h.id, mesh, h.x + ox, by, h.y + oy, { faceCamera: true });
         if (mine) {
-          const lbl = pickable(makeLabel(h.name, "#fff6d8", 0.2), tag);
+          // ⚠ UNE ÉTIQUETTE N'EST PAS UN PERSONNAGE : elle n'est PAS pickable, et
+          // elle se pose juste au-dessus de la tête. Elle faisait les deux fautes à
+          // la fois — portée à 0,82 alors qu'un héros mesure `HERO_HEIGHT` (0,6),
+          // elle flottait une tête entière trop haut, et elle portait l'étiquette de
+          // picking du héros. Résultat rapporté en jeu : viser une case DERRIÈRE un
+          // coéquipier tapait son nom, donc le sélectionnait au lieu de déplacer le
+          // héros actif. Non pickable, le rayon la traverse et touche le sol qu'elle
+          // recouvre — c'est-à-dire exactement la case que le joueur voyait.
+          const lbl = unpicked(makeLabel(h.name, "#fff6d8", 0.2));
           lbl.center.set(0.5, 0);
-          lbl.position.set(h.x + ox, topOf(h.x, h.y) + 0.82, h.y + oy);
+          lbl.position.set(h.x + ox, topOf(h.x, h.y) + HERO_HEIGHT + 0.05, h.y + oy);
           this.sprites.add(lbl);
         }
       } else {

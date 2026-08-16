@@ -1291,7 +1291,15 @@ test `TestServerWrittenSentencesUseFrenchBuildingNames`).
   donc **cliquer le torse d'un héros touchait le sol une à deux cases derrière lui**, et le héros
   PARTAIT (case voisine) ou rien ne se passait (case en diagonale) au lieu d'ouvrir le menu radial.
   Taper un de MES héros (`heroId` posé) le vise LUI — menu s'il est sélectionné, sélection sinon — et
-  ne déclenche JAMAIS un déplacement. Corollaire : `engine.pick` fait `scene.updateMatrixWorld(true)`
+  ne déclenche JAMAIS un déplacement. ⚠ **UNE ÉTIQUETTE N'EST PAS UN PERSONNAGE** (2026-08-12) : les
+  noms de héros, les badges ☠ de pack et le libellé « ⚔️ Combat ! » sont posés `unpicked` — le rayon
+  les TRAVERSE et touche ce qu'ils recouvrent. Le nom portait l'étiquette de picking de son héros ET
+  flottait à 0,82 alors qu'un héros mesure `HERO_HEIGHT` 0,6 : mesuré, la colonne de pixels au-dessus
+  des pieds répondait « c'est lui » sur DEUX bandes — le corps (0-20 px) puis, détachée, la plaque de
+  nom (28-36 px). Viser la case derrière un coéquipier tapait donc son nom et le sélectionnait au lieu
+  de déplacer le héros actif (rapporté en jeu). Les badges de monstre se posent en plus sur la taille
+  RÉELLE de la créature (`HERO_HEIGHT × mScale`) : à hauteur fixe ils s'enfonçaient dans un boss (1,8×)
+  et flottaient loin au-dessus d'une limace (0,8×). Corollaire : `engine.pick` fait `scene.updateMatrixWorld(true)`
   (le moteur est on-demand ; un objet redessiné mais pas encore rendu serait resté à l'origine, donc
   invisible au picking). Garde-fou : `npm run test:map-tap` (dev servers requis).
   Le combat, lui, enregistrait déjà chaque mesh de rig dans `unitOf` — il n'était pas touché.
