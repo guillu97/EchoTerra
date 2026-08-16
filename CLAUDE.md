@@ -87,7 +87,9 @@ l'ordre d'arrivée, la promesse du mémorial, et une relance qui ne repasse PAS 
 mêmes prérequis) ·
 `npm run test:weather` (in frontend — **la météo des thèmes** : neige + pont de nuages au nord portés
 par le MÊME vent, vire-vents qui roulent VRAIMENT à l'écran au sud, rien du tout en tempéré, et
-« Aucun » qui SUPPRIME la couche au lieu de la figer; mêmes prérequis).
+« Aucun » qui SUPPRIME la couche au lieu de la figer; mêmes prérequis) ·
+`npm run test:inventory` (in frontend — **la lisibilité de l'inventaire** : aucun nom d'objet tronqué
+sur un écran de 390 px, mesuré sur les noms les plus longs du jeu; mêmes prérequis).
 
 **Déploiement Vercel (gratuit)** — voir `DEPLOY.md`. Preset **Services** (`vercel.json`) : service
 `frontend` (root `frontend/`, Vite, statique CDN) + service `backend` (root `backend/`, le preset Go
@@ -1154,6 +1156,12 @@ chrome (`.pill/.chip/.iconbtn/.nav-tab`…) — PAS sur tous les `button`, les g
 damiers — et une coupure `prefers-reduced-motion` qui neutralise toutes les animations. Les modales
 passent **obligatoirement** par `ui/Overlay.tsx` (ne pas recopier le couple
 `.settings` + `stopPropagation`) ; les retours d'action passent par `store.notify()` → `ui/Toasts.tsx`.
+⚠ **UN LIBELLÉ TRONQUÉ SUR UN TÉLÉPHONE EST UN LIBELLÉ PERDU** : il n'y a pas de survol pour révéler
+un `title`. La grille d'inventaire (`ItemGrid` + `.item-name`) coupait les noms sur une ligne — « Plan
+de la P… » et « Plan de la C… » sont le MÊME texte à l'écran ; elle les enroule désormais sur trois
+lignes (`overflow-wrap: anywhere`, clamp à 3 en garde-fou). Réflexe à garder pour toute nouvelle
+étiquette : le vérifier à 390 px de large, garde-fou `npm run test:inventory` (qui mesure
+`scrollWidth` contre `clientWidth`, c'est-à-dire le navigateur et non une estimation).
 L'app est **en français** : les chaînes anglaises restantes sont des bugs — SAUF celles qui portent
 de la logique de jeu (`"Ration d'eau"`, `"Plan "`, `"Tétanisé"`), à ne jamais traduire. Les noms de
 bâtiments s'affichent via `buildingName(id)` (`data/buildings.ts`), pas via `b.name` du serveur —

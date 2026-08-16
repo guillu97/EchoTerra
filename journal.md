@@ -88,6 +88,14 @@ taille RÉELLE de la créature — à hauteur fixe ils s'enfonçaient dans un bo
 au-dessus d'une limace (0,8×). Deux checks ajoutés à `test:map-tap`, vérifiés en ÉCHEC sur le code
 d'avant (2/5) et verts après.
 
+**Quatrième retour — les noms d'objets tronqués.** Dans le Sac, « Plan de la P… » et « Plan de la
+C… » : deux objets différents, le MÊME texte à l'écran — et sur mobile il n'y a pas de survol pour
+révéler le `title`. Un libellé tronqué sur un téléphone est un libellé perdu. Les noms s'enroulent
+maintenant sur trois lignes (`overflow-wrap: anywhere`, clamp à 3 en garde-fou) dans des cases un peu
+plus larges. Nouvelle suite `npm run test:inventory` : elle demande au NAVIGATEUR si le texte déborde
+de sa boîte (`scrollWidth` contre `clientWidth`), sur le viewport le plus serré du parc (390 px) et
+avec les noms les plus longs du catalogue — 4 tronqués sur le CSS d'avant, 0 après.
+
 **À faire.** Rien de bloquant. Si un quatrième thème arrive, sa météo est une entrée de plus dans
 `makeWeather` et `weatherPropKeys` — et il faudra la MESURER, pas la relire.
 

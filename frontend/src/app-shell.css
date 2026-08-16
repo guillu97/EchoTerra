@@ -2297,7 +2297,7 @@ body {
   overflow-y: auto;
   padding: 10px;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
   gap: 8px;
   align-content: start;
 }
@@ -2329,13 +2329,25 @@ body {
   font-weight: 800;
   color: #b6472a;
 }
+/* ⚠ LE NOM D'UN OBJET DOIT SE LIRE EN ENTIER. Il était sur UNE ligne avec des
+   points de suspension : « Plan de la P… » et « Plan de la C… » sont le même
+   texte à l'écran, et sur mobile il n'y a PAS de survol pour révéler le `title`.
+   Un nom tronqué sur un téléphone est un nom perdu. Il s'enroule donc sur trois
+   lignes (le plus long du jeu, « Plan de la Recyclerie », en tient deux), et
+   `overflow-wrap: anywhere` coupe un mot plus large que la case au lieu de le
+   laisser déborder. Le clamp à 3 lignes reste un garde-fou : au-delà on tronque
+   plutôt que d'étirer toute la grille. */
 .item-name {
   font-size: 10px;
+  line-height: 1.25;
   color: var(--ink-soft);
   margin-top: 4px;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 /* hero overlay */
