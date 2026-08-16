@@ -147,6 +147,9 @@ func TestSwapWeaponCostsTheTurnAndRewiresTheUnit(t *testing.T) {
 	h.AddLoot(Item{Type: "arme", Name: "Arc sylvestre", Qty: 1})
 	force0 := hu.Stats.Force
 	round0 := c.Round
+	// Dégainer dépense l'ACTION du tour ; le tour ne se ferme que lorsque le
+	// déplacement est dépensé lui aussi (économie du tour, combat.go).
+	hu.Moved = true
 
 	if err := c.SwapWeapon(gs, hu.ID, "Arc sylvestre"); err != nil {
 		t.Fatalf("swap: %v", err)

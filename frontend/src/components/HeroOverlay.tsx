@@ -21,13 +21,24 @@ function heroAssetKey(classId: string): AssetKey {
 const EVOLVE_DAY_INTERMEDIATE = 2;
 const EVOLVE_DAY_ADVANCED = 4;
 
-const ATTR_ROWS: { key: keyof Stats; label: string }[] = [
-  { key: "force", label: "Force" },
-  { key: "dexterite", label: "Dextérité" },
-  { key: "precision", label: "Précision" },
-  { key: "agilite", label: "Agilité" },
-  { key: "endurance", label: "Endurance" },
-  { key: "athletisme", label: "Athlétisme" },
+// LES ATTRIBUTS ET CE QU'ILS FONT VRAIMENT.
+//
+// La fiche listait six chiffres sans jamais dire à quoi ils servent — et deux
+// d'entre eux ne servaient effectivement à rien : l'Athlétisme n'était lu par
+// AUCUNE ligne de code (alors que trois classes sur six le donnent comme bonus
+// principal, +5) et la Précision ne portait les dégâts que de deux capacités sur
+// tout le jeu. Les deux ont désormais un rôle de combat (backend combat.go), et
+// ce rôle s'écrit ici : un point qu'on ne peut pas expliquer est un point qu'on
+// ne peut pas investir.
+//
+// ⚠ MIROIRS des formules serveur — les tenir à jour avec combat.go.
+const ATTR_ROWS: { key: keyof Stats; label: string; what: string }[] = [
+  { key: "force", label: "Force", what: "Dégâts de l'attaque de mêlée et de la plupart des techniques." },
+  { key: "dexterite", label: "Dextérité", what: "Dégâts des tirs et des compétences à distance (arc, chasseur)." },
+  { key: "precision", label: "Précision", what: "Chance de coup critique (×1,5 dégâts) — 3 % par point, plafond 40 %." },
+  { key: "agilite", label: "Agilité", what: "Initiative (ordre des tours) et cases de déplacement en combat." },
+  { key: "endurance", label: "Endurance", what: "Points de vie (+2 par point) et dégâts encaissés en moins." },
+  { key: "athletisme", label: "Athlétisme", what: "Hauteur franchissable en combat : la terrasse haute, donc le bonus de hauteur." },
 ];
 
 function tierLabel(tier: number): string {
@@ -191,15 +202,18 @@ export function HeroOverlay() {
 
         <h4>Attributs</h4>
         <div className="attr-grid">
-          {ATTR_ROWS.map(({ key, label }) => {
+          {ATTR_ROWS.map(({ key, label, what }) => {
             const bonus = h.classBonuses[key] ?? 0;
             return (
-              <div className="attr" key={key}>
+              // ⚠ le `title` seul ne suffirait pas sur un téléphone (aucun survol) :
+              // la ligne d'explication est RENDUE, pas cachée dans une infobulle.
+              <div className="attr" key={key} title={what}>
                 <span>{label}</span>
                 <b>
                   {h.stats[key]}
                   {bonus > 0 && <span className="attr-bonus"> (+{bonus})</span>}
                 </b>
+                <em className="attr-what">{what}</em>
               </div>
             );
           })}

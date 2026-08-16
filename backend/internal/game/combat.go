@@ -32,7 +32,12 @@ type CombatUnit struct {
 	States     []string `json:"states"`
 	Move       int      `json:"move"`
 	Moved      bool     `json:"moved"` // already moved this turn (FFTA2: one move per turn)
+	Acted      bool     `json:"acted"` // already spent its ACTION this turn (attaque/compétence/objet…)
 	Initiative int      `json:"initiative"`
+	// Cooldowns : tours restants avant de pouvoir rejouer chaque capacité, par NOM
+	// d'attaque. Décrémenté au début du tour de l'unité (advanceTurn). Absent de la
+	// carte = disponible.
+	Cooldowns map[string]int `json:"cooldowns,omitempty"`
 	Fled       bool     `json:"fled,omitempty"`    // a quitté l'arène par le bord bas (lot C3)
 	OwnerID    string   `json:"ownerId,omitempty"` // joueur propriétaire du héros ("" = partie legacy)
 	// Facing (lot C4) : direction regardée, mise à jour au déplacement et à
@@ -124,6 +129,96 @@ func (u *CombatUnit) removeState(s string) {
 	u.States = out
 }
 
+// --- Économie du TOUR : un déplacement, une action, et des recharges ---------
+//
+// Trois règles, et elles se complètent :
+//
+//  1. UN DÉPLACEMENT (`Moved`) — la règle FFTA2 d'origine, déjà en place.
+//  2. UNE ACTION (`Acted`) — frapper, lancer une compétence, se défendre, pousser,
+//     boire, dégainer. Nouveauté : l'action ne CLÔT plus le tour d'office. Tant
+//     qu'il reste le déplacement, on peut frapper PUIS reculer (l'arc et la lance
+//     n'avaient aucune façon de décrocher) ; le tour se ferme tout seul dès que les
+//     deux budgets sont dépensés, donc le classique « j'avance et je tape » ne
+//     coûte pas un clic de plus qu'avant.
+//  3. DES RECHARGES (`Cooldowns`) — voir AttackDef.Cooldown. Sans elles, « une
+//     action par tour » ne limitait rien : c'était une action, TOUJOURS la même.
+
+// cooldownLeft rend le nombre de tours restants avant que u puisse rejouer atk.
+func (u *CombatUnit) cooldownLeft(atk *AttackDef) int {
+	if atk == nil || atk.Cooldown <= 0 || u.Cooldowns == nil {
+		return 0
+	}
+	return u.Cooldowns[atk.Name]
+}
+
+// ready : la capacité est disponible ce tour.
+func (u *CombatUnit) ready(atk *AttackDef) bool { return u.cooldownLeft(atk) == 0 }
+
+// CooldownLeftOf expose la recharge restante à la couche API (combatResponse).
+func (u *CombatUnit) CooldownLeftOf(atk *AttackDef) int { return u.cooldownLeft(atk) }
+
+// startCooldown met atk en recharge après usage.
+func (u *CombatUnit) startCooldown(atk *AttackDef) {
+	if atk == nil || atk.Cooldown <= 0 {
+		return
+	}
+	if u.Cooldowns == nil {
+		u.Cooldowns = map[string]int{}
+	}
+	u.Cooldowns[atk.Name] = atk.Cooldown
+}
+
+// tickCooldowns fait passer un tour à toutes les recharges de l'unité (appelé au
+// DÉBUT de son propre tour : une recharge se compte en tours de l'unité, pas en
+// rounds — sinon une unité rapide et une unité lente ne paieraient pas le même prix).
+func (u *CombatUnit) tickCooldowns() {
+	for name, left := range u.Cooldowns {
+		if left <= 1 {
+			delete(u.Cooldowns, name)
+		} else {
+			u.Cooldowns[name] = left - 1
+		}
+	}
+}
+
+// climbLimit : l'écart de hauteur qu'une unité peut franchir d'un pas.
+//
+// C'EST LA RAISON D'ÊTRE DE L'ATHLÉTISME. La statistique existait dans le modèle,
+// s'affichait sur la fiche de personnage, et TROIS classes sur six la donnaient
+// comme bonus principal (+5 pour l'éclaireur, le récupérateur et l'herboriste) —
+// pour un effet strictement nul : aucune ligne de code ne la lisait, ni au combat
+// ni sur la carte. Ces trois classes échangeaient donc leurs points contre rien.
+// Elle porte désormais la MOBILITÉ VERTICALE : grimper la terrasse, c'est prendre
+// la hauteur, et la hauteur donne déjà un bonus de dégâts (dmgMods). L'athlète ne
+// frappe pas plus fort, il arrive là où les autres ne montent pas.
+func (u *CombatUnit) climbLimit() int {
+	c := 2 + u.Stats.Athletisme/4
+	if c < 2 {
+		c = 2
+	}
+	return c
+}
+
+// critPct : chance de coup critique (×1.5 dégâts), en pourcentage.
+//
+// C'EST LA RAISON D'ÊTRE DE LA PRÉCISION. Elle ne servait que de statistique de
+// dégâts à DEUX capacités (l'Aspersion acide de l'herboriste et le Balayage du
+// bâton) — c'est-à-dire une seconde Force sous un autre nom, invisible pour tous
+// les autres héros. Le jeu n'a pas de jet de toucher (et ne doit pas en avoir :
+// rater son tour dans un jeu où l'on joue deux fois par jour est une punition),
+// donc la précision achète le COUP CRITIQUE : une pointe de dégâts, télégraphiée
+// dans la fourchette servie au client, jamais un échec.
+func (u *CombatUnit) critPct() int {
+	p := 3 * u.Stats.Precision
+	if p > 40 {
+		p = 40
+	}
+	if p < 0 {
+		p = 0
+	}
+	return p
+}
+
 // Combat abilities are AttackDefs from the design catalog (design.go): monsters use
 // their species' attack list (base + specials with GDD targeting/damage grids), and
 // heroes get a generic melee attack plus their class's iso skill.
@@ -140,34 +235,34 @@ func heroIsoSkillsFor(classID string) []AttackDef {
 	switch classID {
 	case "pionnier":
 		return []AttackDef{
-			{Name: "Frappe de la mort qui tue", Kind: "special", Desc: "Attaque puissante en mêlée.", Targets: orthCells(), DmgStat: "force", Bonus: 5},
-			{Name: "Coup de bouclier", Kind: "special", Desc: "Frappe étourdissante (30% Stun).", Targets: orthCells(), DmgStat: "force", Bonus: 2, StunPct: 30},
+			{Name: "Frappe de la mort qui tue", Kind: "special", Desc: "Attaque puissante en mêlée.", Targets: orthCells(), DmgStat: "force", Bonus: 5, Cooldown: 3},
+			{Name: "Coup de bouclier", Kind: "special", Desc: "Frappe étourdissante (30% Stun).", Targets: orthCells(), DmgStat: "force", Bonus: 2, StunPct: 30, Cooldown: 2},
 		}
 	case "chasseur":
 		return []AttackDef{
-			{Name: "Tir de zone", Kind: "special", Desc: "Dégâts de zone en croix à distance.", Targets: manhattanCells(1, 3), Damage: orthCells(), DmgStat: "dexterite", Bonus: 3},
-			{Name: "Flèche perçante", Kind: "special", Desc: "Tir précis à longue portée.", Targets: lineCells(3), DmgStat: "dexterite", Bonus: 4},
+			{Name: "Tir de zone", Kind: "special", Desc: "Dégâts de zone en croix à distance.", Targets: manhattanCells(1, 3), Damage: orthCells(), DmgStat: "dexterite", Bonus: 3, Cooldown: 3},
+			{Name: "Flèche perçante", Kind: "special", Desc: "Tir précis à longue portée.", Targets: lineCells(3), DmgStat: "dexterite", Bonus: 4, Cooldown: 2},
 		}
 	case "eclaireur":
 		return []AttackDef{
-			{Name: "Coup vif", Kind: "special", Desc: "Frappe rapide et sûre.", Targets: orthCells(), DmgStat: "dexterite", Bonus: 3},
+			{Name: "Coup vif", Kind: "special", Desc: "Frappe rapide et sûre.", Targets: orthCells(), DmgStat: "dexterite", Bonus: 3, Cooldown: 2},
 		}
 	case "gardien":
 		return []AttackDef{
-			{Name: "Posture défensive", Kind: "special", Desc: "-50% dégâts subis jusqu'au prochain tour.", SelfShield: true},
-			{Name: "Provocation", Kind: "special", Desc: "Coup lourd qui entrave la cible (Root).", Targets: orthCells(), DmgStat: "force", Bonus: 2, Root: true},
+			{Name: "Posture défensive", Kind: "special", Desc: "-50% dégâts subis jusqu'au prochain tour.", SelfShield: true, Cooldown: 2},
+			{Name: "Provocation", Kind: "special", Desc: "Coup lourd qui entrave la cible (Root).", Targets: orthCells(), DmgStat: "force", Bonus: 2, Root: true, Cooldown: 3},
 		}
 	case "recuperateur":
 		return []AttackDef{
-			{Name: "Coup de grâce", Kind: "special", Desc: "Achève brutalement un ennemi.", Targets: orthCells(), DmgStat: "force", Bonus: 4},
+			{Name: "Coup de grâce", Kind: "special", Desc: "Achève brutalement un ennemi.", Targets: orthCells(), DmgStat: "force", Bonus: 4, Cooldown: 3},
 		}
 	case "herboriste":
 		return []AttackDef{
-			{Name: "Aspersion acide", Kind: "special", Desc: "Nuage corrosif de zone.", Targets: manhattanCells(1, 2), Damage: orthCells(), DmgStat: "precision", Bonus: 2},
+			{Name: "Aspersion acide", Kind: "special", Desc: "Nuage corrosif de zone.", Targets: manhattanCells(1, 2), Damage: orthCells(), DmgStat: "precision", Bonus: 2, Cooldown: 2},
 		}
 	default:
 		return []AttackDef{
-			{Name: "Frappe puissante", Kind: "special", Desc: "Attaque renforcée en mêlée.", Targets: orthCells(), DmgStat: "force", Bonus: 3},
+			{Name: "Frappe puissante", Kind: "special", Desc: "Attaque renforcée en mêlée.", Targets: orthCells(), DmgStat: "force", Bonus: 3, Cooldown: 2},
 		}
 	}
 }
@@ -178,10 +273,32 @@ func heroSkillFor(classID string) AttackDef {
 	return heroIsoSkillsFor(classID)[0]
 }
 
+// defaultSpecialCooldown : la recharge d'une capacité SPÉCIALE qui n'en déclare
+// pas. C'est ce qui étend la règle au catalogue de design (design.go) sans y
+// ajouter un champ que le Studio ne connaît pas et sans avoir à annoter onze
+// espèces à la main — et ça vaut pour les monstres comme pour les héros : une
+// Colonne de Vent qui étourdit à 100 % rejouée à chaque tour verrouillait un héros
+// jusqu'à sa mort, ce qui n'est pas un combat mais une exécution.
+const defaultSpecialCooldown = 2
+
+// withCooldowns pose la recharge par défaut sur les spéciales qui n'en ont pas.
+// ⚠ COPIE : `Species` est un catalogue global, le muter contaminerait toutes les
+// parties du processus.
+func withCooldowns(atks []AttackDef) []AttackDef {
+	out := make([]AttackDef, len(atks))
+	copy(out, atks)
+	for i := range out {
+		if out[i].Kind == "special" && out[i].Cooldown == 0 {
+			out[i].Cooldown = defaultSpecialCooldown
+		}
+	}
+	return out
+}
+
 // monsterAttacks returns a species' attack list (with a melee fallback).
 func monsterAttacks(kind string) []AttackDef {
 	if sp := SpeciesByName(kind); sp != nil && len(sp.Attacks) > 0 {
-		return sp.Attacks
+		return withCooldowns(sp.Attacks)
 	}
 	return []AttackDef{{Name: "Attaque", Kind: "base", Targets: orthCells(), DmgStat: "force"}}
 }
@@ -650,7 +767,10 @@ func (c *Combat) passable(x, y int, u *CombatUnit) bool {
 			if o := c.unitAt(cx, cy); o != nil && o != u {
 				return false
 			}
-			if absI(c.heightAt(cx, cy)-c.heightAt(u.X, u.Y)) > 2 {
+			// L'ATHLÉTISME décide de la marche qu'on franchit (climbLimit) : 2
+			// niveaux pour tout le monde, un de plus tous les 4 points. C'est ce
+			// qui ouvre les terrasses hautes — et la hauteur donne des dégâts.
+			if absI(c.heightAt(cx, cy)-c.heightAt(u.X, u.Y)) > u.climbLimit() {
 				return false
 			}
 		}
@@ -943,6 +1063,14 @@ func (c *Combat) damageWith(att, def *CombatUnit, atk *AttackDef) int {
 	if d < 1 {
 		d = 1
 	}
+	// LA PRÉCISION : coup critique (×1.5). Après les modificateurs de position et
+	// avant la garde — un critique perce mieux une posture, mais l'armure encaisse
+	// toujours. Le tirage est le DERNIER de la fonction pour que la fourchette
+	// servie (EstimateDamage) reste le miroir exact du reste.
+	if p := att.critPct(); p > 0 && randIntn(100) < p {
+		d = d * 3 / 2
+		c.logf("%s frappe un point faible — coup critique !", att.Name)
+	}
 	if def.hasState("Bouclier") {
 		d /= 2
 		if d < 1 {
@@ -976,6 +1104,26 @@ func isCursedSpecies(species string) bool {
 // Servie par combatResponse pour la prévisualisation d'attaque (lot C2) : le
 // serveur calcule, le client ne fait qu'afficher.
 func (c *Combat) EstimateDamage(att, def *CombatUnit, atk *AttackDef) (int, int) {
+	return c.estimate(att, def, atk, false)
+}
+
+// CritChance rend la chance de coup critique de l'attaquant (en %) et les dégâts
+// MAXIMUM qu'un critique infligerait à cette cible. 0 = l'attaquant n'a aucune
+// précision, il n'y a rien à annoncer.
+//
+// ⚠ Servi À CÔTÉ de la fourchette ordinaire, et non fondu dedans : une moyenne
+// pondérée ne dirait ni ce qu'on va probablement faire, ni ce qu'on peut espérer.
+// Le joueur lit « −4…6 · 🎯12 % → 9 ».
+func (c *Combat) CritChance(att, def *CombatUnit, atk *AttackDef) (pct, critMax int) {
+	pct = att.critPct()
+	if pct == 0 || atk.DmgStat == "" {
+		return 0, 0
+	}
+	_, critMax = c.estimate(att, def, atk, true)
+	return pct, critMax
+}
+
+func (c *Combat) estimate(att, def *CombatUnit, atk *AttackDef, crit bool) (int, int) {
 	var stat int
 	switch atk.DmgStat {
 	case "dexterite":
@@ -997,6 +1145,9 @@ func (c *Combat) EstimateDamage(att, def *CombatUnit, atk *AttackDef) (int, int)
 		d = d * num / den
 		if d < 1 {
 			d = 1
+		}
+		if crit { // ⚠ MÊME PLACE que dans damageWith : après la position, avant la garde
+			d = d * 3 / 2
 		}
 		if def.hasState("Bouclier") {
 			d /= 2
@@ -1192,6 +1343,15 @@ func (c *Combat) PlayerAction(unitID, action string, tx, ty int, targetID string
 	if cur.Side != "hero" {
 		return ErrInvalidAction{"cette unité n'est pas contrôlable"}
 	}
+	// UNE ACTION PAR TOUR. La règle était déjà tenue de fait — toute action
+	// appelait endTurn — mais elle n'était écrite nulle part et rien ne la
+	// défendait ; `Acted` la rend explicite, refusable et AFFICHABLE.
+	if cur.Acted {
+		switch action {
+		case "attack", "skill", "defend", "push":
+			return ErrInvalidAction{cur.Name + " a déjà agi ce tour"}
+		}
+	}
 	// Nouveau lot d'action (C2) : le client diffe Seq et fait flotter les coups de
 	// LastHits — l'action du héros ET les tours IA qui s'enchaînent derrière.
 	c.Seq++
@@ -1218,7 +1378,8 @@ func (c *Combat) PlayerAction(unitID, action string, tx, ty int, targetID string
 		c.logf("%s se déplace.", cur.Name)
 		c.enterCell(cur, tx, ty)
 		cur.Moved = true
-		return nil // moving does not end the turn, but acting/ending does
+		c.spendBudget(cur) // le tour se ferme si l'action est déjà dépensée
+		return nil
 
 	case "attack", "skill":
 		atk := c.baseAttackFor(cur)
@@ -1232,12 +1393,17 @@ func (c *Combat) PlayerAction(unitID, action string, tx, ty int, targetID string
 				return ErrInvalidAction{"compétence inconnue"}
 			}
 			atk = skills[idx]
+			if left := cur.cooldownLeft(&atk); left > 0 {
+				return ErrInvalidAction{fmt.Sprintf("%s se recharge encore (%d tour(s))", atk.Name, left)}
+			}
 		}
 		// Self abilities (Posture défensive) need no target — anything else must aim
 		// at a living enemy standing on one of the attack's green targeting cells.
 		if atk.SelfShield || atk.BuffAllies {
 			c.performAttack(cur, &atk, cur.X, cur.Y)
-			c.endTurn()
+			cur.startCooldown(&atk)
+			cur.Acted = true
+			c.spendBudget(cur)
 			return nil
 		}
 		def := c.unitByID(targetID)
@@ -1248,7 +1414,9 @@ func (c *Combat) PlayerAction(unitID, action string, tx, ty int, targetID string
 			return ErrInvalidAction{"cible hors de portée ou hors de vue"}
 		}
 		c.performAttack(cur, &atk, def.X, def.Y)
-		c.endTurn()
+		cur.startCooldown(&atk)
+		cur.Acted = true
+		c.spendBudget(cur)
 		return nil
 
 	case "defend":
@@ -1256,7 +1424,8 @@ func (c *Combat) PlayerAction(unitID, action string, tx, ty int, targetID string
 		// Posture défensive (-50 % subis, consommé au début du prochain tour du héros).
 		cur.addState("Bouclier")
 		c.logf("%s se met en garde : dégâts subis réduits de moitié jusqu'à son prochain tour.", cur.Name)
-		c.endTurn()
+		cur.Acted = true
+		c.spendBudget(cur)
 		return nil
 
 	case "push":
@@ -1279,7 +1448,8 @@ func (c *Combat) PlayerAction(unitID, action string, tx, ty int, targetID string
 			return ErrInvalidAction{"cible hors de portée de poussée"}
 		}
 		c.pushUnit(cur, def, signI(dx), signI(dy))
-		c.endTurn()
+		cur.Acted = true
+		c.spendBudget(cur)
 		return nil
 
 	case "flee":
@@ -1411,8 +1581,27 @@ func (c *Combat) UseItem(g *GameState, unitID, itemName string) error {
 	cur.HP += heal
 	c.addHit(cur.ID, heal, "heal")
 	c.logf("%s consomme %s (+%d PV).", cur.Name, itemName, heal)
-	c.endTurn()
+	cur.Acted = true
+	c.spendBudget(cur)
 	return nil
+}
+
+// spendBudget ferme le tour dès que les DEUX budgets — le déplacement et
+// l'action — sont dépensés, ou qu'il ne reste rien à faire du survivant.
+//
+// C'est ce qui rend le nouveau modèle gratuit à l'usage : « j'avance puis je
+// frappe » se joue exactement comme avant (le second geste clôt le tour), et le
+// seul cas où la main reste au joueur est celui où il a délibérément agi D'ABORD
+// — parce qu'il veut décrocher ensuite. Un arc ou une lance ont enfin une raison
+// d'exister au-delà de leur portée : frapper puis reculer hors d'atteinte.
+func (c *Combat) spendBudget(u *CombatUnit) {
+	if !u.Acted {
+		return // il lui reste son action : on ne clôt jamais sur un simple pas
+	}
+	if !u.Moved && len(c.Reachable(u)) > 0 {
+		return // il peut encore décrocher — la main lui reste
+	}
+	c.endTurn()
 }
 
 // endTurn finishes the current unit's turn and resolves AI up to the next hero turn.
@@ -1439,6 +1628,9 @@ func (c *Combat) advanceTurn() {
 		if u == nil || !u.inBattle() {
 			continue
 		}
+		// Les RECHARGES se comptent en tours de l'unité : elles avancent même si
+		// l'étourdissement lui fait perdre celui-ci — un tour perdu reste un tour.
+		u.tickCooldowns()
 		// Tick one-turn states at the start of the unit's turn.
 		if u.hasState("Stun") {
 			u.removeState("Stun")
@@ -1448,6 +1640,7 @@ func (c *Combat) advanceTurn() {
 		u.removeState("Cécité")
 		u.removeState("Bouclier") // the shield holds until the owner's next turn
 		u.Moved = false           // fresh movement budget for the new turn
+		u.Acted = false           // et une action neuve
 		if u.hasState("Root") {
 			u.removeState("Root")
 			u.Moved = true // rooted: no movement this turn (acting is still allowed)
@@ -1581,8 +1774,12 @@ func (c *Combat) monsterTurn(u *CombatUnit) {
 			isBuffer = true
 		}
 	}
-	if len(specials) > 0 && randIntn(100) < 35 {
-		pick := specials[randIntn(len(specials))]
+	// ⚠ On ne tire que parmi les spéciales DISPONIBLES : sans ce filtre, l'IA
+	// piochait une capacité en recharge et la jouait quand même — le cooldown
+	// n'aurait bridé que le joueur, ce qui est le contraire du but.
+	ready := readyOnly(u, specials)
+	if len(ready) > 0 && randIntn(100) < 35 {
+		pick := ready[randIntn(len(ready))]
 		// Don't re-shield while already shielded; self abilities fire immediately.
 		if !pick.SelfShield || !u.hasState("Bouclier") {
 			atk = pick
@@ -1590,6 +1787,7 @@ func (c *Combat) monsterTurn(u *CombatUnit) {
 	}
 	if atk.SelfShield || atk.BuffAllies {
 		c.performAttack(u, &atk, u.X, u.Y)
+		u.startCooldown(&atk)
 		return
 	}
 	// Step toward the target until it can actually be HIT : case verte ET ligne
@@ -1606,6 +1804,7 @@ func (c *Combat) monsterTurn(u *CombatUnit) {
 	}
 	if c.canTarget(u, &atk, target) {
 		c.performAttack(u, &atk, target.X, target.Y)
+		u.startCooldown(&atk)
 	} else if base := c.baseAttackFor(u); c.canTarget(u, &base, target) {
 		c.performAttack(u, &base, target.X, target.Y) // fall back to the base strike
 	} else if holdBack {
@@ -1634,9 +1833,11 @@ func (c *Combat) bossTurn(u *CombatUnit) {
 			}
 		}
 	}
-	// ~40 % : une spéciale OFFENSIVE (zone GDD appliquée autour de la cible)
+	// ~40 % : une spéciale OFFENSIVE (zone GDD appliquée autour de la cible), et
+	// seulement si elle n'est pas en recharge — un boss qui piétinerait à chaque
+	// tour ne laisserait aucune fenêtre pour se regrouper.
 	var zone *AttackDef
-	specials := c.specialsFor(u)
+	specials := readyOnly(u, c.specialsFor(u))
 	for i := range specials {
 		sp := &specials[i]
 		if sp.DmgStat != "" && !sp.SelfShield && !sp.BuffAllies {
@@ -1646,6 +1847,7 @@ func (c *Combat) bossTurn(u *CombatUnit) {
 	}
 	if zone != nil && randIntn(100) < 40 && c.canTarget(u, zone, target) {
 		c.performAttack(u, zone, target.X, target.Y)
+		u.startCooldown(zone)
 		return
 	}
 	if c.canTarget(u, &base, target) {
@@ -1841,7 +2043,10 @@ func (c *Combat) heroAutoAct(u *CombatUnit) {
 		sk = tech
 	}
 	atk := sk
-	if sk.DmgStat == "" { // defensive/self skill — the bot just swings instead
+	// Une compétence en RECHARGE n'est pas jouable : l'IA retombe sur l'attaque de
+	// base, comme un joueur. Sans ça les combats auto-résolus des bots (et les
+	// héros des joueurs absents) contourneraient la règle qu'on vient de poser.
+	if sk.DmgStat == "" || !u.ready(&sk) {
 		atk = c.baseAttackFor(u)
 	}
 	if !u.Moved {
@@ -1853,11 +2058,24 @@ func (c *Combat) heroAutoAct(u *CombatUnit) {
 	}
 	if c.canTarget(u, &atk, target) {
 		c.performAttack(u, &atk, target.X, target.Y)
+		u.startCooldown(&atk)
 	} else if base := c.baseAttackFor(u); c.canTarget(u, &base, target) {
 		c.performAttack(u, &base, target.X, target.Y)
 	} else {
 		c.logf("%s avance.", u.Name)
 	}
+	u.Acted = true
+}
+
+// readyOnly filtre les capacités qui ne sont pas en recharge.
+func readyOnly(u *CombatUnit, atks []AttackDef) []AttackDef {
+	out := make([]AttackDef, 0, len(atks))
+	for i := range atks {
+		if u.ready(&atks[i]) {
+			out = append(out, atks[i])
+		}
+	}
+	return out
 }
 
 func (c *Combat) checkEnd() {

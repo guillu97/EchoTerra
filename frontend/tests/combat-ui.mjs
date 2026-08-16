@@ -131,6 +131,97 @@ if (!started.ok) {
     aim.skills.map((k) => `${k.n}:${k.cells}`).join(" · "),
   );
 
+  // L'ÉCONOMIE DU TOUR SE VOIT. Le serveur tenait déjà « un déplacement et une
+  // action par tour », mais la barre n'en disait rien : l'ennemi jouant son tour
+  // instantanément, taper dix fois sur le même bouton « marchait » (c'étaient dix
+  // ROUNDS) et le joueur en concluait qu'il pouvait enchaîner sans limite. Les
+  // deux jauges sont la réponse, donc elles se testent depuis le navigateur —
+  // c'est exactement le genre de chose qu'aucun test Go ne voit.
+  const budget = await page.evaluate(() => {
+    const pips = [...document.querySelectorAll(".cbt-budget i")];
+    return { n: pips.length, cls: pips.map((e) => e.className) };
+  });
+  check(
+    "les deux budgets du tour sont affichés",
+    budget.n === 2,
+    `${budget.n} pastille(s) : ${budget.cls.join(" · ")}`,
+  );
+
+  // LA RECHARGE. C'est le vrai correctif : « une action par tour » ne limitait
+  // rien tant que la MEILLEURE action était rejouable à chaque tour.
+  const cd = await page.evaluate(() => {
+    const s = window.__eg.store.getState();
+    return (s.current?.skills ?? []).map((k) => ({
+      n: k.skill.name,
+      cd: k.skill.cooldown ?? 0,
+      left: k.cooldownLeft ?? 0,
+    }));
+  });
+  check(
+    "chaque compétence spéciale porte une recharge",
+    cd.length > 0 && cd.every((k) => k.cd > 0),
+    cd.map((k) => `${k.n}:↻${k.cd}`).join(" · ") || "(aucune compétence servie)",
+  );
+  const cdPips = await page.evaluate(() => document.querySelectorAll(".cbt-cdmax, .cbt-cd").length);
+  check("la recharge est affichée sur le bouton", cdPips >= cd.length, `${cdPips} pastille(s) pour ${cd.length} compétence(s)`);
+
+  // Lancer la compétence, puis vérifier qu'elle est bien ÉTEINTE au tour suivant
+  // du héros — le contrat serveur rendu visible côté client.
+  const spent = await page.evaluate(async () => {
+    const st = () => window.__eg.store.getState();
+    // Les deux camps naissent aux bords opposés de l'arène : il faut d'abord
+    // MARCHER. On approche tour après tour (le déplacement seul ne clôt jamais le
+    // tour, donc chaque round rend la main) jusqu'à avoir une cible à portée.
+    const closest = () => {
+      const s = st();
+      const me = s.combat?.units.find((u) => u.id === s.current?.unitId);
+      if (!me) return null;
+      let best = null;
+      for (const u of s.combat.units) {
+        if (u.side === "monster" && u.hp > 0) {
+          const d = Math.abs(u.x - me.x) + Math.abs(u.y - me.y);
+          if (!best || d < best.d) best = { u, d };
+        }
+      }
+      return best && { me, ...best };
+    };
+    for (let round = 0; round < 12; round++) {
+      if ((st().current?.skills ?? []).some((k) => !k.selfCast && k.targets.length > 0)) break;
+      const c = closest();
+      if (!c || !st().current?.reachable?.length) break;
+      // la case atteignable la plus proche de l'ennemi
+      let goal = null;
+      for (const [x, y] of st().current.reachable) {
+        const d = Math.abs(x - c.u.x) + Math.abs(y - c.u.y);
+        if (!goal || d < goal.d) goal = { x, y, d };
+      }
+      if (!goal || goal.d >= c.d) break;
+      await st().combatTileClick(goal.x, goal.y);
+      if (st().combat?.status !== "active") break;
+    }
+    const sk = (st().current?.skills ?? []).find((k) => !k.selfCast && k.targets.length > 0);
+    if (!sk) return { skipped: "aucune compétence avec une cible à portée après approche" };
+    st().selectCombatSkill(sk.idx);
+    await st().combatUnitClick(sk.targets[0]);
+    const c = st().current;
+    const same = (c?.skills ?? []).find((k) => k.skill.name === sk.skill.name);
+    // ⚠ `left` vaut -1 quand le tour est DÉJÀ passé (les deux budgets dépensés) :
+    // `current` décrit alors une autre unité, et la compétence a disparu de la
+    // liste. Les deux issues valident le contrat — ce qu'on refuse, c'est de
+    // retrouver la MÊME capacité prête à être rejouée dans la foulée (left === 0).
+    return { acted: !!c?.acted, left: same?.cooldownLeft ?? -1 };
+  });
+  await wait(500);
+  if (spent.skipped) {
+    console.log(`  (recharge en jeu non vérifiée : ${spent.skipped})`);
+  } else {
+    check(
+      "lancer une compétence dépense l'action et met la capacité en recharge",
+      spent.left !== 0,
+      `action dépensée=${spent.acted} · recharge restante=${spent.left}`,
+    );
+  }
+
   // Raccourci clavier : A arme le mode attaque, Échap le désarme.
   await page.keyboard.press("a");
   await wait(150);

@@ -2390,18 +2390,35 @@ body {
   font-size: 13px;
   margin-bottom: 6px;
 }
+/* ⚠ UNE COLONNE, PAS DEUX : chaque attribut porte désormais la PHRASE de ce
+   qu'il fait (deux d'entre eux ne faisaient rien du tout avant, et aucun ne
+   s'expliquait). Sur deux colonnes de ~150 px cette phrase se casse en cinq
+   lignes hachées — c'est le même piège que les noms d'objets tronqués (§7). */
 .attr-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 6px;
 }
 .attr {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
+  align-items: baseline;
+  gap: 2px 8px;
   background: rgba(255, 255, 255, 0.06);
   border-radius: 8px;
   padding: 6px 10px;
   font-size: 13px;
+}
+/* La phrase passe sous le couple libellé/valeur : `flex-basis: 100%` la met à la
+   ligne sans avoir à emboîter un conteneur de plus. */
+.attr-what {
+  flex: 0 0 100%;
+  font-style: normal;
+  font-size: var(--t-xs);
+  line-height: 1.35;
+  opacity: 0.68;
+  overflow-wrap: anywhere;
 }
 .skill {
   background: rgba(255, 255, 255, 0.06);
@@ -4573,6 +4590,54 @@ body {
   font-size: 10px;
   opacity: 0.85;
 }
+/* LES DEUX JAUGES DU TOUR — un déplacement, une action (backend combat.go).
+   Le serveur tenait déjà la règle sans la dire : la barre n'affichait aucun
+   budget, l'ennemi jouait instantanément, et taper dix fois sur le même bouton
+   « marchait » (c'étaient dix ROUNDS). Deux pastilles suffisent à lever le
+   malentendu — plein = disponible, creux et barré = dépensé. */
+.cbt-budget {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 6px;
+  border-radius: var(--r-pill);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+/* ⚠ LE CONTRASTE ALLUMÉ / ÉTEINT PORTE LE MESSAGE, pas un trait barré : mesuré
+   sur capture, une hairline diagonale posée sur un emoji déjà chargé (⚔️ = deux
+   lames croisées) est illisible à la taille réelle de la barre. Le fond doré d'un
+   budget disponible, lui, se lit du coin de l'œil — le trait ne reste que comme
+   confirmation, pour ne pas dépendre de la seule couleur. */
+.cbt-budget i {
+  position: relative;
+  font-style: normal;
+  font-size: 13px;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: var(--r-sm);
+}
+.cbt-budget i.left {
+  background: rgba(255, 224, 102, 0.22);
+  box-shadow: 0 0 0 1px rgba(255, 224, 102, 0.5) inset;
+}
+.cbt-budget i.spent {
+  opacity: 0.35;
+  filter: grayscale(1);
+  background: rgba(0, 0, 0, 0.35);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08) inset;
+}
+.cbt-budget i.spent::after {
+  content: "";
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  top: 50%;
+  height: 2px;
+  border-radius: 2px;
+  background: #ff8a7a;
+  transform: rotate(-18deg);
+}
 .cbt-timer {
   margin-left: auto;
   color: #ffd166;
@@ -4587,6 +4652,12 @@ body {
 }
 .cbt-hint.warn {
   color: #ffb454;
+}
+/* La phrase d'état dit ce qui RESTE du tour, jamais ce qui a été fait — c'est
+   elle qui explique pourquoi la main n'est pas encore passée quand on a frappé
+   sans bouger (frapper puis décrocher est désormais un tour valide). */
+.cbt-hint.state {
+  color: #ffe066;
 }
 
 /* Rang 2 — les actions. Icône au-dessus, libellé dessous : au doigt on vise
@@ -4649,8 +4720,45 @@ body {
   border-color: rgba(255, 214, 102, 0.55);
   background: rgba(255, 214, 102, 0.1);
 }
+/* EN RECHARGE — la seule raison d'extinction qui change d'un tour à l'autre,
+   donc la seule qui doive se lire sans survoler. Un bouton simplement grisé
+   dirait « impossible » ; celui-ci dit « pas encore ». */
+.cbt-act.cooling {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+}
+.cbt-act.cooling:disabled {
+  opacity: 0.55; /* plus lisible qu'un désactivé ordinaire : le compte doit se lire */
+}
+.cbt-cd {
+  position: absolute;
+  top: 2px;
+  right: 3px;
+  font-style: normal;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 0 3px;
+  border-radius: var(--r-pill);
+  background: rgba(0, 0, 0, 0.55);
+  color: #9fc7ff;
+}
+/* La recharge NOMINALE d'une capacité prête : un rappel discret du coût à venir. */
+.cbt-cdmax {
+  position: absolute;
+  top: 2px;
+  right: 3px;
+  font-style: normal;
+  font-size: 9px;
+  opacity: 0.5;
+}
 .cbt-act.end {
   margin-left: auto;
+}
+/* « Fin » s'allume quand l'action est dépensée : à ce moment-là c'est le geste
+   le plus probable, et rien d'autre dans la barre ne le signalait. */
+.cbt-act.end.ready {
+  border-color: #ffe066;
+  color: #ffe9ad;
 }
 /* ⏻ = cette action termine le tour. */
 .cbt-end {
@@ -4737,6 +4845,18 @@ body {
 .cbt-target.lethal {
   background: linear-gradient(180deg, #d1a11a, #9c6f06);
   color: #fff8e0;
+}
+/* Un CRITIQUE suffirait à tuer, mais pas le coup ordinaire : c'est exactement le
+   renseignement pour lequel la précision existe (elle n'achetait rien de visible
+   avant), donc il se lit sur la cible et pas seulement dans une infobulle. */
+.cbt-target.critkill {
+  box-shadow: 0 0 0 1px #ffe066 inset;
+}
+.cbt-target .dmg-est .crit {
+  margin-left: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #ffe9ad;
 }
 
 /* La nature d'une expédition dans la liste des salons (backend theme.go). */

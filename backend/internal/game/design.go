@@ -172,6 +172,16 @@ type AttackDef struct {
 	// IgnoreCover : le tir passe par-dessus l'obstacle qui protège la cible (la
 	// pénalité de couverture −25 % ne s'applique pas). Identité de l'ARC.
 	IgnoreCover bool `json:"ignoreCover,omitempty"`
+	// Cooldown : nombre de TOURS DE L'UNITÉ à attendre après usage avant de
+	// pouvoir relancer la capacité. 0 = disponible chaque tour (l'attaque de
+	// base, et elle seule).
+	//
+	// ⚠ POURQUOI : une action par tour était déjà la règle, mais RIEN n'empêchait
+	// de rejouer la MEILLEURE capacité à chaque tour — donc le tour de jeu se
+	// résumait à « quelle est la compétence la plus bonifiée ? », question dont la
+	// réponse ne change jamais. Le cooldown est ce qui force à descendre dans la
+	// liste : on ouvre sur son meilleur coup, puis on compose avec ce qui reste.
+	Cooldown int `json:"cooldown,omitempty"`
 }
 
 // maxReach is the farthest cell of the targeting grid (for AI approach).

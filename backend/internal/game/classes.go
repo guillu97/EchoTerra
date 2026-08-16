@@ -206,6 +206,17 @@ func (g *GameState) EvolveHero(heroID, classID string) error {
 	h.ClassBonuses.Precision += cls.Bonuses.Precision
 	h.MaxPA += cls.PABonus
 	h.PA += cls.PABonus
+	// L'ENDURANCE PORTE LES PV. `NewStarterHero` pose `hp = 8 + endurance*2`, mais
+	// l'évolution ajoutait de l'endurance SANS toucher aux PV : un gardien à
+	// 7 d'endurance gardait les 16 PV de ses 4 points de départ, et la moitié
+	// « visible » de la statistique (encaisser plus) ne se produisait jamais — seule
+	// la réduction de dégâts au combat suivait. Même barème que la création, et les
+	// PV courants montent d'autant (une évolution n'est pas un soin, c'est un gain
+	// de constitution : on ne perd rien, on ne se soigne pas non plus).
+	if gain := 2 * cls.Bonuses.Endurance; gain > 0 {
+		h.MaxHP += gain
+		h.HP += gain
+	}
 
 	h.ClassID = cls.ID
 	h.ClassTier = nextTier

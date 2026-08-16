@@ -543,6 +543,9 @@ export interface CombatUnit {
   stats: Stats;
   states: string[];
   move: number;
+  moved?: boolean; // a déjà dépensé son déplacement ce tour
+  acted?: boolean; // a déjà dépensé son ACTION ce tour (une seule par tour)
+  cooldowns?: Record<string, number>; // capacité -> tours restants avant de la rejouer
   initiative: number;
   fled?: boolean; // a quitté l'arène par le bord bas (lot C3)
   ownerId?: string; // joueur propriétaire du héros ("" / absent = partie legacy)
@@ -569,6 +572,7 @@ export interface Skill {
   absorb?: boolean;
   selfShield?: boolean;
   buffAllies?: boolean;
+  cooldown?: number; // tours de recharge après usage (0 = disponible chaque tour)
 }
 
 // Case d'arène (lot C1) : hauteur + terrain tactique.
@@ -633,6 +637,11 @@ export interface DamageEstimate {
   max: number;
   rear?: number; // 1 = attaque de dos (+25 %, ignore la couverture) — lot C4
   cover?: number; // 1 = cible à couvert (−25 % à distance) — lot C4
+  // LA PRÉCISION rendue lisible : chance de coup critique et dégâts d'un critique.
+  // Servie À CÔTÉ de la fourchette, jamais fondue dedans — une moyenne ne dirait ni
+  // ce qu'on va probablement faire, ni ce qu'on peut espérer.
+  critPct?: number;
+  critMax?: number;
 }
 
 // Une compétence iso jouable ce tour (une par bouton) — servie par combatResponse.
@@ -643,6 +652,8 @@ export interface CombatSkill {
   estimates?: Record<string, DamageEstimate>;
   selfCast: boolean; // capacité sur soi (ex. Posture défensive) — pas de cible
   weapon?: boolean; // vient de l'ARME portée et non de la classe (weapons.go)
+  cooldown?: number; // recharge de la capacité, en tours
+  cooldownLeft?: number; // tours restants avant de pouvoir la rejouer (0 = prête)
   cells?: [number, number][]; // cases VISABLES (grille de ciblage, bornes + LOS serveur)
 }
 
@@ -656,6 +667,10 @@ export interface CombatSwap {
 
 export interface CombatCurrent {
   unitId: string;
+  // L'ÉCONOMIE DU TOUR : un déplacement, une action. Le serveur la tenait déjà,
+  // mais ne la disait pas — d'où l'impression de pouvoir rejouer indéfiniment.
+  moved?: boolean;
+  acted?: boolean;
   reachable: [number, number][];
   attackTargets: string[];
   skillTargets: string[];

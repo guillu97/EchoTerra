@@ -6,6 +6,123 @@
 
 ---
 
+## 2026-08-16 (120) — Audit des stats, économie du tour et recharges : le combat cesse de se jouer tout seul
+
+Demande de Guillaume : « auditer les stats et leur apport sur les combats + l'apport des items à ces
+stats. Améliorer les combats : on peut se déplacer puis faire 10 fois la même attaque, il faudrait des
+cooldowns en tours sur les spéciales et 1 attaque par tour, déplacement + une seule action par tour.
+Et revoir l'UI de la partie combat. »
+
+### L'AUDIT — deux statistiques sur six ne faisaient RIEN
+
+Mesuré en greppant chaque champ de `Stats` dans tout le backend :
+
+| Stat | Ce qu'elle faisait AVANT | Verdict |
+|---|---|---|
+| **Force** | dégâts par défaut (`damageWith`) | sain |
+| **Dextérité** | dégâts de 4 capacités (chasseur, arc) | sain |
+| **Agilité** | `Move = 2 + agi/3`, `Initiative = agi*10 + rand` | sain (mais `/3` : +2 d'agilité ne change souvent RIEN au déplacement) |
+| **Endurance** | `−end/2` aux dégâts subis, et PV **à la création seulement** | à moitié morte |
+| **Précision** | statistique de dégâts de **2** capacités sur tout le jeu | quasi morte |
+| **Athlétisme** | **AUCUNE lecture**, nulle part | **MORTE** |
+
+⚠ **Le pire n'est pas qu'Athlétisme soit mort, c'est à QUI on le vend** : `classes.go` donne
+`Athletisme: 5` comme bonus PRINCIPAL à **trois classes sur six** (éclaireur, récupérateur,
+herboriste). Ces trois-là échangeaient donc leur évolution contre +3 agilité, +2 endurance et **cinq
+points de rien**, pendant que le pionnier et le gardien prenaient +5 force. Et la fiche de personnage
+affichait fièrement les six chiffres sans jamais dire à quoi ils servent — le joueur investissait dans
+un mensonge.
+
+⚠ **`EvolveHero` n'a jamais touché aux PV.** `NewStarterHero` pose `hp = 8 + endurance*2`, mais
+l'évolution ajoutait de l'endurance sans rien recalculer : un gardien à 7 d'endurance gardait les
+16 PV de ses 4 points de départ. La moitié « visible » de la statistique ne se produisait jamais.
+
+**Les items** : le catalogue est cohérent avec les stats qu'il vise (une Lame de fer +3 force sur une
+base de 4, c'est +75 % de dégâts — énorme mais assumé), à un accroc près déjà connu : la **Cape de
+plumes** (+2 agilité) ne change le déplacement que si elle fait franchir un multiple de 3. Aucun objet
+ne touche l'Athlétisme, ce qui était au moins cohérent : il n'y avait rien à toucher.
+
+### LE REPROCHE ÉTAIT JUSTE, MAIS PAS POUR LA RAISON QU'ON CROIT
+
+Mesuré avec une sonde jetable : **dix attaques d'affilée acceptées**. Mais le log des rounds dit la
+vérité — `round=2,3,4,5…11`. Une action par tour ÉTAIT tenue (toute action appelait `endTurn`) ; ce
+qu'on voyait, c'est que le tour ennemi se résout instantanément côté serveur et que la barre
+n'affichait AUCUN budget. Taper dix fois sur le même bouton « marchait », donc on en concluait qu'on
+pouvait enchaîner sans limite.
+
+**Le vrai trou est ailleurs, et il est plus grave** : rien ne limitait la RÉPÉTITION de la meilleure
+capacité. Le tour de jeu se résumait à « quelle est la compétence la plus bonifiée ? », question dont
+la réponse ne change jamais. Une Colonne de Vent qui étourdit à **100 %** rejouée chaque tour
+verrouillait un héros jusqu'à sa mort : ce n'est pas un combat, c'est une exécution.
+
+### LIVRÉ
+
+**1. Recharges** (`AttackDef.Cooldown`, `CombatUnit.Cooldowns`, décrémentées au début du tour de
+l'unité — en TOURS, pas en rounds, sinon une unité rapide et une lente ne paient pas le même prix).
+Compétences de classe 2-3 tours, techniques d'arme 2, et **toute spéciale du catalogue de design qui
+n'en déclare pas hérite de 2** (`withCooldowns`) — ça étend la règle aux onze espèces sans ajouter au
+Studio un champ qu'il ne connaît pas. ⚠ L'attaque de base ne se recharge JAMAIS : la recharge pousse à
+composer, elle ne prive jamais d'agir. ⚠ **L'IA joue la même règle** (`readyOnly`) — un cooldown que
+seul le joueur subit n'est pas une règle, c'est un handicap.
+
+**2. Économie du tour** (`CombatUnit.Acted`) : un déplacement, une action, et l'action ne clôt plus le
+tour d'office. Tant qu'il reste le déplacement, on peut **frapper PUIS décrocher** — l'arc et la lance
+n'avaient aucune façon de reculer après leur coup, leur portée ne servait qu'à ouvrir l'échange.
+⚠ Le cas ordinaire ne coûte pas un clic de plus : « j'avance et je tape » ferme le tour exactement
+comme avant (`spendBudget`), et le seul cas où la main reste est celui où on a délibérément agi
+D'ABORD. Test dédié pour chacune des deux moitiés.
+
+**3. Athlétisme = mobilité verticale** (`climbLimit` : 2 niveaux + 1 tous les 4 points, lu par
+`passable`). L'athlète ne frappe pas plus fort, il **arrive là où les autres ne montent pas** — et la
+hauteur donne déjà un bonus de dégâts (`dmgMods`). Ça réutilise une mécanique existante au lieu d'en
+inventer une.
+
+**4. Précision = coup critique** (×1,5, 3 % par point, plafond 40 %). ⚠ **Pas de jet de toucher** :
+rater son tour dans un jeu où l'on joue deux fois par jour est une punition, pas une tension. Le
+critique est **annoncé** (`CritChance` → `critPct`/`critMax` dans la fourchette servie) et servi À CÔTÉ
+de la fourchette ordinaire, jamais fondu dedans — une moyenne pondérée ne dirait ni ce qu'on va
+probablement faire, ni ce qu'on peut espérer.
+
+**5. Endurance → PV à l'évolution** (même barème qu'à la création, les PV courants montent d'autant).
+
+**6. L'UI dit enfin la règle.** Deux **jauges de tour** (🥾 / ⚔️, allumées ou éteintes) dans le rang 1,
+une **phrase d'état** qui dit ce qui RESTE (« Action dépensée — il te reste ton déplacement »), un
+**compte à rebours de recharge** sur chaque bouton de compétence (⏳2 en recharge, ↻2 au repos), les
+boutons d'action éteints une fois l'action dépensée, « Fin » qui s'allume quand c'est le geste probable,
+et la **chance de critique sur la cible** (🎯12 %, plus un liseré doré quand un critique tuerait alors
+que le coup ordinaire non). ⚠ Le raccourci clavier obéit à la recharge comme le bouton — sinon le
+clavier serait un contournement de la règle.
+
+**7. La fiche de personnage EXPLIQUE chaque attribut** (une phrase rendue, pas un `title` : il n'y a
+pas de survol sur un téléphone). Un point qu'on ne peut pas expliquer est un point qu'on ne peut pas
+investir.
+
+### Fonctionnel (vérifié)
+
+- `go test ./...` vert. Neuf tests neufs (`turneconomy_test.go`) : une action par tour et le second
+  refus, frapper-puis-décrocher, avancer-puis-frapper ferme quand même, la recharge démarre, elle
+  S'ÉCOULE (un cooldown de 999 passerait sinon), l'IA la respecte, l'athlétisme ouvre la terrasse, la
+  précision achète un critique plafonné, l'évolution monte les PV.
+- Deux tests existants mis à jour — ils affirmaient l'ancien contrat (« défendre/dégainer termine le
+  tour »), c'est exactement ce qui change.
+- `npm run test:combat-ui` **13/13** (3 checks neufs : les deux jauges, la recharge servie ET affichée,
+  et lancer une compétence en jeu la met bien en recharge — le test APPROCHE désormais l'ennemi, sinon
+  il se sautait en silence faute de cible à portée). `test:map-tap` 8/8, `test:inventory` 11/11.
+- `npx tsc -b` et `npm run build` propres ; fiche de personnage vérifiée à **390 px**, zéro débordement.
+- **Équilibrage inchangé** : `cmd/balance` rend une médiane de **18 vagues à 4 joueurs**, la valeur de
+  référence du CLAUDE.md. Les recharges rendent le combat plus long mais l'IA les subit aussi.
+
+### À faire
+
+- L'agilité reste en escalier (`/3`) : une cape +2 ne change souvent rien au déplacement. À reprendre
+  si on retouche l'équipement.
+- Aucune arme ni aucun équipement ne donne d'Athlétisme ni de Précision — maintenant qu'ils font
+  quelque chose, il y a un axe d'objets à ouvrir (bottes, viseur).
+- Les compétences de CARTE (`mapskills.go`) n'ont pas de recharge : elles se paient en PA, ce qui est
+  déjà une limite. À revoir si le PA cesse d'être rare.
+
+---
+
 ## 2026-08-12 (119) — Animer les biomes : la neige, le ciel et les vire-vents
 
 Demande de Guillaume : « animer les biomes — neige qui tombe (avec nuages cohérents), tumbleweeds

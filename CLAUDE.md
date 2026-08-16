@@ -77,8 +77,9 @@ Verify: `go -C backend test ./...` · `npx tsc -b` (in frontend) · `npm run bui
 servers s'ils tournent, sinon les démarre; Chromium requis: `PERF_BROWSER` ou Chrome installé) ·
 `npm run test:map-tap` (in frontend — **le picking de la carte** : taper un héros ouvre son menu et ne
 le déplace jamais, taper le sol déplace toujours; mêmes prérequis que `test:perf`) ·
-`npm run test:combat-ui` (in frontend — **la barre d'action du combat** : ses trois rangs, l'arme au
-poing, un bouton par compétence servie, les raccourcis clavier; mêmes prérequis) ·
+`npm run test:combat-ui` (in frontend — **la barre d'action du combat** : ses trois rangs, les DEUX
+JAUGES du tour et les recharges, l'arme au poing, un bouton par compétence servie, les raccourcis
+clavier; mêmes prérequis) ·
 `npm run test:reconnect` (in frontend — **la reprise après une absence** : le rattrapage ne se joue pas
 sous les yeux du joueur (une seule cinématique, pas une toutes les 20 s) et une ville tombée rend la
 main au menu; mêmes prérequis) ·
@@ -236,7 +237,8 @@ frontend/src/
   requires[{building, level}]` (arbre techno dérivé, affiché verrouillé 🔒 côté Structure).
 - **Combat**: `id, gameId, tileX, tileY, gridW(7), gridH(7), heights[], units[CombatUnit], order[], turnIdx,
   round, status("active"|"won"|"lost"), log[]`. **CombatUnit**: `id,name,side("hero"|"monster"),refId,kind,
-  x,y,hp,maxHp,stats,states[],move,moved,initiative`.
+  x,y,hp,maxHp,stats,states[],move,moved,acted,cooldowns{},initiative` (`moved`/`acted` = les deux
+  budgets du tour ; `cooldowns` = capacité -> tours restants avant de la rejouer).
 - **Recipe**: `id, name, category(conso|potion|forge|deco), building(kitchen|workshop), buildingLevel,
   outputType, outputName?, outputQty?(Planche/Brique ×2), field(bool=craftable outside town), paCost,
   ingredients[Item], effects` — **26 recettes** (transformations, armes/équipements mythiques, cuisine,
@@ -255,7 +257,8 @@ frontend/src/
   combat de la classe (une par bouton) — pionnier [Frappe de la mort qui tue +5, Coup de bouclier Stun],
   chasseur [Tir de zone en croix, Flèche perçante portée 3], gardien [Posture défensive Bouclier, Provocation
   Root], éclaireur/récupérateur/herboriste 1 skill, sans classe [Frappe puissante]. `combatResponse` sert
-  `current.skills[{idx, skill, targets, estimates, selfCast}]` ; l'action combat porte `skillIdx`.
+  `current.skills[{idx, skill, targets, estimates, selfCast, cooldown, cooldownLeft}]` plus les deux
+  budgets du tour (`current.moved` / `current.acted`) ; l'action combat porte `skillIdx`.
 
 `Recompute()` (called in `persist()` and on load `tick()`) refreshes derived fields: `town.defense`,
 per-building `defense`, per-building `cost`, `bank.capacity = sum(storage qty)`, and hero `Tétanisé`.
@@ -498,8 +501,50 @@ SUPPRIMÉS.)
   (Escape). Tests exhaustifs : `tetanise_test.go`.
 - **Caché**: from **Hide** (1 PA) — the hero is skipped by the next wave's attack, then concealment is consumed.
 
+**LES STATISTIQUES ET CE QU'ELLES FONT** (`combat.go`, audit 2026-08-16) — **Force** dégâts par
+défaut · **Dextérité** dégâts des tirs et des capacités à distance · **Agilité** `Move = 2+agi/3` et
+`Initiative = agi*10+rand` · **Endurance** `−end/2` aux dégâts subis ET les PV (`8+end*2` à la
+création, `+2` par point gagné à l'ÉVOLUTION — `EvolveHero` ne les recalculait pas, un gardien à 7
+d'endurance gardait les 16 PV de ses 4 points de départ) · **Précision** la chance de COUP CRITIQUE
+(`critPct` : ×1,5 dégâts, 3 %/point, plafond 40 %) · **Athlétisme** la HAUTEUR FRANCHISSABLE
+(`climbLimit` : 2 niveaux + 1 tous les 4 points, lu par `passable`). ⚠ **les deux dernières ne
+faisaient RIEN** avant cet audit : Athlétisme n'était lu par aucune ligne de code, Précision ne portait
+les dégâts que de DEUX capacités sur tout le jeu — alors que `classes.go` donne `Athletisme: 5` comme
+bonus PRINCIPAL à trois classes sur six (éclaireur, récupérateur, herboriste), qui échangeaient donc
+leur évolution contre cinq points de rien. ⚠ **pas de jet de toucher, et il ne faut pas en ajouter** :
+rater son tour dans un jeu qu'on joue deux fois par jour est une punition, pas une tension — d'où le
+critique, qui est une pointe de dégâts ANNONCÉE (`CritChance` → `critPct`/`critMax` servis à côté de la
+fourchette, jamais fondus dedans). ⚠ l'agilité reste en ESCALIER (`/3`) : une Cape de plumes (+2) ne
+change le déplacement que si elle fait franchir un multiple de 3. La fiche de personnage
+(`HeroOverlay`) RÉPÈTE ces phrases sous chaque attribut — pas dans un `title`, il n'y a pas de survol
+sur un téléphone. Tests : `turneconomy_test.go`.
+
+**L'ÉCONOMIE DU TOUR — un déplacement, une action, et des RECHARGES** (`combat.go`, 2026-08-16) —
+« on peut se déplacer puis faire dix fois la même attaque » (retour utilisateur). Mesuré : dix attaques
+d'affilée acceptées, mais aux rounds 2·3·4…11 — une action par tour ÉTAIT tenue (toute action appelait
+`endTurn`), sauf que le tour ennemi se résout instantanément et que la barre n'affichait AUCUN budget,
+donc taper dix fois « marchait ». **Le vrai trou est la RÉPÉTITION de la meilleure capacité** : le tour
+de jeu se résumait à « quelle est la compétence la plus bonifiée ? », question dont la réponse ne
+change jamais (et une Colonne de Vent qui étourdit à 100 % rejouée chaque tour n'est pas un combat,
+c'est une exécution). Trois pièces :
+- **`AttackDef.Cooldown` + `CombatUnit.Cooldowns`** — décrémentées au début du tour de l'UNITÉ
+  (`tickCooldowns` dans `advanceTurn`), en tours et pas en rounds : sinon une unité rapide et une lente
+  ne paieraient pas le même prix. Classe 2-3, technique d'arme 2, et **toute spéciale du catalogue de
+  design qui n'en déclare pas hérite de `defaultSpecialCooldown` 2** (`withCooldowns`, qui COPIE —
+  `Species` est un global). ⚠ **l'attaque de base ne se recharge jamais** (la recharge pousse à
+  composer, elle ne prive pas d'agir) et ⚠ **l'IA joue la même règle** (`readyOnly`, `heroAutoAct`) —
+  un cooldown que seul le joueur subit n'est pas une règle, c'est un handicap.
+- **`CombatUnit.Acted`** — l'action ne clôt PLUS le tour d'office : tant qu'il reste le déplacement, on
+  peut **frapper puis décrocher** (l'arc et la lance n'avaient aucune façon de reculer après leur coup).
+  `spendBudget` ferme le tour dès que les deux budgets sont dépensés, donc « j'avance et je tape » ne
+  coûte pas un clic de plus qu'avant.
+- **L'interface DIT la règle** (`CombatControls`) : deux jauges 🥾/⚔️ allumées-éteintes, une phrase qui
+  dit ce qui RESTE, ⏳N sur une compétence en recharge (↻N au repos), boutons d'action éteints une fois
+  l'action dépensée, 🎯N % de critique sur la cible. ⚠ le raccourci clavier obéit à la recharge comme le
+  bouton. Garde-fou : `npm run test:combat-ui`.
+
 **Isometric combat** (`combat.go` / `CombatScene.ts`) — initiative by agility; each turn a unit moves once
-(`moved` flag) then acts. **Les attaques sont des `AttackDef` du design** : grille de ciblage VERTE relative à
+(`moved` flag) and acts once (`acted` flag, voir l'économie du tour ci-dessus). **Les attaques sont des `AttackDef` du design** : grille de ciblage VERTE relative à
 l'attaquant + zone de dégâts ROUGE autour de la case touchée (toujours incluse), effets structurés — dégâts
 par stat (force/dext/précision, diviseur), % Stun, **Root** (consommé au début du tour de la victime : pas de
 déplacement ce tour), Absorbe (soigne la moitié), **Bouclier** (-50% subis jusqu'au prochain tour), buff

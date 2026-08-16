@@ -47,31 +47,31 @@ func weaponTechnique(arch string) (AttackDef, bool) {
 		return AttackDef{
 			Name: "Fauchage", Kind: "special",
 			Desc:    "Large moulinet : frappe la case visée et ses quatre voisines.",
-			Targets: orthCells(), Damage: orthCells(), DmgStat: "force",
+			Targets: orthCells(), Damage: orthCells(), DmgStat: "force", Cooldown: 2,
 		}, true
 	case ArchDagger:
 		return AttackDef{
 			Name: "Coup bas", Kind: "special",
 			Desc:    "Frappe sournoise : 30 % d'étourdir la cible.",
-			Targets: orthCells(), DmgStat: "force", Bonus: 1, StunPct: 30,
+			Targets: orthCells(), DmgStat: "force", Bonus: 1, StunPct: 30, Cooldown: 2,
 		}, true
 	case ArchSpear:
 		return AttackDef{
 			Name: "Estoc", Kind: "special",
 			Desc:    "Botte longue (portée 2) qui repousse la cible d'une case.",
-			Targets: manhattanCells(1, 2), DmgStat: "force", Bonus: 2, Push: true,
+			Targets: manhattanCells(1, 2), DmgStat: "force", Bonus: 2, Push: true, Cooldown: 2,
 		}, true
 	case ArchBow:
 		return AttackDef{
 			Name: "Tir en cloche", Kind: "special",
 			Desc:    "Flèche en cloche (portée 2 à 4) : passe par-dessus les abris. Inutilisable au contact.",
-			Targets: manhattanCells(2, 4), DmgStat: "dexterite", Bonus: 1, IgnoreCover: true,
+			Targets: manhattanCells(2, 4), DmgStat: "dexterite", Bonus: 1, IgnoreCover: true, Cooldown: 2,
 		}, true
 	case ArchStaff:
 		return AttackDef{
 			Name: "Balayage", Kind: "special",
 			Desc:    "Coup circulaire qui fauche les jambes (Root).",
-			Targets: orthCells(), DmgStat: "precision", Bonus: 1, Root: true,
+			Targets: orthCells(), DmgStat: "precision", Bonus: 1, Root: true, Cooldown: 2,
 		}, true
 	}
 	return AttackDef{}, false
@@ -143,7 +143,8 @@ func (c *Combat) SwapWeapon(g *GameState, unitID, itemName string) error {
 	} else {
 		c.logf("%s dégaine %s.", cur.Name, itemName)
 	}
-	c.endTurn()
+	cur.Acted = true // dégainer EST l'action du tour (combat.go, économie du tour)
+	c.spendBudget(cur)
 	return nil
 }
 

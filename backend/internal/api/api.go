@@ -1709,6 +1709,11 @@ func combatResponse(gs *game.GameState, c *game.Combat) map[string]any {
 					"estimates": estimatesOf(c, cur, &s, tgts),
 					"selfCast":  s.SelfShield || s.BuffAllies,
 					"weapon":    i == techIdx,
+					// LA RECHARGE (combat.go) : tours restants avant de pouvoir la
+					// rejouer. Le bouton s'éteint et porte le compte — sans cette
+					// donnée le client proposerait une action que le serveur refuse.
+					"cooldown":     s.Cooldown,
+					"cooldownLeft": cur.CooldownLeftOf(&s),
 					// Les cases VISABLES de cette capacité : le client les peint au
 					// sol quand elle est armée (la portée se lit, elle ne se devine
 					// plus dans une liste de cibles).
@@ -1716,7 +1721,13 @@ func combatResponse(gs *game.GameState, c *game.Combat) map[string]any {
 				})
 			}
 			resp["current"] = map[string]any{
-				"unitId":        cur.ID,
+				"unitId": cur.ID,
+				// L'ÉCONOMIE DU TOUR, servie explicitement : un déplacement et une
+				// action. Elle était tenue par le serveur sans être dite nulle part,
+				// d'où l'impression de pouvoir rejouer indéfiniment — la barre de
+				// combat en fait deux jauges.
+				"moved":         cur.Moved,
+				"acted":         cur.Acted,
 				"reachable":     reach,
 				"attackTargets": idsOf(atkTargets),
 				"skillTargets":  idsOf(skTargets),
@@ -1807,6 +1818,12 @@ func estimatesOf(c *game.Combat, att *game.CombatUnit, atk *game.AttackDef, targ
 			e["rear"] = 1
 		} else if cover {
 			e["cover"] = 1
+		}
+		// LA PRÉCISION rendue visible : chance de critique et dégâts d'un critique.
+		// Servie À CÔTÉ de la fourchette et non fondue dedans — une moyenne ne dirait
+		// ni ce qu'on va probablement faire, ni ce qu'on peut espérer.
+		if pct, cmax := c.CritChance(att, t, atk); pct > 0 {
+			e["critPct"], e["critMax"] = pct, cmax
 		}
 		out[t.ID] = e
 	}

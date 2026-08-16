@@ -23,6 +23,11 @@ func TestDefendGrantsShieldAndEndsTurn(t *testing.T) {
 	_, c, hu, mu := c3Combat(t)
 	mu.X, mu.Y = 0, 0 // loin : l'IA ne tuera pas le héros pendant son tour
 	round0 := c.Round
+	// ⚠ Le tour porte DEUX budgets depuis l'économie du tour (combat.go) : un
+	// déplacement et une action. Se mettre en garde dépense l'action ; le tour ne
+	// se ferme que quand le déplacement l'est aussi — d'où ce pas préalable, qui
+	// remet le test dans le cas qu'il veut vraiment décrire (« le tour passe »).
+	hu.Moved = true
 	if err := c.PlayerAction(hu.ID, "defend", 0, 0, ""); err != nil {
 		t.Fatalf("defend: %v", err)
 	}
