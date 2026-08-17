@@ -611,6 +611,22 @@ export function buildTownLayout(): TownLayout {
   const decor: TownDecor[] = [];
   const heroSlots: { x: number; y: number; lvl: number }[] = [];
   const DECOR = ["tree-green", "bush-dense", "flowers", "grass-tuft", "daisy", "fern"];
+  // ⚠ PLAFOND DE HAUTEUR PAR PROP, en tuiles. La ville met ses props à l'échelle par
+  // leur EMPRISE AU SOL (`fitScale`) : une fleur, une pâquerette ou une touffe d'herbe
+  // n'occupe presque rien dans sa grille, donc le facteur explose et sa hauteur va
+  // taper le plafond par défaut (emprise × 1,6). Mesuré avant correctif : une
+  // pâquerette de **1,36 tuile de haut, soit 3,85 m** — dix fois sa taille sur la
+  // carte du monde (0,10 tuile), et plus haute qu'un héros (0,6). Le plafond par
+  // défaut est un multiple de l'emprise ; la végétation en veut un ABSOLU.
+  // (cf. `npm run test:proportions`, qui mesure les deux vues avec le même repère.)
+  const DECOR_HMAX: Record<string, number> = {
+    "tree-green": 3.2, // le seul qui domine : c'est l'arbre du bourg
+    "bush-dense": 0.5, // ~1,4 m
+    fern: 0.3,
+    flowers: 0.2,
+    "grass-tuft": 0.2,
+    daisy: 0.17, // ~0,5 m — deux fois sa taille sur la carte, la ville se voit de plus près
+  };
   const CLUTTER = ["street-cart", "street-stall", "street-furniture"];
   const occupied = new Set<string>();
   for (const h of houses) occupied.add(`${Math.round(h.x)},${Math.round(h.y)}`);
@@ -634,7 +650,13 @@ export function buildTownLayout(): TownLayout {
       if (rad > RAMPART) {
         if (h % 100 < 26) {
           const prop = h % 3 === 0 ? "tree-green" : "grass-tuft";
-          decor.push({ x, y, prop, scale: prop === "tree-green" ? 1.4 : 0.9, hmax: prop === "tree-green" ? 3.4 : undefined, gy: groundAt(x, y) });
+          // ⚠ MÊME PLAFOND QUE LA VÉGÉTATION DE L'ENCEINTE (DECOR_HMAX) : sans lui
+          // l'herbe de la plaine repartait au plafond par défaut (emprise × 1,6),
+          // mesurée à 0,81 tuile = 2,30 m de haut — de l'herbe à hauteur d'homme.
+          decor.push({
+            x, y, prop, scale: prop === "tree-green" ? 1.4 : 0.9,
+            hmax: prop === "tree-green" ? 3.4 : DECOR_HMAX[prop], gy: groundAt(x, y),
+          });
         }
         continue;
       }
@@ -662,7 +684,7 @@ export function buildTownLayout(): TownLayout {
       if (h % 100 < 46) {
         const prop = DECOR[(h >>> 3) % DECOR.length];
         const big = prop === "tree-green";
-        decor.push({ x, y, prop, scale: big ? 1.3 : 0.85, hmax: big ? 3.2 : undefined, gy: groundAt(x, y) });
+        decor.push({ x, y, prop, scale: big ? 1.3 : 0.85, hmax: DECOR_HMAX[prop], gy: groundAt(x, y) });
       } else {
         heroSlots.push({ x, y, lvl: groundAt(x, y) });
       }

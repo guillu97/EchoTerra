@@ -189,7 +189,7 @@ const twSize = await page.evaluate(() => {
 });
 check(
   "désertique : un vire-vent reste plus petit qu'un héros (0,6)",
-  twSize.n > 0 && twSize.hi <= 0.45 && twSize.lo >= 0.15,
+  twSize.n > 0 && twSize.hi <= 0.32 && twSize.lo >= 0.15,
   `${twSize.lo.toFixed(2)}–${twSize.hi.toFixed(2)} tuile de large sur ${twSize.n} boules`,
 );
 

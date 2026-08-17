@@ -19,7 +19,8 @@
     "test:wave-chip": "node tests/wave-chip.mjs",
     "test:structures": "node tests/structures.mjs",
     "test:mythic": "node tests/mythic.mjs",
-    "test:camera": "node tests/camera-bounds.mjs"
+    "test:camera": "node tests/camera-bounds.mjs",
+    "test:proportions": "node tests/proportions.mjs"
   },
   "dependencies": {
     "react": "^18.3.1",

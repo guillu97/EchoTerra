@@ -239,12 +239,16 @@ const TW_RADIUS = 13 / 30; // hauteur du CENTRE dans le modèle (cf. gen-props.m
  * donc jusqu'à 0,77 tuile de large et 0,65 de haut, soit **la taille d'un héros**
  * (`HERO_HEIGHT` 0,6) et près du DOUBLE de la largeur d'un cactus (0,44) : la chose
  * la plus large du désert après le vieil arbre-repère (rapporté en jeu).
- * Un vire-vent réel monte à la cuisse : 0,30-0,44 rend 0,27-0,40 tuile de large et
- * 0,23-0,34 de haut, soit 38-57 % de la hauteur d'un héros — une boule qu'on voit
- * rouler sans qu'elle domine le paysage. Plancher assumé : plus petit, à la
- * distance de jeu, il ne se lirait plus (« c'est du décor, il doit se voir »).
+ * Un vire-vent monte au GENOU : 0,22-0,32 rend 0,20-0,29 tuile de large et 0,17-0,25
+ * de haut, soit 0,55-0,70 m au repère du jeu (un héros = 0,6 tuile ≈ 1,7 m) et
+ * 28-41 % de sa hauteur. Un premier correctif s'était arrêté à 0,30-0,44, ce qui
+ * laissait la boule à **1,04 m** — plus grosse qu'un rocher (0,58 m) et dans la même
+ * classe qu'un buisson (1,34 m) : encore trop pour une chose qui roule (rapporté deux
+ * fois en jeu, et confirmé par `npm run test:proportions`).
+ * Plancher assumé : plus petit, à la distance de jeu, il ne se lirait plus (« c'est
+ * du décor, il doit se voir »).
  */
-const TW_SCALE: [number, number] = [0.3, 0.44];
+const TW_SCALE: [number, number] = [0.22, 0.32];
 
 function makeTumbleweeds(lib: BlockLibrary, o: WeatherOpts): Weather | null {
   // ⚠ MÊME LEÇON QUE LA NEIGE : le couloir SUIT LE REGARD. Semés sur la carte, il
@@ -268,6 +272,7 @@ function makeTumbleweeds(lib: BlockLibrary, o: WeatherOpts): Weather | null {
     if (!geom) continue;
     const scale = TW_SCALE[0] + h01(i, o.seed + 21) * (TW_SCALE[1] - TW_SCALE[0]);
     const mesh = unpickable(new THREE.Mesh(geom, TW_MAT));
+    mesh.name = "tumbleweed"; // scène AUDITABLE (cf. tests/proportions.mjs)
     mesh.position.y = -TW_RADIUS * scale; // le centre de la boule remonte sur le pivot
     mesh.scale.setScalar(scale);
     mesh.castShadow = true;

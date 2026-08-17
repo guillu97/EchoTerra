@@ -6,6 +6,78 @@
 
 ---
 
+## 2026-08-17 (129) — L'audit des proportions : onze assets faux, dont une pâquerette de 3,85 m
+
+Guillaume, après le rapetissement des vire-vents : « c'est trop gros non ? Est-ce qu'il ne faudrait pas
+faire une passe sur tous les assets pour vérifier les proportions ? » — oui, et il fallait un
+INSTRUMENT, parce que c'était la troisième fois que « c'est trop gros » arrivait du jeu (le saguaro, le
+vire-vent, ça).
+
+### L'outil (`npm run test:proportions`)
+
+Le repère est le **HÉROS** : `CharLibrary` normalise tout personnage à `HERO_HEIGHT` 0,6 unité, donc
+un héros mesure exactement 0,6 tuile. S'il représente un humain d'≈1,7 m, **1 tuile ≈ 2,83 m** — et
+chaque objet se discute alors en mètres au lieu de « à l'œil sur une capture ».
+
+⚠ **On mesure la SCÈNE, pas les tables.** La taille à l'écran est le produit du remplissage du modèle
+dans sa grille × l'échelle de pose × les coups de pouce (`TREE_IDS` ×1,6, `fitScale` de la ville,
+échelle par espèce). L'outil parcourt les trois vues et lit les **matrices d'instance** ; les vues
+posent désormais un `mesh.name` / `rig.root.name` sur ce qu'elles instancient — une scène anonyme n'est
+pas auditable. Sortie : `asset-index/PROPORTIONS.md`, 50 assets, trié par hauteur.
+
+### Ce qu'il a trouvé (11 sur 50), invisible en lisant le code
+
+| ce qui était faux | mesuré | après |
+|---|---|---|
+| pâquerette **en ville** | 1,36 tuile = **3,85 m** (plus haute qu'un héros) | 0,17 = 0,48 m |
+| herbe / fleurs en ville | 1,13–1,17 = 3,2–3,3 m | 0,20–0,25 |
+| olivier, arbre givré | 1,12 m et 0,95 m — des « arbres » plus bas qu'un héros | 2,68 m et 2,89 m |
+| arbre mort | 1,49 m | 2,53 m |
+| arche en ruine | **0,99 m** — personne ne passe dessous | 2,48 m |
+| colonne brisée | 0,80 m | 2,01 m |
+| pic de glace, buisson givré | 0,41 m et 0,30 m | 1,06 m et 0,44 m |
+| vire-vent | 1,04 m (plus gros qu'un rocher, cf. entrée 128) | 0,75 m |
+
+**Trois causes, chacune systémique :**
+1. **La ville met ses props à l'échelle par leur EMPRISE AU SOL** (`fitScale`). Une fleur n'occupe
+   presque rien dans sa grille → le facteur explose et la hauteur va taper le plafond par défaut
+   (`emprise × 1,6`). Le plafond doit être ABSOLU pour la végétation : `DECOR_HMAX`. Conséquence
+   directe : le MÊME asset était dix fois plus grand en ville que sur la carte.
+2. **`TREE_IDS` (le ×1,6 des arbres) ne contenait ni `frost-tree` ni `olive`**, qui sont des arbres.
+3. **Les trois types de ruine partageaient UNE échelle** alors qu'une arche est haute et une dalle
+   plate → `RUIN_SCALE` par type.
+
+⚠ **Trois lignes ont été corrigées côté INTENTION et pas côté asset**, et il faut le dire : `frost-tree`
+et `olive` sont de PETITS arbres (ma fourchette de 4 m visait une futaie), `ice-spike` un pic et non un
+menhir, et la `firefly` est une LUMIÈRE (son halo doit se voir). Elles ont quand même grandi ×2,5 à ×3.
+
+⚠ **Le verdict se juge sur le plus GRAND exemplaire.** Le scatter tire une échelle par pied : juger
+« trop petit » sur le minimum flagge la VARIÉTÉ — un premier jet mettait ainsi le sapin et l'arbre vert
+au piquet alors que leurs adultes sont pile à la bonne taille.
+
+### Fonctionnel (vérifié)
+
+- `npm run test:proportions` : **0 hors fourchette sur 50** (11 avant), rapport écrit.
+- `test:weather` **19/19** (dont la taille du vire-vent, et la visibilité inchangée : 1,96 boule à
+  l'écran) — le flake « on-demand » des entrées 127-128 est repassé au vert de lui-même, confirmant
+  qu'il ne venait pas de ces lots. `test:perf` 13/13, `test:map-tap` 8/8, `test:camera` 7/7, `tsc`
+  propre.
+- Vérifié à l'œil sur capture pour les trois thèmes + la ville : la végétation de ville est redevenue
+  du couvre-sol, les ruines se lisent comme des ruines, les arbres du nord et du désert dominent
+  enfin un héros.
+
+### À faire
+
+- **Les monstres ne sont pas audités contre une intention** : ils sont listés (limace 0,61 m, gobelin
+  1,28 m, élémentaire 1,72 m) mais `MONSTER_SCALE` n'a pas de fourchette attendue — c'est du game
+  design (un boss à ×1,8) autant que de l'art.
+- **Un héros mesure 0,6 tuile sur la carte et 0,94 en ville** (×1,57, « ~taille de l'ancien
+  billboard ») : c'est délibéré mais ça reste deux échelles pour le même personnage.
+- Les bâtiments de ville n'ont pas de fourchette (leur emprise est un choix de plan, pas une taille
+  réelle) ; `house2` sort à 10,4 m au faîte, ce qui est haut pour une maison de bourg.
+
+---
+
 ## 2026-08-17 (128) — Les vire-vents faisaient la taille d'un héros
 
 Retour de Guillaume sur capture : « les tumbleweeds sont trop gros je pense ». Il avait raison, et le

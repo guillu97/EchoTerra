@@ -103,7 +103,11 @@ function snowTexture(): THREE.CanvasTexture {
 // saguaro sortait à 1,67 tuile de haut — PLUS GRAND QU'UN SAPIN (1,36) et aussi
 // large que lui. Trois corrections empilées pour un seul problème ; on n'en garde
 // qu'une, celle qui est dans le modèle.
-const TREE_IDS = new Set(["tree-green", "tree-pink", "pine", "pine-snow", "dead-tree", "palm"]);
+// ⚠ `frost-tree` et `olive` en font partie depuis l'audit des proportions
+// (2026-08-17) : ce SONT des arbres, et privés du coup de pouce ils sortaient à 0,95
+// et 1,12 m — plus bas qu'un héros (1,7 m) pendant qu'un sapin montait à 5,8 m. Le
+// boost sert exactement à ça : qu'un arbre domine un personnage.
+const TREE_IDS = new Set(["tree-green", "tree-pink", "pine", "pine-snow", "dead-tree", "palm", "frost-tree", "olive"]);
 // Échelle relative des monstres par apparence (× la taille de base d'un perso) :
 // une limace est petite, un élémentaire/loup imposant, un boss massif.
 const MONSTER_SCALE: Record<string, number> = {
@@ -381,6 +385,11 @@ class MapWorld {
       // (Basic) et posés sur le calque bloom pour RAYONNER en mode beauté.
       const glowing = GLOW_PROPS.some((g) => key.startsWith(g));
       const mesh = new THREE.InstancedMesh(geom, glowing ? GLOW_MAT : PROP_MAT, mats.length);
+      // La clé du modèle voyage avec le mesh : c'est ce qui rend la scène
+      // AUDITABLE (tests/proportions.mjs mesure la taille RÉELLE de chaque asset
+      // en tuiles, échelles appliquées comprises — une taille à l'écran est un
+      // produit de facteurs, elle ne se relit pas dans les tables de scatter).
+      mesh.name = key;
       for (let i = 0; i < mats.length; i++) mesh.setMatrixAt(i, mats[i]);
       mesh.instanceMatrix.needsUpdate = true;
       mesh.castShadow = !glowing;
@@ -917,6 +926,7 @@ class MapWorld {
       const rig = tex ? this.chars.makeRig(tex) : undefined;
       const mScale = bossAppearance(m.species) ? 1.8 : MONSTER_SCALE[tex ?? ""] ?? 1;
       if (rig) {
+        rig.root.name = tex ?? ""; // scène AUDITABLE (cf. tests/proportions.mjs)
         rig.root.scale.multiplyScalar(mScale); // taille par espèce (limace ≪ boss)
         rig.root.position.set(m.x, top, m.y);
         rig.root.rotation.y = engine.azimuthNow;
@@ -969,6 +979,7 @@ class MapWorld {
       const tag: PickTag = mine ? { x: h.x, y: h.y, heroId: h.id } : { x: h.x, y: h.y };
       const mesh = this.chars.makeRig(heroKey(h.class));
       if (mesh) {
+        mesh.root.name = heroKey(h.class); // scène AUDITABLE (cf. tests/proportions.mjs)
         const by = topOf(h.x, h.y);
         mesh.root.position.set(h.x + ox, by, h.y + oy);
         mesh.root.rotation.y = engine.azimuthNow;

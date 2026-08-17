@@ -107,7 +107,11 @@ sur du balisage statique) ·
 vraiment au serveur; mêmes prérequis) ·
 `npm run test:camera` (in frontend — **les bornes de la caméra** : le bourg reste à l'écran après un
 pan à fond, la cible ne quitte ni le tertre ni le damier, et un TÉMOIN sans bornes qui perd le bourg
-prouve que le test mord; mêmes prérequis).
+prouve que le test mord; mêmes prérequis) ·
+`npm run test:proportions` (in frontend — **L'AUDIT DES PROPORTIONS** : la taille RÉELLE de chaque
+asset dans la scène rendue, en tuiles, comparée au repère HÉROS ; écrit
+`asset-index/PROPORTIONS.md` et liste ce qui sort de la fourchette attendue — voir §7a-bis « UNE
+TAILLE SE MESURE »; mêmes prérequis).
 
 **Déploiement Vercel (gratuit)** — voir `DEPLOY.md`. Preset **Services** (`vercel.json`) : service
 `frontend` (root `frontend/`, Vite, statique CDN) + service `backend` (root `backend/`, le preset Go
@@ -1807,6 +1811,29 @@ résultat bascule dans le VIOLET — mesuré, un chaume « lin » [226,220,200] 
 [197,169,232]. Les toits qui marchent sont à chroma ≥ ~40. Un blanc pur reste possible en petite
 touche via `g.box` direct, qui ne passe pas par `shade`. Au passage `sharp` n'est plus importé qu'à
 la demande (il ne sert qu'aux aperçus PNG ; son absence faisait échouer toute la génération).
+
+**UNE TAILLE SE MESURE — l'audit des proportions** (`frontend/tests/proportions.mjs` →
+`asset-index/PROPORTIONS.md`, 2026-08-17) — troisième fois que « c'est trop gros » arrive du jeu (le
+saguaro plus grand qu'un sapin, le vire-vent à la taille d'un héros, et l'audit qui a suivi), donc
+l'outil existe. ⚠ **LE REPÈRE EST LE HÉROS** : `CharLibrary` normalise chaque personnage à
+`HERO_HEIGHT` 0,6 unité, donc un héros mesure exactement 0,6 tuile ; s'il représente un humain d'≈1,7 m,
+**1 tuile ≈ 2,83 m** et tout objet se discute en mètres. ⚠ **on mesure la SCÈNE, pas les tables** :
+la taille à l'écran est le produit du remplissage du modèle dans sa grille × l'échelle de pose ×
+les coups de pouce (`TREE_IDS` ×1,6, `fitScale` de la ville, échelle par espèce des monstres) — aucun
+des facteurs ne se lit dans le fichier de l'autre. L'outil parcourt les trois vues et lit les
+**matrices d'instance** ; c'est pour ça que les vues posent un `mesh.name` / `rig.root.name` sur ce
+qu'elles instancient (une scène anonyme n'est pas auditable). Ce que la première passe a trouvé, et qui
+était invisible en lisant le code : une **pâquerette de 3,85 m** en ville (la végétation y est mise à
+l'échelle par son EMPRISE AU SOL, or une fleur n'occupe presque rien dans sa grille → le facteur
+explose et la hauteur va taper le plafond par défaut `emprise × 1,6` ; d'où `DECOR_HMAX`, un plafond
+ABSOLU par prop), le **même asset dix fois plus grand en ville que sur la carte**, des **arbres plus
+bas qu'un héros** (frost-tree 0,95 m, olive 1,12 m — ils n'étaient pas dans `TREE_IDS`) et une **arche
+en ruine de 0,99 m** sous laquelle personne ne peut passer (les trois types de ruine partageaient une
+échelle unique alors qu'une arche est haute et une dalle plate → `RUIN_SCALE`). ⚠ la fourchette
+attendue (`EXPECTED`) est un choix d'ART DIRECTION, pas une vérité : quand une ligne sort, c'est
+l'occasion de décider si c'est l'asset ou l'intention qui est fausse — et le VERDICT se juge sur le
+plus GRAND exemplaire, jamais sur le plus petit (le scatter tire une échelle par pied, donc juger sur
+le minimum flagge la variété : un premier jet mettait ainsi le sapin au piquet).
 
 **Détails du monde** (`WORLD-DETAILS-PLAN.md`, lots D1+D2 faits
 2026-07-18) : 37 props ×3 variantes (`scripts/voxel/gen-props.mjs` → `voxels/props/`) et
