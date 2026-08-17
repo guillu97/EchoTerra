@@ -262,6 +262,7 @@ export function VoxelTownView({
           : propsLib.get("bld-chantier", 0);
         if (!geom) continue;
         const mesh = new THREE.Mesh(geom, BLD_MAT);
+        mesh.name = pl.bid; // scène AUDITABLE (cf. tests/proportions.mjs)
         mesh.castShadow = mesh.receiveShadow = true;
         mesh.position.set(pl.x, groundUnder(pl.x, pl.y, pl.bid === "wall" ? 0 : pl.cells), pl.y);
         mesh.scale.setScalar(fitScale(geom, pl.cells));
@@ -375,6 +376,7 @@ export function VoxelTownView({
         const gpos = grass[idx];
         const rig = chars.makeRig(heroTexKey(h.class));
         if (rig) {
+          rig.root.name = heroTexKey(h.class); // scène AUDITABLE (cf. tests/proportions.mjs)
           rig.root.scale.multiplyScalar(1.8); // ~taille de l'ancien billboard
           rig.root.position.set(gpos.x, groundUnder(gpos.x, gpos.y), gpos.y);
           heroGroup.add(rig.root);
@@ -480,6 +482,7 @@ export function VoxelTownView({
         const geom = propsLib.get(h.prop, h.variant);
         if (!geom) continue;
         const m = new THREE.Mesh(geom, BLD_MAT);
+        m.name = h.prop; // scène AUDITABLE (cf. tests/proportions.mjs)
         m.castShadow = m.receiveShadow = true;
         m.position.set(h.x, groundUnder(h.x, h.y, h.cells), h.y);
         m.scale.setScalar(fitScale(geom, h.cells, h.cells * 1.5));
@@ -490,6 +493,7 @@ export function VoxelTownView({
         const geom = propsLib.get(d.prop, d.variant ?? (d.x + d.y) % 3);
         if (!geom) continue;
         const m = new THREE.Mesh(geom, BLD_MAT);
+        m.name = d.prop; // scène AUDITABLE (cf. tests/proportions.mjs)
         m.castShadow = m.receiveShadow = true;
         m.position.set(d.x, groundUnder(d.x, d.y, d.scale), d.y);
         m.scale.setScalar(fitScale(geom, d.scale, d.hmax ?? d.scale * 1.6));

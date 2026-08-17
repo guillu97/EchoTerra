@@ -72,6 +72,7 @@ export function makeClouds(
     const geom = lib.get("cloud", i % 3);
     if (!geom) continue;
     const mesh = new THREE.Mesh(geom, CLOUD_MAT);
+    mesh.name = "cloud"; // scène AUDITABLE (cf. tests/proportions.mjs)
     mesh.castShadow = false; // l'ombre est la tache factice, pas la passe soleil
     const a = wind + (h01(i, opts.seed + 2) - 0.5) * 0.32; // ±9° par nuage
     let blob: THREE.Mesh | null = null;

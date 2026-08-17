@@ -230,7 +230,25 @@ function windOf(seed: number): number {
 // on le décale de son rayon vers le bas dans un pivot : le pivot est le centre de
 // la boule, et la rotation ne la fait ni flotter ni s'enfoncer.
 const TW_MAT = signacify(new THREE.MeshLambertMaterial({ vertexColors: true }));
-const TW_RADIUS = 13 / 30; // rayon du modèle en unités monde (cf. gen-props.mjs)
+const TW_RADIUS = 13 / 30; // hauteur du CENTRE dans le modèle (cf. gen-props.mjs)
+/**
+ * Échelle de pose. ⚠ MESURÉE EN TUILES, jamais réglée à l'œil (la règle des props :
+ * une taille à l'écran est le produit du remplissage du modèle dans sa grille et de
+ * cette échelle). Le modèle fait **0,90 tuile de large pour 0,77 de haut** à
+ * l'échelle 1 : à 0,50-0,85 — les valeurs du premier jet — un vire-vent faisait
+ * donc jusqu'à 0,77 tuile de large et 0,65 de haut, soit **la taille d'un héros**
+ * (`HERO_HEIGHT` 0,6) et près du DOUBLE de la largeur d'un cactus (0,44) : la chose
+ * la plus large du désert après le vieil arbre-repère (rapporté en jeu).
+ * Un vire-vent monte au GENOU : 0,22-0,32 rend 0,20-0,29 tuile de large et 0,17-0,25
+ * de haut, soit 0,55-0,70 m au repère du jeu (un héros = 0,6 tuile ≈ 1,7 m) et
+ * 28-41 % de sa hauteur. Un premier correctif s'était arrêté à 0,30-0,44, ce qui
+ * laissait la boule à **1,04 m** — plus grosse qu'un rocher (0,58 m) et dans la même
+ * classe qu'un buisson (1,34 m) : encore trop pour une chose qui roule (rapporté deux
+ * fois en jeu, et confirmé par `npm run test:proportions`).
+ * Plancher assumé : plus petit, à la distance de jeu, il ne se lirait plus (« c'est
+ * du décor, il doit se voir »).
+ */
+const TW_SCALE: [number, number] = [0.22, 0.32];
 
 function makeTumbleweeds(lib: BlockLibrary, o: WeatherOpts): Weather | null {
   // ⚠ MÊME LEÇON QUE LA NEIGE : le couloir SUIT LE REGARD. Semés sur la carte, il
@@ -252,8 +270,9 @@ function makeTumbleweeds(lib: BlockLibrary, o: WeatherOpts): Weather | null {
   for (let i = 0; i < n; i++) {
     const geom = lib.get("tumbleweed", i % 3);
     if (!geom) continue;
-    const scale = 0.5 + h01(i, o.seed + 21) * 0.35;
+    const scale = TW_SCALE[0] + h01(i, o.seed + 21) * (TW_SCALE[1] - TW_SCALE[0]);
     const mesh = unpickable(new THREE.Mesh(geom, TW_MAT));
+    mesh.name = "tumbleweed"; // scène AUDITABLE (cf. tests/proportions.mjs)
     mesh.position.y = -TW_RADIUS * scale; // le centre de la boule remonte sur le pivot
     mesh.scale.setScalar(scale);
     mesh.castShadow = true;

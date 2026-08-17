@@ -176,15 +176,15 @@ export function scatterProps(src: ScatterSource): PropPlacement[] {
         if (skin.nordic) {
           // LANDE GELÉE : plus d'arbres en fleurs, des bosquets givrés et des
           // congères qui débordent du névé voisin.
-          if (r < 0.05) plant(x, y, "frost-tree", 70, 0.5);
+          if (r < 0.05) plant(x, y, "frost-tree", 70, 0.95); // cf. ÉCHELLES ci-dessous
           else if (r < 0.11) plant(x, y, "pine-snow", 80, 0.5);
-          if (h(91) < 0.09) plant(x, y, "frost-bush", 96, 0.4);
+          if (h(91) < 0.09) plant(x, y, "frost-bush", 96, 0.6);
           if (h(92) < 0.07) plant(x, y, "snowdrift", 97, 0.45);
           if (h(95) < 0.015) plant(x, y, "rune-stone", 102, 0.55); // stèle gravée, rare
         } else if (skin.desert) {
           // STEPPE ARIDE : ce qui reste debout est mort ou épineux.
-          if (r < 0.05) plant(x, y, "dead-tree", 70, 0.5);
-          else if (r < 0.10) plant(x, y, "olive", 80, 0.5);
+          if (r < 0.05) plant(x, y, "dead-tree", 70, 0.85);
+          else if (r < 0.10) plant(x, y, "olive", 80, 0.75);
           if (h(93) < 0.12) plant(x, y, "dune-grass", 98, 0.32);
           if (h(94) < 0.08) plant(x, y, "brambles", 99, 0.38);
           if (h(95) < 0.05) plant(x, y, "cactus", 101, 0.8);
@@ -211,7 +211,7 @@ export function scatterProps(src: ScatterSource): PropPlacement[] {
             out.push({
               id: "ruin-wall", v: Math.floor(h(804) * 3),
               x: x + (h(805) - 0.5) * 0.15, y: y + (h(806) - 0.5) * 0.15,
-              rot: horiz ? 0 : Math.PI / 2, scale: 0.5,
+              rot: horiz ? 0 : Math.PI / 2, scale: 1,
             });
           }
         }
@@ -220,13 +220,13 @@ export function scatterProps(src: ScatterSource): PropPlacement[] {
           // TAÏGA : conifères serrés, sous-bois givré.
           plant(x, y, "pine", 10, 0.62);
           if (h(20) < 0.5) plant(x, y, "pine-snow", 30, 0.55);
-          if (h(40) < 0.14) plant(x, y, "frost-tree", 50, 0.5);
+          if (h(40) < 0.14) plant(x, y, "frost-tree", 50, 0.95);
         } else if (skin.desert) {
           // PALMERAIE : l'oasis du thème (c'est ELLE qui rend l'eau, thirst.go), donc
           // l'endroit où l'on va — donc celui qu'il faut reconnaître de loin.
           plant(x, y, "palm", 10, 0.66);
           if (h(20) < 0.45) plant(x, y, "palm", 30, 0.56);
-          if (h(25) < 0.3) plant(x, y, "olive", 35, 0.5);
+          if (h(25) < 0.3) plant(x, y, "olive", 35, 0.75);
           if (h(40) < 0.12) plant(x, y, "reed", 50, 0.42);
         } else {
           plant(x, y, "tree-green", 10, 0.62);
@@ -243,19 +243,19 @@ export function scatterProps(src: ScatterSource): PropPlacement[] {
       } else if (t.biome === 4) { // montagne : éboulis au pied des falaises, cristaux, cairns aux sommets
         if (h(99) < 0.3) plant(x, y, "rock", 100, 0.65);
         if (skin.desert) {
-          if (h(150) < 0.12) plant(x, y, "dead-tree", 155, 0.55); // rien ne pousse sur le grès
+          if (h(150) < 0.12) plant(x, y, "dead-tree", 155, 0.9); // rien ne pousse sur le grès
         } else if (h(150) < 0.3) plant(x, y, skin.nordic ? "pine-snow" : "pine", 155, 0.62);
         if (h(350) < (f.cliffFoot ? 0.35 : 0.04)) plant(x, y, "scree", 355, 0.5);
         if (h(360) < 0.045) plant(x, y, "crystal", 365, 0.45);
         if (h(370) < (f.summit ? 0.3 : 0.015)) plant(x, y, "cairn", 375, 0.45);
-        if (h(380) < 0.05) plant(x, y, "dead-tree", 385, 0.5);
+        if (h(380) < 0.05) plant(x, y, "dead-tree", 385, 0.85);
       } else if (t.biome === 5) { // neige : congères, glace, arbres givrés
         if (h(160) < 0.35) plant(x, y, "pine-snow", 165, 0.6);
         if (skin.nordic && h(161) < 0.012) plant(x, y, "rune-stone", 166, 0.55);
         if (h(390) < 0.11) plant(x, y, "snowdrift", 395, 0.5);
-        if (h(400) < 0.05) plant(x, y, "ice-spike", 405, 0.45);
-        if (h(410) < 0.06) plant(x, y, "frost-tree", 415, 0.5);
-        if (h(420) < 0.06) plant(x, y, "frost-bush", 425, 0.4);
+        if (h(400) < 0.05) plant(x, y, "ice-spike", 405, 1.15);
+        if (h(410) < 0.06) plant(x, y, "frost-tree", 415, 0.95);
+        if (h(420) < 0.06) plant(x, y, "frost-bush", 425, 0.6);
         if (!t.monsterId && h(650) < 0.012) plant(x, y, "hare", 655, 0.3, "day"); // lièvre discret
         if (h(670) < 0.06) plant(x, y, "snow-motes", 675, 0.5); // souffle de neige figé
       }
@@ -273,6 +273,12 @@ export function scatterProps(src: ScatterSource): PropPlacement[] {
 // déterministe que les landmarks (meilleure tuile par score haché).
 // ---------------------------------------------------------------------------
 const RUIN_TYPES = ["ruin-column", "ruin-slab", "ruin-arch"];
+// Échelle par TYPE, et pas une seule pour les trois : les modèles ne remplissent pas
+// leur grille de la même façon (une arche est haute, une dalle est plate), donc une
+// échelle commune donnait une colonne de 0,80 m et une arche de 0,99 m — plus basses
+// qu'un héros (0,6 tuile ≈ 1,7 m), sous laquelle personne ne peut passer. Mesuré par
+// `npm run test:proportions`, qui compare tout au même repère.
+const RUIN_SCALE: Record<string, number> = { "ruin-column": 1.25, "ruin-slab": 1.1, "ruin-arch": 1.25 };
 
 function ruins(src: ScatterSource, at: (x: number, y: number) => ScatterTile | undefined): PropPlacement[] {
   // ⚠ ^ renvoie un int32 SIGNÉ : sans >>> 0, seed % 2 peut valoir −1 (n=1)
@@ -291,7 +297,10 @@ function ruins(src: ScatterSource, at: (x: number, y: number) => ScatterTile | u
         if (!best || score > best.score) best = { x, y, score };
       }
     }
-    if (best) out.push(one(RUIN_TYPES[(seed + i) % RUIN_TYPES.length], best.x, best.y, seed + i, 0.5));
+    if (best) {
+      const type = RUIN_TYPES[(seed + i) % RUIN_TYPES.length];
+      out.push(one(type, best.x, best.y, seed + i, RUIN_SCALE[type]));
+    }
   }
   return out;
 }
