@@ -955,7 +955,15 @@ bloom** (ils n'ont pas `isMesh`, donc `darkenNonBloomed` les laissait passer et 
 une source de lueur). Modèle `tumbleweed` (`gen-props.mjs`) : boule AJOURÉE de cerceaux tracés en
 voxels FINS dans des plans d'orientation uniforme sur la sphère — deux angles d'Euler indépendants
 donnent une boule APLATIE, et à la résolution grossière les cerceaux se soudent en brique ; centrée en
-hauteur sur son rayon pour rouler sans flotter. Tests : `npm run test:weather`.
+hauteur sur son rayon pour rouler sans flotter. ⚠ **SON ÉCHELLE SE MESURE EN TUILES** (`TW_SCALE`,
+2026-08-17) : le modèle fait 0,90 tuile de large pour 0,77 de haut à l'échelle 1, donc les 0,50-0,85
+du premier jet rendaient une boule de **0,77 tuile — la taille d'un héros** (`HERO_HEIGHT` 0,6) et
+près du DOUBLE de la largeur d'un cactus (0,44), soit l'objet le plus large du désert après le vieil
+arbre-repère (« les tumbleweeds sont trop gros », rapporté en jeu). 0,30-0,44 rend 0,27-0,40 tuile,
+38-57 % d'un héros : à hauteur de cuisse. Même règle que les props (§« LES MODÈLES D'UN THÈME ») —
+un objet trop gros ne se corrige pas à l'œil sur une capture, il se mesure contre un repère du jeu.
+Tests : `npm run test:weather` (dont la taille, bornée par le haut ET par le bas — c'est du décor, il
+doit rester visible).
 
 **LA CONTRAINTE D'UN THÈME — LA SOIF** (`game/thirst.go`, 2026-08-11) — un thème qui ne serait
 qu'une palette s'userait en deux expéditions ; chacun porte donc **UNE** contrainte de survie, encadrée

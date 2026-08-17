@@ -6,6 +6,55 @@
 
 ---
 
+## 2026-08-17 (128) — Les vire-vents faisaient la taille d'un héros
+
+Retour de Guillaume sur capture : « les tumbleweeds sont trop gros je pense ». Il avait raison, et le
+chiffre est plus net que l'impression.
+
+### Mesuré
+
+Le modèle `tumbleweed` fait **0,90 tuile de large pour 0,77 de haut** à l'échelle 1 (mesuré sur la
+géométrie réellement maillée, pas sur la constante `TW_RADIUS`). Posé à 0,50-0,85, un vire-vent
+sortait donc à **0,77 tuile de large et 0,65 de haut** — c'est-à-dire :
+
+| | largeur à l'écran |
+|---|---|
+| vire-vent (avant) | **0,77** tuile |
+| héros (`HERO_HEIGHT`) | 0,6 de HAUT |
+| cactus | 0,44 |
+| brambles / bush-dense | 0,51 / 0,60 à l'échelle 1 |
+
+La boule qui roule était l'objet le plus large du désert après le vieil arbre-repère, et aussi haute
+qu'un homme. `TW_SCALE` passe à **0,30-0,44** → 0,27-0,40 tuile de large, 38-57 % de la hauteur d'un
+héros : à hauteur de cuisse, ce qu'est un vire-vent.
+
+⚠ Bornée **par le bas aussi** : c'est du décor, il doit se voir (l'effet a déjà été mesuré à 0,00
+boule à l'écran une fois, cf. entrée 2026-08-12).
+
+⚠ `TW_RADIUS` (13/30) n'est PAS le rayon mais la hauteur du CENTRE dans le modèle — le commentaire
+mentait. Elle sert au décalage du pivot et à la vitesse de roulement, qui reste correcte : une boule
+plus petite tourne plus vite (`travel / r`), la physique du roulement sans glissement était déjà là.
+
+### Fonctionnel (vérifié)
+
+- `npm run test:weather` : nouveau garde-fou « un vire-vent reste plus petit qu'un héros » → **0,25–
+  0,36 tuile sur 12 boules**. La taille est mesurée sur la géométrie × l'échelle du mesh, comme pour
+  tout prop (règle §7a-bis : jamais à l'œil sur une capture).
+- La visibilité ne régresse pas : 1,96 boule à l'écran en moyenne près de la ville, 9,36 sur un coin
+  exploré — les mêmes chiffres qu'avant le rapetissement.
+- Comparaison à l'identique sur la même graine désertique (échelles émulées ×2,2 dans la même page) :
+  la boule ne domine plus les cactus voisins.
+- `tsc -b` propre. `test:weather` 18/19 : le seul échec est « la carte redevient 100 % on-demand »
+  (3 redraws pour un seuil ≤2), déjà documenté à l'entrée 127 comme flake préexistant — vérifié à
+  nouveau, sans rapport avec ce lot.
+
+### À faire
+
+- Le seuil ≤2 de « la carte redevient 100 % on-demand » est borderline dans cet environnement (2 ou 3
+  selon le tour) : trouver la 3ᵉ source de redraw ou remonter le seuil, mais pas à l'aveugle.
+
+---
+
 ## 2026-08-16 (127) — « Quand je bouge ça déplace les nuages » : la caméra n'avait aucune borne
 
 Retour de Guillaume, capture à l'appui : sur l'onglet **Ville**, le bourg réduit à une vignette dans

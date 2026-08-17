@@ -168,6 +168,31 @@ check("désertique : on en voit vraiment (terrain connu)", tw.moy >= 1, `${tw.mo
 check("désertique : ils ROULENT (rotation qui change)", tw.pairs > 20 && tw.rolled >= tw.pairs * 0.9, `${tw.rolled}/${tw.pairs} pas où le vire-vent était visible`);
 check("désertique : pas de neige", l.flakes === 0, `${l.flakes} flocons`);
 
+// TAILLE — mesurée EN TUILES, comme tout prop (cf. CLAUDE.md §7a-bis : une taille à
+// l'écran est le produit du remplissage du modèle dans sa grille et de l'échelle de
+// pose, donc « il est trop gros » ne se corrige pas à l'œil sur une capture). Le
+// repère est le HÉROS (0,6 unité de haut) : un vire-vent monte à la cuisse, il ne
+// fait pas la taille d'un homme — ce qu'il faisait au premier jet (0,77 tuile de
+// large, presque le double d'un cactus, « les tumbleweeds sont trop gros »).
+const twSize = await page.evaluate(() => {
+  const cur = window.__vm.world.weather.current;
+  let lo = Infinity, hi = 0, n = 0;
+  cur.group.traverse((o) => {
+    if (!o.isMesh || !o.geometry) return;
+    o.geometry.computeBoundingBox();
+    const bb = o.geometry.boundingBox;
+    const w = Math.max(bb.max.x - bb.min.x, bb.max.z - bb.min.z) * o.scale.x;
+    if (!w) return;
+    lo = Math.min(lo, w); hi = Math.max(hi, w); n++;
+  });
+  return { lo, hi, n };
+});
+check(
+  "désertique : un vire-vent reste plus petit qu'un héros (0,6)",
+  twSize.n > 0 && twSize.hi <= 0.45 && twSize.lo >= 0.15,
+  `${twSize.lo.toFixed(2)}–${twSize.hi.toFixed(2)} tuile de large sur ${twSize.n} boules`,
+);
+
 // ⚠ LES CASES DÉCOUVERTES PLUS TARD COMPTENT AUSSI. La couche est construite UNE
 // fois par partie ; si son test de praticabilité capture l'objet `game` de ce
 // moment-là, il gèle la carte de découverte telle qu'elle était AU LANCEMENT — la
