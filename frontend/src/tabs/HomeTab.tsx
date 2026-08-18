@@ -1,7 +1,13 @@
 import { useState } from "react";
 import { useStore } from "../store";
 import { Overlay } from "../ui/Overlay";
-import { TOWN_BUILDINGS, TOWN_REPAIR_HP, type BuildingLayout } from "../data/buildings";
+import {
+  TOWN_BUILDINGS,
+  TOWN_REPAIR_HP,
+  buildingName,
+  buildingBlurb,
+  type BuildingLayout,
+} from "../data/buildings";
 import { VoxelTownView } from "../voxel/VoxelTownView";
 import type { TownBuilding } from "../api/types";
 import { HeroChips } from "../components/HeroChips";
@@ -120,11 +126,11 @@ function BuildingMenu({ layout, b, onClose }: { layout: BuildingLayout; b: TownB
         <div className="bm-head">
           <span className="bm-icon">{layout.icon}</span>
           <div className="bm-title">
-            <strong id="bmenu-title">{layout.name}</strong> <span className="lvl">Lv {b.level}</span>
+            <strong id="bmenu-title">{buildingName(layout.id)}</strong> <span className="lvl">Lv {b.level}</span>
           </div>
           <button className="hero-close" onClick={onClose}>✕</button>
         </div>
-        <div className="blurb">{layout.blurb}</div>
+        <div className="blurb">{buildingBlurb(layout.id)}</div>
 
         <div className="durab">
           Durabilité {b.durability}/{b.maxDurability}

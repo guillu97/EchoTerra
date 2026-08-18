@@ -1,6 +1,8 @@
 // Layout/flavor config for the town buildings. Gameplay stats (level, durability,
 // capacity, build progress) come from the backend (game.town.buildings, matched by id).
 import type { AssetKey } from "../assets";
+import { t } from "../i18n";
+import type { TKey } from "../i18n";
 
 // Tailles de salon proposées à la création. Le maximum reflète
 // worldgen.MaxPlayersPerGame côté serveur (20 équipes de 3 = 60 héros) ; la carte est
@@ -11,13 +13,15 @@ export const LOBBY_SIZES = [1, 2, 3, 4, 6, 8, 10, 12, 16, 20];
 // game.TownRepairHP (backend/internal/game/town.go) — garder les deux d'accord.
 export const TOWN_REPAIR_HP = 5;
 
+// ⚠ PLUS DE `name` / `blurb` / `primary` ICI : ces trois textes sont LUS PAR UN
+// JOUEUR, donc ils vivent dans les huit langues (`i18n/locales/*`, clés
+// `building.<id>.name|blurb|primary`) et se lisent par les fonctions du bas de
+// ce fichier. L'`id`, lui, ne bouge JAMAIS — c'est ce que le serveur, les bots
+// et les modèles voxel connaissent.
 export interface BuildingLayout {
   id: string;
-  name: string;
   icon: string; // emoji fallback (shown when the generated asset isn't available)
   assetKey: AssetKey; // key into the asset registry (scripts/generate-assets.mjs)
-  blurb: string;
-  primary: string; // label of the building's special "use" action ("" = none)
   island: string; // which island it sits on (see ISLANDS)
   x: number; // % position WITHIN its island box (centered anchor)
   y: number;
@@ -60,31 +64,31 @@ export const BUILDING_SCALE = 0.34;
 // spread across three islands: core (civic), ne (defense), sw (production).
 export const TOWN_BUILDINGS: BuildingLayout[] = [
   // Core island — civic heart.
-  { id: "townhall", name: "Mairie", icon: "🏛️", assetKey: "building-townhall", blurb: "Cœur de la ville. Lit : ressuscite un héros épuisé.", primary: "Ressusciter un héros", island: "core", x: 50, y: 40 },
-  { id: "bank",     name: "Banque",   icon: "🏦",  assetKey: "building-bank",     blurb: "Stocke les ressources & matériaux communs.", primary: "Entrer", island: "core", x: 32, y: 56 },
-  { id: "panel",    name: "Panneau",  icon: "📋",  assetKey: "building-panel",    blurb: "Journal, sondage, membres.", primary: "Journal", island: "core", x: 68, y: 56 },
+  { id: "townhall", icon: "🏛️", assetKey: "building-townhall", island: "core", x: 50, y: 40 },
+  { id: "bank",       icon: "🏦",  assetKey: "building-bank",     island: "core", x: 32, y: 56 },
+  { id: "panel",     icon: "📋",  assetKey: "building-panel",    island: "core", x: 68, y: 56 },
   // NE island — defense outpost.
-  { id: "wall",     name: "Muraille", icon: "🧱",  assetKey: "building-wall",     blurb: "Muraille défensive.", primary: "", island: "ne", x: 36, y: 38 },
-  { id: "tower",    name: "Tour",     icon: "🗼",  assetKey: "building-tower",    blurb: "Augmente vos dégâts contre la vague.", primary: "Évaluer l'attaque", island: "ne", x: 60, y: 40 },
-  { id: "gate",     name: "Portail",  icon: "🚪",  assetKey: "building-gate",     blurb: "Grande porte de la ville.", primary: "Ouvrir / Fermer", island: "ne", x: 48, y: 60 },
+  { id: "wall",     icon: "🧱",  assetKey: "building-wall",     island: "ne", x: 36, y: 38 },
+  { id: "tower",        icon: "🗼",  assetKey: "building-tower",    island: "ne", x: 60, y: 40 },
+  { id: "gate",      icon: "🚪",  assetKey: "building-gate",     island: "ne", x: 48, y: 60 },
   // SW island — production yard.
-  { id: "well",     name: "Puits",    icon: "💧",  assetKey: "building-well",     blurb: "Source d'eau de la ville.", primary: "Puiser de l'eau", island: "sw", x: 36, y: 42 },
-  { id: "workshop", name: "Atelier",  icon: "🔨",  assetKey: "building-workshop", blurb: "Menuiserie & forge — gère les constructions.", primary: "", island: "sw", x: 62, y: 42 },
-  { id: "kitchen",  name: "Cuisine",  icon: "🍳",  assetKey: "building-kitchen",  blurb: "Feu de camp / cuisine.", primary: "Cuisiner", island: "sw", x: 50, y: 62 },
-  { id: "recyclerie", name: "Recyclerie", icon: "♻️", assetKey: "building-workshop", blurb: "Recycle les débris ramassés en matériaux de construction (Bois/Pierre).", primary: "", island: "sw", x: 38, y: 62 },
-  { id: "poste",    name: "Poste",     icon: "📮",  assetKey: "building-panel",    blurb: "Relais de courrier. Tant qu'elle n'est pas debout, on n'écrit à la ville que DEPUIS la ville.", primary: "Messagerie", island: "core", x: 50, y: 72 },
+  { id: "well",        icon: "💧",  assetKey: "building-well",     island: "sw", x: 36, y: 42 },
+  { id: "workshop",  icon: "🔨",  assetKey: "building-workshop", island: "sw", x: 62, y: 42 },
+  { id: "kitchen",   icon: "🍳",  assetKey: "building-kitchen",  island: "sw", x: 50, y: 62 },
+  { id: "recyclerie", icon: "♻️", assetKey: "building-workshop", island: "sw", x: 38, y: 62 },
+  { id: "poste",        icon: "📮",  assetKey: "building-panel",    island: "core", x: 50, y: 72 },
   // LES CINQ BÂTIMENTS DE SPÉCIALITÉ (backend design.go). Chacun ouvre un axe que rien
   // d'autre ne couvre, et leur plan ne tombe QUE d'une ruine — un biome, une spécialité.
   // Aucune ville ne peut tous les avoir : c'est là qu'est le choix.
-  { id: "infirmerie",  name: "Infirmerie",  icon: "🏥", assetKey: "building-townhall", blurb: "Soigne les héros blessés. Rien d'autre dans le jeu ne rend des PV à un héros.", primary: "Soigner un héros", island: "core", x: 30, y: 72 },
-  { id: "cartographe", name: "Cartographe", icon: "🗺️", assetKey: "building-panel",    blurb: "Élargit la vue de tous les héros — on prospecte moins à l'aveugle.", primary: "", island: "core", x: 70, y: 72 },
-  { id: "armurerie",   name: "Armurerie",   icon: "⚔️", assetKey: "building-workshop", blurb: "Arme les héros : force accrue en combat. Le seul bâtiment dont l'effet sort des murs.", primary: "", island: "ne", x: 30, y: 62 },
-  { id: "caserne",     name: "Caserne",     icon: "🛡️", assetKey: "building-wall",     blurb: "Loge la garnison : les héros présents défendent davantage, sans ajouter un point de pierre.", primary: "", island: "ne", x: 66, y: 62 },
-  { id: "verger",      name: "Verger",      icon: "🌱", assetKey: "building-kitchen",  blurb: "Regarnit les cases proches à chaque vague — la réponse à une carte qui s'épuise.", primary: "", island: "sw", x: 62, y: 62 },
+  { id: "infirmerie",   icon: "🏥", assetKey: "building-townhall", island: "core", x: 30, y: 72 },
+  { id: "cartographe", icon: "🗺️", assetKey: "building-panel",    island: "core", x: 70, y: 72 },
+  { id: "armurerie",     icon: "⚔️", assetKey: "building-workshop", island: "ne", x: 30, y: 62 },
+  { id: "caserne",         icon: "🛡️", assetKey: "building-wall",     island: "ne", x: 66, y: 62 },
+  { id: "verger",           icon: "🌱", assetKey: "building-kitchen",  island: "sw", x: 62, y: 62 },
   // LE TEMPLE (backend mythic.go) : le pilier mythique. Son NOM change avec le panthéon
   // (« Hof des Ases », « Temple de Râ ») — celui-ci est le générique, et l'écran du
   // Temple affiche le nom propre servi par le serveur.
-  { id: "temple",      name: "Temple",      icon: "🏛️", assetKey: "building-townhall", blurb: "Les offrandes fabriquées à l'Atelier y deviennent la faveur des dieux — et c'est là que la ville vote la bénédiction qu'elle appelle.", primary: "Appeler un dieu", island: "core", x: 50, y: 24 },
+  { id: "temple",           icon: "🏛️", assetKey: "building-townhall", island: "core", x: 50, y: 24 },
 ];
 
 export function buildingIcon(id: string): string {
@@ -95,17 +99,35 @@ export function buildingIcon(id: string): string {
 // "Tower"…) hérités du prototype ; ils ne servent qu'à l'affichage (toute la
 // logique passe par l'id), donc on les traduit ici plutôt que dans le backend —
 // ça évite de migrer les parties déjà enregistrées.
+//
+// ⚠ On ne demande la clé que si le bâtiment est AU CATALOGUE : `t()` sur une
+// clé inconnue rendrait la clé elle-même (« building.xyz.name »), ce qu'un
+// joueur lirait comme un bug. Un id inconnu retombe donc sur ce que le serveur
+// a envoyé, puis sur l'id.
 export function buildingName(id: string, fallback?: string): string {
-  return TOWN_BUILDINGS.find((b) => b.id === id)?.name ?? fallback ?? id;
+  if (TOWN_BUILDINGS.some((b) => b.id === id)) return t(`building.${id}.name` as TKey);
+  return fallback ?? id;
+}
+
+/** Ce que le bâtiment fait, en une phrase — pour la modale de la ville. */
+export function buildingBlurb(id: string): string {
+  return TOWN_BUILDINGS.some((b) => b.id === id) ? t(`building.${id}.blurb` as TKey) : "";
+}
+
+/** Le libellé de son action principale (« Puiser de l'eau »), "" si aucune. */
+export function buildingPrimary(id: string): string {
+  return TOWN_BUILDINGS.some((b) => b.id === id) ? t(`building.${id}.primary` as TKey) : "";
 }
 
 // Barre du bas. L'ordre place volontairement la CARTE au milieu : c'est l'écran
 // principal du jeu, et il est rendu en bouton central surélevé (voir BottomNav).
-// Libellés en français — le reste de l'app l'est, ces cinq-là ne l'étaient pas.
+// ⚠ le LIBELLÉ n'est pas ici mais dans les huit langues (`nav.<id>`) : la barre
+// le lit par `t()` au rendu, sinon changer de langue ne changerait pas les
+// onglets (ce tableau est évalué une seule fois, au chargement du module).
 export const NAV_TABS = [
-  { id: "home", label: "Ville", icon: "🏠" },
-  { id: "stock", label: "Sac", icon: "🎒" },
-  { id: "map", label: "Carte", icon: "🗺️" },
-  { id: "structure", label: "Bâtir", icon: "🏗️" },
-  { id: "craft", label: "Atelier", icon: "⚒️" },
+  { id: "home", icon: "🏠" },
+  { id: "stock", icon: "🎒" },
+  { id: "map", icon: "🗺️" },
+  { id: "structure", icon: "🏗️" },
+  { id: "craft", icon: "⚒️" },
 ] as const;

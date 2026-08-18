@@ -19,7 +19,8 @@
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { signacify } from "./signacMaterial";
-import { TOWN_BUILDINGS } from "../data/buildings";
+import { TOWN_BUILDINGS, buildingName } from "../data/buildings";
+import { t } from "../i18n";
 import { heroAssetUrl, heroTexKey, libUrl } from "../assets";
 import { buildingKnown, myTeamHeroes } from "../townUtils";
 import { useStore } from "../store";
@@ -562,16 +563,17 @@ export function VoxelTownView({
               onClick={() => onBuildingClick(s.buildingId)}
               aria-label={
                 site
-                  ? `${layout.name} — chantier à lancer`
-                  : `${layout.name} — durabilité ${Math.round(
-                      bs.maxDurability > 0 ? (bs.durability / bs.maxDurability) * 100 : 0,
-                    )} %`
+                  ? t("town.spot.site", { building: buildingName(layout.id) })
+                  : t("town.spot.durability", {
+                      building: buildingName(layout.id),
+                      pct: Math.round(bs.maxDurability > 0 ? (bs.durability / bs.maxDurability) * 100 : 0),
+                    })
               }
             >
               <span className="ts-ic" aria-hidden="true">
                 {site ? "🏗️" : layout.icon}
               </span>
-              {sel && <span className="ts-name">{layout.name}</span>}
+              {sel && <span className="ts-name">{buildingName(layout.id)}</span>}
               {bs.built && (
                 <span className="ts-dur">
                   <i

@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { LOCALE_CODES, setLocale, detectLocale, type LocaleCode } from "./i18n";
 import { api, getAuthToken, setAuthToken, setViewerPlayer } from "./api/client";
 import type {
   ChatMessage,
@@ -134,7 +135,11 @@ export interface Settings {
   sfx: number;
   fps: 30 | 60 | 120;
   quality: "Normal" | "Medium" | "High" | "Very high";
-  language: string;
+  /** La langue de l'interface : un code ISO (`fr`, `ja`…) ou `"auto"` =
+   *  celle du téléphone. ⚠ On stocke un CODE et non le nom affiché
+   *  (« Français ») : le nom est lui-même une traduction, et l'écrire dans les
+   *  réglages rendait le choix illisible dès qu'on changeait de langue. */
+  language: LocaleCode | "auto";
   notif: { loot: boolean; wave: boolean; actionPoint: boolean; communication: boolean };
   voxelSmooth: boolean; // carte : terrain CONTINU lissé (true) ou blocs discrets (false)
   voxelBeauty: boolean; // passe beauté Tier 1 : tone mapping ACES + bloom + ciel/brume (mode CINÉMATIQUE)
@@ -167,7 +172,7 @@ const DEFAULT_SETTINGS: Settings = {
   sfx: 80,
   fps: 60,
   quality: "Very high", // rendu maximum par défaut
-  language: "Français",
+  language: "auto", // la langue du téléphone tant que le joueur n'a pas choisi
   notif: { loot: true, wave: true, actionPoint: true, communication: false },
   voxelSmooth: true,
   voxelBeauty: true, // mode CINÉMATIQUE (bloom + ACES) activé par défaut — décision utilisateur 2026-07-22
@@ -179,12 +184,43 @@ const DEFAULT_SETTINGS: Settings = {
   renderPreset: RENDER_PRESET,
 };
 
+/** Les valeurs acceptées par `Settings.language`. */
+function isLocaleSetting(v: unknown): v is LocaleCode | "auto" {
+  return v === "auto" || (LOCALE_CODES as readonly string[]).includes(String(v));
+}
+
+/** Les noms affichés d'avant l'i18n → un code de langue. */
+function legacyLanguage(v: unknown): LocaleCode | "auto" {
+  const map: Record<string, LocaleCode> = {
+    "Français": "fr",
+    English: "en",
+    Deutsch: "de",
+    Italian: "it",
+    Portugues: "pt",
+    Chinese: "zh",
+    Spanish: "es",
+    Japanese: "ja",
+  };
+  return map[String(v)] ?? "auto";
+}
+
+/** La langue à SERVIR : le choix du joueur, ou celle de son téléphone. */
+export function resolveLocale(setting: LocaleCode | "auto"): LocaleCode {
+  return setting === "auto" ? detectLocale() : setting;
+}
+
 function loadSettings(): Settings {
   try {
     const raw = localStorage.getItem(LS_SETTINGS);
     if (raw) {
       const saved = JSON.parse(raw) as Partial<Settings>;
       let s: Settings = { ...DEFAULT_SETTINGS, ...saved };
+      // MIGRATION : les réglages d'avant l'i18n gardaient le NOM affiché de la
+      // langue (« Français », « Portugues »), qui ne veut plus rien dire. On le
+      // convertit une fois ; tout ce qui n'est pas reconnu retombe sur « auto »
+      // plutôt que sur le français — un joueur qui avait choisi « Japanese »
+      // mérite mieux qu'un retour silencieux à la langue du studio.
+      if (!isLocaleSetting(s.language)) s = { ...s, language: legacyLanguage(saved.language) };
       // migration UNIQUE : bascule voxel + rendu cinématique max sur les réglages
       // déjà sauvegardés (persistée pour ne pas réécraser un opt-out ultérieur).
       if (saved.renderPreset !== RENDER_PRESET) {
@@ -1174,6 +1210,12 @@ export const useStore = create<StoreState>((set, get) => {
     updateSettings: (patch) =>
       set((s) => {
         const next = { ...s.settings, ...patch };
+        // Le changement de langue passe par le moteur i18n, qui charge le
+        // fichier à la demande et prévient les composants montés. On ne le
+        // fait QUE s'il a changé : `setLocale` est idempotent mais réveillerait
+        // tout de même un rendu à chaque réglage touché.
+        if (patch.language !== undefined && patch.language !== s.settings.language)
+          void setLocale(resolveLocale(next.language));
         try {
           localStorage.setItem(LS_SETTINGS, JSON.stringify(next));
         } catch {

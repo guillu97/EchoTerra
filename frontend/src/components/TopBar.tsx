@@ -5,6 +5,7 @@ import { heroesInTown } from "../townUtils";
 import { useWaveRemaining, formatHMS } from "../useWave";
 import { damageRange, damageSentence, precisionSentence, besiegingSentence } from "../forecast";
 import { assetUrl, type AssetKey } from "../assets";
+import { useT } from "../i18n/useT";
 
 // Portrait key for a hero class (same mapping as HeroOverlay).
 function portraitKey(classId?: string): AssetKey {
@@ -23,6 +24,7 @@ function portraitKey(classId?: string): AssetKey {
 // team PA, journal, settings). The avatar opens the hero dropdown: roster +
 // per-hero actions + character sheets.
 export function TopBar() {
+  const T = useT();
   const openSettings = useStore((s) => s.openSettings);
   const toggleTownStatus = useStore((s) => s.toggleTownStatus);
   const toggleTownJournal = useStore((s) => s.toggleTownJournal);
@@ -66,7 +68,7 @@ export function TopBar() {
 
   return (
     <header className="topbar">
-      <button className="avatar" title="Mes personnages" onClick={() => setHeroMenu((o) => !o)}>
+      <button className="avatar" title={T("topbar.heroes")} onClick={() => setHeroMenu((o) => !o)}>
         {portrait ? <img src={portrait} alt="🙂" /> : "🙂"}
       </button>
       {heroMenu && <HeroActionsMenu onClose={() => setHeroMenu(false)} />}
@@ -83,7 +85,7 @@ export function TopBar() {
       <button
         className={`chip status ${hpClass}`}
         onClick={() => toggleTownStatus(true)}
-        title="État de la ville — PV et PA de ton équipe"
+        title={T("topbar.status")}
       >
         <span className="st-hp">🏰 {hpPct}%</span>
         <span className="st-sep" aria-hidden="true" />
@@ -97,14 +99,14 @@ export function TopBar() {
           title={
             fc
               ? `${damageSentence(fc)} ${precisionSentence(fc)} ${besiegingSentence(fc)}`
-              : "Prochaine vague — état de la ville"
+              : T("topbar.nextWave")
           }
         >
           {/* Le monde est en train de rattraper les vagues de l'absence : le
               minuteur est à 0 par construction et ne veut plus rien dire. On le
               dit, au lieu d'afficher « 00:00 » pendant que la ville se fait
               frapper (voir store.refreshGame / game.CatchUpPending). */}
-          {catchingUp ? <>⏳ Rattrapage…</> : <>🌊 {formatHMS(waveRemaining)}</>}
+          {catchingUp ? <>⏳ {T("topbar.catchingUp")}</> : <>🌊 {formatHMS(waveRemaining)}</>}
           {/* Les dégâts ATTENDUS en FOURCHETTE, pas le numéro de vague : c'est le
               chiffre sur lequel le joueur peut agir, et son imprécision est elle-même
               une information (elle se paie en Tour de guet et en observateurs). */}
@@ -117,7 +119,7 @@ export function TopBar() {
               reste courte sur un téléphone). */}
           {!catchingUp && fc && fc.damageMax > 0 && (
             <i className="wave-dmg" aria-label={damageSentence(fc)}>
-              {damageRange(fc)} PV
+              {damageRange(fc)} {T("topbar.hp")}
             </i>
           )}
         </button>
@@ -135,28 +137,33 @@ export function TopBar() {
           onClick={() => toggleTemple(true)}
           title={
             templeStanding
-              ? `Faveur des dieux ${favor}/${favorGoal} — ${
-                  favorReady ? "un dieu peut être appelé au Temple" : "fabrique des offrandes à l'Atelier"
-                }`
-              : `Faveur des dieux ${favor}/${favorGoal} — il reste à bâtir le ${pantheon?.temple ?? "Temple"}`
+              ? T(favorReady ? "topbar.favor.ready" : "topbar.favor.gather", { favor, goal: favorGoal })
+              : T("topbar.favor.noTemple", {
+                  favor,
+                  goal: favorGoal,
+                  // ⚠ le nom du temple vient du PANTHÉON servi par le serveur
+                  // (« Hof des Ases ») : c'est un nom propre, il ne se traduit
+                  // pas. Le générique, lui, oui.
+                  temple: pantheon?.temple ?? T("building.temple.name"),
+                })
           }
         >
           {pantheon?.favor ?? "⚡"} {favor}
         </button>
       )}
       {inTown && (
-        <button className="iconbtn" title="Journal de la ville" onClick={() => toggleTownJournal(true)}>
+        <button className="iconbtn" title={T("topbar.journal")} onClick={() => toggleTownJournal(true)}>
           📋
         </button>
       )}
       {/* La messagerie n'est PAS gatée sur la présence en ville : c'est la
           feuille qui explique le blocage (« construis la Poste »). Un bouton qui
           disparaît n'apprend rien à personne. */}
-      <button className="iconbtn chat" title="Messages de la ville" onClick={() => toggleChat(true)}>
+      <button className="iconbtn chat" title={T("topbar.chat")} onClick={() => toggleChat(true)}>
         ✉️
         {unread > 0 && <span className="pip">{unread > 9 ? "9+" : unread}</span>}
       </button>
-      <button className="iconbtn" title="Paramètres" onClick={() => openSettings("menu")}>
+      <button className="iconbtn" title={T("topbar.settings")} onClick={() => openSettings("menu")}>
         ⚙️
       </button>
     </header>

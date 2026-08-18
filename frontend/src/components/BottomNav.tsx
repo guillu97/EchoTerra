@@ -3,6 +3,7 @@ import { NAV_TABS } from "../data/buildings";
 import { heroesInTown, TOWN_TABS } from "../townUtils";
 import { assetUrl, type AssetKey } from "../assets";
 import type { Tab } from "../store";
+import { useT } from "../i18n/useT";
 
 // Bottom navigation — onglets parchemin gravés, avec la CARTE en bouton central
 // surélevé (c'est l'écran principal du jeu, il mérite le pouce).
@@ -24,6 +25,7 @@ export function BottomNav() {
   const playerId = useStore((s) => s.playerId);
   const notify = useStore((s) => s.notify);
   const inTown = heroesInTown(game, playerId).length > 0;
+  const T = useT();
 
   // Badge « il se passe quelque chose ici » : chantiers ouverts côté Bâtir.
   // Volontairement factuel (nombre de chantiers en cours) plutôt qu'un calcul
@@ -34,7 +36,7 @@ export function BottomNav() {
   const badgeFor = (id: string) => (id === "structure" && openSites > 0 ? openSites : 0);
 
   return (
-    <nav className="bottom-nav" role="tablist" aria-label="Navigation principale">
+    <nav className="bottom-nav" role="tablist" aria-label={T("nav.aria")}>
       {NAV_TABS.map((t) => {
         const isTownTab = (TOWN_TABS as readonly string[]).includes(t.id);
         const locked = isTownTab && !inTown;
@@ -53,7 +55,7 @@ export function BottomNav() {
             }`}
             onClick={() => {
               if (locked) {
-                notify("Aucun de tes héros n'est en ville.", "warn");
+                notify(T("nav.locked"), "warn");
                 return;
               }
               setTab(t.id as Tab);
@@ -70,9 +72,9 @@ export function BottomNav() {
                 <NavIcon id={t.id} fallback={t.icon} />
               )}
             </span>
-            <span className="nl">{t.label}</span>
+            <span className="nl">{T(`nav.${t.id}` as const)}</span>
             {badge > 0 && (
-              <span className="nb" aria-label={`${badge} chantier${badge > 1 ? "s" : ""} en cours`}>
+              <span className="nb" aria-label={T.n("nav.sites", badge)}>
                 {badge}
               </span>
             )}

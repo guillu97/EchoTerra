@@ -1,0 +1,197 @@
+// ENGLISH — translated from `fr.ts` (the source). See `../types.ts` for the contract.
+// ⚠ Never translate values that carry game logic (item names, building ids, states):
+// only what a player READS lives here.
+import type { Locale } from "../types";
+
+export const en: Locale = {
+  // ── Generic ───────────────────────────────────────────────────────────────
+  "app.back": "Back",
+  "app.close": "Close",
+  "app.cancel": "Cancel",
+  "app.confirm": "Confirm",
+  "app.resume": "Resume",
+  "app.loading": "Loading",
+  "app.none": "None",
+  "app.yes": "Yes",
+  "app.no": "No",
+  "app.error": "Something went wrong",
+
+  // ── Bottom navigation ─────────────────────────────────────────────────────
+  "nav.aria": "Main navigation",
+  "nav.home": "Town",
+  "nav.stock": "Bag",
+  "nav.map": "Map",
+  "nav.structure": "Build",
+  "nav.craft": "Workshop",
+  "nav.locked": "None of your heroes is in town.",
+  "nav.sites.one": "{n} site under way",
+  "nav.sites.other": "{n} sites under way",
+
+  // ── Top bar ───────────────────────────────────────────────────────────────
+  "topbar.heroes": "My characters",
+  "topbar.status": "Town status — your team's HP and AP",
+  "topbar.journal": "Town journal",
+  "topbar.chat": "Town messages",
+  "topbar.settings": "Settings",
+  "topbar.catchingUp": "Catching up…",
+  "topbar.nextWave": "Next wave — town status",
+  "topbar.hp": "HP",
+  "topbar.favor.ready": "Favour of the gods {favor}/{goal} — a god can be called at the Temple",
+  "topbar.favor.gather": "Favour of the gods {favor}/{goal} — craft offerings at the Workshop",
+  "topbar.favor.noTemple": "Favour of the gods {favor}/{goal} — the {temple} still has to be built",
+
+  // ── Loading / cinematic ───────────────────────────────────────────────────
+  "loading.skip": "Skip loading",
+  "cinematic.start": "Start the game",
+  "cinematic.caption": "Long, long ago…",
+  "cinematic.skip": "Skip",
+
+  // ── Title screen ──────────────────────────────────────────────────────────
+  "title.signIn": "Sign in",
+  "title.resume.solo": "RESUME — SOLO",
+  "title.resume.mp": "RESUME — GAME",
+  "title.resume.expedition": "Expedition",
+  "title.resume.lobby": "Lobby waiting · {players}/{min} players",
+  "title.resume.meta": "Day {day} · 🏰 {hp}% · 🌊 {timer}",
+  "title.solo": "Solo",
+  "title.solo.hint": "(with 4 bots)",
+  "title.public": "Public games",
+  "title.public.locked": "🔒 sign-in required",
+  "title.public.needAccount": "🔒 Sign in to join a public game.",
+  "title.private": "Private games",
+  "title.leaderboard": "Leaderboard",
+  "title.settings": "Settings",
+  "title.debug": "Debug",
+  "title.debug.newGame": "New test game",
+  "title.debug.continue": "Continue",
+  "title.debug.intro": "Intro",
+  "title.debug.editor": "Editor",
+  "title.debug.designer": "Data",
+  "title.debug.voxels": "Voxels",
+  "title.debug.chars": "Characters",
+
+  // ── Settings ──────────────────────────────────────────────────────────────
+  "settings.title": "Settings",
+  "settings.game": "Game",
+  "settings.language": "Language",
+  "settings.notifications": "Notifications",
+  "settings.devTools": "Test tools",
+  "settings.quit": "Leave the game",
+  "settings.gameTitle": "Game settings",
+  "settings.music": "Volume — Music ({n}%)",
+  "settings.sfx": "SFX ({n}%)",
+  "settings.fps": "Frame rate",
+  "settings.fps.hint":
+    "A lower refresh rate saves battery and avoids overheating, but may affect smoothness.",
+  "settings.idleAnim": "Character animation",
+  "settings.idleAnim.hint":
+    "How often idle animation plays: heroes breathing, monsters stirring on the map. “Frozen” holds them still while nothing moves — the map stops redrawing entirely at rest, which is the most battery-friendly setting. Moves, attacks and deaths always stay fully animated.",
+  "settings.idleAnim.frozen": "Frozen",
+  "settings.weather": "Weather effects",
+  "settings.weather.hint":
+    "What an expedition's climate sets in motion: snow falling under an overcast sky up north, tumbleweeds rolling across the desert. “None” doesn't freeze them — it removes them: not one frame requested, not one object in the scene. A temperate expedition has no weather and costs nothing whatever this is set to.",
+  "settings.rate.eco": "Eco",
+  "settings.rate.smooth": "Smooth",
+  "settings.rate.max": "Max",
+  "settings.quality": "Graphics quality",
+  "settings.quality.hint": "Lowering quality reduces battery use and overheating.",
+  "settings.quality.normal": "Normal",
+  "settings.quality.medium": "Medium",
+  "settings.quality.high": "High",
+  "settings.quality.veryHigh": "Very high",
+  "settings.terrain": "Voxel terrain",
+  "settings.terrain.slopes": "Voxel slopes",
+  "settings.terrain.blocks": "Blocks",
+  "settings.terrain.hint":
+    "Voxel slopes = relief in small voxel steps (¼ tile, diorama style); Blocks = full-tile pillars. World map only.",
+  "settings.beauty": "Beauty rendering (experimental)",
+  "settings.beauty.cinematic": "Cinematic",
+  "settings.beauty.standard": "Standard",
+  "settings.beauty.hint":
+    "Filmic light (ACES tone mapping), glow on crystals and flowers, gradient sky and atmospheric haze. Prettier but heavier — it costs GPU on every redraw.",
+  "settings.signac": "Signac rendering (pointillist)",
+  "settings.signac.painting": "Painting",
+  "settings.signac.normal": "Normal",
+  "settings.signac.hint":
+    "Every voxel facet becomes its own dab of pure colour, the way Paul Signac painted: violet shadows rather than grey ones, high saturation, optical mixing. The dab is anchored to the WORLD — it turns and tightens with the geometry, and edges stay crisp.",
+  "settings.signac.strength": "Dab intensity ({n}%)",
+  "settings.signac.strength.hint":
+    "At the minimum only the colour bias remains; at the maximum the weave of dabs takes over.",
+  "settings.language.auto": "Phone language",
+  "settings.language.hint":
+    "Changes the language of the whole app. Town names, hero names and messages written by players stay exactly as they were written.",
+  "settings.notif.loot": "Loot",
+  "settings.notif.loot.desc": "Notify me of every successful search.",
+  "settings.notif.wave": "Wave",
+  "settings.notif.wave.desc": "Notify me 10 minutes before each wave.",
+  "settings.notif.actionPoint": "Action points",
+  "settings.notif.actionPoint.desc": "Notify me when the AP bar is full.",
+  "settings.notif.communication": "Messages",
+  "settings.notif.communication.desc": "Notify me when a friend sends a private message.",
+
+  // ── Buildings ─────────────────────────────────────────────────────────────
+  "building.townhall.name": "Town Hall",
+  "building.townhall.blurb": "Heart of the town. Bed: revives an exhausted hero.",
+  "building.townhall.primary": "Revive a hero",
+  "building.bank.name": "Bank",
+  "building.bank.blurb": "Stores the town's shared resources & materials.",
+  "building.bank.primary": "Enter",
+  "building.panel.name": "Notice Board",
+  "building.panel.blurb": "Journal, polls, members.",
+  "building.panel.primary": "Journal",
+  "building.wall.name": "Wall",
+  "building.wall.blurb": "Defensive wall.",
+  "building.wall.primary": "",
+  "building.tower.name": "Tower",
+  "building.tower.blurb": "Increases your damage against the wave.",
+  "building.tower.primary": "Scout the attack",
+  "building.gate.name": "Gate",
+  "building.gate.blurb": "The town's main gate.",
+  "building.gate.primary": "Open / Close",
+  "building.well.name": "Well",
+  "building.well.blurb": "The town's water source.",
+  "building.well.primary": "Draw water",
+  "building.workshop.name": "Workshop",
+  "building.workshop.blurb": "Carpentry & forge — handles construction.",
+  "building.workshop.primary": "",
+  "building.kitchen.name": "Kitchen",
+  "building.kitchen.blurb": "Campfire / kitchen.",
+  "building.kitchen.primary": "Cook",
+  "building.recyclerie.name": "Recycling Yard",
+  "building.recyclerie.blurb":
+    "Turns salvaged debris back into building materials (Wood/Stone).",
+  "building.recyclerie.primary": "",
+  "building.poste.name": "Post Office",
+  "building.poste.blurb":
+    "Mail relay. Until it stands, you can only write to the town FROM the town.",
+  "building.poste.primary": "Messages",
+  "building.infirmerie.name": "Infirmary",
+  "building.infirmerie.blurb":
+    "Heals wounded heroes. Nothing else in the game restores a hero's HP.",
+  "building.infirmerie.primary": "Heal a hero",
+  "building.cartographe.name": "Cartographer",
+  "building.cartographe.blurb":
+    "Widens every hero's view — less prospecting in the dark.",
+  "building.cartographe.primary": "",
+  "building.armurerie.name": "Armoury",
+  "building.armurerie.blurb":
+    "Arms the heroes: more strength in combat. The only building whose effect reaches beyond the walls.",
+  "building.armurerie.primary": "",
+  "building.caserne.name": "Barracks",
+  "building.caserne.blurb":
+    "Quarters the garrison: heroes present defend more, without adding a single point of stone.",
+  "building.caserne.primary": "",
+  "building.verger.name": "Orchard",
+  "building.verger.blurb":
+    "Replenishes nearby tiles at every wave — the answer to a map running dry.",
+  "building.verger.primary": "",
+  "building.temple.name": "Temple",
+  "building.temple.blurb":
+    "Offerings crafted at the Workshop become the favour of the gods here — and this is where the town votes on the blessing it calls for.",
+  "building.temple.primary": "Call a god",
+  "town.spot.site": "{building} — site to start",
+  "town.spot.durability": "{building} — durability {pct}%",
+  "building.unknown.name": "Building",
+};
+
+export default en;
