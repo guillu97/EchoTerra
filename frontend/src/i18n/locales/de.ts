@@ -124,6 +124,80 @@ export const de: Locale = {
   "settings.notif.communication.desc":
     "Mich benachrichtigen, wenn ein Freund eine private Nachricht schickt.",
 
+
+  // ── États d'un héros (affichage) ─────────────────────────────────────────
+  "state.tetanise": "Festgesetzt",
+  "state.cache": "Versteckt",
+  "state.blesse": "Verwundet",
+  "state.fatigue": "Erschöpft",
+  "state.soif": "Durstig",
+  "state.gele": "Durchgefroren",
+
+  // ── Pastille de héros ────────────────────────────────────────────────────
+  "hero.chip.down": "{name} ist am Boden",
+  "hero.chip.select": "{name} auswählen",
+  "hero.chip.sheet": "Charakterbogen",
+
+  // ── Barre des héros sur la carte ─────────────────────────────────────────
+  "map.hint.snow": "{name} steht auf einem verschneiten Feld — Durchsuchen räumt es frei und startet die Ernte neu.",
+  "map.hint.forage": "{name} durchsucht die Stelle — nächster Fund in {timer} (ohne AP; Bewegung bricht ab).",
+  "map.hint.inTown": "{name} ist in der Stadt — tippe ein Nachbarfeld an, um hinauszugehen.",
+  "map.hint.stuck": "{name} ist {state} — töte das Rudel oder flieh.",
+  "map.hint.cliff.one": "{name} überwindet {n} Stufe — die roten Felder sind zu steil: außen herum, oder Athletik steigern (Nagelstiefel).",
+  "map.hint.cliff.other": "{name} überwindet {n} Stufen — die roten Felder sind zu steil: außen herum, oder Athletik steigern (Nagelstiefel).",
+  "map.hint.selected": "{name} ausgewählt — tippe die gelben Rauten an, um zu ziehen.",
+
+
+  // ── Menu radial d'un héros sur la carte ──────────────────────────────────
+  "map.menu.fight": "Kämpfen",
+  "map.menu.skill.title": "{name} (-{pa} AP) — {desc}",
+  "map.menu.drink": "Eine Ration trinken",
+  "map.menu.drink.gain": "+{pa} AP · {n}",
+  "map.menu.drink.title": "Stellt {pa} AP wieder her (verbraucht eine Wasserration aus dem Beutel)",
+  "map.menu.tower.build": "Wachturm bauen",
+  "map.menu.tower.title": "Dauerhafte Sicht über {n} Felder, für die ganze Expedition. Material: {materials}",
+  "map.menu.tower.built": "Wachturm",
+  "map.menu.tower.builtDesc": "Dauerwache über {n} Felder — die Sicht ist gesichert.",
+  "map.menu.ruin.clear": "Freiräumen",
+  "map.menu.ruin.explore": "Erkunden",
+  "map.menu.ruin.empty": "Verlies erschöpft",
+  "map.menu.orders.title": "Falls ich nicht zurückkomme:",
+  "map.menu.orders.shelter": "In Deckung gehen",
+  "map.menu.orders.return": "Heimkehren",
+  "map.menu.orders.noPa": "Ohne AP kann kein Dauerbefehl ausgeführt werden.",
+  "map.menu.orders.tooFar": "{dist} Felder bis zur Stadt bei {pa} AP — zu weit: er würde sich an Ort und Stelle verstecken.",
+  "map.menu.inTown": "In der Stadt — Suchen und Verstecken bringen hier nichts",
+  "map.menu.forage.auto": "Auto-Suche",
+  "map.menu.forage.autoTitle": "Die Ernte läuft von allein, ohne AP",
+  "map.menu.search": "Durchsuchen",
+  "map.menu.search.title": "Durchsuchen (-{pa} AP) — danach macht der Held allein weiter",
+  "map.menu.hide": "Verstecken",
+  "map.menu.hide.title": "Verstecken (-{pa} AP)",
+  "map.menu.hide.stuck": "{state} — Verstecken unmöglich",
+  "map.menu.escape": "Ausbrechen",
+  "map.menu.escape.title": "Ausbrechen (-{pa} AP)",
+  "hero.menu.inTown": "in der Stadt",
+  "hero.menu.forage.auto": "Auto-Suche",
+  "hero.menu.forage.autoTitle": "Automatische Suche — ohne AP",
+  "hero.menu.drink.title": "Eine Wasserration trinken (+{pa} AP) — {n} vorrätig",
+
+  // ── Barre d'outils de la carte ───────────────────────────────────────────
+  "map.controls.join": "Kampf beitreten ({x},{y}) — deine Helden sind dabei!",
+  "map.controls.others": "Andere",
+  "map.controls.others.title": "Helden anderer Spieler ein-/ausblenden (durchscheinende Sprites)",
+
+  // ── Fin de combat ────────────────────────────────────────────────────────
+  "combat.end.win": "Sieg!",
+  "combat.end.flee": "Rückzug!",
+  "combat.end.loss": "Niederlage…",
+  "combat.end.summary.one": "{n} Runde · {alive}/{total} Helden stehen",
+  "combat.end.summary.other": "{n} Runden · {alive}/{total} Helden stehen",
+  "combat.end.loot": "Beute",
+  "combat.end.fled": "Das Team hat sich zurückgezogen — keine Beute, und das Rudel streift weiter über das Feld …",
+  "combat.end.lost": "Die Überlebenden ziehen sich zur Stadt zurück …",
+  "combat.end.back": "Zurück zur Karte",
+  "combat.hp": "LP",
+
   "building.townhall.name": "Rathaus",
   "building.townhall.blurb": "Herz der Stadt. Bett: belebt einen erschöpften Helden wieder.",
   "building.townhall.primary": "Helden wiederbeleben",

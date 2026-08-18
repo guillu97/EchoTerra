@@ -123,6 +123,80 @@ export const pt: Locale = {
   "settings.notif.communication": "Mensagens",
   "settings.notif.communication.desc": "Avisar-me quando um amigo enviar uma mensagem privada.",
 
+
+  // ── États d'un héros (affichage) ─────────────────────────────────────────
+  "state.tetanise": "Imobilizado",
+  "state.cache": "Escondido",
+  "state.blesse": "Ferido",
+  "state.fatigue": "Fadiga",
+  "state.soif": "Sede",
+  "state.gele": "Gelado",
+
+  // ── Pastille de héros ────────────────────────────────────────────────────
+  "hero.chip.down": "{name} está caído",
+  "hero.chip.select": "Selecionar {name}",
+  "hero.chip.sheet": "Ficha da personagem",
+
+  // ── Barre des héros sur la carte ─────────────────────────────────────────
+  "map.hint.snow": "{name} tem a casa soterrada pela neve — procurar limpa-a e reinicia a recolha.",
+  "map.hint.forage": "{name} vasculha no local — próximo achado em {timer} (sem PA; mover-se interrompe).",
+  "map.hint.inTown": "{name} está na cidade — toca numa casa adjacente para o fazer sair.",
+  "map.hint.stuck": "{name} está {state} — mata o bando ou foge.",
+  "map.hint.cliff.one": "{name} vence {n} nível — as casas vermelhas são demasiado íngremes: contorna, ou ganha atletismo (Botas cravadas).",
+  "map.hint.cliff.other": "{name} vence {n} níveis — as casas vermelhas são demasiado íngremes: contorna, ou ganha atletismo (Botas cravadas).",
+  "map.hint.selected": "{name} selecionado — toca nos losangos amarelos para o mover.",
+
+
+  // ── Menu radial d'un héros sur la carte ──────────────────────────────────
+  "map.menu.fight": "Combater",
+  "map.menu.skill.title": "{name} (-{pa} PA) — {desc}",
+  "map.menu.drink": "Beber uma ração",
+  "map.menu.drink.gain": "+{pa} PA · {n}",
+  "map.menu.drink.title": "Restaura {pa} PA (consome uma ração de água da mochila)",
+  "map.menu.tower.build": "Construir a torre de vigia",
+  "map.menu.tower.title": "Visão permanente sobre {n} casas, para toda a expedição. Materiais: {materials}",
+  "map.menu.tower.built": "Torre de vigia",
+  "map.menu.tower.builtDesc": "Vigia permanente sobre {n} casas — a visão está garantida.",
+  "map.menu.ruin.clear": "Desimpedir",
+  "map.menu.ruin.explore": "Explorar",
+  "map.menu.ruin.empty": "Masmorra esgotada",
+  "map.menu.orders.title": "Se eu não voltar:",
+  "map.menu.orders.shelter": "Esconder-se",
+  "map.menu.orders.return": "Regressar",
+  "map.menu.orders.noPa": "Sem PA nenhuma ordem pode ser executada.",
+  "map.menu.orders.tooFar": "{dist} casas até à cidade com {pa} PA — longe demais: esconder-se-ia no lugar.",
+  "map.menu.inTown": "Na cidade — procurar e esconder-se não servem aqui",
+  "map.menu.forage.auto": "Busca auto",
+  "map.menu.forage.autoTitle": "A recolha corre sozinha, sem PA",
+  "map.menu.search": "Procurar",
+  "map.menu.search.title": "Procurar (-{pa} PA) — depois o herói continua sozinho",
+  "map.menu.hide": "Esconder-se",
+  "map.menu.hide.title": "Esconder-se (-{pa} PA)",
+  "map.menu.hide.stuck": "{state} — não pode esconder-se",
+  "map.menu.escape": "Escapar",
+  "map.menu.escape.title": "Escapar (-{pa} PA)",
+  "hero.menu.inTown": "na cidade",
+  "hero.menu.forage.auto": "busca auto",
+  "hero.menu.forage.autoTitle": "Busca automática — sem PA",
+  "hero.menu.drink.title": "Beber uma ração de água (+{pa} PA) — {n} em reserva",
+
+  // ── Barre d'outils de la carte ───────────────────────────────────────────
+  "map.controls.join": "Juntar-se ao combate ({x},{y}) — os teus heróis estão lá!",
+  "map.controls.others": "Outros",
+  "map.controls.others.title": "Mostrar/ocultar os heróis dos outros jogadores (sprites translúcidos)",
+
+  // ── Fin de combat ────────────────────────────────────────────────────────
+  "combat.end.win": "Vitória!",
+  "combat.end.flee": "Retirada!",
+  "combat.end.loss": "Derrota…",
+  "combat.end.summary.one": "{n} turno · {alive}/{total} heróis de pé",
+  "combat.end.summary.other": "{n} turnos · {alive}/{total} heróis de pé",
+  "combat.end.loot": "Espólio",
+  "combat.end.fled": "A equipa recuou — sem espólio, e o bando continua a rondar a casa…",
+  "combat.end.lost": "Os sobreviventes recuam para a cidade…",
+  "combat.end.back": "Voltar ao mapa",
+  "combat.hp": "PV",
+
   "building.townhall.name": "Câmara Municipal",
   "building.townhall.blurb": "Coração da cidade. Cama: ressuscita um herói exausto.",
   "building.townhall.primary": "Ressuscitar um herói",

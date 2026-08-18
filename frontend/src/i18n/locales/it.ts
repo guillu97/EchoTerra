@@ -123,6 +123,80 @@ export const it: Locale = {
   "settings.notif.communication": "Messaggi",
   "settings.notif.communication.desc": "Avvisami quando un amico invia un messaggio privato.",
 
+
+  // ── États d'un héros (affichage) ─────────────────────────────────────────
+  "state.tetanise": "Bloccato",
+  "state.cache": "Nascosto",
+  "state.blesse": "Ferito",
+  "state.fatigue": "Stanchezza",
+  "state.soif": "Sete",
+  "state.gele": "Congelato",
+
+  // ── Pastille de héros ────────────────────────────────────────────────────
+  "hero.chip.down": "{name} è a terra",
+  "hero.chip.select": "Seleziona {name}",
+  "hero.chip.sheet": "Scheda del personaggio",
+
+  // ── Barre des héros sur la carte ─────────────────────────────────────────
+  "map.hint.snow": "{name} ha la casella sepolta sotto la neve — cercare la libera e fa ripartire la raccolta.",
+  "map.hint.forage": "{name} fruga sul posto — prossimo ritrovamento tra {timer} (senza PA; muoversi lo interrompe).",
+  "map.hint.inTown": "{name} è in città — tocca una casella adiacente per farlo uscire.",
+  "map.hint.stuck": "{name} è {state} — uccidi il branco o fuggi.",
+  "map.hint.cliff.one": "{name} supera {n} livello — le caselle rosse sono troppo ripide: gira intorno, o guadagna atletismo (Stivali chiodati).",
+  "map.hint.cliff.other": "{name} supera {n} livelli — le caselle rosse sono troppo ripide: gira intorno, o guadagna atletismo (Stivali chiodati).",
+  "map.hint.selected": "{name} selezionato — tocca i rombi gialli per spostarlo.",
+
+
+  // ── Menu radial d'un héros sur la carte ──────────────────────────────────
+  "map.menu.fight": "Combattere",
+  "map.menu.skill.title": "{name} (-{pa} PA) — {desc}",
+  "map.menu.drink": "Bere una razione",
+  "map.menu.drink.gain": "+{pa} PA · {n}",
+  "map.menu.drink.title": "Ripristina {pa} PA (consuma una razione d'acqua dallo zaino)",
+  "map.menu.tower.build": "Costruire la torre di guardia",
+  "map.menu.tower.title": "Vista permanente su {n} caselle, per tutta la spedizione. Materiali: {materials}",
+  "map.menu.tower.built": "Torre di guardia",
+  "map.menu.tower.builtDesc": "Vigilanza permanente su {n} caselle — la vista è acquisita.",
+  "map.menu.ruin.clear": "Sgombrare",
+  "map.menu.ruin.explore": "Esplorare",
+  "map.menu.ruin.empty": "Sotterraneo esaurito",
+  "map.menu.orders.title": "Se non torno:",
+  "map.menu.orders.shelter": "Nascondersi",
+  "map.menu.orders.return": "Rientrare",
+  "map.menu.orders.noPa": "Senza PA nessuna consegna può eseguirsi.",
+  "map.menu.orders.tooFar": "{dist} caselle fino alla città con {pa} PA — troppo lontano: si nasconderebbe sul posto.",
+  "map.menu.inTown": "In città — cercare e nascondersi qui non servono",
+  "map.menu.forage.auto": "Ricerca auto",
+  "map.menu.forage.autoTitle": "La raccolta va avanti da sola, senza PA",
+  "map.menu.search": "Cercare",
+  "map.menu.search.title": "Cercare (-{pa} PA) — poi l'eroe continua da solo",
+  "map.menu.hide": "Nascondersi",
+  "map.menu.hide.title": "Nascondersi (-{pa} PA)",
+  "map.menu.hide.stuck": "{state} — impossibile nascondersi",
+  "map.menu.escape": "Fuggire",
+  "map.menu.escape.title": "Fuggire (-{pa} PA)",
+  "hero.menu.inTown": "in città",
+  "hero.menu.forage.auto": "ricerca auto",
+  "hero.menu.forage.autoTitle": "Ricerca automatica — senza PA",
+  "hero.menu.drink.title": "Bere una razione d'acqua (+{pa} PA) — {n} di scorta",
+
+  // ── Barre d'outils de la carte ───────────────────────────────────────────
+  "map.controls.join": "Unirsi al combattimento ({x},{y}) — i tuoi eroi ci sono!",
+  "map.controls.others": "Altri",
+  "map.controls.others.title": "Mostrare/nascondere gli eroi degli altri giocatori (sprite traslucidi)",
+
+  // ── Fin de combat ────────────────────────────────────────────────────────
+  "combat.end.win": "Vittoria!",
+  "combat.end.flee": "Ripiegamento!",
+  "combat.end.loss": "Sconfitta…",
+  "combat.end.summary.one": "{n} turno · {alive}/{total} eroi in piedi",
+  "combat.end.summary.other": "{n} turni · {alive}/{total} eroi in piedi",
+  "combat.end.loot": "Bottino",
+  "combat.end.fled": "La squadra si è ritirata — nessun bottino, e il branco si aggira ancora sulla casella…",
+  "combat.end.lost": "I sopravvissuti ripiegano verso la città…",
+  "combat.end.back": "Torna alla mappa",
+  "combat.hp": "PV",
+
   "building.townhall.name": "Municipio",
   "building.townhall.blurb": "Cuore della città. Letto: fa rivivere un eroe sfinito.",
   "building.townhall.primary": "Far rivivere un eroe",

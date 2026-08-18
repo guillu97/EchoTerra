@@ -122,6 +122,80 @@ export const ja: Locale = {
   "settings.notif.communication": "メッセージ",
   "settings.notif.communication.desc": "友人から個別メッセージが届いたら知らせる。",
 
+
+  // ── États d'un héros (affichage) ─────────────────────────────────────────
+  "state.tetanise": "足止め",
+  "state.cache": "隠密",
+  "state.blesse": "負傷",
+  "state.fatigue": "疲労",
+  "state.soif": "渇き",
+  "state.gele": "凍え",
+
+  // ── Pastille de héros ────────────────────────────────────────────────────
+  "hero.chip.down": "{name} は倒れています",
+  "hero.chip.select": "{name} を選ぶ",
+  "hero.chip.sheet": "キャラクターシート",
+
+  // ── Barre des héros sur la carte ─────────────────────────────────────────
+  "map.hint.snow": "{name} のマスは雪に埋もれています —— 探索すれば雪を払い、採集が再開します。",
+  "map.hint.forage": "{name} はその場で探索中 —— 次の発見まで {timer}（APは不要、移動すると中断）。",
+  "map.hint.inTown": "{name} は街にいます —— 隣のマスをタップすると外に出ます。",
+  "map.hint.stuck": "{name} は「{state}」状態です —— 群れを倒すか、逃げましょう。",
+  "map.hint.cliff.one": "{name} が越えられる高低差は {n} 段 —— 赤いマスは急すぎます。迂回するか、運動能力を上げましょう（鋲付きブーツ）。",
+  "map.hint.cliff.other": "{name} が越えられる高低差は {n} 段 —— 赤いマスは急すぎます。迂回するか、運動能力を上げましょう（鋲付きブーツ）。",
+  "map.hint.selected": "{name} を選択中 —— 黄色いひし形をタップして移動します。",
+
+
+  // ── Menu radial d'un héros sur la carte ──────────────────────────────────
+  "map.menu.fight": "戦う",
+  "map.menu.skill.title": "{name}（AP -{pa}）—— {desc}",
+  "map.menu.drink": "水を一口飲む",
+  "map.menu.drink.gain": "AP +{pa} · {n}",
+  "map.menu.drink.title": "APを{pa}回復（かばんの水を1つ消費）",
+  "map.menu.tower.build": "物見の塔を建てる",
+  "map.menu.tower.title": "遠征隊全体のために{n}マスを恒久的に照らします。材料：{materials}",
+  "map.menu.tower.built": "物見の塔",
+  "map.menu.tower.builtDesc": "{n}マスを恒久的に見張ります —— この視界はもう失われません。",
+  "map.menu.ruin.clear": "掘り出す",
+  "map.menu.ruin.explore": "探索する",
+  "map.menu.ruin.empty": "ダンジョンは探し尽くされました",
+  "map.menu.orders.title": "戻らなかったら：",
+  "map.menu.orders.shelter": "身を隠す",
+  "map.menu.orders.return": "街へ戻る",
+  "map.menu.orders.noPa": "APがなければ、どの指示も実行できません。",
+  "map.menu.orders.tooFar": "街まで{dist}マス、APは{pa} —— 遠すぎます。その場で身を隠すことになります。",
+  "map.menu.inTown": "街の中 —— ここでは探索も隠れることも意味がありません",
+  "map.menu.forage.auto": "自動探索",
+  "map.menu.forage.autoTitle": "採集はAPなしで自動的に続きます",
+  "map.menu.search": "探索する",
+  "map.menu.search.title": "探索する（AP -{pa}）—— その後は英雄が自分で続けます",
+  "map.menu.hide": "身を隠す",
+  "map.menu.hide.title": "身を隠す（AP -{pa}）",
+  "map.menu.hide.stuck": "{state} —— 隠れられません",
+  "map.menu.escape": "振り切る",
+  "map.menu.escape.title": "振り切る（AP -{pa}）",
+  "hero.menu.inTown": "街にいる",
+  "hero.menu.forage.auto": "自動探索",
+  "hero.menu.forage.autoTitle": "自動探索 —— APは不要",
+  "hero.menu.drink.title": "水を飲む（AP +{pa}）—— 残り {n}",
+
+  // ── Barre d'outils de la carte ───────────────────────────────────────────
+  "map.controls.join": "戦闘に加わる（{x},{y}）—— 味方の英雄が戦っています！",
+  "map.controls.others": "ほかの人",
+  "map.controls.others.title": "ほかのプレイヤーの英雄を表示／非表示（半透明スプライト）",
+
+  // ── Fin de combat ────────────────────────────────────────────────────────
+  "combat.end.win": "勝利！",
+  "combat.end.flee": "撤退！",
+  "combat.end.loss": "敗北……",
+  "combat.end.summary.one": "{n}ラウンド · 英雄 {alive}/{total} 名が健在",
+  "combat.end.summary.other": "{n}ラウンド · 英雄 {alive}/{total} 名が健在",
+  "combat.end.loot": "戦利品",
+  "combat.end.fled": "部隊は退きました —— 戦利品はなく、群れはまだこのマスを徘徊しています……",
+  "combat.end.lost": "生き残りは街へ退いていきます……",
+  "combat.end.back": "マップに戻る",
+  "combat.hp": "HP",
+
   "building.townhall.name": "町役場",
   "building.townhall.blurb": "街の中心。寝台：力尽きた英雄を蘇生させます。",
   "building.townhall.primary": "英雄を蘇生する",

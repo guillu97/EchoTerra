@@ -120,6 +120,80 @@ export const zh: Locale = {
   "settings.notif.communication": "消息",
   "settings.notif.communication.desc": "有好友发来私信时通知我。",
 
+
+  // ── États d'un héros (affichage) ─────────────────────────────────────────
+  "state.tetanise": "被缠住",
+  "state.cache": "躲藏",
+  "state.blesse": "负伤",
+  "state.fatigue": "疲劳",
+  "state.soif": "口渴",
+  "state.gele": "受冻",
+
+  // ── Pastille de héros ────────────────────────────────────────────────────
+  "hero.chip.down": "{name} 已倒下",
+  "hero.chip.select": "选择 {name}",
+  "hero.chip.sheet": "角色资料",
+
+  // ── Barre des héros sur la carte ─────────────────────────────────────────
+  "map.hint.snow": "{name} 所在的格子被大雪掩埋 —— 搜索可以清出它并重新开始采集。",
+  "map.hint.forage": "{name} 正在原地搜寻 —— 下一次收获还有 {timer}（不耗行动点；移动会中断）。",
+  "map.hint.inTown": "{name} 在城里 —— 点相邻的格子让其出城。",
+  "map.hint.stuck": "{name} 处于「{state}」—— 消灭这一群，或者逃走。",
+  "map.hint.cliff.one": "{name} 能攀越 {n} 级落差 —— 红色格子太陡：绕行，或提升运动能力（钉靴）。",
+  "map.hint.cliff.other": "{name} 能攀越 {n} 级落差 —— 红色格子太陡：绕行，或提升运动能力（钉靴）。",
+  "map.hint.selected": "已选择 {name} —— 点黄色菱形来移动。",
+
+
+  // ── Menu radial d'un héros sur la carte ──────────────────────────────────
+  "map.menu.fight": "战斗",
+  "map.menu.skill.title": "{name}（-{pa} 行动点）—— {desc}",
+  "map.menu.drink": "喝一份水",
+  "map.menu.drink.gain": "+{pa} 行动点 · {n}",
+  "map.menu.drink.title": "回复 {pa} 行动点（消耗背包里的一份饮水）",
+  "map.menu.tower.build": "建造瞭望塔",
+  "map.menu.tower.title": "为整支远征队永久照亮 {n} 格。材料：{materials}",
+  "map.menu.tower.built": "瞭望塔",
+  "map.menu.tower.builtDesc": "永久守望 {n} 格 —— 这片视野已经拿下。",
+  "map.menu.ruin.clear": "清理",
+  "map.menu.ruin.explore": "探索",
+  "map.menu.ruin.empty": "地城已被搜空",
+  "map.menu.orders.title": "如果我没回来：",
+  "map.menu.orders.shelter": "躲藏",
+  "map.menu.orders.return": "回城",
+  "map.menu.orders.noPa": "没有行动点，任何指令都执行不了。",
+  "map.menu.orders.tooFar": "回城还有 {dist} 格，而行动点只有 {pa} —— 太远了，他会就地躲藏。",
+  "map.menu.inTown": "在城里 —— 这里不需要搜索或躲藏",
+  "map.menu.forage.auto": "自动搜寻",
+  "map.menu.forage.autoTitle": "采集会自行进行，不消耗行动点",
+  "map.menu.search": "搜索",
+  "map.menu.search.title": "搜索（-{pa} 行动点）—— 之后英雄会自行继续",
+  "map.menu.hide": "躲藏",
+  "map.menu.hide.title": "躲藏（-{pa} 行动点）",
+  "map.menu.hide.stuck": "{state} —— 无法躲藏",
+  "map.menu.escape": "脱身",
+  "map.menu.escape.title": "脱身（-{pa} 行动点）",
+  "hero.menu.inTown": "在城里",
+  "hero.menu.forage.auto": "自动搜寻",
+  "hero.menu.forage.autoTitle": "自动搜寻 —— 不耗行动点",
+  "hero.menu.drink.title": "喝一份饮水（+{pa} 行动点）—— 库存 {n}",
+
+  // ── Barre d'outils de la carte ───────────────────────────────────────────
+  "map.controls.join": "加入战斗（{x},{y}）—— 你的英雄就在那里！",
+  "map.controls.others": "其他人",
+  "map.controls.others.title": "显示／隐藏其他玩家的英雄（半透明贴图）",
+
+  // ── Fin de combat ────────────────────────────────────────────────────────
+  "combat.end.win": "胜利！",
+  "combat.end.flee": "撤退！",
+  "combat.end.loss": "失败……",
+  "combat.end.summary.one": "{n} 回合 · {alive}/{total} 名英雄仍站立",
+  "combat.end.summary.other": "{n} 回合 · {alive}/{total} 名英雄仍站立",
+  "combat.end.loot": "战利品",
+  "combat.end.fled": "队伍撤了下来 —— 没有战利品，而那一群仍在这格徘徊……",
+  "combat.end.lost": "幸存者向城镇撤退……",
+  "combat.end.back": "返回地图",
+  "combat.hp": "生命",
+
   "building.townhall.name": "市政厅",
   "building.townhall.blurb": "城镇的心脏。床铺：让力竭的英雄复活。",
   "building.townhall.primary": "复活一名英雄",

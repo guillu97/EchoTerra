@@ -159,6 +159,29 @@ const MIGRATED = fs.existsSync(path.join(ROOT, "tests", "i18n-migrated.json"))
   ? JSON.parse(fs.readFileSync(path.join(ROOT, "tests", "i18n-migrated.json"), "utf8"))
   : [];
 
+// ⚠ LES VALEURS QUI SE TROUVENT ÊTRE FRANÇAISES.
+// Le backend nomme ses états et ses objets en français : `"Tétanisé"`,
+// `"Ration d'eau"`, `"Plan de la Tour"`. Ce sont des IDENTIFIANTS — le client
+// les COMPARE (`states.includes("Tétanisé")`), les recettes et les bots s'en
+// servent, les traduire casserait le jeu (CLAUDE.md le dit déjà : « ne jamais
+// traduire »). Leur AFFICHAGE, lui, passe par `i18n/gameText.ts`.
+//
+// ⚠ Cette liste doit rester COURTE et EXPLICITE : c'est une porte de sortie du
+// garde-fou, et une porte large ne garde plus rien. Y ajouter une valeur veut
+// dire « le code compare littéralement cette chaîne », jamais « ce texte
+// m'ennuie ».
+const GAME_VALUES = new Set([
+  "Tétanisé",
+  "Caché",
+  "Blessé",
+  "Fatigue",
+  "Soif",
+  "Gelé",
+  "Ration d'eau",
+  "Pierre",
+  "Plan ",
+]);
+
 const FRENCH_WORD =
   /[àâäçéèêëîïôöùûüœ]|\b(le|la|les|des|une|un|du|de|vous|tes|ton|ta|est|pas|dans|pour|avec|sur|par|qui|que|ville|héros|vague|joueur|partie|monstre|aucun|tous|votre|toi)\b/i;
 
@@ -168,6 +191,53 @@ function stripComments(src) {
     .split("\n")
     .map((l) => l.replace(/(^|[^:'"`\\])\/\/.*$/, "$1"))
     .join("\n");
+}
+
+/**
+ * Le texte NU d'un fichier JSX : ce qu'un joueur lit et que personne n'a
+ * traduit — le texte entre une balise fermante et la balise suivante.
+ *
+ * ⚠⚠ TROIS AUTOMATES ONT ÉTÉ ÉCRITS ET JETÉS AVANT CELUI-CI, et aucun n'était
+ * faux « en lisant le code » : chacun a été démasqué en vérifiant que le témoin
+ * MORD (il ne mordait pas).
+ *  1. une regex `>…texte…<` sur UNE ligne rate le cas le plus courant — Prettier
+ *     met justement le texte sur sa propre ligne ;
+ *  2. un automate qui suit les balises se fait décaler par `onClick={() => …}`
+ *     (un `>` qui ne ferme rien) et par `i < src.length` (un `<` qui n'ouvre
+ *     rien) ;
+ *  3. et surtout : « profondeur d'accolade 0 » NE VEUT PAS DIRE « dans du
+ *     JSX » — le corps d'une fonction est déjà une accolade, donc tout le JSX
+ *     d'un composant vivait à la profondeur 1 et était sauté en silence. Cette
+ *     version-là rendait UN candidat (« import ») sur 400 lignes.
+ *
+ * Ce qui marche est plus bête : on retire les chaînes (déjà couvertes par la
+ * passe (a), et elles peuvent contenir `<`), puis on prend les tranches
+ * `>…<` — la regex `[^<>]*` choisit d'elle-même le `>` le plus PROCHE, donc le
+ * `>` d'une flèche ne peut pas ouvrir une fausse tranche. Enfin on ôte les
+ * expressions `{…}` de la tranche : ce qui reste est du texte pur, et une
+ * ligne mixte (« 🔎 {T(…)} et du français ») est donc bien attrapée.
+ */
+function jsxText(src) {
+  // Les chaînes deviennent des chaînes vides : leur contenu est jugé ailleurs.
+  const noStrings = src
+    .replace(/`(?:[^`\\]|\\.)*`/g, "``")
+    .replace(/'(?:[^'\\\n]|\\.)*'/g, "''")
+    .replace(/"(?:[^"\\\n]|\\.)*"/g, '""');
+
+  const out = [];
+  for (const m of noStrings.matchAll(/>([^<>]*)</g)) {
+    let body = m[1];
+    let prev;
+    do {
+      prev = body;
+      body = body.replace(/\{[^{}]*\}/g, " ");
+    } while (body !== prev);
+    body = body.replace(/\s+/g, " ").trim();
+    if (!body || /[;=(){}[\]"'`]/.test(body)) continue;
+    if (!/[A-Za-zÀ-ÿ]{2}/.test(body)) continue;
+    out.push(body);
+  }
+  return out;
 }
 
 for (const rel of MIGRATED) {
@@ -184,11 +254,16 @@ for (const rel of MIGRATED) {
     if (body.length < 4) continue;
     if (/^[\w./#@-]+$/.test(body)) continue; // classes CSS, ids, chemins
     if (!FRENCH_WORD.test(body)) continue;
+    if (GAME_VALUES.has(body)) continue; // un identifiant, pas un texte
     offenders.push(lit);
   }
-  // (b) texte JSX entre balises
-  for (const m of src.match(/>[^<>{}\n]*[A-Za-zÀ-ÿ][^<>{}\n]*</g) ?? []) {
-    const body = m.slice(1, -1).trim();
+  // (b) texte JSX entre balises — ⚠ PAS une regex sur une ligne.
+  // Un premier jet cherchait `>…texte…<` sur UNE ligne et laissait passer le cas
+  // le plus courant, parce que Prettier met justement le texte sur sa propre
+  // ligne : `<button …>` \n `  🔎 Fouiller la case <i>` — le `>` ouvrant est deux
+  // lignes plus haut. Vérifié : le témoin ne mordait pas. D'où ce petit automate,
+  // qui ramasse ce qui se trouve HORS balise et HORS accolade.
+  if (rel.endsWith(".tsx")) for (const body of jsxText(src)) {
     if (body.length < 4 || !FRENCH_WORD.test(body)) continue;
     offenders.push(`>${body}<`);
   }

@@ -2,6 +2,9 @@ import { useStore } from "../store";
 import { myTeamHeroes } from "../townUtils";
 import { HeroChip } from "./HeroChip";
 import { formatHMS, useForageRemaining } from "../useWave";
+import { useT } from "../i18n/useT";
+import { tx } from "../i18n/Trans";
+import { stateLabel } from "../i18n/gameText";
 
 // Barre de sélection des héros, posée sur la carte (vue Map uniquement). Une
 // pastille par héros de MON équipe : portrait, nom, barre de PV, PA, et un badge
@@ -13,6 +16,10 @@ import { formatHMS, useForageRemaining } from "../useWave";
 // La pastille elle-même vit dans `HeroChip.tsx` : les trois listes de héros du
 // jeu (ici, l'écran Ville, le dropdown de la TopBar) la partagent.
 export function MapHeroBar() {
+  // ⚠ appelé pour son ABONNEMENT, pas pour sa valeur : les phrases ci-dessous
+  // passent par `tx()` (qui n'est pas un crochet), donc sans ça le composant ne
+  // se redessinerait pas quand la langue change sous lui.
+  useT();
   const game = useStore((s) => s.game);
   const playerId = useStore((s) => s.playerId);
   const selectedHeroId = useStore((s) => s.selectedHeroId);
@@ -60,26 +67,45 @@ export function MapHeroBar() {
         <div className="mhb-hint">
           {/* NEIGE FRAÎCHE (thème nordique) : c'est LA raison pour laquelle la récolte
               s'est arrêtée, et sans un mot ici le joueur ne peut pas la deviner. */}
+          {/* ⚠ l'emoji reste DANS le JSX et la phrase entière vit dans les huit
+              langues : découper autour du gras ne marcherait qu'en français
+              (l'allemand rejette le verbe à la fin, le japonais place le sujet
+              ailleurs). `tx()` recoud le nœud <strong> à la place que la langue
+              a choisie pour `{name}`. */}
           {snowedIn ? (
-            <>❄️ <strong>{selected!.name}</strong> a la case ensevelie sous la neige — fouiller la
-              dégage et relance la récolte.</>
+            <>❄️ {tx("map.hint.snow", { name: <strong>{selected.name}</strong> })}</>
           ) : forageIn !== null ? (
-            <>🔄 <strong>{selected.name}</strong> fouille sur place — prochaine trouvaille dans{" "}
-              <strong>{formatHMS(forageIn)}</strong> (sans PA ; bouger l'interrompt).</>
+            <>
+              🔄{" "}
+              {tx("map.hint.forage", {
+                name: <strong>{selected.name}</strong>,
+                timer: <strong>{formatHMS(forageIn)}</strong>,
+              })}
+            </>
           ) : selInTown ? (
-            <>🏰 <strong>{selected.name}</strong> est en ville — tape une case adjacente pour le faire sortir.</>
+            <>🏰 {tx("map.hint.inTown", { name: <strong>{selected.name}</strong> })}</>
           ) : selected.states.includes("Tétanisé") ? (
-            <>⚠️ <strong>{selected.name}</strong> est Tétanisé — tue le pack ou fuis.</>
+            <>
+              ⚠️{" "}
+              {tx("map.hint.stuck", {
+                name: <strong>{selected.name}</strong>,
+                state: stateLabel("Tétanisé"),
+              })}
+            </>
           ) : cliffs > 0 ? (
             /* LE RELIEF : la seule raison pour laquelle une case voisine, praticable
                et découverte, refuse le pas. Sans cette phrase le joueur voit un
                losange ROUGE et doit deviner — or c'est justement le moment où on veut
                qu'il pense « je fais le tour, ou je chausse des bottes ». */
-            <>⛰️ <strong>{selected.name}</strong> franchit {selected.climb ?? 1} niveau
-              {(selected.climb ?? 1) > 1 ? "x" : ""} — les cases rouges sont trop escarpées :
-              contourne, ou gagne en athlétisme (Bottes cloutées).</>
+            <>
+              ⛰️{" "}
+              {tx(`map.hint.cliff.${(selected.climb ?? 1) < 2 ? "one" : "other"}`, {
+                name: <strong>{selected.name}</strong>,
+                n: selected.climb ?? 1,
+              })}
+            </>
           ) : (
-            <>🎯 <strong>{selected.name}</strong> sélectionné — tape les losanges jaunes pour le déplacer.</>
+            <>🎯 {tx("map.hint.selected", { name: <strong>{selected.name}</strong> })}</>
           )}
         </div>
       )}

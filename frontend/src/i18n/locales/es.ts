@@ -123,6 +123,80 @@ export const es: Locale = {
   "settings.notif.communication": "Mensajes",
   "settings.notif.communication.desc": "Avisarme cuando un amigo envíe un mensaje privado.",
 
+
+  // ── États d'un héros (affichage) ─────────────────────────────────────────
+  "state.tetanise": "Inmovilizado",
+  "state.cache": "Escondido",
+  "state.blesse": "Herido",
+  "state.fatigue": "Fatiga",
+  "state.soif": "Sed",
+  "state.gele": "Helado",
+
+  // ── Pastille de héros ────────────────────────────────────────────────────
+  "hero.chip.down": "{name} está caído",
+  "hero.chip.select": "Seleccionar a {name}",
+  "hero.chip.sheet": "Ficha del personaje",
+
+  // ── Barre des héros sur la carte ─────────────────────────────────────────
+  "map.hint.snow": "{name} tiene la casilla sepultada bajo la nieve: buscar la despeja y reanuda la recolección.",
+  "map.hint.forage": "{name} rebusca en el sitio: próximo hallazgo en {timer} (sin PA; moverse lo interrumpe).",
+  "map.hint.inTown": "{name} está en la ciudad: toca una casilla adyacente para que salga.",
+  "map.hint.stuck": "{name} está {state}: mata al grupo o huye.",
+  "map.hint.cliff.one": "{name} salva {n} nivel: las casillas rojas son demasiado escarpadas; rodea o gana atletismo (Botas claveteadas).",
+  "map.hint.cliff.other": "{name} salva {n} niveles: las casillas rojas son demasiado escarpadas; rodea o gana atletismo (Botas claveteadas).",
+  "map.hint.selected": "{name} seleccionado: toca los rombos amarillos para moverlo.",
+
+
+  // ── Menu radial d'un héros sur la carte ──────────────────────────────────
+  "map.menu.fight": "Combatir",
+  "map.menu.skill.title": "{name} (-{pa} PA) — {desc}",
+  "map.menu.drink": "Beber una ración",
+  "map.menu.drink.gain": "+{pa} PA · {n}",
+  "map.menu.drink.title": "Restaura {pa} PA (consume una ración de agua de la mochila)",
+  "map.menu.tower.build": "Construir la atalaya",
+  "map.menu.tower.title": "Visión permanente sobre {n} casillas, para toda la expedición. Materiales: {materials}",
+  "map.menu.tower.built": "Atalaya",
+  "map.menu.tower.builtDesc": "Vigilancia permanente sobre {n} casillas: la visión ya es vuestra.",
+  "map.menu.ruin.clear": "Despejar",
+  "map.menu.ruin.explore": "Explorar",
+  "map.menu.ruin.empty": "Mazmorra agotada",
+  "map.menu.orders.title": "Si no vuelvo:",
+  "map.menu.orders.shelter": "Esconderse",
+  "map.menu.orders.return": "Volver",
+  "map.menu.orders.noPa": "Sin PA no puede ejecutarse ninguna consigna.",
+  "map.menu.orders.tooFar": "{dist} casillas hasta la ciudad con {pa} PA: demasiado lejos, se escondería donde está.",
+  "map.menu.inTown": "En la ciudad: buscar y esconderse no sirven aquí",
+  "map.menu.forage.auto": "Búsqueda auto",
+  "map.menu.forage.autoTitle": "La recolección funciona sola, sin PA",
+  "map.menu.search": "Buscar",
+  "map.menu.search.title": "Buscar (-{pa} PA): después el héroe sigue solo",
+  "map.menu.hide": "Esconderse",
+  "map.menu.hide.title": "Esconderse (-{pa} PA)",
+  "map.menu.hide.stuck": "{state}: no puede esconderse",
+  "map.menu.escape": "Escapar",
+  "map.menu.escape.title": "Escapar (-{pa} PA)",
+  "hero.menu.inTown": "en la ciudad",
+  "hero.menu.forage.auto": "búsqueda auto",
+  "hero.menu.forage.autoTitle": "Búsqueda automática, sin PA",
+  "hero.menu.drink.title": "Beber una ración de agua (+{pa} PA) — {n} en reserva",
+
+  // ── Barre d'outils de la carte ───────────────────────────────────────────
+  "map.controls.join": "Unirse al combate ({x},{y}): ¡tus héroes están ahí!",
+  "map.controls.others": "Otros",
+  "map.controls.others.title": "Mostrar u ocultar los héroes de los demás jugadores (sprites translúcidos)",
+
+  // ── Fin de combat ────────────────────────────────────────────────────────
+  "combat.end.win": "¡Victoria!",
+  "combat.end.flee": "¡Retirada!",
+  "combat.end.loss": "Derrota…",
+  "combat.end.summary.one": "{n} turno · {alive}/{total} héroes en pie",
+  "combat.end.summary.other": "{n} turnos · {alive}/{total} héroes en pie",
+  "combat.end.loot": "Botín",
+  "combat.end.fled": "El equipo se ha replegado: sin botín, y el grupo sigue rondando la casilla…",
+  "combat.end.lost": "Los supervivientes se retiran hacia la ciudad…",
+  "combat.end.back": "Volver al mapa",
+  "combat.hp": "PV",
+
   "building.townhall.name": "Ayuntamiento",
   "building.townhall.blurb": "Corazón de la ciudad. Cama: revive a un héroe agotado.",
   "building.townhall.primary": "Revivir a un héroe",

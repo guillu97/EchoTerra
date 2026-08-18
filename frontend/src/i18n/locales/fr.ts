@@ -146,6 +146,82 @@ export const fr = {
 
   // ── Bâtiments (noms, descriptions, action principale) ─────────────────────
   // ⚠ l'ID (`townhall`, `wall`…) ne change JAMAIS : c'est lui que le serveur,
+
+  // ── États d'un héros (affichage) ─────────────────────────────────────────
+  // ⚠ la VALEUR (`"Tétanisé"`) reste française : c'est ce que le serveur envoie
+  // et ce que le code compare. Seul son AFFICHAGE est traduit.
+  "state.tetanise": "Tétanisé",
+  "state.cache": "Caché",
+  "state.blesse": "Blessé",
+  "state.fatigue": "Fatigue",
+  "state.soif": "Soif",
+  "state.gele": "Gelé",
+
+  // ── Pastille de héros ────────────────────────────────────────────────────
+  "hero.chip.down": "{name} est à terre",
+  "hero.chip.select": "Sélectionner {name}",
+  "hero.chip.sheet": "Fiche du personnage",
+
+  // ── Barre des héros sur la carte ─────────────────────────────────────────
+  "map.hint.snow": "{name} a la case ensevelie sous la neige — fouiller la dégage et relance la récolte.",
+  "map.hint.forage": "{name} fouille sur place — prochaine trouvaille dans {timer} (sans PA ; bouger l'interrompt).",
+  "map.hint.inTown": "{name} est en ville — tape une case adjacente pour le faire sortir.",
+  "map.hint.stuck": "{name} est {state} — tue le pack ou fuis.",
+  "map.hint.cliff.one": "{name} franchit {n} niveau — les cases rouges sont trop escarpées : contourne, ou gagne en athlétisme (Bottes cloutées).",
+  "map.hint.cliff.other": "{name} franchit {n} niveaux — les cases rouges sont trop escarpées : contourne, ou gagne en athlétisme (Bottes cloutées).",
+  "map.hint.selected": "{name} sélectionné — tape les losanges jaunes pour le déplacer.",
+
+
+  // ── Menu radial d'un héros sur la carte ──────────────────────────────────
+  "map.menu.fight": "Combattre",
+  "map.menu.skill.title": "{name} (-{pa} PA) — {desc}",
+  "map.menu.drink": "Boire une ration",
+  "map.menu.drink.gain": "+{pa} PA · {n}",
+  "map.menu.drink.title": "Restaure {pa} PA (consomme une ration d'eau du sac)",
+  "map.menu.tower.build": "Bâtir la tour de guet",
+  "map.menu.tower.title": "Vue permanente sur {n} cases, pour toute l'expédition. Matériaux : {materials}",
+  "map.menu.tower.built": "Tour de guet",
+  "map.menu.tower.builtDesc": "Veille permanente sur {n} cases — la vue est acquise.",
+  "map.menu.ruin.clear": "Déblayer",
+  "map.menu.ruin.explore": "Explorer",
+  "map.menu.ruin.empty": "Donjon épuisé",
+  "map.menu.orders.title": "Si je ne reviens pas :",
+  "map.menu.orders.shelter": "Se cacher",
+  "map.menu.orders.return": "Rentrer",
+  "map.menu.orders.noPa": "Sans PA, aucune consigne ne peut s'exécuter.",
+  "map.menu.orders.tooFar": "{dist} cases jusqu'à la ville pour {pa} PA — trop loin : il se cacherait sur place.",
+  "map.menu.inTown": "En ville — fouille et cachette inutiles ici",
+  "map.menu.forage.auto": "Fouille auto",
+  "map.menu.forage.autoTitle": "La récolte tourne toute seule, sans PA",
+  "map.menu.search": "Fouiller",
+  "map.menu.search.title": "Fouiller (-{pa} PA) — le héros continue ensuite tout seul",
+  "map.menu.hide": "Se cacher",
+  "map.menu.hide.title": "Se cacher (-{pa} PA)",
+  "map.menu.hide.stuck": "{state} — impossible de se cacher",
+  "map.menu.escape": "S'échapper",
+  "map.menu.escape.title": "S'échapper (-{pa} PA)",
+  "hero.menu.inTown": "en ville",
+  "hero.menu.forage.auto": "fouille auto",
+  "hero.menu.forage.autoTitle": "Fouille automatique — sans PA",
+  "hero.menu.drink.title": "Boire une ration d'eau (+{pa} PA) — {n} en réserve",
+
+  // ── Barre d'outils de la carte ───────────────────────────────────────────
+  "map.controls.join": "Rejoindre le combat ({x},{y}) — tes héros y sont !",
+  "map.controls.others": "Autres",
+  "map.controls.others.title": "Afficher/masquer les héros des autres joueurs (sprites translucides)",
+
+  // ── Fin de combat ────────────────────────────────────────────────────────
+  "combat.end.win": "Victoire !",
+  "combat.end.flee": "Repli !",
+  "combat.end.loss": "Défaite…",
+  "combat.end.summary.one": "{n} tour · {alive}/{total} héros debout",
+  "combat.end.summary.other": "{n} tours · {alive}/{total} héros debout",
+  "combat.end.loot": "Butin",
+  "combat.end.fled": "L'équipe s'est repliée — pas de butin, et le pack rôde toujours sur la case…",
+  "combat.end.lost": "Les survivants battent en retraite vers la ville…",
+  "combat.end.back": "Retour à la carte",
+  "combat.hp": "PV",
+
   // les bots et les modèles voxel connaissent. Seul ce libellé est traduit.
   "building.townhall.name": "Mairie",
   "building.townhall.blurb": "Cœur de la ville. Lit : ressuscite un héros épuisé.",

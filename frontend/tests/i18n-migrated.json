@@ -1,9 +1,13 @@
 [
   "components/BottomNav.tsx",
+  "components/HeroActionsMenu.tsx",
+  "components/HeroChip.tsx",
+  "components/MapHeroBar.tsx",
   "components/TopBar.tsx",
-  "screens/TitleScreen.tsx",
-  "screens/LoadingScreen.tsx",
+  "data/buildings.ts",
   "screens/CinematicScreen.tsx",
+  "screens/LoadingScreen.tsx",
+  "screens/TitleScreen.tsx",
   "settings/SettingsOverlay.tsx",
-  "data/buildings.ts"
+  "tabs/MapTab.tsx"
 ]

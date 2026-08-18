@@ -11,9 +11,18 @@ import { CombatControls } from "../components/CombatControls";
 import { mapSkillsForHero } from "../skills";
 import { myActiveCombat } from "../combatUtils";
 import { formatHMS, useForageRemaining, useTurnRemaining } from "../useWave";
+import { useT } from "../i18n/useT";
+import { stateLabel } from "../i18n/gameText";
+
+// PA rendus par une Ration d'eau — miroir de game.RationPA (backend/game/town.go).
+// ⚠ le chiffre était écrit EN TOUTES LETTRES dans deux libellés français ; dans
+// huit langues il faut le passer en paramètre, sinon corriger le barème
+// obligerait à rouvrir huit fichiers de traduction.
+const RATION_PA = 6;
 
 // Radial action menu (Hordes-style) that pops at the selected hero when tapped on the map.
 function ActionMenu() {
+  const T = useT();
   const { game, selectedHeroId, mapSkills, search, startCombat, hide, escape, castSkill, drinkRation, ruinClear, ruinExplore, buildWatchtower, setHeroOrder, busy } = useStore();
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
 
@@ -75,11 +84,11 @@ function ActionMenu() {
       <div className="action-menu" style={{ left: pos.x, top: pos.y }}>
         <div className="am-title">
           {hero.name} · ⚡{hero.pa}
-          {stuck && <span className="am-stuck"> · Tétanisé</span>}
+          {stuck && <span className="am-stuck"> · {stateLabel("Tétanisé")}</span>}
         </div>
         {onMonster && (
           <button className="am-fight" disabled={busy} onClick={() => run(startCombat)}>
-            ⚔️ Combattre
+            ⚔️ {T("map.menu.fight")}
           </button>
         )}
         {/* Compétences de carte PAR CLASSE (remplacent la boule de feu universelle). */}
@@ -99,10 +108,10 @@ function ActionMenu() {
           <button
             className="am-drink"
             disabled={busy}
-            title="Restaure 6 PA (consomme une ration d'eau du sac)"
+            title={T("map.menu.drink.title", { pa: RATION_PA })}
             onClick={() => run(drinkRation)}
           >
-            💧 Boire une ration <i>+6 PA · {rations}</i>
+            💧 {T("map.menu.drink")} <i>{T("map.menu.drink.gain", { pa: RATION_PA, n: rations })}</i>
           </button>
         )}
         {/* MÉMORIAL : la ruine fut la ville d'une vraie expédition. L'épitaphe passe
@@ -122,18 +131,19 @@ function ActionMenu() {
           <button
             className="am-ruin"
             disabled={noPa || stuck}
-            title={`Vue permanente sur ${tower.sight} cases, pour toute l'expédition. Matériaux : ${
-              (tower.materials ?? []).map((m) => `${m.name} ×${m.qty}`).join(", ")
-            }`}
+            title={T("map.menu.tower.title", {
+              n: tower.sight,
+              materials: (tower.materials ?? []).map((m) => `${m.name} ×${m.qty}`).join(", "),
+            })}
             onClick={() => run(buildWatchtower)}
           >
-            🗼 Bâtir la tour de guet <i>{tower.paInvested}/{tower.buildPa}</i>
+            🗼 {T("map.menu.tower.build")} <i>{tower.paInvested}/{tower.buildPa}</i>
           </button>
         )}
         {tower && tower.built && (
           <div className="am-memorial">
-            <b>🗼 Tour de guet</b>
-            <span>Veille permanente sur {tower.sight} cases — la vue est acquise.</span>
+            <b>🗼 {T("map.menu.tower.built")}</b>
+            <span>{T("map.menu.tower.builtDesc", { n: tower.sight })}</span>
           </div>
         )}
         {/* Ruine-donjon sous le héros : déblayage collectif puis exploration. */}
@@ -143,17 +153,17 @@ function ActionMenu() {
             disabled={noPa || stuck}
             onClick={() => run(ruinClear)}
           >
-            ⛏️ Déblayer {ruin.icon} <i>{ruin.paInvested}/{ruin.clearPa}</i>
+            ⛏️ {T("map.menu.ruin.clear")} {ruin.icon} <i>{ruin.paInvested}/{ruin.clearPa}</i>
           </button>
         )}
         {ruin && ruin.cleared && (
           <button
             className="am-ruin"
             disabled={busy || stuck || hero.pa < 2 || ruin.charges <= 0}
-            title={ruin.charges <= 0 ? "Donjon épuisé" : ""}
+            title={ruin.charges <= 0 ? T("map.menu.ruin.empty") : ""}
             onClick={() => run(ruinExplore)}
           >
-            🏛️ Explorer {ruin.icon} <i>-2 · {ruin.charges} 💎</i>
+            🏛️ {T("map.menu.ruin.explore")} {ruin.icon} <i>-2 · {ruin.charges} 💎</i>
           </button>
         )}
         {/* LES CONSIGNES : ce que ce héros fera tout seul juste avant la prochaine
@@ -161,35 +171,35 @@ function ActionMenu() {
             dure qu'UNE vague et n'engage jamais de combat (orders_standing.go). */}
         {!onTown && (
           <div className="am-orders">
-            <span className="am-orders-t">Si je ne reviens pas :</span>
+            <span className="am-orders-t">{T("map.menu.orders.title")}</span>
             <div className="am-orders-row">
               <button
                 className={hero.order === "shelter" ? "on" : ""}
                 disabled={busy || !canOrder}
                 onClick={() => setHeroOrder(hero.id, hero.order === "shelter" ? "" : "shelter")}
               >
-                🫥 Se cacher <i>-1</i>
+                🫥 {T("map.menu.orders.shelter")} <i>-1</i>
               </button>
               <button
                 className={hero.order === "return" ? "on" : ""}
                 disabled={busy || !canReturn}
                 onClick={() => setHeroOrder(hero.id, hero.order === "return" ? "" : "return")}
               >
-                🏰 Rentrer <i>-{townDist}</i>
+                🏰 {T("map.menu.orders.return")} <i>-{townDist}</i>
               </button>
             </div>
             {/* Pourquoi le bouton est éteint. Un `title` ne se survole pas sur un
                 téléphone : la raison doit être ÉCRITE. */}
             {!canOrder ? (
-              <span className="am-orders-why">Sans PA, aucune consigne ne peut s'exécuter.</span>
+              <span className="am-orders-why">{T("map.menu.orders.noPa")}</span>
             ) : !canReturn ? (
               <span className="am-orders-why">
-                {townDist} cases jusqu'à la ville pour {hero.pa} PA — trop loin : il se cacherait sur place.
+                {T("map.menu.orders.tooFar", { dist: townDist, pa: hero.pa })}
               </span>
             ) : null}
           </div>
         )}
-        {onTown && <div className="am-note">🏰 En ville — fouille et cachette inutiles ici</div>}
+        {onTown && <div className="am-note">🏰 {T("map.menu.inTown")}</div>}
         {/* Pas de fouille ni de cachette sur la case ville (la ville protège déjà et n'a
             rien à fouiller) — le serveur les refuse aussi. */}
         {!onTown && (
@@ -200,27 +210,35 @@ function ActionMenu() {
                 (le plus souvent des Débris, que la Recyclerie transforme). Le
                 client désactivait le bouton, rendant ce mode inatteignable. */}
             {foraging ? (
-              <button className="am-forage" disabled title="La récolte tourne toute seule, sans PA">
-                🔄 Fouille auto <i>{formatHMS(forageIn ?? 0)}</i>
+              <button className="am-forage" disabled title={T("map.menu.forage.autoTitle")}>
+                🔄 {T("map.menu.forage.auto")} <i>{formatHMS(forageIn ?? 0)}</i>
               </button>
             ) : (
-              <button disabled={noPa || stuck} onClick={() => run(search)}>
-                🔎 Fouiller <i>-1</i>
+              <button
+                disabled={noPa || stuck}
+                title={T("map.menu.search.title", { pa: 1 })}
+                onClick={() => run(search)}
+              >
+                🔎 {T("map.menu.search")} <i>-1</i>
               </button>
             )}
             <button
               disabled={noPa || stuck}
-              title={stuck ? "Tétanisé — impossible de se cacher" : ""}
+              title={
+                stuck
+                  ? T("map.menu.hide.stuck", { state: stateLabel("Tétanisé") })
+                  : T("map.menu.hide.title", { pa: 1 })
+              }
               onClick={() => run(hide)}
             >
-              🫥 Se cacher <i>-1</i>
+              🫥 {T("map.menu.hide")} <i>-1</i>
             </button>
           </>
         )}
         {/* Escape only matters when the hero is stuck (Tétanisé) by the surrounding pack. */}
         {stuck && (
-          <button disabled={noPa} onClick={() => run(escape)}>
-            🏃 S'échapper <i>-1</i>
+          <button disabled={noPa} title={T("map.menu.escape.title", { pa: 1 })} onClick={() => run(escape)}>
+            🏃 {T("map.menu.escape")} <i>-1</i>
           </button>
         )}
       </div>
@@ -232,6 +250,7 @@ function ActionMenu() {
 // the TopBar (HeroActionsMenu). Movement is unchanged: select a hero, tap the
 // yellow diamonds on the map. Only map-wide tools remain here.
 function MapControls() {
+  const T = useT();
   const { game, showOthers, toggleOthers, playerId, joinCombat, busy } = useStore();
   if (!game) return null;
   const multiplayer = (game.players?.length ?? 0) > 1;
@@ -251,7 +270,7 @@ function MapControls() {
       {canJoin && (
         <div className="line">
           <button className="small red" disabled={busy} onClick={() => joinCombat()}>
-            ⚔️ Rejoindre le combat ({mine!.tileX},{mine!.tileY}) — tes héros y sont !
+            ⚔️ {T("map.controls.join", { x: mine!.tileX, y: mine!.tileY })}
           </button>
         </div>
       )}
@@ -259,10 +278,10 @@ function MapControls() {
         <div className="line">
           <button
             className={`small ${showOthers ? "red" : ""}`}
-            title="Afficher/masquer les héros des autres joueurs (sprites translucides)"
+            title={T("map.controls.others.title")}
             onClick={() => toggleOthers()}
           >
-            👥 Autres
+            👥 {T("map.controls.others")}
           </button>
         </div>
       )}
@@ -309,6 +328,7 @@ function InitiativeBar() {
 // Écran de fin (lot C2) : récapitulatif — butin par héros, PV restants, tours
 // joués — au lieu du retour sec à la carte.
 function CombatEndScreen() {
+  const T = useT();
   const { combat, returnToMap } = useStore();
   if (!combat || combat.status === "active") return null;
   const won = combat.status === "won";
@@ -318,23 +338,26 @@ function CombatEndScreen() {
     <div className="combat-end">
       <div className="combat-end-card">
         <h2 className={won ? "win" : fled ? "flee" : "loss"}>
-          {won ? "🏆 Victoire !" : fled ? "🏃 Repli !" : "💀 Défaite…"}
+          {won ? "🏆 " : fled ? "🏃 " : "💀 "}
+          {T(won ? "combat.end.win" : fled ? "combat.end.flee" : "combat.end.loss")}
         </h2>
         <div className="combat-end-sub">
-          {combat.round} tour{combat.round > 1 ? "s" : ""} · {heroes.filter((u) => u.hp > 0).length}/
-          {heroes.length} héros debout
+          {T.n("combat.end.summary", combat.round, {
+            alive: heroes.filter((u) => u.hp > 0).length,
+            total: heroes.length,
+          })}
         </div>
         <div className="combat-end-heroes">
           {heroes.map((u) => (
             <div key={u.id} className={`ce-hero ${u.hp <= 0 ? "dead" : ""}`}>
               <span className="ce-name">{u.hp <= 0 ? "☠️ " : ""}{u.name}</span>
-              <span className="ce-hp">{Math.max(0, u.hp)}/{u.maxHp} PV</span>
+              <span className="ce-hp">{Math.max(0, u.hp)}/{u.maxHp} {T("combat.hp")}</span>
             </div>
           ))}
         </div>
         {won && (combat.rewards?.length ?? 0) > 0 && (
           <div className="combat-end-loot">
-            <div className="ce-loot-title">Butin</div>
+            <div className="ce-loot-title">{T("combat.end.loot")}</div>
             {combat.rewards!.map((r) => (
               <div key={r.heroId} className="ce-loot-row">
                 <span className="ce-name">{r.heroName}</span>
@@ -349,11 +372,11 @@ function CombatEndScreen() {
         )}
         {fled && (
           <div className="combat-end-sub">
-            L'équipe s'est repliée — pas de butin, et le pack rôde toujours sur la case…
+            {T("combat.end.fled")}
           </div>
         )}
-        {!won && !fled && <div className="combat-end-sub">Les survivants battent en retraite vers la ville…</div>}
-        <button className="small green" onClick={() => returnToMap()}>↩ Retour à la carte</button>
+        {!won && !fled && <div className="combat-end-sub">{T("combat.end.lost")}</div>}
+        <button className="small green" onClick={() => returnToMap()}>↩ {T("combat.end.back")}</button>
       </div>
     </div>
   );

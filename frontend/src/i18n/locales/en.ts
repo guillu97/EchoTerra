@@ -129,6 +129,80 @@ export const en: Locale = {
   "settings.notif.communication": "Messages",
   "settings.notif.communication.desc": "Notify me when a friend sends a private message.",
 
+
+  // ── États d'un héros (affichage) ─────────────────────────────────────────
+  "state.tetanise": "Pinned",
+  "state.cache": "Hidden",
+  "state.blesse": "Wounded",
+  "state.fatigue": "Exhausted",
+  "state.soif": "Thirsty",
+  "state.gele": "Frozen",
+
+  // ── Pastille de héros ────────────────────────────────────────────────────
+  "hero.chip.down": "{name} is down",
+  "hero.chip.select": "Select {name}",
+  "hero.chip.sheet": "Character sheet",
+
+  // ── Barre des héros sur la carte ─────────────────────────────────────────
+  "map.hint.snow": "{name} stands on a tile buried in snow — searching clears it and restarts the harvest.",
+  "map.hint.forage": "{name} is foraging on the spot — next find in {timer} (no AP; moving interrupts it).",
+  "map.hint.inTown": "{name} is in town — tap an adjacent tile to send them out.",
+  "map.hint.stuck": "{name} is {state} — kill the pack or flee.",
+  "map.hint.cliff.one": "{name} can climb {n} level — the red tiles are too steep: go around, or gain athletics (Studded Boots).",
+  "map.hint.cliff.other": "{name} can climb {n} levels — the red tiles are too steep: go around, or gain athletics (Studded Boots).",
+  "map.hint.selected": "{name} selected — tap the yellow diamonds to move them.",
+
+
+  // ── Menu radial d'un héros sur la carte ──────────────────────────────────
+  "map.menu.fight": "Fight",
+  "map.menu.skill.title": "{name} (-{pa} AP) — {desc}",
+  "map.menu.drink": "Drink a ration",
+  "map.menu.drink.gain": "+{pa} AP · {n}",
+  "map.menu.drink.title": "Restores {pa} AP (uses one water ration from the bag)",
+  "map.menu.tower.build": "Build the watchtower",
+  "map.menu.tower.title": "Permanent sight over {n} tiles, for the whole expedition. Materials: {materials}",
+  "map.menu.tower.built": "Watchtower",
+  "map.menu.tower.builtDesc": "Permanent watch over {n} tiles — the sight is yours for good.",
+  "map.menu.ruin.clear": "Clear",
+  "map.menu.ruin.explore": "Explore",
+  "map.menu.ruin.empty": "Dungeon exhausted",
+  "map.menu.orders.title": "If I don't come back:",
+  "map.menu.orders.shelter": "Take cover",
+  "map.menu.orders.return": "Head home",
+  "map.menu.orders.noPa": "With no AP, no standing order can run.",
+  "map.menu.orders.tooFar": "{dist} tiles to town for {pa} AP — too far: they would hide where they stand.",
+  "map.menu.inTown": "In town — searching and hiding are pointless here",
+  "map.menu.forage.auto": "Auto-forage",
+  "map.menu.forage.autoTitle": "The harvest runs by itself, with no AP",
+  "map.menu.search": "Search",
+  "map.menu.search.title": "Search (-{pa} AP) — the hero then keeps going alone",
+  "map.menu.hide": "Hide",
+  "map.menu.hide.title": "Hide (-{pa} AP)",
+  "map.menu.hide.stuck": "{state} — cannot hide",
+  "map.menu.escape": "Break free",
+  "map.menu.escape.title": "Break free (-{pa} AP)",
+  "hero.menu.inTown": "in town",
+  "hero.menu.forage.auto": "auto-forage",
+  "hero.menu.forage.autoTitle": "Automatic foraging — no AP",
+  "hero.menu.drink.title": "Drink a water ration (+{pa} AP) — {n} in reserve",
+
+  // ── Barre d'outils de la carte ───────────────────────────────────────────
+  "map.controls.join": "Join the fight ({x},{y}) — your heroes are in it!",
+  "map.controls.others": "Others",
+  "map.controls.others.title": "Show/hide other players' heroes (translucent sprites)",
+
+  // ── Fin de combat ────────────────────────────────────────────────────────
+  "combat.end.win": "Victory!",
+  "combat.end.flee": "Withdrawal!",
+  "combat.end.loss": "Defeat…",
+  "combat.end.summary.one": "{n} round · {alive}/{total} heroes standing",
+  "combat.end.summary.other": "{n} rounds · {alive}/{total} heroes standing",
+  "combat.end.loot": "Loot",
+  "combat.end.fled": "The team pulled back — no loot, and the pack still prowls the tile…",
+  "combat.end.lost": "The survivors fall back towards the town…",
+  "combat.end.back": "Back to the map",
+  "combat.hp": "HP",
+
   // ── Buildings ─────────────────────────────────────────────────────────────
   "building.townhall.name": "Town Hall",
   "building.townhall.blurb": "Heart of the town. Bed: revives an exhausted hero.",

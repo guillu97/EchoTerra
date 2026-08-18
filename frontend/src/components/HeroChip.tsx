@@ -1,5 +1,6 @@
 import { assetUrl, type AssetKey } from "../assets";
 import type { Hero } from "../api/types";
+import { useT } from "../i18n/useT";
 
 // LA pastille de héros, partagée par toutes les listes de personnages : la barre
 // de la Carte, la liste de l'écran Ville, le dropdown de la TopBar (et, de fait,
@@ -45,6 +46,7 @@ export function HeroChip({
   /** Ligne d'info supplémentaire sous les PA (ex. « paie les PA »). */
   note?: React.ReactNode;
 }) {
+  const T = useT();
   const dead = hero.hp <= 0;
   const stuck = hero.states.includes("Tétanisé");
   const hpPct = Math.max(0, Math.min(100, Math.round((hero.hp / hero.maxHp) * 100)));
@@ -56,7 +58,7 @@ export function HeroChip({
       <button
         className="mhb-pick"
         disabled={dead}
-        title={dead ? `${hero.name} est à terre` : `Sélectionner ${hero.name}`}
+        title={T(dead ? "hero.chip.down" : "hero.chip.select", { name: hero.name })}
         onClick={onSelect}
       >
         <span className="mhb-portrait">
@@ -84,7 +86,7 @@ export function HeroChip({
         </span>
       </button>
       {onOpenSheet && (
-        <button className="mhb-sheet" title="Fiche du personnage" onClick={onOpenSheet}>
+        <button className="mhb-sheet" title={T("hero.chip.sheet")} onClick={onOpenSheet}>
           ⓘ
         </button>
       )}
