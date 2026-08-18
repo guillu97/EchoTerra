@@ -39,6 +39,14 @@ function blobTexture(): THREE.Texture {
   return blobTex;
 }
 
+/** Fraction de la demi-maille sur laquelle un nuage s'estompe avant de reboucler. */
+const FADE = 0.15;
+
+/** ramène `v` dans l'intervalle de largeur `span` centré sur `c` (modulo signé) */
+function wrap(v: number, c: number, span: number): number {
+  return c + (((v - c + span / 2) % span) + span) % span - span / 2;
+}
+
 function h01(i: number, s: number): number {
   let h = (i * 374761393 + s * 668265263) >>> 0;
   h = ((h ^ (h >> 13)) * 1274126177) >>> 0;
@@ -62,16 +70,47 @@ export function makeClouds(
      *  le pont de nuages, la chute des flocons et les vire-vents : c'est là que se
      *  voit la cohérence. Absent = cap dérivé de la graine, comme avant. */
     wind?: number;
+    /**
+     * REBOUCLAGE autour d'un point (typiquement `engine.skyCentre(altitude)`) —
+     * la façon de couvrir une grande carte avec une douzaine de nuages SANS que le
+     * ciel suive le regard.
+     *
+     * Chaque nuage garde sa position MONDE (il ne dérive qu'au vent) tant qu'il
+     * reste dans la boîte de côté `span` centrée là ; en sortant, il est reporté
+     * d'un span entier de l'autre côté — un saut, mais très en dehors du cadre,
+     * puisque la boîte fait deux fois la vue. C'est le `mod` du shader de neige,
+     * appliqué à des objets.
+     *
+     * ⚠ le centre doit être celui de la PROJECTION à l'altitude des nuages, pas la
+     * cible caméra : en dimétrique un objet en l'air se dessine ~1,73 × son
+     * altitude plus haut, donc une boîte centrée sur la cible ferait reboucler des
+     * nuages ENCORE VISIBLES. D'où `VoxelEngine.skyCentre`.
+     */
+    wrapAround?: () => { x: number; z: number };
   },
 ): Clouds {
   const group = new THREE.Group();
   const wind = opts.wind ?? h01(1, opts.seed) * Math.PI * 2; // cap général du vent, par partie
+  // ⚠ UN REBOUCLAGE EST INVISIBLE S'IL SE FAIT À OPACITÉ NULLE — et c'est la SEULE
+  // façon de le garantir. La géométrie ne suffit pas : un nuage qui saute d'un span
+  // traverse une distance comparable à ce que le cadre couvre, donc il peut sortir
+  // « très loin d'un côté » et atterrir « juste au bord de l'autre » (mesuré : ndc.y
+  // −1,27, soit un gros nuage à moitié dans l'image). Reculer la frontière ne fait
+  // que déplacer le problème, et au zoom le plus large aucune frontière ne tient.
+  // Les nuages de bord s'estompent donc sur les derniers 25 % de la maille : ils
+  // paraissent se perdre dans la brume, et le saut a lieu quand ils sont éteints.
+  const fading = !!opts.wrapAround;
   const items: { mesh: THREE.Mesh; blob: THREE.Mesh | null; i: number; speed: number; off: number; dirX: number; dirZ: number; perX: number; perZ: number; lap: number }[] = [];
   const blobMat = new THREE.MeshBasicMaterial({ map: blobTexture(), transparent: true, depthWrite: false });
   for (let i = 0; i < opts.count; i++) {
     const geom = lib.get("cloud", i % 3);
     if (!geom) continue;
-    const mesh = new THREE.Mesh(geom, CLOUD_MAT);
+    // matériau propre au nuage quand il s'estompe (sinon tous partageraient la même
+    // opacité) ; sinon on garde LE matériau commun, gratuit.
+    const mat = fading ? CLOUD_MAT.clone() : CLOUD_MAT;
+    if (fading) { mat.transparent = true; mat.depthWrite = false; }
+    const mesh = new THREE.Mesh(geom, mat);
+    mesh.userData.ownMat = fading;
     mesh.name = "cloud"; // scène AUDITABLE (cf. tests/proportions.mjs)
     mesh.castShadow = false; // l'ombre est la tache factice, pas la passe soleil
     const a = wind + (h01(i, opts.seed + 2) - 0.5) * 0.32; // ±9° par nuage
@@ -97,6 +136,7 @@ export function makeClouds(
     it.blob?.scale.set(sc * 0.9, 1, sc * 0.7);
   };
   const setTime = (s: number) => {
+    const c = opts.wrapAround?.();
     for (const it of items) {
       const travel = s * it.speed + it.off * opts.span;
       const lap = Math.floor(travel / opts.span);
@@ -104,8 +144,17 @@ export function makeClouds(
       const u = travel - lap * opts.span - opts.span / 2; // −span/2 .. +span/2
       const lane = (h01(it.i * 7 + lap, opts.seed + 7) - 0.5) * opts.span * 0.85;
       const alt = opts.altitude[0] + h01(it.i * 11 + lap, opts.seed + 8) * (opts.altitude[1] - opts.altitude[0]);
-      const px = opts.cx + it.dirX * u + it.perX * lane;
-      const pz = opts.cy + it.dirZ * u + it.perZ * lane;
+      let px = opts.cx + it.dirX * u + it.perX * lane;
+      let pz = opts.cy + it.dirZ * u + it.perZ * lane;
+      if (c) {
+        px = wrap(px, c.x, opts.span);
+        pz = wrap(pz, c.z, opts.span);
+        // distance au centre, normalisée sur la demi-maille : 1 = la frontière.
+        const t = Math.max(Math.abs(px - c.x), Math.abs(pz - c.z)) / (opts.span / 2);
+        const m = it.mesh.material as THREE.MeshBasicMaterial;
+        m.opacity = Math.min(1, Math.max(0, (1 - t) / FADE));
+        m.visible = m.opacity > 0.01; // un nuage éteint ne coûte pas un draw call
+      }
       it.mesh.position.set(px, alt, pz);
       if (it.blob && opts.groundAt) it.blob.position.set(px, opts.groundAt(px, pz) + 0.05, pz);
     }
@@ -115,6 +164,7 @@ export function makeClouds(
     group,
     setTime,
     dispose: () => {
+      for (const it of items) if (it.mesh.userData.ownMat) (it.mesh.material as THREE.Material).dispose();
       group.clear();
     },
   };

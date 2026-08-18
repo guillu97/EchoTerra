@@ -137,6 +137,75 @@ check(
   coherent ? `cos = ${coherent.dot.toFixed(3)} sur ${coherent.n} nuages` : "mesure impossible",
 );
 
+// ⚠⚠ UN CIEL NE SUIT PAS LE DOIGT. La première version COLLAIT le pont de nuages à
+// la cible caméra (parallaxe 1) : chaque pan translatait les nuages du MÊME vecteur,
+// ce qui se lit immédiatement comme un bug (« les nuages bougent en même temps que la
+// caméra et la suivent », rapporté en jeu). Ils REBOUCLENT désormais autour du regard
+// au lieu de le suivre : on mesure les deux moitiés de la phrase — aucun nuage ne
+// prend le déplacement de la caméra, et il en reste à l'écran après le pan.
+const sky = await page.evaluate(() => {
+  const w = window.__vm.world, e = w.engine, cur = w.weather.current;
+  const clouds = [];
+  cur.group.traverse((o) => { if (o.isMesh && o.name === "cloud") clouds.push(o); });
+  const T = 100; // MÊME instant à chaque pas : tout écart vient de la caméra, pas du vent
+  const V3 = e.target.constructor;
+  // état d'un nuage : position monde, opacité, et présence dans le cadre
+  const snap = () => {
+    e.groundAt(0, 0); // pose la caméra avant de projeter
+    return clouds.map((m) => {
+      const v = new V3(m.position.x, m.position.y, m.position.z).project(e.camera);
+      return {
+        x: m.position.x, z: m.position.z, o: m.material.opacity,
+        seen: Math.abs(v.x) <= 1.15 && Math.abs(v.y) <= 1.15,
+      };
+    });
+  };
+  // ⚠ ON PANE COMME UN DOIGT : par petits pas. Un saut instantané de douze unités
+  // n'existe pas en jeu et il empêcherait le fondu de bord de jouer son rôle.
+  const t0 = { x: e.target.x, z: e.target.z };
+  cur.setTime(T);
+  let prev = snap();
+  const first = prev;
+  let stayed = 0, followed = 0, wrapped = 0, popped = 0;
+  for (let step = 0; step < 8; step++) {
+    e.target.set(e.target.x + 1.5, e.target.y, e.target.z + 1.5);
+    e.groundAt(0, 0);
+    cur.setTime(T);
+    const now = snap();
+    for (let i = 0; i < clouds.length; i++) {
+      const dx = now[i].x - prev[i].x, dz = now[i].z - prev[i].z;
+      if (Math.hypot(dx, dz) < 0.01) continue;
+      if (Math.hypot(dx - 1.5, dz - 1.5) < 0.3) { followed++; continue; } // il a SUIVI le pan
+      wrapped++;
+      // un rebouclage n'a le droit d'exister que sur un nuage éteint ou hors cadre
+      if ((prev[i].seen && prev[i].o > 0.05) || (now[i].seen && now[i].o > 0.05)) popped++;
+    }
+    prev = now;
+  }
+  // Combien de nuages n'ont pas bougé d'un pouce sur tout le trajet ?
+  for (let i = 0; i < clouds.length; i++) if (Math.abs(prev[i].x - first[i].x) < 0.01 && Math.abs(prev[i].z - first[i].z) < 0.01) stayed++;
+  const seenAfter = prev.filter((c) => c.seen && c.o > 0.5).length;
+  const seenBefore = first.filter((c) => c.seen && c.o > 0.5).length;
+  e.target.set(t0.x, e.target.y, t0.z); // on remet la caméra où on l'a prise
+  e.groundAt(0, 0);
+  return { n: clouds.length, stayed, followed, wrapped, popped, seenBefore, seenAfter };
+});
+check(
+  "nordique : les nuages NE SUIVENT PAS la caméra",
+  sky.n > 0 && sky.followed === 0,
+  `${sky.stayed}/${sky.n} immobiles après 12 unités de pan, ${sky.wrapped} rebouclages, ${sky.followed} qui suivent`,
+);
+check(
+  "nordique : aucun rebouclage VISIBLE (fondu de bord)",
+  sky.popped === 0,
+  `${sky.wrapped} rebouclage(s), dont ${sky.popped} sur un nuage à la fois dans le cadre et opaque`,
+);
+check(
+  "nordique : …et il reste des nuages à l'écran après le pan",
+  sky.seenAfter > 0,
+  `${sky.seenBefore} → ${sky.seenAfter} nuages dans le cadre`,
+);
+
 // ── DÉSERTIQUE : des vire-vents ROULENT, et on en voit ───────────────────────
 await openMap(SEEDS.desertique);
 l = await layer();
@@ -256,7 +325,14 @@ check("la météo n'intercepte aucun tap", picks.stolen === 0, `${picks.stolen} 
 
 // ── L'INTERRUPTEUR : « Aucun » SUPPRIME, il ne fige pas ──────────────────────
 await page.evaluate(() => window.__eg.store.getState().updateSettings({ idleAnimFps: 0, weatherFps: 0 }));
-await wait(700);
+// ⚠ ON LAISSE LE DÉMONTAGE FINIR avant de compter. Éteindre les deux couches
+// provoque quelques redraws de TRANSITION (destruction de la météo, dernière pose
+// des personnages, minuterie d'idle déjà armée) qui arrivaient jusqu'à ~1,5 s plus
+// tard : à 700 ms d'attente, ce test comptait 2 ou 3 redraws SELON LE TOUR et
+// échouait une fois sur deux — un flake traîné trois lots, qu'on a fini par mesurer.
+// En régime établi il n'y a qu'UNE source de redraw (le tick solaire, toutes les
+// 5 s) : vérifié en instrumentant `invalidate()` — 1 appel en 6 s, et rien d'autre.
+await wait(1800);
 const gone = await page.evaluate(() => !window.__vm.world.weather.current);
 const f0 = await page.evaluate(() => window.__vm.engine.frames);
 await wait(3000);

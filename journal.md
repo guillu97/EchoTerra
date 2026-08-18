@@ -6,6 +6,65 @@
 
 ---
 
+## 2026-08-17 (131) — Le ciel suivait le doigt : les nuages rebouclent au lieu de suivre
+
+« Les nuages bougent en même temps que la caméra et **la suivent**, ce n'est pas normal. » — et cette
+fois c'était bien du code, pas une impression.
+
+### Ce que c'était
+
+`weather.ts` faisait `sky.position.set(cible.x, 0, cible.z)` à chaque frame : le pont de nuages
+nordique était **collé à la caméra**, parallaxe 1. Chaque pan translatait donc les nuages du MÊME
+vecteur que le regard. C'était assumé (« un ciel ne se déplace pas avec le sol »), et c'est faux à
+l'usage : en projection ORTHOGRAPHIQUE, une parallaxe 1 avec la caméra ne se lit pas comme un
+lointain, elle se lit comme un décor **scotché à l'écran**.
+
+⚠ C'est aussi la vraie cause du tout premier rapport de la session (« quand je bouge ça déplace les
+nuages », entrée 127) : les bornes de caméra empêchaient de se perdre dans le ciel, mais elles ne
+touchaient pas au suivi. Les deux lots étaient nécessaires ; celui-ci est celui qui répond
+littéralement à la phrase.
+
+### Livré
+
+**Le rebouclage** (`Clouds.wrapAround`). Chaque nuage garde sa position MONDE et ne dérive qu'au vent ;
+il n'est reporté d'une maille que lorsqu'il sort d'une boîte deux fois plus large que la vue. Trois
+choses ont dû être vraies en même temps :
+
+1. ⚠ **La boîte est centrée sur `VoxelEngine.skyCentre(altitude)`**, pas sur la cible caméra — le
+   point du sol qui, à cette altitude, se projette au centre de l'écran. En dimétrique un objet à
+   12 unités d'altitude se dessine ~21 unités plus haut que sa verticale : une boîte centrée sur la
+   cible faisait reboucler des nuages ENCORE VISIBLES. Effet de bord agréable : le ciel est mieux
+   cadré qu'avant (mesuré 1,80 nuage dans le cadre contre 1,18).
+2. ⚠ **Le report se fait à opacité NULLE** (fondu sur les derniers 15 % de la maille). La géométrie
+   ne peut PAS garantir l'invisibilité du saut : il déplace le nuage d'une distance du même ordre que
+   ce que le cadre couvre, donc « très loin d'un côté » atterrit parfois « juste au bord de l'autre »
+   (mesuré : ndc.y −1,27, soit un gros nuage à moitié dans l'image), et au zoom le plus large aucune
+   frontière ne tient. Le fondu, lui, tient à tout zoom.
+3. ⚠ **Le nombre suit la maille** : elle passe de 46 à 56 (frontière loin du cadre), donc garder 12
+   nuages aurait éclairci le ciel d'un quart. 18 sur 56² = la densité d'origine.
+
+### Fonctionnel (vérifié)
+
+- `npm run test:weather` **22/22**, avec deux checks neufs qui mesurent la phrase du rapport : après
+  un pan de 12 unités joué **par petits pas** (comme un doigt, pas d'un bond), **0 nuage sur 18 ne
+  prend le déplacement de la caméra**, 9 n'ont pas bougé d'un pouce, et les 11 rebouclages se sont
+  tous faits sur un nuage éteint ou hors cadre. Plus « il reste des nuages à l'écran » (0 → 4).
+- `test:perf` 13/13, `test:camera` 7/7, `test:proportions` 0 hors fourchette sur 49, `tsc` propre.
+- **Le flake « la carte redevient 100 % on-demand » est mort**, et ce n'était pas un mystère : en
+  instrumentant `invalidate()`, **1 seul appel en 6 s** (le tick solaire, toutes les 5 s). Les 2-3
+  redraws comptés venaient du DÉMONTAGE des couches, jusqu'à ~1,5 s après avoir tout éteint, alors
+  que le test ne patientait que 700 ms. Attente portée à 1,8 s : 0 puis 1 redraw sur deux tours.
+
+### À faire
+
+- Le ciel reste un **ciel de traîne** (1 à 2 nuages dans le cadre au zoom de jeu, ~3 en vue large) et
+  non une couverture pleine : doubler la densité doublerait les draw calls du pont, ce qui n'est pas
+  le prix d'un effet d'ambiance. À rediscuter si le nord doit vraiment paraître bouché.
+- Les 5 nuages de la vue VILLE, eux, n'ont jamais suivi la caméra et gardent leur ancrage monde (ils
+  portent une tache d'ombre au sol, qui doit rester posée sur l'herbe).
+
+---
+
 ## 2026-08-17 (130) — L'audit des proportions : onze assets faux, dont une pâquerette de 3,85 m
 
 Guillaume, après le rapetissement des vire-vents : « c'est trop gros non ? Est-ce qu'il ne faudrait pas

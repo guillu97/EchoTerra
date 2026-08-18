@@ -323,6 +323,9 @@ class MapWorld {
           const t = this.tileAtWorld(g, x, z);
           return !!t?.discovered && t.biome !== 0;
         },
+        // ⚠ le pont de nuages REBOUCLE autour de ce point, il ne s'y COLLE pas :
+        // un ciel qui se translate avec la caméra se lit comme un bug (weather.ts).
+        skyCentre: (alt) => this.engine.skyCentre(alt),
         view: () => ({
           x: this.engine.target.x, z: this.engine.target.z,
           w: this.engine.viewWidth, h: this.engine.viewHeight, ppu: this.engine.zoom,

@@ -438,6 +438,25 @@ export class VoxelEngine {
     this.invalidate();
   }
 
+  /**
+   * Point du sol (x,z) qui, à l'altitude `alt`, se projette AU CENTRE de l'écran.
+   *
+   * En projection dimétrique un objet en l'air se dessine BIEN PLUS HAUT que sa
+   * verticale : à 30° d'élévation, une altitude `h` déporte l'image de `h/tan(30°)`
+   * ≈ 1,73 unité de sol (réparties sur x ET z, azimut 45°). Un objet de ciel semé
+   * autour de la CIBLE apparaît donc très au-dessus du cadre, et c'est ce qui avait
+   * poussé à coller le pont de nuages à la caméra — au prix d'un ciel qui suit le
+   * regard, ce qui se voit et se lit comme un bug.
+   *
+   * Cette fonction donne le point autour duquel semer pour être vu SANS suivre :
+   * la couche météo s'en sert comme centre de son rebouclage, pas comme position.
+   */
+  skyCentre(alt: number): { x: number; z: number } {
+    const [dx, dy, dz] = cameraDir(this.azimuth, this.topDown ? TOP_DOWN_ELEVATION : this.elevation);
+    const t = alt / (dy || 1);
+    return { x: this.target.x + dx * t, z: this.target.z + dz * t };
+  }
+
   /** point du plan sol (y=0) sous un point écran (px CSS relatifs au canvas) */
   groundAt(cssX: number, cssY: number, out = new THREE.Vector3()): THREE.Vector3 {
     this.applyCamera();

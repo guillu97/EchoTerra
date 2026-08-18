@@ -955,9 +955,24 @@ vire-vents dans la vue VILLE** (`WeatherOpts.tumbleweeds:false`, honoré aussi p
 pour ne pas télécharger le modèle) : rien ne dit à une boule qui roule librement de contourner un
 bâtiment, et elle les TRAVERSAIT — le tertre est trop dense pour un objet libre, et lui donner une
 carte d'obstacles coûterait plus que ce que l'effet rapporte à cette échelle ; la ville garde la neige,
-qui tombe sur tout sans rien traverser. ⚠ **le ciel SUIT LA CAMÉRA (parallaxe 1)** : la
-projection étant dimétrique à 30°, un nuage à 15 unités d'altitude se projette ~26 unités plus haut à
-l'écran, très au-dessus d'une vue qui n'en couvre qu'une vingtaine. ⚠ **un flocon blanc sur un ciel
+qui tombe sur tout sans rien traverser. ⚠⚠ **LE CIEL NE SUIT PAS LA CAMÉRA — IL REBOUCLE**
+(corrigé 2026-08-17). La première version COLLAIT le pont de nuages à la cible (`sky.position =
+cible`, parallaxe 1), au motif qu'« un ciel ne se déplace pas avec le sol » : en projection
+ORTHOGRAPHIQUE c'est faux à l'usage, une parallaxe 1 avec la caméra donne un ciel qui **se déplace
+avec le doigt**, et ça se lit immédiatement comme un bug (« les nuages bougent en même temps que la
+caméra et la suivent », rapporté en jeu). Le vrai besoin n'était pas de suivre mais de ne jamais
+manquer de nuages : la projection étant dimétrique à 30°, un nuage à 12 unités d'altitude se dessine
+~21 unités PLUS HAUT que sa verticale, donc un semis fait autour de la CIBLE tombe hors cadre, et en
+semer sur une carte de 140² en demanderait des centaines. Le rebouclage (`Clouds.wrapAround`) donne
+les deux : chaque nuage garde sa position MONDE et ne dérive qu'au vent ; il n'est reporté d'une
+maille que lorsqu'il sort d'une boîte deux fois plus large que la vue — boîte centrée sur
+`VoxelEngine.skyCentre(altitude)` (le point du sol qui, à cette altitude, se projette au centre de
+l'écran) et non sur la cible, sinon on ferait reboucler des nuages ENCORE VISIBLES. ⚠ **et le
+report se fait à opacité NULLE** (`FADE`, fondu sur les derniers 15 % de la maille) : la géométrie ne
+peut PAS garantir l'invisibilité du saut — il déplace le nuage d'une distance comparable à ce que le
+cadre couvre, donc « très loin d'un côté » peut atterrir « juste au bord de l'autre » (mesuré), et au
+zoom le plus large aucune frontière ne tient. ⚠ **le nombre suit la maille** : l'agrandir sans
+ajouter de nuages éclaircit le ciel d'autant (18 sur 56² = la densité des 12 d'origine sur 46²). ⚠ **un flocon blanc sur un ciel
 blanc est invisible** (la moitié d'une carte est de la brume presque blanche) — d'où le flocon à deux
 tons, cœur clair et **bord froid**. ⚠ **rien de la météo n'est pickable** (`engine.pick` raycaste la
 scène ENTIÈRE : un nuage volerait les taps de la carte) et **les Points sont masqués pendant la passe

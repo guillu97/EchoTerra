@@ -297,6 +297,7 @@ export function VoxelTownView({
           // coûterait plus que ce que l'effet rapporte à cette échelle. La ville
           // garde la neige, qui tombe sur tout sans rien traverser.
           tumbleweeds: false,
+          skyCentre: (alt) => engine.skyCentre(alt), // rebouclage, PAS un suivi (weather.ts)
           view: () => ({ x: engine.target.x, z: engine.target.z, w: engine.viewWidth, h: engine.viewHeight, ppu: engine.zoom }),
         }),
       );

@@ -69,6 +69,10 @@ export type WeatherOpts = {
    *  échelle (px par unité monde). La colonne de neige s'en sert pour SUIVRE le
    *  regard et pour tenir une densité à l'écran constante. */
   view?: () => { x: number; z: number; w: number; h: number; ppu: number };
+  /** `VoxelEngine.skyCentre` : le point du sol qui, à l'altitude donnée, se projette
+   *  au centre de l'écran. Le pont de nuages s'en sert comme centre de REBOUCLAGE —
+   *  jamais comme position (cf. le pavé du pont de nuages plus bas). */
+  skyCentre?: (alt: number) => { x: number; z: number };
 };
 
 function h01(i: number, s: number): number {
@@ -333,6 +337,12 @@ function makeTumbleweeds(lib: BlockLibrary, o: WeatherOpts): Weather | null {
 
 // ── COMPOSITION ──────────────────────────────────────────────────────────────
 
+// Le pont de nuages : altitude moyenne (le rebouclage se centre dessus) et côté de
+// la maille. ⚠ `SKY_SPAN` doit rester GRAND devant la vue (une vingtaine d'unités au
+// zoom courant) : c'est ce qui garantit qu'un nuage ne reboucle jamais à l'écran.
+const SKY_ALTITUDE = 12;
+const SKY_SPAN = 56;
+
 /** La météo de ce thème, ou `null` s'il n'en a pas (tempéré : rien, zéro coût). */
 export function makeWeather(theme: string | undefined, lib: BlockLibrary, o: WeatherOpts): Weather | null {
   const parts: Weather[] = [];
@@ -340,40 +350,52 @@ export function makeWeather(theme: string | undefined, lib: BlockLibrary, o: Wea
     parts.push(makeSnowfall(o));
     // LE CIEL COUVERT. Même vent que les flocons — c'est là qu'est la cohérence.
     //
-    // ⚠ LE CIEL SUIT LA CAMÉRA (parallaxe 1), comme une voûte céleste. Semé sur la
-    // carte, il était invisible en jeu : la projection est dimétrique à 30°, donc
-    // un nuage à 15 unités d'altitude se projette ~26 unités PLUS HAUT à l'écran,
-    // très au-dessus d'une vue qui n'en couvre qu'une vingtaine — mesuré, un seul
-    // nuage effleurait le bord supérieur, et sur une grande carte il en aurait fallu
-    // des centaines pour qu'un seul soit au-dessus de la tête. Le suivi règle les
-    // deux d'un coup : une douzaine de nuages suffit, et rien ne « saute » quand on
-    // se déplace, puisqu'un ciel ne se déplace pas avec le sol.
+    // ⚠⚠ UN NUAGE NE SUIT PAS LE REGARD, IL REBOUCLE (corrigé 2026-08-17).
+    // La première version COLLAIT le pont de nuages à la caméra (`sky.position =
+    // cible`, parallaxe 1, justifié par « un ciel ne se déplace pas avec le sol »).
+    // C'est faux à l'usage : en projection orthographique, un ciel qui garde une
+    // parallaxe 1 avec la caméra est un ciel qui se DÉPLACE AVEC LE DOIGT — chaque
+    // pan translate les nuages du même vecteur, et ça se lit immédiatement comme un
+    // bug (« les nuages bougent en même temps que la caméra et la suivent », rapporté
+    // en jeu, deux fois). Le vrai besoin n'était pas de suivre : c'était de ne jamais
+    // manquer de nuages, parce qu'un nuage à 12 unités d'altitude se dessine ~21
+    // unités plus haut que sa verticale, et qu'en semer sur une carte de 140² pour
+    // qu'un seul passe au-dessus de la tête en demanderait des centaines.
+    //
+    // Le REBOUCLAGE donne les deux : chaque nuage garde sa position MONDE et ne
+    // dérive qu'au vent ; il n'est reporté d'un span que lorsqu'il sort d'une boîte
+    // deux fois plus large que la vue, donc très loin du cadre. Le centre de cette
+    // boîte est `skyCentre(altitude)` et non la cible caméra — sinon on ferait
+    // reboucler des nuages encore à l'écran.
     //
     // Pas d'ombres portées : sous un ciel bouché il n'y en a pas, et chaque tache
     // coûterait un draw call de plus par nuage.
     const deck = makeClouds(lib, {
-      count: 12,
-      cx: 0, cy: 0, span: 46,
-      altitude: [10, 14],
+      // ⚠ LE NOMBRE SUIT LA MAILLE, pour garder la DENSITÉ. La maille est passée de 46
+      // à 56 (la frontière de rebouclage doit rester loin du cadre, cf. ci-dessus) ;
+      // à nombre constant le ciel se serait éclairci d'un quart. 18 sur 56² rend la
+      // même densité que les 12 d'origine sur 46². Mesuré au zoom de jeu : ~1 à 2
+      // nuages dans le cadre, ~3 en vue large — un ciel de traîne, pas une couverture
+      // pleine ; densifier vraiment demanderait de doubler les draw calls, ce qui n'est
+      // pas le prix d'un effet d'ambiance.
+      count: 18,
+      // Semé autour de l'ORIGINE et rebouclé : ce couple ne dit plus « où est le
+      // ciel » mais « quelle maille de ciel », donc il ne dépend pas de la carte.
+      cx: 0, cy: 0, span: SKY_SPAN,
+      altitude: [SKY_ALTITUDE - 2, SKY_ALTITUDE + 2],
       speed: [0.5, 1.1],
       // gros et peu nombreux plutôt que petits et nombreux : c'est la SURFACE
       // couverte qui fait le ciel bouché, et chaque nuage coûte un draw call.
       scale: [4.5, 7.5],
       seed: o.seed,
       wind: windOf(o.seed),
+      // ⚠ le pont ne bouge pas AVEC la caméra : il reboucle AUTOUR d'elle. Sans
+      // `skyCentre` (une vue qui ne le fournit pas), les nuages restent semés sur
+      // leur zone d'origine — moins visibles, mais jamais collés au regard.
+      wrapAround: o.skyCentre ? () => o.skyCentre!(SKY_ALTITUDE) : undefined,
     });
     deck.group.traverse((c) => unpickable(c));
-    const sky = new THREE.Group();
-    sky.add(deck.group);
-    parts.push({
-      group: sky,
-      setTime: (s) => {
-        const v = o.view?.();
-        if (v) sky.position.set(v.x, 0, v.z);
-        deck.setTime(s);
-      },
-      dispose: () => { deck.dispose(); sky.clear(); },
-    });
+    parts.push(deck);
   } else if (theme === "desertique" && o.tumbleweeds !== false) {
     const tw = makeTumbleweeds(lib, o);
     if (tw) parts.push(tw);
