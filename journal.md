@@ -6,6 +6,109 @@
 
 ---
 
+## 2026-08-18 (131) — LES HUIT LANGUES : l'i18n, et le garde-fou qui la rend obligatoire
+
+Guillaume : « il faut faire une passe de traduction pour toutes les langues pour tous les textes de
+l'appli, et il faut que chaque nouveau texte soit obligatoirement écrit dans les différentes langues
+de l'appli. »
+
+⚠ **Il n'y avait AUCUNE infrastructure de traduction.** L'écran Paramètres déclarait pourtant huit
+langues depuis le premier jour — English, Deutsch, Italian, Portugues, Chinese, Français, Spanish,
+Japanese — et son sélecteur ne faisait **rien** : il écrivait un nom dans `localStorage`, point. Tout
+le jeu était en français en dur. Ces huit-là définissent donc le périmètre : `fr en es de it pt zh ja`.
+
+### Le contrat : une clé manquante ne COMPILE pas
+
+`Locale = Record<TKey, string>` où `TKey = keyof typeof fr`. Ajouter une clé au français fait échouer
+`tsc` sur les sept autres fichiers. « Chaque nouveau texte est écrit dans toutes les langues » devient
+une propriété du **build**, pas une promesse tenue par la discipline.
+
+### Le moteur (`src/i18n/`)
+
+- **le français est le seul fichier embarqué** ; les sept autres arrivent par `import()` (Vite en fait
+  des morceaux de ~3 ko gzip chacun). Embarquer les huit, c'est faire télécharger huit fois le même
+  texte à un téléphone qui n'en lira qu'un.
+- **`t()` reste SYNCHRONE** et sert le français en attendant : un libellé ne peut pas devenir un état
+  asynchrone dans chaque composant.
+- **`useT()` s'abonne au changement de langue** (`useSyncExternalStore`). Sans ça un composant déjà
+  monté garderait le français pour toujours — sa langue arrive APRÈS son premier rendu.
+- **repli PAR CLÉ, pas par fichier** : une langue servie par un CDN en retard affiche le français à
+  cet endroit précis, et pas sur tout l'écran.
+- **`detectLocale()` lit `navigator.languages` ENTIER** : un francophone au Canada arrive en
+  `en-CA, fr-CA` — lui servir l'anglais, c'est obéir à l'OS et non à la personne.
+- **`tx()`** (`Trans.tsx`) pour une phrase qui contient un nœud JSX (« ⚠️ **Rhun** est Tétanisé — tue
+  le pack ou fuis »). ⚠ découper la phrase en trois bouts autour du gras ne marche **qu'en français** :
+  l'allemand rejette le verbe à la fin, le japonais place le sujet ailleurs. La phrase reste entière,
+  avec son `{name}` là où la langue le veut.
+- **`gameText.ts`** : traduire ce que le SERVEUR envoie **sans toucher à la valeur**. `"Tétanisé"` est
+  un identifiant qui se trouve être français (le client le COMPARE, les bots s'en servent) ;
+  `stateLabel()` traduit son AFFICHAGE. Une valeur inconnue est rendue telle quelle — un objet ajouté
+  au backend et pas encore traduit doit rester lisible, pas devenir invisible.
+
+### Le garde-fou (`npm run test:i18n`) — TROIS FOIS FAUX AVANT D'ÊTRE JUSTE
+
+`tsc` ne voit pas l'intérieur d'une chaîne. Le test attrape donc : valeur vide · `{paramètre}` perdu
+ou inventé à la traduction · paire de pluriel `.one`/`.other` incomplète · français non traduit dans
+un fichier de langue · et surtout **français EN DUR dans un fichier déjà migré**
+(`tests/i18n-migrated.json`, liste qui ne fait que grandir : un fichier migré ne peut plus régresser).
+
+⚠⚠ **Le détecteur de français en dur a été écrit trois fois, et aucune des trois erreurs ne se voyait
+en lisant le code** — seulement en vérifiant qu'un TÉMOIN échoue bien :
+
+| tentative | ce qu'elle ratait |
+|---|---|
+| regex `>…texte…<` sur UNE ligne | le cas le plus courant : Prettier met le texte sur sa propre ligne |
+| automate suivant les balises | `onClick={() => …}` a un `>` qui ne ferme rien ; `i < src.length` un `<` qui n'ouvre rien |
+| « profondeur d'accolade 0 = JSX » | **le corps d'une fonction est déjà une accolade** — tout le JSX d'un composant vivait à la profondeur 1 et était sauté en SILENCE : un candidat (« import ») sur 400 lignes, et un ✓ parfaitement rassurant |
+
+Ce qui marche est plus bête : neutraliser les chaînes, prendre les tranches `>…<` (la regex choisit
+d'elle-même le `>` le plus PROCHE, donc une flèche ne peut pas ouvrir une fausse tranche), puis ôter
+les `{…}` — une ligne MIXTE (« 🔎 {T(…)} et du français ») est donc attrapée elle aussi.
+**Leçon : un test qui passe ne prouve rien tant qu'on ne l'a pas vu ÉCHOUER.**
+
+`GAME_VALUES` est la seule porte de sortie : les valeurs que le code compare littéralement
+(`"Tétanisé"`, `"Ration d'eau"`, `"Pierre"`…). Elle doit rester courte — une porte large ne garde plus
+rien.
+
+### Le réglage
+
+`Settings.language` porte désormais un CODE (`fr`, `ja`…) ou `"auto"`. Le nom affiché est lui-même une
+traduction : l'écrire dans les réglages rendait le choix illisible dès qu'on changeait de langue.
+Migration unique depuis les anciens noms ; ce qui n'est pas reconnu retombe sur « auto » et **non** sur
+le français — quelqu'un qui avait choisi « Japanese » mérite mieux qu'un retour silencieux à la langue
+du studio. Le sélecteur écrit chaque langue **dans sa langue** : c'est le seul écran qui ne doit pas
+obéir à la langue active.
+
+### Fonctionnel (vérifié)
+
+- `npm run test:i18n` : **219 clés × 8 langues = 1752 textes**, 11 fichiers migrés sans français en dur.
+- `npx tsc -b` et `npm run build` verts ; les sept langues sortent en morceaux séparés (~3 ko gzip),
+  le bundle principal ne bouge pas.
+- Les témoins mordent : clé manquante (test ET `tsc`), paramètre perdu, français en dur sur sa propre
+  ligne, français en dur sur une ligne mixte, `title=` français.
+
+### Migré à ce stade
+
+Coquille : BottomNav, TopBar, TitleScreen, LoadingScreen, CinematicScreen, SettingsOverlay,
+`data/buildings.ts` (les noms, descriptions et actions des 17 bâtiments — l'ID, lui, ne bouge jamais).
+Carte et héros : MapTab (menu radial, consignes permanentes, tour de guet, ruines, fin de combat),
+MapHeroBar, HeroChip, HeroActionsMenu.
+
+### À faire (la passe n'est pas finie)
+
+1. **le reste du frontend** : `store.ts` (les toasts, le plus gros morceau), CombatControls,
+   HeroOverlay, HomeTab, StructureTab, StockTab, CraftTab, ItemSheet, TemplePanel, LobbyScreen,
+   LeaderboardScreen, AccountScreen, TownChat/Status/Orders/Journal/Ledger, WaveCinematic, GameOver,
+   ChronicleCard, `forecast.ts`, les trois vues voxel ;
+2. **les noms de DONNÉES servis par le serveur** : objets, classes, compétences, recettes, espèces,
+   dieux, thèmes — même patron que `gameText.ts` (traduire l'affichage, jamais la valeur) ;
+3. **les phrases COMPOSÉES CÔTÉ SERVEUR** (journal de la ville, ordre du jour, messages d'erreur) :
+   elles ne peuvent pas être traduites côté client, il faut qu'elles voyagent en `{clé, paramètres}`
+   — c'est le morceau le plus structurel, et CLAUDE.md l'avait déjà signalé en 2026-08-09 ;
+4. les outils de dev (éditeur, studio de données, studio persos) — hors « appli », en dernier.
+
+---
+
 ## 2026-08-17 (130) — L'audit des proportions : onze assets faux, dont une pâquerette de 3,85 m
 
 Guillaume, après le rapetissement des vire-vents : « c'est trop gros non ? Est-ce qu'il ne faudrait pas
