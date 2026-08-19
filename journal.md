@@ -6,6 +6,65 @@
 
 ---
 
+## 2026-08-19 (132) — Les bots exploraient pour eux seuls : un joueur-IA rapporte au bourg
+
+« Ici il y a des bots qui ont découvert des cases mais elles n'ont pas été découvertes pour moi. »
+Capture à l'appui : des silhouettes blanches se promenant **au-dessus du vide**, hors de la carte
+rendue.
+
+### Mesuré d'abord (partie solo simulée, 1 humain + 3 bots, 10 vagues, graine 7)
+
+| qui | cases connues |
+|---|---|
+| l'humain | **49** |
+| bot Odile / Gustave / Colette | 93 · 111 · 94 |
+| l'expédition (`Tile.Discovered`) | **132** |
+
+Et **2 héros de bot servis en même temps sur une case NOIRE** pour l'humain, jusqu'à 4 cases du
+bourg : ce sont exactement les figures qui flottent sur la capture.
+
+### Ce que c'était
+
+La refonte du brouillard (entrée 129) a donné à chaque JOUEUR sa mémoire, ce qui est la bonne règle
+entre humains — mais elle l'a appliquée aux joueurs-IA, dont **personne ne regarde l'écran**. Leur
+mémoire ne protégeait donc rien : elle effaçait simplement les deux tiers du travail de l'équipe. Et
+les héros étaient les SEULES entités jamais caviardées par `ClientViewFor` (monstres, ruines et
+belvédères l'étaient déjà), d'où le personnage posé sur du blanc.
+
+### Livré
+
+1. **`playerIsBot` dans `RevealVision`** : ce qu'un joueur-IA voit entre dans la mémoire de TOUT LE
+   MONDE, par le même canal que le bourg et les tours. ⚠ à SENS UNIQUE (un bot verse au pot commun,
+   il n'y puise pas) et ⚠ **la règle entre humains ne bouge pas d'un pouce** — deux joueurs ne se
+   partagent toujours rien, un humain qui rejoint arrive toujours devant une carte noire (que
+   l'escorte rouvrira au fil de ses rondes).
+2. **Un coéquipier n'est plus dessiné dans le vide** : les héros des autres joueurs ne sont servis
+   que sur une case dont je connais le TERRAIN. Seuil `Discovered` et non `Visible`, délibérément
+   plus permissif que la règle des monstres — un coéquipier a une voix au Panneau et à la
+   messagerie, savoir où il est n'est pas de l'espionnage ; ce qu'on refuse, c'est de le poser sur
+   une case qui, pour ce joueur, n'existe pas encore. MES héros passent toujours.
+
+### Fonctionnel (vérifié)
+
+- La même sonde après correction : l'humain connaît **131 cases** (contre 49), **0 héros servi sur
+  une case noire**.
+- **Plancher de survie inchangé** — `cmd/balance`, 8 graines × 1·4·12·20 joueurs : médianes
+  **15 · 18 · 20 · 20** avant ET après. Le partage change ce que les bots SAVENT, pas ce qu'ils
+  tiennent.
+- `go test ./...` vert, dont deux tests neufs (`fogwar_test.go`) :
+  `TestBotExplorationBelongsToTheExpedition` (le partage, son sens unique, et la règle entre humains
+  intacte) et `TestTeammatesAreNotDrawnInTheVoid`.
+- `npm run test:fog` **8/8**, `npx tsc -b` propre.
+
+### À faire
+
+- Rien côté client : c'est le payload qui a changé, le rendu suivait déjà `discovered`.
+- Reste ouverte la question d'un humain qui rejoint TARD une expédition très avancée : il repart
+  d'une carte noire que seule l'escorte rouvre. Acceptable tant que les bots patrouillent ; à
+  revoir si une expédition 100 % humaine se plaint du même symptôme.
+
+---
+
 ## 2026-08-17 (131) — Le ciel suivait le doigt : les nuages rebouclent au lieu de suivre
 
 « Les nuages bougent en même temps que la caméra et **la suivent**, ce n'est pas normal. » — et cette

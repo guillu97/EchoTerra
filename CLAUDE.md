@@ -1624,9 +1624,26 @@ test `TestServerWrittenSentencesUseFrenchBuildingNames`).
   `writeJSON`, dont la centralisation est ce qui garantit qu'aucun handler ne fuite ;
   un handler qui oublierait le destinataire sert la vue d'un anonyme, donc la plus
   pauvre. Le client ajoute `?playerId=` dans l'UNIQUE fonction `req` (api/client.ts).
+  ⚠⚠ **UN JOUEUR-IA RAPPORTE AU BOURG** (2026-08-19) : la mémoire par joueur répond à une
+  question de jeu entre HUMAINS (« va voir toi-même ») et ne protège RIEN appliquée à un
+  bot, puisque personne ne regarde son écran. Ce qu'un joueur-IA découvre entre donc dans
+  la mémoire de TOUT LE MONDE (`playerIsBot` dans `RevealVision`, même canal que le bourg
+  et les tours) — mesuré avant correction sur une partie solo de 10 vagues : l'humain
+  connaissait **49 cases** quand son expédition en avait découvert **132**, et il voyait
+  les silhouettes de ses coéquipiers se promener dans sa brume (rapporté en jeu). ⚠ le
+  partage est à SENS UNIQUE (un bot verse, il ne puise pas) et ⚠ **la règle entre HUMAINS
+  ne bouge pas d'un pouce** : deux joueurs ne se partagent toujours rien. Mesuré neutre
+  sur le plancher de survie (`cmd/balance`, 8 graines × 1·4·12·20 joueurs : médianes
+  15·18·20·20 des deux côtés).
   ⚠ **les MONSTRES ne sont servis que sur une case VISIBLE** (un souvenir qui garderait
   ses monstres mentirait sur leur position) ; les RUINES et les belvédères, eux, restent
-  connus une fois repérés — un bâtiment ne se déplace pas. ⚠ **`Tile.Discovered` survit**
+  connus une fois repérés — un bâtiment ne se déplace pas. ⚠ **les HÉROS des AUTRES
+  joueurs ne sont servis que sur une case dont je connais le TERRAIN** : ils étaient les
+  seules entités jamais caviardées, d'où des personnages dessinés sur du vide blanc. Le
+  seuil est `Discovered` et non `Visible`, délibérément plus permissif que la règle des
+  monstres — un coéquipier appartient à l'expédition, savoir où il est n'est pas de
+  l'espionnage ; ce qu'on refuse, c'est de le poser sur une case qui, pour ce joueur,
+  n'existe pas encore. MES héros passent toujours. ⚠ **`Tile.Discovered` survit**
   avec un sens réduit (« quelqu'un l'a vue »), lu par `climb.go` et la simulation
   d'équilibrage ; les BOTS, eux, lisent leur PROPRE mémoire (`heroKnows`). ⚠ **MIGRATION**
   : une sauvegarde d'avant la refonte (`Explored == nil`) est semée une fois depuis

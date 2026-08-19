@@ -175,3 +175,65 @@ func TestOldSavesKeepTheirExploration(t *testing.T) {
 		t.Fatal("un joueur qui rejoint en cours de partie n'hérite pas de l'exploration des autres")
 	}
 }
+
+// UN JOUEUR-IA RAPPORTE AU BOURG. La mémoire par joueur répond à une question de jeu
+// entre HUMAINS (« va voir toi-même ») ; appliquée à un joueur-IA elle ne protège
+// rien, puisque personne ne regarde son écran. Mesuré avant correction sur une partie
+// solo de 10 vagues : l'humain connaissait 49 cases quand son expédition en avait
+// découvert 132.
+func TestBotExplorationBelongsToTheExpedition(t *testing.T) {
+	g, a, b := fogGame(t)
+	g.Players[1].Bot = true // Bo devient un joueur-IA
+	g.RevealVision()
+
+	if !g.PlayerExplored("pa", b.X, b.Y) {
+		t.Fatal("ce qu'un joueur-IA découvre doit entrer dans la mémoire de TOUT LE MONDE")
+	}
+	if got := g.ClientViewFor("pa").TileAt(b.X, b.Y); !got.Discovered || got.Biome == 0 {
+		t.Fatalf("l'humain doit recevoir le TERRAIN découvert par son escorte : %+v", got)
+	}
+	if got := g.ClientViewFor("pa").TileAt(b.X, b.Y); got.Visible {
+		t.Fatal("rapporté n'est pas vu : la case reste un SOUVENIR assombri")
+	}
+	// ⚠ et la règle entre HUMAINS ne bouge pas : Bo redevenu humain, Ana ne sait plus
+	// rien de neuf.
+	g.Players[1].Bot = false
+	b.X, b.Y = 12, 12 // loin de tout ce que quiconque a déjà vu
+	g.RevealVision()
+	if g.PlayerExplored("pa", b.X, b.Y) {
+		t.Fatal("un joueur HUMAIN ne partage toujours pas son exploration")
+	}
+	// ⚠ le partage est à SENS UNIQUE : un bot verse au pot commun, il n'y puise pas
+	// l'exploration des humains (rien ne l'exige, et sa mémoire sert son IA).
+	if g.PlayerExplored("pb", a.X, a.Y) {
+		t.Fatal("un joueur-IA n'hérite pas de l'exploration d'un humain")
+	}
+}
+
+// LES COÉQUIPIERS NE FLOTTENT PLUS DANS LA BRUME. Les héros étaient les seules
+// entités jamais caviardées : on voyait donc des silhouettes se promener au-dessus de
+// cases dont on n'a jamais vu le terrain — un personnage posé sur du vide.
+func TestTeammatesAreNotDrawnInTheVoid(t *testing.T) {
+	g, a, b := fogGame(t)
+	served := func(viewer string, h *Hero) bool {
+		for _, x := range g.ClientViewFor(viewer).Heroes {
+			if x.ID == h.ID {
+				return true
+			}
+		}
+		return false
+	}
+	if served("pa", b) {
+		t.Fatal("le héros d'un autre joueur ne doit PAS être servi sur une case jamais vue")
+	}
+	if !served("pa", a) {
+		t.Fatal("MES héros passent toujours : ce sont eux que je joue")
+	}
+	// dès que le terrain est connu — ici parce que Bo est un joueur-IA — le coéquipier
+	// réapparaît : on refuse de le dessiner sur du vide, pas de savoir où il est.
+	g.Players[1].Bot = true
+	g.RevealVision()
+	if !served("pa", b) {
+		t.Fatal("sur une case dont je connais le terrain, un coéquipier doit être servi")
+	}
+}

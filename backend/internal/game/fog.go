@@ -238,18 +238,49 @@ func (g *GameState) RevealVision() {
 		shared(s.x, s.y, s.r)
 	}
 
-	// 2. ce que voient les héros va dans la mémoire de LEUR joueur seulement.
+	// 2. ce que voient les héros va dans la mémoire de LEUR joueur seulement —
+	// SAUF les joueurs-IA, dont l'exploration appartient à l'expédition (voir
+	// botsReportToTown ci-dessous).
 	for _, h := range g.Heroes {
 		if h.HP <= 0 {
 			continue
 		}
-		key := g.viewerKey(g.OwnerOfHero(h.ID))
+		owner := g.OwnerOfHero(h.ID)
 		r := g.sightRadius(h, heroBonus)
+		if g.playerIsBot(owner) {
+			shared(h.X, h.Y, r)
+			continue
+		}
+		key := g.viewerKey(owner)
 		g.eachCellInRadius(h.X, h.Y, r, func(idx, x, y int) {
 			g.Tiles[idx].Discovered = true
 			g.markExplored(key, idx)
 		})
 	}
+}
+
+// playerIsBot : ce héros appartient-il à un joueur-IA ?
+//
+// UN JOUEUR-IA RAPPORTE AU BOURG (2026-08-19). La mémoire par joueur répond à une
+// question de JEU entre humains — « va voir toi-même » — et elle n'a aucun sens
+// appliquée à un joueur-IA : personne ne regarde son écran, donc sa mémoire n'est
+// l'expérience de personne. Résultat mesuré avant correction, sur une partie solo
+// (1 humain + 3 bots, 10 vagues, graine 7) : l'humain connaissait **49 cases** quand
+// l'expédition en avait découvert **132** — les deux tiers du travail de ses
+// coéquipiers restaient noirs, et il voyait leurs silhouettes se promener dans sa
+// brume (rapporté en jeu, capture à l'appui). Ce qu'un bot découvre entre donc dans la
+// mémoire de TOUT LE MONDE, comme le bourg et les tours : c'est du savoir
+// d'expédition, pas une exploration personnelle.
+//
+// ⚠ La règle entre HUMAINS ne bouge pas d'un pouce : deux joueurs ne se partagent
+// toujours rien, et un humain qui rejoint en cours de partie arrive toujours devant
+// une carte noire (que l'escorte de bots rouvrira au fil de ses rondes).
+func (g *GameState) playerIsBot(playerID string) bool {
+	if playerID == "" {
+		return false
+	}
+	p := g.PlayerByID(playerID)
+	return p != nil && p.Bot
 }
 
 // sightSource : un point qui éclaire un rayon.
@@ -384,6 +415,28 @@ func (g *GameState) ClientViewFor(playerID string) *GameState {
 		default:
 			// jamais vue : tuile vierge (Discovered et Visible restent faux)
 		}
+	}
+	// LES COÉQUIPIERS NE FLOTTENT PLUS DANS LA BRUME. Les héros étaient les SEULES
+	// entités jamais caviardées : on voyait donc les silhouettes des autres joueurs se
+	// promener au-dessus de cases dont on n'a jamais vu le terrain — un personnage
+	// posé sur du vide blanc, ce qui est exactement ce qu'un rapport de jeu a montré.
+	//
+	// ⚠ Le seuil est « je connais le TERRAIN » (Discovered), pas « je le vois »
+	// (Visible), et c'est délibérément plus permissif que la règle des monstres : un
+	// coéquipier appartient à l'expédition, il a une voix au Panneau et à la
+	// messagerie — savoir où il est n'est pas de l'espionnage. Ce qu'on refuse, c'est
+	// de le dessiner sur une case qui, pour ce joueur, n'existe pas encore.
+	// ⚠ MES héros passent toujours, quoi qu'il arrive : ce sont eux que je joue.
+	if playerID != "" {
+		mine := make([]*Hero, 0, len(g.Heroes))
+		for _, h := range g.Heroes {
+			idx := h.Y*g.Width + h.X
+			known := idx >= 0 && idx < len(cp.Tiles) && cp.Tiles[idx].Discovered
+			if known || g.OwnerOfHero(h.ID) == playerID {
+				mine = append(mine, h)
+			}
+		}
+		cp.Heroes = mine
 	}
 	// Les monstres ne sont servis que sur une case VISIBLE — c'est la règle
 	// Warcraft III, et c'est elle qui donne son prix à la tour : ce qu'elle éclaire,
