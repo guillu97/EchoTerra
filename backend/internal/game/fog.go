@@ -2,7 +2,7 @@ package game
 
 import "time"
 
-// LE BROUILLARD DE GUERRE — trois états, et une mémoire PAR JOUEUR.
+// LE BROUILLARD DE GUERRE — trois états, et la carte d'une EXPÉDITION.
 //
 // CE QUE C'ÉTAIT. `Tile.Discovered` : un booléen PARTAGÉ par toute l'expédition, qui ne
 // repassait jamais à faux. Une case vue une fois par n'importe qui restait acquise à
@@ -19,27 +19,35 @@ import "time"
 //	FogVisible  — dans le champ de quelqu'un en ce moment. Tout est servi, tout est
 //	              éclairé.
 //
-// ⚠ LA MÉMOIRE EST PAR JOUEUR (`GameState.Explored`, un bitset compact par identifiant
-// de joueur). C'est la demande explicite : « ne révélant les cases qu'aux joueurs qui
-// s'y trouvent ». Deux conséquences qu'il faut assumer plutôt que subir :
-//   - un joueur qui rejoint en cours de partie arrive devant une carte noire. C'est le
-//     prix de la règle ; le bourg et les tours la rouvrent aussitôt autour de lui.
-//   - les joueurs-IA ont AUSSI leur propre mémoire (bots.go lit `PlayerKnows`), donc
-//     ils ne profitent plus de l'exploration des autres. C'est ce qui rend la règle
-//     honnête, et c'est mesuré par `cmd/balance`.
+// ⚠⚠ LA MÉMOIRE EST CELLE DE L'EXPÉDITION (2026-08-19, seconde décision). Elle a été
+// PAR JOUEUR pendant trois jours — « ne révélant les cases qu'aux joueurs qui s'y
+// trouvent » — et la mesure a tranché contre : sur une partie solo de 10 vagues,
+// l'humain connaissait 49 cases quand son équipe en avait découvert 132, et il voyait
+// les silhouettes de ses coéquipiers se promener dans sa brume. Un premier correctif a
+// versé l'exploration des joueurs-IA au pot commun ; l'utilisateur a tranché pour la
+// règle entière : « les humains d'une même expédition doivent partager aussi ».
 //
-// ⚠ CE QUI RESTE PARTAGÉ, ET POURQUOI : le bourg et les TOURS. Une survie collective
-// qui n'aurait aucune connaissance commune ne serait plus collective — et c'est
-// exactement l'intérêt de la tour demandé dans la même phrase (« elle pourrait
-// conserver la vision, supprimant le fog of war dans son rayon »). Ce qu'une tour
-// éclaire est éclairé POUR TOUT LE MONDE et ne s'éteint jamais. Bâtir devient donc le
-// moyen de transformer une exploration individuelle en savoir d'expédition.
+// UNE EXPÉDITION, UNE CARTE. Tout ce qu'un héros de la ville voit — de qui qu'il soit,
+// humain ou joueur-IA — entre dans la mémoire commune, et la vision courante est
+// l'UNION des champs de tous les héros vivants, plus le bourg et les tours. Ce qui se
+// défend : cette ville partage déjà sa Banque, son Panneau, sa messagerie, son journal
+// et son registre ; lui refuser sa carte était la seule chose qu'elle ne mettait pas en
+// commun. Et le brouillard ne perd rien à devenir collectif — il garde ses TROIS ÉTATS,
+// qui sont la vraie trouvaille de la refonte : une case que TOUT LE MONDE a quittée
+// s'assombrit et cesse de servir ce qui bouge.
 //
-// ⚠ `Tile.Discovered` SURVIT, avec un sens précis et réduit : « quelqu'un l'a vue un
-// jour ». Il ne sert plus à décider ce qu'un joueur voit — c'est `PlayerKnows` qui le
-// fait — mais il reste la mémoire de l'EXPÉDITION, et deux choses en dépendent
-// légitimement : le relief ne peut arrêter que sur une case déjà vue (climb.go), et la
-// simulation d'équilibrage compte les tuiles sorties du brouillard.
+// ⚠ CE QUE ÇA RÈGLE, en plus du rapport : un joueur qui rejoint en cours de partie
+// reçoit la carte de la ville au lieu d'un écran noir, et un coéquipier n'est jamais
+// dessiné au-dessus d'une case dont personne n'a vu le terrain.
+//
+// ⚠ LES TOURS GARDENT LEUR RAISON D'ÊTRE : elles n'éclairent pas « pour tout le monde »
+// (c'est devenu le cas de tout le monde), elles éclairent SANS PERSONNE SUR PLACE et
+// ne s'éteignent jamais. C'est la seule façon de garder une case VISIBLE — donc ses
+// monstres servis — quand l'expédition est ailleurs.
+//
+// ⚠ `Tile.Discovered` et le bitset disent maintenant la même chose ; le bitset reste
+// parce qu'il est ce que la vue client interroge case par case, et `Tile.Discovered`
+// parce que climb.go et la simulation d'équilibrage le lisent.
 
 // FogState : ce qu'un joueur donné sait d'une case, à cet instant.
 type FogState uint8
@@ -70,66 +78,97 @@ const (
 	townSightRadius       = 3 // le bourg éclaire un anneau un peu plus large
 )
 
-// --- mémoire par joueur : un bit par case ------------------------------------
+// --- la mémoire de l'expédition : un bit par case -----------------------------
 //
 // ⚠ UN BITSET, PAS UN `[]bool`. Une carte de vingt joueurs fait 134² = 17 956 cases ;
-// en `[]bool` le JSON de la seule mémoire pèserait ~90 ko PAR JOUEUR, soit près de
-// deux mégaoctets par partie, réécrits à chaque vague. En bits c'est 2,2 ko par joueur.
-// `[]byte` se sérialise en base64 par le paquet json, donc ça reste lisible et compact
-// sans code de sérialisation à écrire.
+// en `[]bool` le JSON de la seule mémoire pèserait ~90 ko, réécrits à chaque vague. En
+// bits c'est 2,2 ko. `[]byte` se sérialise en base64 par le paquet json, donc ça reste
+// lisible et compact sans code de sérialisation à écrire. (Au temps de la mémoire par
+// joueur, c'est ce choix qui évitait deux mégaoctets par partie ; il reste le bon.)
 
-// viewerKey rend la clé de mémoire d'un joueur. Une partie LEGACY (« Test rapide »,
-// zéro joueur) n'a pas d'identifiant : tout le monde partage la clé vide, ce qui
-// redonne exactement l'ancien comportement partagé sans cas particulier ailleurs.
-func (g *GameState) viewerKey(playerID string) string {
-	if len(g.Players) == 0 {
-		return ""
-	}
-	return playerID
-}
+// expeditionKey : l'UNIQUE clé de la mémoire. Le champ reste une map pour une seule
+// raison — lire sans conversion les sauvegardes écrites quand la mémoire était par
+// joueur, repliées une fois par `foldMemories` — et pour qu'un retour en arrière ne
+// coûte pas une migration de plus.
+const expeditionKey = ""
 
-func (g *GameState) exploredBits(key string) []byte {
+func (g *GameState) exploredBits() []byte {
 	if g.Explored == nil {
 		g.Explored = map[string][]byte{}
 	}
 	need := (len(g.Tiles) + 7) / 8
-	b := g.Explored[key]
+	b := g.Explored[expeditionKey]
 	if len(b) < need {
 		nb := make([]byte, need)
 		copy(nb, b)
 		b = nb
-		g.Explored[key] = b
+		g.Explored[expeditionKey] = b
 	}
 	return b
 }
 
-// markExplored inscrit la case dans la mémoire de ce joueur.
-func (g *GameState) markExplored(key string, idx int) {
+// markExplored inscrit la case dans la mémoire de l'expédition.
+func (g *GameState) markExplored(idx int) {
 	if idx < 0 || idx >= len(g.Tiles) {
 		return
 	}
-	b := g.exploredBits(key)
+	b := g.exploredBits()
 	b[idx/8] |= 1 << (idx % 8)
 }
 
-// PlayerExplored : ce joueur a-t-il DÉJÀ vu cette case ?
-func (g *GameState) PlayerExplored(playerID string, x, y int) bool {
+// TileExplored : l'expédition a-t-elle DÉJÀ vu cette case ? C'est la question que
+// posent la vue client (pour servir un souvenir) et les joueurs-IA (pour savoir où
+// aller) — pas « est-ce que je la vois en ce moment », mais « est-ce qu'on sait ce
+// qu'il y a là ».
+func (g *GameState) TileExplored(x, y int) bool {
 	if x < 0 || y < 0 || x >= g.Width || y >= g.Height {
 		return false
 	}
 	idx := y*g.Width + x
-	b := g.Explored[g.viewerKey(playerID)]
+	b := g.Explored[expeditionKey]
 	if idx/8 >= len(b) {
 		return false
 	}
 	return b[idx/8]&(1<<(idx%8)) != 0
 }
 
-// PlayerKnows : ce joueur peut-il RAISONNER sur cette case (explorée ou visible) ?
-// C'est la question que se posent les joueurs-IA — pas « est-ce que je la vois en ce
-// moment », mais « est-ce que je sais ce qu'il y a là ».
-func (g *GameState) PlayerKnows(playerID string, x, y int) bool {
-	return g.PlayerExplored(playerID, x, y)
+// migrateMemory rattrape les DEUX générations de sauvegardes antérieures. Appelée
+// depuis RevealVision, donc à chaque Recompute : elle doit être idempotente et muette.
+//
+//  1. AVANT LE BITSET (`Explored == nil`) : la mémoire vivait dans `Tile.Discovered`.
+//     Sans reprise, une partie en cours perdrait des jours réels d'exploration.
+//  2. MÉMOIRE PAR JOUEUR (des clés autres que la clé d'expédition) : on fusionne tous
+//     les bitsets — l'union, jamais l'intersection : personne ne doit RENDRE une case
+//     qu'il connaissait — puis on supprime les clés par joueur, ce qui rend au blob JSON
+//     sa taille d'origine (un bitset au lieu de vingt).
+func (g *GameState) migrateMemory() {
+	if g.Explored == nil {
+		g.Explored = map[string][]byte{}
+		bits := g.exploredBits()
+		for i := range g.Tiles {
+			if g.Tiles[i].Discovered {
+				bits[i/8] |= 1 << (i % 8)
+			}
+		}
+		return
+	}
+	if len(g.Explored) == 1 {
+		if _, only := g.Explored[expeditionKey]; only {
+			return
+		}
+	}
+	bits := g.exploredBits()
+	for k, b := range g.Explored {
+		if k == expeditionKey {
+			continue
+		}
+		for i := range b {
+			if i < len(bits) {
+				bits[i] |= b[i]
+			}
+		}
+		delete(g.Explored, k)
+	}
 }
 
 // --- vision courante ----------------------------------------------------------
@@ -186,101 +225,36 @@ func (g *GameState) eachCellInRadius(cx, cy, r int, fn func(idx, x, y int)) {
 	}
 }
 
-// RevealVision met à jour la mémoire de chaque joueur à partir de ce que ses héros
-// voient MAINTENANT, plus les sources PARTAGÉES (bourg, tours). Appelée depuis
-// Recompute, donc après n'importe quelle action qui déplace un héros.
+// RevealVision met à jour la mémoire de l'expédition à partir de ce que ses héros
+// voient MAINTENANT, plus le bourg et les tours. Appelée depuis Recompute, donc après
+// n'importe quelle action qui déplace un héros.
 //
 // ⚠ La mémoire est monotone (on n'oublie jamais une case explorée) ; c'est la VISION
-// qui, elle, s'éteint quand on s'éloigne. Les deux ne doivent pas être confondues :
-// c'est toute la différence entre « assombri » et « noir ».
+// qui, elle, s'éteint quand tout le monde s'éloigne. Les deux ne doivent pas être
+// confondues : c'est toute la différence entre « assombri » et « noir ».
 func (g *GameState) RevealVision() {
 	heroBonus, townBonus := g.mapperBonus()
+	g.migrateMemory()
 
-	// 1. les sources PARTAGÉES vont dans la mémoire de TOUS les joueurs (et dans celle
-	// de la partie legacy, clé vide) : le bourg et les tours sont le savoir commun de
-	// l'expédition.
-	keys := make([]string, 0, len(g.Players)+1)
-	if len(g.Players) == 0 {
-		keys = append(keys, "")
-	} else {
-		for _, p := range g.Players {
-			keys = append(keys, p.ID)
-		}
-	}
-	shared := func(cx, cy, r int) {
+	reveal := func(cx, cy, r int) {
 		g.eachCellInRadius(cx, cy, r, func(idx, x, y int) {
 			g.Tiles[idx].Discovered = true
-			for _, k := range keys {
-				g.markExplored(k, idx)
-			}
+			g.markExplored(idx)
 		})
 	}
-	// MIGRATION DES PARTIES D'AVANT LE BROUILLARD PAR JOUEUR. Une sauvegarde
-	// existante porte des tuiles `Discovered` et AUCUN bitset : sans reprise, tous ses
-	// joueurs se réveilleraient devant une carte noire et perdraient plusieurs jours
-	// réels d'exploration. On sème donc une fois, à partir de la mémoire de
-	// l'expédition. ⚠ Le test est `g.Explored == nil` — « personne n'a encore de
-	// mémoire » — et pas « ce joueur-ci n'en a pas » : sinon un joueur qui rejoint en
-	// cours de partie hériterait de l'exploration des autres, ce qui est exactement la
-	// règle qu'on vient de supprimer.
-	if g.Explored == nil {
-		for _, k := range keys {
-			for i := range g.Tiles {
-				if g.Tiles[i].Discovered {
-					g.markExplored(k, i)
-				}
-			}
-		}
-		g.exploredBits("") // au moins une clé : la carte n'est plus « jamais migrée »
-	}
-	shared(g.Town.X, g.Town.Y, townSightRadius+townBonus)
+	reveal(g.Town.X, g.Town.Y, townSightRadius+townBonus)
 	for _, s := range g.sharedSightSources() {
-		shared(s.x, s.y, s.r)
+		reveal(s.x, s.y, s.r)
 	}
-
-	// 2. ce que voient les héros va dans la mémoire de LEUR joueur seulement —
-	// SAUF les joueurs-IA, dont l'exploration appartient à l'expédition (voir
-	// botsReportToTown ci-dessous).
+	// ⚠ TOUS les héros, sans regarder à qui ils sont : c'est ça, « une expédition, une
+	// carte ». Un héros MORT n'éclaire rien (il n'est plus là pour regarder), mais ce
+	// qu'il a vu de son vivant reste acquis.
 	for _, h := range g.Heroes {
 		if h.HP <= 0 {
 			continue
 		}
-		owner := g.OwnerOfHero(h.ID)
-		r := g.sightRadius(h, heroBonus)
-		if g.playerIsBot(owner) {
-			shared(h.X, h.Y, r)
-			continue
-		}
-		key := g.viewerKey(owner)
-		g.eachCellInRadius(h.X, h.Y, r, func(idx, x, y int) {
-			g.Tiles[idx].Discovered = true
-			g.markExplored(key, idx)
-		})
+		reveal(h.X, h.Y, g.sightRadius(h, heroBonus))
 	}
-}
-
-// playerIsBot : ce héros appartient-il à un joueur-IA ?
-//
-// UN JOUEUR-IA RAPPORTE AU BOURG (2026-08-19). La mémoire par joueur répond à une
-// question de JEU entre humains — « va voir toi-même » — et elle n'a aucun sens
-// appliquée à un joueur-IA : personne ne regarde son écran, donc sa mémoire n'est
-// l'expérience de personne. Résultat mesuré avant correction, sur une partie solo
-// (1 humain + 3 bots, 10 vagues, graine 7) : l'humain connaissait **49 cases** quand
-// l'expédition en avait découvert **132** — les deux tiers du travail de ses
-// coéquipiers restaient noirs, et il voyait leurs silhouettes se promener dans sa
-// brume (rapporté en jeu, capture à l'appui). Ce qu'un bot découvre entre donc dans la
-// mémoire de TOUT LE MONDE, comme le bourg et les tours : c'est du savoir
-// d'expédition, pas une exploration personnelle.
-//
-// ⚠ La règle entre HUMAINS ne bouge pas d'un pouce : deux joueurs ne se partagent
-// toujours rien, et un humain qui rejoint en cours de partie arrive toujours devant
-// une carte noire (que l'escorte de bots rouvrira au fil de ses rondes).
-func (g *GameState) playerIsBot(playerID string) bool {
-	if playerID == "" {
-		return false
-	}
-	p := g.PlayerByID(playerID)
-	return p != nil && p.Bot
 }
 
 // sightSource : un point qui éclaire un rayon.
@@ -316,13 +290,13 @@ func townTowerSight(level int) int {
 	return 4 + 2*(level-1) // 4 · 6 · 8
 }
 
-// VisibleNow rend l'ensemble des cases ÉCLAIRÉES pour ce joueur en ce moment : ses
-// héros vivants, le bourg, et toutes les tours (partagées).
+// VisibleNow rend l'ensemble des cases ÉCLAIRÉES en ce moment : les héros vivants de
+// l'expédition, le bourg, et toutes les tours.
 //
 // ⚠ Dérivé à chaque appel, jamais persisté : la visibilité est une fonction de l'état
 // courant, et la mémoriser reviendrait à réinventer le bug qu'on corrige (une carte
 // qui se colorie sans jamais s'éteindre).
-func (g *GameState) VisibleNow(playerID string) []bool {
+func (g *GameState) VisibleNow() []bool {
 	vis := make([]bool, len(g.Tiles))
 	heroBonus, townBonus := g.mapperBonus()
 	light := func(cx, cy, r int) {
@@ -332,14 +306,8 @@ func (g *GameState) VisibleNow(playerID string) []bool {
 	for _, s := range g.sharedSightSources() {
 		light(s.x, s.y, s.r)
 	}
-	key := g.viewerKey(playerID)
 	for _, h := range g.Heroes {
 		if h.HP <= 0 {
-			continue
-		}
-		// ⚠ en partie legacy (clé vide) TOUS les héros éclairent : il n'y a pas de
-		// joueurs, donc pas de « mes » héros.
-		if key != "" && g.OwnerOfHero(h.ID) != key {
 			continue
 		}
 		light(h.X, h.Y, g.sightRadius(h, heroBonus))
@@ -361,8 +329,9 @@ func (g *GameState) ClientView() *GameState { return g.ClientViewFor("") }
 func (g *GameState) ClientViewFor(playerID string) *GameState {
 	cp := *g
 	cp.Seed = 0
-	// La mémoire des AUTRES joueurs n'a rien à faire sur le réseau : c'est de la donnée
-	// de serveur, et elle pèse (un bitset par joueur).
+	// Le bitset n'a rien à faire sur le réseau : c'est de la donnée de serveur, et le
+	// client reçoit la même information sous une forme qu'il sait dessiner (les deux
+	// drapeaux `discovered` / `visible` par tuile).
 	cp.Explored = nil
 	// Le catalogue du thème voyage avec la partie (dérivé, jamais persisté — le blob
 	// est écrit depuis `g`, où le champ reste nil). Le client n'a donc rien à charger
@@ -398,14 +367,14 @@ func (g *GameState) ClientViewFor(playerID string) *GameState {
 		return &cp
 	}
 
-	vis := g.VisibleNow(playerID)
+	vis := g.VisibleNow()
 	cp.Tiles = make([]Tile, len(g.Tiles))
 	for i, t := range g.Tiles {
 		switch {
 		case vis[i]:
 			t.Discovered, t.Visible = true, true
 			cp.Tiles[i] = t
-		case g.PlayerExplored(playerID, i%g.Width, i/g.Width):
+		case g.TileExplored(i%g.Width, i/g.Width):
 			// SOUVENIR : le terrain, et rien de vivant. ⚠ `MonsterID` doit tomber, sinon
 			// le client afficherait un pack à un endroit où il n'est peut-être plus —
 			// mentir sur une position est pire que ne rien dire.
@@ -418,25 +387,26 @@ func (g *GameState) ClientViewFor(playerID string) *GameState {
 	}
 	// LES COÉQUIPIERS NE FLOTTENT PLUS DANS LA BRUME. Les héros étaient les SEULES
 	// entités jamais caviardées : on voyait donc les silhouettes des autres joueurs se
-	// promener au-dessus de cases dont on n'a jamais vu le terrain — un personnage
-	// posé sur du vide blanc, ce qui est exactement ce qu'un rapport de jeu a montré.
+	// promener au-dessus de cases dont personne n'avait vu le terrain — un personnage
+	// posé sur du vide blanc, ce qu'un rapport de jeu a montré en capture.
 	//
-	// ⚠ Le seuil est « je connais le TERRAIN » (Discovered), pas « je le vois »
-	// (Visible), et c'est délibérément plus permissif que la règle des monstres : un
-	// coéquipier appartient à l'expédition, il a une voix au Panneau et à la
-	// messagerie — savoir où il est n'est pas de l'espionnage. Ce qu'on refuse, c'est
-	// de le dessiner sur une case qui, pour ce joueur, n'existe pas encore.
-	// ⚠ MES héros passent toujours, quoi qu'il arrive : ce sont eux que je joue.
+	// ⚠ Depuis que la carte est celle de l'expédition, un héros VIVANT est toujours sur
+	// une case éclairée (il l'éclaire lui-même) : ce filtre ne retire donc plus que les
+	// MORTS tombés hors de vue — que le client ne dessine pas, mais qui voyageaient
+	// quand même. Il reste la garantie, en un endroit, qu'aucun personnage ne peut être
+	// servi sur une case vierge.
+	// ⚠ MES héros passent toujours : ce sont eux que je joue, morts compris (la fiche
+	// et la résurrection en ont besoin).
 	if playerID != "" {
-		mine := make([]*Hero, 0, len(g.Heroes))
+		served := make([]*Hero, 0, len(g.Heroes))
 		for _, h := range g.Heroes {
 			idx := h.Y*g.Width + h.X
 			known := idx >= 0 && idx < len(cp.Tiles) && cp.Tiles[idx].Discovered
 			if known || g.OwnerOfHero(h.ID) == playerID {
-				mine = append(mine, h)
+				served = append(served, h)
 			}
 		}
-		cp.Heroes = mine
+		cp.Heroes = served
 	}
 	// Les monstres ne sont servis que sur une case VISIBLE — c'est la règle
 	// Warcraft III, et c'est elle qui donne son prix à la tour : ce qu'elle éclaire,

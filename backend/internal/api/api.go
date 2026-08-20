@@ -77,11 +77,13 @@ func (s *Server) lockGame(id string) func() {
 // gameLockMiddleware serializes all requests touching one game (even GETs mutate via
 // the lazy wave catch-up in tick) AND installe le DESTINATAIRE de la réponse.
 //
-// LE DESTINATAIRE, ET POURQUOI IL PASSE PAR LE ResponseWriter. Depuis que le
-// brouillard a une mémoire PAR JOUEUR (fog.go), `ClientView` ne peut plus caviarder
-// sans savoir QUI demande — exactement le problème déjà rencontré avec la messagerie,
-// résolu là en sortant le contenu du payload. Ici ce n'est pas possible : la carte EST
-// le payload.
+// LE DESTINATAIRE, ET POURQUOI IL PASSE PAR LE ResponseWriter. `ClientViewFor` caviarde
+// en fonction de QUI demande — exactement le problème déjà rencontré avec la messagerie,
+// résolu là en sortant le contenu du payload ; ici ce n'est pas possible, la carte EST
+// le payload. ⚠ Depuis que la mémoire de brouillard est celle de l'EXPÉDITION
+// (2026-08-19), le destinataire ne change plus la carte servie — il décide encore des
+// HÉROS servis (les miens passent toujours, morts compris) et il reste le seul endroit
+// où brancher une règle personnelle si elle revient.
 //
 // ⚠ On ne change PAS la signature de `writeJSON` (une centaine d'appels, et la
 // centralisation est justement ce qui garantit qu'aucun handler ne peut fuiter l'état

@@ -77,17 +77,33 @@ func TestMonstersOnlyTravelOnLitTiles(t *testing.T) {
 	}
 }
 
-// LA MÉMOIRE EST PERSONNELLE : ce qu'Ana a exploré, Bo ne le sait pas.
-func TestExplorationIsPerPlayer(t *testing.T) {
-	g, a, _ := fogGame(t)
-	if !g.PlayerExplored("pa", a.X, a.Y) {
-		t.Fatal("Ana doit connaître la case où elle se trouve")
+// UNE EXPÉDITION, UNE CARTE (2026-08-19). La mémoire a été PERSONNELLE pendant trois
+// jours ; la mesure et l'usage ont tranché contre. Ce qu'un coéquipier explore — humain
+// ou joueur-IA — est acquis à toute la ville, qui partage déjà sa Banque, son Panneau et
+// son journal.
+func TestTheMapBelongsToTheExpedition(t *testing.T) {
+	g, a, b := fogGame(t)
+	for _, p := range []string{"pa", "pb"} {
+		if !g.TileExplored(a.X, a.Y) || !g.TileExplored(b.X, b.Y) {
+			t.Fatalf("%s : la carte de l'expédition porte ce que CHAQUE héros a vu", p)
+		}
+		if got := g.ClientViewFor(p).TileAt(b.X, b.Y); !got.Discovered || got.Biome == 0 {
+			t.Fatalf("%s doit recevoir le TERRAIN vu par son coéquipier : %+v", p, got)
+		}
 	}
-	if g.PlayerExplored("pb", a.X, a.Y) {
-		t.Fatal("Bo ne doit RIEN savoir d'une case qu'il n'a jamais vue")
+	// …et la VISION courante est l'union des deux : Ana voit ce que Bo éclaire, donc
+	// les monstres qui l'entourent (c'est ce qui distingue le partage d'une simple
+	// mise en commun des souvenirs).
+	if got := g.ClientViewFor("pa").TileAt(b.X, b.Y); !got.Visible {
+		t.Fatalf("la case sous un coéquipier VIVANT doit être éclairée : %+v", got)
 	}
-	if got := g.ClientViewFor("pb").TileAt(a.X, a.Y); got.Discovered || got.Biome != 0 {
-		t.Fatalf("la vue de Bo doit être vierge là-bas : %+v", got)
+	// une case que TOUT LE MONDE a quittée redevient un souvenir : les trois états
+	// survivent au partage.
+	x, y := b.X, b.Y
+	b.X, b.Y = a.X, a.Y
+	g.RevealVision()
+	if got := g.ClientViewFor("pa").TileAt(x, y); !got.Discovered || got.Visible {
+		t.Fatalf("case quittée par tous : connue mais assombrie (%+v)", got)
 	}
 }
 
@@ -95,10 +111,10 @@ func TestExplorationIsPerPlayer(t *testing.T) {
 // une survie collective n'aurait plus rien de collectif.
 func TestTownKnowledgeIsShared(t *testing.T) {
 	g, _, _ := fogGame(t)
+	if !g.TileExplored(g.Town.X, g.Town.Y) {
+		t.Fatal("le bourg est connu de tous")
+	}
 	for _, p := range []string{"pa", "pb"} {
-		if !g.PlayerExplored(p, g.Town.X, g.Town.Y) {
-			t.Fatalf("%s doit connaître le bourg", p)
-		}
 		if got := g.ClientViewFor(p).TileAt(g.Town.X, g.Town.Y); !got.Visible {
 			t.Fatalf("%s doit VOIR le bourg : %+v", p, got)
 		}
@@ -156,64 +172,61 @@ func TestTownTowerWidensAndKeepsVision(t *testing.T) {
 	}
 }
 
-// Une sauvegarde d'AVANT le brouillard par joueur ne doit pas repartir de zéro : des
-// jours réels d'exploration disparaîtraient de l'écran.
+// LES DEUX MIGRATIONS. Une partie enregistrée AVANT le bitset porte sa mémoire dans
+// `Tile.Discovered` ; une partie enregistrée pendant les trois jours de mémoire PAR
+// JOUEUR porte un bitset par joueur. Ni l'une ni l'autre ne doit repartir de zéro —
+// des jours réels d'exploration disparaîtraient de l'écran.
 func TestOldSavesKeepTheirExploration(t *testing.T) {
 	g, _, _ := fogGame(t)
-	g.Explored = nil // une partie enregistrée avant la fonctionnalité
+	g.Explored = nil // une partie enregistrée avant le bitset
 	for i := range g.Tiles {
 		g.Tiles[i].Discovered = true
 	}
 	g.RevealVision()
-	if !g.PlayerExplored("pa", 28, 28) {
+	if !g.TileExplored(28, 28) {
 		t.Fatal("la mémoire de l'expédition doit être reprise à la migration")
 	}
-	// …mais un joueur qui rejoint APRÈS part bien d'une carte noire.
+	// …et un joueur qui rejoint APRÈS reçoit la carte de la ville : c'est justement ce
+	// que le partage change (il partait d'un écran noir).
 	g.Players = append(g.Players, &Player{ID: "pc", Name: "Cy"})
 	g.RevealVision()
-	if g.PlayerExplored("pc", 28, 28) {
-		t.Fatal("un joueur qui rejoint en cours de partie n'hérite pas de l'exploration des autres")
+	if got := g.ClientViewFor("pc").TileAt(28, 28); !got.Discovered {
+		t.Fatalf("un joueur qui rejoint hérite de la carte de l'expédition : %+v", got)
 	}
 }
 
-// UN JOUEUR-IA RAPPORTE AU BOURG. La mémoire par joueur répond à une question de jeu
-// entre HUMAINS (« va voir toi-même ») ; appliquée à un joueur-IA elle ne protège
-// rien, puisque personne ne regarde son écran. Mesuré avant correction sur une partie
-// solo de 10 vagues : l'humain connaissait 49 cases quand son expédition en avait
-// découvert 132.
-func TestBotExplorationBelongsToTheExpedition(t *testing.T) {
-	g, a, b := fogGame(t)
-	g.Players[1].Bot = true // Bo devient un joueur-IA
+// Le REPLI des mémoires par joueur : l'UNION, jamais l'intersection — personne ne doit
+// rendre une case qu'il connaissait — et les clés par joueur disparaissent, ce qui rend
+// au blob JSON sa taille d'origine (un bitset au lieu de vingt).
+func TestPerPlayerMemoriesAreFoldedIntoOne(t *testing.T) {
+	g, _, _ := fogGame(t)
+	g.Explored = map[string][]byte{"pa": make([]byte, (len(g.Tiles)+7)/8), "pb": make([]byte, (len(g.Tiles)+7)/8)}
+	mark := func(key string, x, y int) {
+		i := y*g.Width + x
+		g.Explored[key][i/8] |= 1 << (i % 8)
+	}
+	mark("pa", 28, 28) // une case connue d'Ana seule
+	mark("pb", 2, 27)  // une case connue de Bo seul
 	g.RevealVision()
 
-	if !g.PlayerExplored("pa", b.X, b.Y) {
-		t.Fatal("ce qu'un joueur-IA découvre doit entrer dans la mémoire de TOUT LE MONDE")
+	if !g.TileExplored(28, 28) || !g.TileExplored(2, 27) {
+		t.Fatal("le repli doit UNIR les mémoires : personne ne rend une case connue")
 	}
-	if got := g.ClientViewFor("pa").TileAt(b.X, b.Y); !got.Discovered || got.Biome == 0 {
-		t.Fatalf("l'humain doit recevoir le TERRAIN découvert par son escorte : %+v", got)
+	if len(g.Explored) != 1 {
+		t.Fatalf("les clés par joueur doivent disparaître, il en reste %d", len(g.Explored))
 	}
-	if got := g.ClientViewFor("pa").TileAt(b.X, b.Y); got.Visible {
-		t.Fatal("rapporté n'est pas vu : la case reste un SOUVENIR assombri")
-	}
-	// ⚠ et la règle entre HUMAINS ne bouge pas : Bo redevenu humain, Ana ne sait plus
-	// rien de neuf.
-	g.Players[1].Bot = false
-	b.X, b.Y = 12, 12 // loin de tout ce que quiconque a déjà vu
-	g.RevealVision()
-	if g.PlayerExplored("pa", b.X, b.Y) {
-		t.Fatal("un joueur HUMAIN ne partage toujours pas son exploration")
-	}
-	// ⚠ le partage est à SENS UNIQUE : un bot verse au pot commun, il n'y puise pas
-	// l'exploration des humains (rien ne l'exige, et sa mémoire sert son IA).
-	if g.PlayerExplored("pb", a.X, a.Y) {
-		t.Fatal("un joueur-IA n'hérite pas de l'exploration d'un humain")
+	before := len(g.Explored[""])
+	g.RevealVision() // idempotent : elle tourne à CHAQUE Recompute
+	if len(g.Explored) != 1 || len(g.Explored[""]) != before || !g.TileExplored(28, 28) {
+		t.Fatal("la migration doit être idempotente et muette")
 	}
 }
 
-// LES COÉQUIPIERS NE FLOTTENT PLUS DANS LA BRUME. Les héros étaient les seules
-// entités jamais caviardées : on voyait donc des silhouettes se promener au-dessus de
-// cases dont on n'a jamais vu le terrain — un personnage posé sur du vide.
-func TestTeammatesAreNotDrawnInTheVoid(t *testing.T) {
+// LES COÉQUIPIERS NE FLOTTENT PLUS DANS LA BRUME. Les héros étaient les seules entités
+// jamais caviardées : on voyait des silhouettes se promener au-dessus de cases dont
+// personne n'avait vu le terrain. Le partage rend la chose vraie par construction pour
+// un VIVANT (il éclaire sa propre case) ; le garde-fou couvre les morts.
+func TestNoHeroIsServedOnABlankTile(t *testing.T) {
 	g, a, b := fogGame(t)
 	served := func(viewer string, h *Hero) bool {
 		for _, x := range g.ClientViewFor(viewer).Heroes {
@@ -223,17 +236,29 @@ func TestTeammatesAreNotDrawnInTheVoid(t *testing.T) {
 		}
 		return false
 	}
-	if served("pa", b) {
-		t.Fatal("le héros d'un autre joueur ne doit PAS être servi sur une case jamais vue")
-	}
-	if !served("pa", a) {
-		t.Fatal("MES héros passent toujours : ce sont eux que je joue")
-	}
-	// dès que le terrain est connu — ici parce que Bo est un joueur-IA — le coéquipier
-	// réapparaît : on refuse de le dessiner sur du vide, pas de savoir où il est.
-	g.Players[1].Bot = true
-	g.RevealVision()
 	if !served("pa", b) {
-		t.Fatal("sur une case dont je connais le terrain, un coéquipier doit être servi")
+		t.Fatal("un coéquipier VIVANT est sur une case éclairée : il doit être servi")
+	}
+	for _, v := range []string{"pa", "pb"} {
+		cv := g.ClientViewFor(v)
+		for _, h := range cv.Heroes {
+			if !cv.TileAt(h.X, h.Y).Discovered {
+				t.Fatalf("%s : %s est servi sur une case vierge", v, h.Name)
+			}
+		}
+	}
+	// un MORT tombé hors de vue ne voyage plus chez les autres…
+	b.X, b.Y = 12, 12
+	g.RevealVision()
+	b.HP = 0
+	b.X, b.Y = 27, 3 // hors de tout champ
+	if served("pa", b) {
+		t.Fatal("un héros mort hors de vue n'a rien à faire dans la vue d'un autre joueur")
+	}
+	// …mais MES morts me restent servis (fiche, résurrection).
+	a.HP = 0
+	a.X, a.Y = 27, 3
+	if !served("pa", a) {
+		t.Fatal("MES héros passent toujours, morts compris")
 	}
 }

@@ -789,17 +789,15 @@ func (g *GameState) botGatherTarget(h *Hero) (int, int, bool) {
 // botGoalWorthKeeping : le cap tient tant que le héros n'y est pas arrivé et que la
 // case vaut encore le déplacement (découverte, praticable, libre de pack, et fournissant
 // soit des ressources, soit ce que la ville attend).
-// heroKnows : la case est-elle dans la MÉMOIRE DE BROUILLARD du joueur qui possède ce
-// héros (fog.go) ?
+// heroKnows : la case est-elle dans la mémoire de brouillard de l'EXPÉDITION (fog.go) ?
 //
-// ⚠ CE N'EST PLUS `Tile.Discovered`. Depuis que le brouillard a une mémoire par joueur,
-// `Discovered` veut dire « quelqu'un de l'expédition l'a vue » — s'en servir ici
-// donnerait aux joueurs-IA une connaissance qu'ils n'ont pas, et les ferait marcher
-// vers un gisement repéré par l'équipe d'en face. Chacun raisonne sur SA carte ; c'est
-// ce qui rend la règle honnête, et c'est aussi ce qui donne son prix à une tour de
-// guet, dont la lumière est partagée.
-func (g *GameState) heroKnows(h *Hero, x, y int) bool {
-	return g.PlayerKnows(g.OwnerOfHero(h.ID), x, y)
+// ⚠ Le paramètre `h` ne sert plus à choisir une carte — depuis que la mémoire est
+// commune (« une expédition, une carte »), il n'y en a qu'une. Il reste dans la
+// signature parce que c'est la question que le code appelant se pose vraiment (« ce
+// héros peut-il viser cette case ? ») et parce que la règle a déjà été personnelle une
+// fois : la remettre ne demanderait qu'une ligne ici.
+func (g *GameState) heroKnows(_ *Hero, x, y int) bool {
+	return g.TileExplored(x, y)
 }
 
 func (g *GameState) botGoalWorthKeeping(h *Hero) bool {

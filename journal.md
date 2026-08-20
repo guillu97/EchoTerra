@@ -6,6 +6,66 @@
 
 ---
 
+## 2026-08-19 (133) — Une expédition, une carte : les humains partagent aussi
+
+Suite directe de l'entrée 132. Le premier correctif versait au pot commun l'exploration des
+**joueurs-IA** seulement, et je laissais la question ouverte pour les humains. Réponse de
+l'utilisateur : « les humains d'une même expédition doivent partager aussi ». C'est donc la règle
+entière qui bascule.
+
+### Ce que c'est maintenant
+
+**UNE EXPÉDITION, UNE CARTE.** `GameState.Explored` = **un seul** bitset pour la partie
+(`expeditionKey`), `VisibleNow()` = l'**union** des champs de tous les héros VIVANTS + le bourg +
+les tours. Ce qui se défend : cette ville partage déjà sa Banque, son Panneau, sa messagerie, son
+journal et son registre de contribution — la carte était la seule chose qu'elle gardait pour soi.
+
+⚠ **Le brouillard ne perd rien au partage.** Ses trois états — noir / souvenir assombri / éclairé —
+sont la vraie trouvaille de la refonte du 16, et ils tiennent : une case que **tout le monde** a
+quittée s'assombrit et cesse de servir ce qui bouge. Vérifié par un test dédié, parce que c'était le
+risque réel de ce lot : « partager » aurait pu se dégrader en « la carte se colorie », le bug
+d'avant la refonte.
+
+⚠ **Les tours gardent leur raison d'être** : elles n'éclairent plus « pour tout le monde » (c'est
+devenu le cas de tout le monde), elles éclairent **sans personne sur place**. C'est la seule façon
+de garder une case VISIBLE — donc ses monstres servis — quand l'expédition est ailleurs.
+
+### Livré
+
+- `fog.go` : `TileExplored(x,y)` remplace `PlayerExplored/PlayerKnows` ; `VisibleNow()` perd son
+  destinataire ; `RevealVision` n'a plus qu'un canal.
+- **`migrateMemory`**, idempotente et muette, à chaque `Recompute` : (1) sauvegarde d'avant le
+  bitset → semée depuis `Tile.Discovered` ; (2) mémoires par joueur → **UNION** (jamais
+  l'intersection : personne ne doit RENDRE une case qu'il connaissait), puis les clés par joueur
+  disparaissent — le blob JSON retrouve sa taille d'origine (un bitset au lieu de vingt).
+- Le garde-fou « aucun héros servi sur une case vierge » reste : avec le partage il est vrai par
+  construction pour un vivant (il éclaire sa propre case), il ne retire donc plus que les MORTS
+  tombés hors de vue. MES héros passent toujours, morts compris (fiche, résurrection).
+- Le transport du destinataire (`viewerWriter`, `?playerId=`) reste en place : il ne change plus la
+  carte servie, il décide encore des héros servis, et c'est le seul endroit où rebrancher une règle
+  personnelle si elle revient.
+
+### Fonctionnel (vérifié)
+
+- Sonde (60×60, **2 humains** + 2 bots, 10 vagues) : les deux humains connaissent **117 cases** =
+  exactement ce que l'expédition a découvert ; **1 seule** clé de mémoire ; **0** héros servi sur une
+  case noire (pic sur toute la partie).
+- **Plancher de survie inchangé** — `cmd/balance`, 8 graines × 1·4·12·20 joueurs : médianes
+  **15 · 18 · 20 · 20**, graine par graine identiques à l'entrée 132.
+- `go test ./...` vert. Tests réécrits : `TestTheMapBelongsToTheExpedition` (le partage ET la
+  survie des trois états), `TestPerPlayerMemoriesAreFoldedIntoOne` (union + idempotence),
+  `TestOldSavesKeepTheirExploration` (un joueur qui rejoint reçoit la carte de la ville),
+  `TestNoHeroIsServedOnABlankTile`.
+- `npm run test:fog` **8/8** contre le vrai backend, `npx tsc -b` propre. Rien à changer côté client.
+
+### À faire
+
+- La question « faut-il refaire payer l'exploration » n'est plus ouverte : elle est tranchée dans ce
+  sens. Si elle revenait, c'est `VisibleNow`/`TileExplored` (deux fonctions) et le destinataire déjà
+  transporté qui la rebrancheraient.
+
+---
+
 ## 2026-08-19 (132) — Les bots exploraient pour eux seuls : un joueur-IA rapporte au bourg
 
 « Ici il y a des bots qui ont découvert des cases mais elles n'ont pas été découvertes pour moi. »

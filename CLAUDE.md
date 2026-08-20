@@ -1612,43 +1612,55 @@ test `TestServerWrittenSentencesUseFrenchBuildingNames`).
   l'interception centrale `clientView` dans `api.writeJSON` : les tuiles non découvertes partent
   **vierges**, les monstres sur tuiles cachées sont **omis**, et la **seed est masquée** (seed +
   générateur = toute la carte). Tests : `fog_test.go` (`TestClientViewRedactsUndiscovered`).
-  ⚠ **Fog of war à TROIS ÉTATS et à mémoire PAR JOUEUR (2026-08-16, refonte)** —
-  modèle Warcraft III / StarCraft II : `FogHidden` (jamais vue : noir, tuile vierge) ·
-  `FogExplored` (vue autrefois, plus sous les yeux de personne : le TERRAIN est rendu
-  sous un **voile sombre**, mais rien de vivant n'est servi) · `FogVisible` (dans le
-  champ de quelqu'un : tout est là). ⚠ **la mémoire est par JOUEUR**
-  (`GameState.Explored`, un bitset par identifiant — jamais sur le réseau : `[]bool`
-  pèserait ~90 ko par joueur et par requête sur une carte 134²) ; `ClientViewFor(playerID)`
-  remplace `ClientView()`, et le destinataire arrive par le **ResponseWriter emballé**
-  (`viewerWriter`, posé par `gameLockMiddleware`) — on ne change PAS la signature de
-  `writeJSON`, dont la centralisation est ce qui garantit qu'aucun handler ne fuite ;
-  un handler qui oublierait le destinataire sert la vue d'un anonyme, donc la plus
-  pauvre. Le client ajoute `?playerId=` dans l'UNIQUE fonction `req` (api/client.ts).
-  ⚠⚠ **UN JOUEUR-IA RAPPORTE AU BOURG** (2026-08-19) : la mémoire par joueur répond à une
-  question de jeu entre HUMAINS (« va voir toi-même ») et ne protège RIEN appliquée à un
-  bot, puisque personne ne regarde son écran. Ce qu'un joueur-IA découvre entre donc dans
-  la mémoire de TOUT LE MONDE (`playerIsBot` dans `RevealVision`, même canal que le bourg
-  et les tours) — mesuré avant correction sur une partie solo de 10 vagues : l'humain
-  connaissait **49 cases** quand son expédition en avait découvert **132**, et il voyait
-  les silhouettes de ses coéquipiers se promener dans sa brume (rapporté en jeu). ⚠ le
-  partage est à SENS UNIQUE (un bot verse, il ne puise pas) et ⚠ **la règle entre HUMAINS
-  ne bouge pas d'un pouce** : deux joueurs ne se partagent toujours rien. Mesuré neutre
-  sur le plancher de survie (`cmd/balance`, 8 graines × 1·4·12·20 joueurs : médianes
-  15·18·20·20 des deux côtés).
+  ⚠ **Fog of war à TROIS ÉTATS, sur la carte d'une EXPÉDITION** (refonte 2026-08-16,
+  partage 2026-08-19) — modèle Warcraft III / StarCraft II : `FogHidden` (jamais vue :
+  noir, tuile vierge) · `FogExplored` (vue autrefois, plus sous les yeux de personne : le
+  TERRAIN est rendu sous un **voile sombre**, mais rien de vivant n'est servi) ·
+  `FogVisible` (dans le champ de quelqu'un : tout est là).
+  ⚠⚠ **UNE EXPÉDITION, UNE CARTE.** La mémoire a été PAR JOUEUR pendant trois jours
+  (« ne révélant les cases qu'aux joueurs qui s'y trouvent ») ; l'usage a tranché contre,
+  en deux temps. **Mesuré** sur une partie solo de 10 vagues : l'humain connaissait
+  **49 cases** quand son expédition en avait découvert **132**, et il voyait les
+  silhouettes de ses coéquipiers se promener dans sa brume (rapporté en jeu). D'abord les
+  joueurs-IA ont versé au pot commun, puis la règle entière : **les humains d'une même
+  expédition partagent aussi** (décision de l'utilisateur). Donc `GameState.Explored` =
+  UN bitset pour la partie (`expeditionKey`, clé vide — la map ne survit que pour relire
+  les sauvegardes par joueur, repliées par `migrateMemory`), et `VisibleNow()` = l'UNION
+  des champs de TOUS les héros vivants + le bourg + les tours. Ce qui se défend : cette
+  ville partage déjà Banque, Panneau, messagerie, journal et registre — la carte était la
+  seule chose qu'elle gardait pour soi. ⚠ **le brouillard ne perd RIEN au partage** : ses
+  trois états tiennent (une case que TOUT LE MONDE a quittée s'assombrit et cesse de
+  servir ce qui bouge), et un joueur qui rejoint en cours de partie reçoit enfin la carte
+  de la ville au lieu d'un écran noir. ⚠ **les TOURS gardent leur raison d'être** : elles
+  n'éclairent pas « pour tout le monde » (c'est devenu le cas de tout le monde), elles
+  éclairent **sans personne sur place** et ne s'éteignent jamais — la seule façon de
+  garder une case VISIBLE, donc ses monstres servis, quand l'expédition est ailleurs.
+  ⚠ neutre sur le plancher de survie (`cmd/balance`, 8 graines × 1·4·12·20 joueurs :
+  médianes 15·18·20·20 avant comme après).
+  `ClientViewFor(playerID)` remplace `ClientView()`, et le destinataire arrive par le
+  **ResponseWriter emballé** (`viewerWriter`, posé par `gameLockMiddleware`) — on ne
+  change PAS la signature de `writeJSON`, dont la centralisation est ce qui garantit
+  qu'aucun handler ne fuite ; un handler qui oublierait le destinataire sert la vue d'un
+  anonyme, donc la plus pauvre. Le client ajoute `?playerId=` dans l'UNIQUE fonction `req`
+  (api/client.ts). ⚠ depuis le partage, le destinataire ne change plus la CARTE servie —
+  il décide encore des HÉROS servis, et il reste le seul endroit où rebrancher une règle
+  personnelle si elle revient.
   ⚠ **les MONSTRES ne sont servis que sur une case VISIBLE** (un souvenir qui garderait
   ses monstres mentirait sur leur position) ; les RUINES et les belvédères, eux, restent
-  connus une fois repérés — un bâtiment ne se déplace pas. ⚠ **les HÉROS des AUTRES
-  joueurs ne sont servis que sur une case dont je connais le TERRAIN** : ils étaient les
-  seules entités jamais caviardées, d'où des personnages dessinés sur du vide blanc. Le
-  seuil est `Discovered` et non `Visible`, délibérément plus permissif que la règle des
-  monstres — un coéquipier appartient à l'expédition, savoir où il est n'est pas de
-  l'espionnage ; ce qu'on refuse, c'est de le poser sur une case qui, pour ce joueur,
-  n'existe pas encore. MES héros passent toujours. ⚠ **`Tile.Discovered` survit**
-  avec un sens réduit (« quelqu'un l'a vue »), lu par `climb.go` et la simulation
-  d'équilibrage ; les BOTS, eux, lisent leur PROPRE mémoire (`heroKnows`). ⚠ **MIGRATION**
-  : une sauvegarde d'avant la refonte (`Explored == nil`) est semée une fois depuis
-  `Tile.Discovered`, sinon des jours réels d'exploration disparaîtraient — mais un joueur
-  qui rejoint ENSUITE part bien d'une carte noire. ⚠ **`visible` est OMIS quand il est
+  connus une fois repérés — un bâtiment ne se déplace pas. ⚠ **aucun HÉROS n'est servi
+  sur une case vierge** : ils étaient les seules entités jamais caviardées, d'où des
+  personnages dessinés sur du vide blanc (rapporté en capture). Avec le partage c'est
+  vrai par construction pour un vivant (il éclaire sa propre case) ; le garde-fou de
+  `ClientViewFor` ne retire donc plus que les MORTS tombés hors de vue — MES héros
+  passent toujours, morts compris (fiche, résurrection). ⚠ **`Tile.Discovered` et le
+  bitset disent la MÊME chose** ; le premier survit parce que `climb.go` et la simulation
+  d'équilibrage le lisent, le second parce que c'est lui que la vue client interroge case
+  par case ; `heroKnows` (bots) lit la carte de l'expédition. ⚠ **DEUX MIGRATIONS**
+  (`migrateMemory`, idempotente, appelée à chaque `Recompute`) : une sauvegarde d'avant le
+  bitset (`Explored == nil`) est semée depuis `Tile.Discovered`, et les mémoires par
+  joueur sont repliées en UNION (jamais l'intersection : personne ne rend une case qu'il
+  connaissait), ce qui rend au blob sa taille d'origine.
+  ⚠ **`visible` est OMIS quand il est
   faux** (280 ko de JSON économisés) : tester `!t.visible`, jamais `t.visible === false`
   — un premier jet écrivait le second et ne voilait jamais rien. Le voile est un
   **InstancedMesh de quads sombres** et non une teinte de terrain : la surface n'est

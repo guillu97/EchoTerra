@@ -27,15 +27,15 @@ func TestPerceptionDrivesBothSights(t *testing.T) {
 
 	// CARTE
 	g.RevealVision()
-	if !g.PlayerExplored("", 13, 12) {
+	if !g.TileExplored(13, 12) {
 		t.Fatal("un héros voit toujours ses voisines immédiates")
 	}
-	if g.PlayerExplored("", 14, 12) {
+	if g.TileExplored(14, 12) {
 		t.Fatal("sans perception, il ne voit pas à deux cases")
 	}
 	h.Stats.Perception = 4 // 1 + 4/4 = rayon 2
 	g.RevealVision()
-	if !g.PlayerExplored("", 14, 12) {
+	if !g.TileExplored(14, 12) {
 		t.Fatal("la perception doit élargir le rayon de brouillard levé")
 	}
 
@@ -77,7 +77,7 @@ func TestLynxEyeWidensMapSight(t *testing.T) {
 	h.Stats.Perception = 1
 	g.Heroes = []*Hero{h}
 	g.RevealVision()
-	if g.PlayerExplored("", 14, 12) {
+	if g.TileExplored(14, 12) {
 		t.Fatal("préalable : sans l'objet, il ne voit pas à deux cases")
 	}
 	h.AddLoot(Item{Type: "arme", Name: "Œil-de-lynx", Qty: 1})
@@ -85,7 +85,7 @@ func TestLynxEyeWidensMapSight(t *testing.T) {
 		t.Fatalf("équiper : %v", err)
 	}
 	g.RevealVision()
-	if !g.PlayerExplored("", 14, 12) {
+	if !g.TileExplored(14, 12) {
 		t.Fatal("l'Œil-de-lynx doit élargir la vision de CARTE (l'équipement n'est pas dans Hero.Stats)")
 	}
 }
