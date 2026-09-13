@@ -20,6 +20,7 @@
     "test:structures": "node tests/structures.mjs",
     "test:mythic": "node tests/mythic.mjs",
     "test:camera": "node tests/camera-bounds.mjs",
+    "test:map-gesture": "node tests/map-gesture.mjs",
     "test:proportions": "node tests/proportions.mjs"
   },
   "dependencies": {

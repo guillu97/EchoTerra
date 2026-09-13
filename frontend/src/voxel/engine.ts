@@ -506,6 +506,45 @@ export class VoxelEngine {
     this.invalidate();
   }
 
+  /**
+   * TORSION À DEUX DOIGTS : pose l'azimut tel quel, sans animation et sans
+   * toucher à l'élévation (ce n'est pas l'orbite libre de l'éditeur — le jeu
+   * garde son angle dimétrique, qui est ce qui fait lire les losanges en 2:1).
+   */
+  setAzimuth(az: number) {
+    this.rotAnim = null;
+    this.azimuth = az;
+    this.invalidate();
+  }
+
+  /**
+   * Fin de torsion : on RECOLLE au quart le plus proche.
+   *
+   * ⚠ Pourquoi snapper alors qu'on vient d'offrir la rotation continue : un
+   * rendu voxel dimétrique ne « lit » qu'à 45° + k·90°. Entre deux quarts, les
+   * arêtes des cubes tombent en escalier contre la grille de pixels et l'image
+   * moire — c'est la raison d'être des quatre orientations de FFTA2, pas une
+   * limitation technique. Le doigt fait donc tourner en CONTINU (on suit le
+   * geste, c'est ce qui le rend intuitif) et le relâchement remet la vue sur
+   * ses rails.
+   */
+  snapAzimuth() {
+    const quarter = Math.PI / 2;
+    const k = Math.round((this.azimuth - Math.PI / 4) / quarter);
+    this.orientation = ((((k % 4) + 4) % 4) as Orientation);
+    // Cible NON normalisée : k peut valoir -3 là où l'orientation vaut 1. Les
+    // deux azimuts diffèrent de 2π, donc la caméra est au même endroit, mais
+    // viser la valeur canonique ferait faire un tour complet à l'animation.
+    const to = Math.PI / 4 + k * quarter;
+    if (Math.abs(to - this.azimuth) < 1e-4) {
+      this.azimuth = to;
+      this.invalidate();
+      return;
+    }
+    this.rotAnim = { from: this.azimuth, to, t0: performance.now() };
+    this.invalidate();
+  }
+
   /** orbite LIBRE (éditeur) : delta d'azimut/élévation, sans animation */
   orbitBy(dAz: number, dEl: number) {
     this.rotAnim = null;

@@ -6,6 +6,89 @@
 
 ---
 
+## 2026-09-13 (133) — Le doigt tourne la carte, et le feuillage s'écarte
+
+Deux retours de jeu sur la même capture (un héros posté en forêt) :
+
+> « pour les déplacements, il faut peut-être que les arbres soient en semi-transparent que la case
+> apparaisse bien. Et il y a des boutons de rotation mais je peux aussi gérer la rotation avec les
+> doigts sur mobile (plus intuitif que les boutons). »
+
+### La fenêtre dans le feuillage (`voxel/cutout.ts`)
+
+Un héros sous une canopée disparaît derrière elle **et ses losanges de déplacement avec lui**. Or un
+losange est une PROMESSE : caché, le joueur ne sait plus où aller, et au doigt il n'a ni survol ni
+clic droit pour sonder.
+
+⚠ **Deux fausses bonnes idées écartées, et il faut dire pourquoi :**
+1. *« mettre les props en transparent »* — `transparent: true` sur tout le décor le bascule dans la
+   passe TRIÉE de three : des milliers d'instances de feuillage s'y trient mal et coûtent cher, pour
+   un effet dont on n'a besoin que sur une poignée de pixels. L'effacement est donc **TRAMÉ**
+   (`discard` sur un motif d'écran), ce qui garde le matériau dans la passe OPAQUE.
+2. *« masquer les props des 5 cases »* — **la case qui masque n'est pas la case visée.** La
+   projection est dimétrique à 30°, donc un point à la hauteur h se dessine là où le sol se trouve
+   h/tan(30°) ≈ 1,73 unité plus loin (le calcul du picking, déjà au CLAUDE.md) : l'arbre gênant est
+   deux à trois cases DEVANT, et lesquelles dépend de l'orientation courante. Une règle en tuiles
+   serait à refaire à chaque rotation et fausse à chaque hauteur d'arbre.
+
+La règle est donc en **espace écran** — un disque autour du héros — et **n'efface que ce qui est
+DEVANT en profondeur** : le feuillage derrière lui n'a aucune raison de s'effacer. Le rayon se DÉDUIT
+de la projection des cinq points (héros + 4 cases), donc il suit le zoom et la rotation tout seul.
+⚠ `cutoutify` ÉTEND la clé de cache de programme au lieu de l'écraser : `signacify` en pose une, et
+l'écraser ferait tomber l'un des deux patches EN SILENCE (aucune erreur — on verrait juste le
+divisionnisme disparaître).
+
+### La rotation au doigt (`controls.ts` + `engine.setAzimuth`/`snapAzimuth`)
+
+Une **torsion à deux doigts** tourne la vue, en continu pendant le geste, et **RECOLLE au quart au
+relâchement** : un voxel dimétrique ne « lit » qu'à 45° + k·90°, entre deux quarts les arêtes moirent
+contre la grille de pixels — c'est la raison d'être des quatre orientations de FFTA2, pas une limite
+technique. Les boutons ↺/↻ RESTENT (seul chemin à la souris, et le chemin accessible) ; l'utilisateur
+avait bien dit « aussi ».
+
+⚠ **Zone morte de 12,5°**, et ce n'est pas un détail : deux pouces ne pincent jamais sur une droite
+parfaite, donc sans seuil **un zoom sur deux ferait pivoter la carte** sans qu'on l'ait demandé. Au
+franchissement on REBASELINE, sinon la vue saute de 12,5° d'un coup.
+⚠ **L'azimut se pose AVANT le recollage de la cible** : `groundAt` en dépend, et corriger la dérive du
+pan sur une caméra qui n'est plus celle qu'on va rendre fait glisser la carte sous les doigts (la
+leçon de MapScene, appliquée à l'azimut). Effet de bord voulu : **la vue pivote autour de la main**.
+
+### ⚠ Ce que le garde-fou a appris — trois erreurs à moi, toutes trouvées à la mesure
+
+1. **Des backticks dans un template literal.** Mon commentaire GLSL citait `keep < 1.0` entre
+   backticks… à l'intérieur d'une chaîne template. Build cassé, et le test a échoué en « timeout app
+   store » — un symptôme qui ne ressemble en rien à la cause.
+2. **`fract()` peut rendre exactement 1.0 en float32** (`fract(-3.0000001)` arrondi), donc
+   `1.0 > 1.0` devenait vrai par la porte de derrière et l'opacité pleine jetait quand même quelques
+   pixels. D'où le garde `keep < 1.0`, qui est un INVARIANT et pas une optimisation.
+3. **Une comparaison au pixel exige de figer AUSSI les poses.** « Figée » (`idleAnimFps` 0) ne coupe
+   que la BOUCLE d'idle : `pose()` reste branché sur `onBeforeFrame`, donc la respiration se rejoue
+   sur les frames que d'AUTRES demandent (c'est écrit tel quel au CLAUDE.md, et c'est voulu). Mesuré :
+   avec un héros à l'écran, **deux redessins aux mêmes réglages ne rendent jamais la même image** —
+   donc mon test « le patch efface du décor » passait pour la mauvaise raison, et mon test « rien ne
+   change » échouait pour la mauvaise raison. J'ai d'abord cru à un délai de capture, puis mesuré : le
+   TÉMOIN de stabilité est désormais dans le test, et c'est lui qui donne un sens aux deux autres.
+
+### Fonctionnel (vérifié)
+
+- `npm run test:map-gesture` **11/11** (neuf) — dont le témoin de stabilité, la preuve que le patch de
+  shader est réellement compilé (l'image DOIT changer), et l'invariant « à opacité pleine, rien n'est
+  retiré ».
+- Non-régressions sur ce qui a été touché : `test:map-tap` **8/8**, `test:camera` **7/7**,
+  `test:perf` **13/13** (le contrat « carte 100 % on-demand » tient : la fenêtre se repose dans
+  `onBeforeFrame`, elle ne demande aucune frame). `npx tsc -b` propre.
+
+### À faire
+
+- La ville (`VoxelTownView`) a le même problème d'occlusion et n'a PAS la fenêtre : ses props passent
+  par un autre matériau. À faire si le cas se présente en jeu.
+- La torsion n'est pas branchée en combat (`VoxelCombatView`) : l'arène est petite et la rotation y
+  sert moins, mais la cohérence du geste plaiderait pour l'y mettre.
+- Les boutons ↺/↻ pourraient s'effacer sur un appareil tactile une fois le geste découvert. Pas fait :
+  la découvrabilité d'un geste non annoncé est un vrai risque, et l'utilisateur a dit « aussi ».
+
+---
+
 ## 2026-09-13 (132) — Audit de game design : six trous, dont un que la simulation cachait
 
 Guillaume : « j'aimerais que tu fasses un audit du design de ce jeu ». Pas de code produit —

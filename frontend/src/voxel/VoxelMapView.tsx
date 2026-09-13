@@ -15,6 +15,7 @@
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { signacify } from "./signacMaterial";
+import { clearCutout, cutoutify, cutoutUniforms, setCutoutFromWorld } from "./cutout";
 import { bus, EV } from "../eventBus";
 import type { GameState, Hero } from "../api/types";
 import { heroTexKey, libUrl, monsterTexKey } from "../assets";
@@ -269,7 +270,13 @@ class MapWorld {
     // frame de retard, ce qui se voit quand la caméra tourne (ils font face à
     // la caméra). C'est aussi ce qui garde la respiration vivante alors que
     // l'animator ne demande plus de frames pour elle.
-    engine.onBeforeFrame = () => this.animator.pose();
+    engine.onBeforeFrame = () => {
+      this.animator.pose();
+      // La fenêtre se repose à CHAQUE frame, pas au changement de sélection :
+      // sa position est écran, donc elle dépend du pan, du zoom ET de la
+      // rotation — trois choses qui bougent sans que l'état de jeu change.
+      this.updateCutout();
+    };
     // les billboards tournent avec la caméra (rotation animée incluse) ;
     // le shader d'eau avance son temps sur chaque frame RENDUE
     engine.onFrame = () => {
@@ -455,6 +462,33 @@ class MapWorld {
   }
   private selectedHero(): Hero | undefined {
     return this.game?.heroes.find((h) => h.id === this.selectedHeroId);
+  }
+
+  private cutPts = [0, 1, 2, 3, 4].map(() => new THREE.Vector3());
+  private cutSize = new THREE.Vector2();
+  /**
+   * Efface le décor qui masque le héros sélectionné ET ses cases de déplacement.
+   *
+   * ⚠ Les cinq points sont donnés en MONDE et projetés par cutout.ts : le rayon
+   * de la fenêtre se déduit de leur écartement à l'écran, donc il suit le zoom
+   * et la rotation tout seul. Le premier point est le héros — c'est lui qui
+   * donne la profondeur de référence, et donc ce qui compte comme « devant ».
+   */
+  private updateCutout() {
+    const hero = this.selectedHero();
+    if (!hero || !this.smoothMode || !this.props) return clearCutout();
+    const top = this.smooth.heightAt(hero.x, hero.y);
+    this.cutPts[0].set(hero.x, top + HERO_HEIGHT * 0.6, hero.y);
+    const around = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+    for (let i = 0; i < around.length; i++) {
+      const nx = hero.x + around[i][0], ny = hero.y + around[i][1];
+      this.cutPts[i + 1].set(nx, this.smooth.heightAt(nx, ny), ny);
+    }
+    this.engine.renderer.getDrawingBufferSize(this.cutSize);
+    // 30 % de marge : elle couvre la COURONNE du losange (le quad fait 0,96 de
+    // côté, donc son coin dépasse le centre de la case) et la silhouette du
+    // héros, qui monte au-dessus du point projeté.
+    setCutoutFromWorld(this.engine.camera, this.cutSize.x, this.cutSize.y, this.cutPts, 0.3);
   }
   private levelsOf(t: { biome: number; height: number; discovered?: boolean }): number {
     return t.discovered ? renderHeight(t) + 1 : 1.5; // brume = nappe basse (sommet à 1.5)
@@ -1126,7 +1160,12 @@ export function VoxelMapView({ active = true }: { active?: boolean }) {
     const sunTimer = setInterval(sunTick, 5000);
     world.sunTimer = sunTimer;
 
-    if (import.meta.env.DEV) (window as unknown as { __vm?: unknown }).__vm = { engine, world };
+    // `cutout` est exposé pour le garde-fou `npm run test:map-gesture` : il force
+    // les uniformes pour PROUVER que le patch de shader est bien vivant (un
+    // onBeforeCompile qui ne s'applique pas ne lève aucune erreur — on verrait
+    // seulement que « ça ne s'efface pas », ce qui ressemble à un réglage).
+    if (import.meta.env.DEV)
+      (window as unknown as { __vm?: unknown }).__vm = { engine, world, cutout: cutoutUniforms };
     return () => {
       off();
       offFocus();
@@ -1195,7 +1234,11 @@ function strSeed(s: string): number {
   for (let i = 0; i < s.length; i++) h = ((h ^ s.charCodeAt(i)) * 16777619) >>> 0;
   return h % 100000;
 }
-const PROP_MAT = signacify(new THREE.MeshLambertMaterial({ vertexColors: true }));
+// LA FENÊTRE DANS LE FEUILLAGE (cutout.ts) est branchée ICI, sur le matériau du
+// décor et sur lui seul : c'est le décor qui cache le héros, jamais le terrain
+// (une colline devant soi est une information, pas une gêne — et l'effacer
+// laisserait un trou dans le sol).
+const PROP_MAT = cutoutify(signacify(new THREE.MeshLambertMaterial({ vertexColors: true })));
 // matériau des objets LUMINEUX (lucioles, cristaux, givre) : self-lit (Basic) →
 // couleurs pleines, luit dans la pénombre, et alimente le bloom sélectif.
 const GLOW_MAT = new THREE.MeshBasicMaterial({ vertexColors: true });

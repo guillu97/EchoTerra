@@ -105,6 +105,10 @@ sur du balisage statique) ·
 `npm run test:mythic` (in frontend — **la faveur des dieux** : la barre du haut tient sur UNE rangée
 à 390 px compteur compris, les trois dieux du panthéon lisibles sans troncature, et le vote qui part
 vraiment au serveur; mêmes prérequis) ·
+`npm run test:map-gesture` (in frontend — **le geste de la carte** : la torsion à deux doigts tourne
+la vue et RECOLLE au quart, la zone morte empêche un pinch de zoom de faire pivoter la carte, et la
+fenêtre dans le feuillage efface RÉELLEMENT du décor — avec un témoin de stabilité au pixel ; mêmes
+prérequis) ·
 `npm run test:camera` (in frontend — **les bornes de la caméra** : le bourg reste à l'écran après un
 pan à fond, la cible ne quitte ni le tertre ni le damier, et un TÉMOIN sans bornes qui perd le bourg
 prouve que le test mord; mêmes prérequis) ·
@@ -1667,6 +1671,45 @@ test `TestServerWrittenSentencesUseFrenchBuildingNames`).
   Boutons de vue en haut à droite (`.view-rot`) : **🔼/🎥 vue de dessus**
   (`engine.setTopDown`, ~78° — le MÊME contrôle qu'en combat ; seule l'élévation change, azimut/zoom/
   cible conservés, on retrouve donc sa vue en ressortant) puis ↺/↻ rotation 4 orientations.
+- **LA ROTATION AU DOIGT** (`voxel/controls.ts` + `engine.setAzimuth`/`snapAzimuth`, 2026-09-13) — une
+  **torsion à deux doigts** tourne la vue. Les boutons ↺/↻ RESTENT (seul chemin à la souris, et le
+  chemin accessible), mais au doigt la vue suit la main. ⚠ **la rotation est CONTINUE pendant le geste
+  et RECOLLE au quart au relâchement** : un rendu voxel dimétrique ne « lit » qu'à 45° + k·90° — entre
+  deux quarts les arêtes des cubes tombent en escalier contre la grille de pixels et l'image moire.
+  C'est la raison d'être des quatre orientations de FFTA2, pas une limite technique. ⚠ **ZONE MORTE de
+  0,22 rad (≈12,5°), et elle n'est pas cosmétique** : deux pouces ne pincent jamais sur une droite
+  parfaite, donc sans seuil un zoom sur deux ferait pivoter la carte sans qu'on l'ait demandé ; au
+  franchissement du seuil on REBASELINE, sinon la vue saute de 12,5° d'un coup. ⚠ **l'azimut se pose
+  AVANT le recollage de la cible** dans `onMove` — `groundAt` en dépend, et corriger la dérive du pan
+  sur une caméra qui n'est déjà plus celle qu'on va rendre fait glisser la carte sous les doigts
+  (l'exacte leçon de MapScene, appliquée à l'azimut). Effet de bord voulu : la vue pivote **autour de
+  la main**, pas du centre de l'écran. ⚠ jamais de recollage en `mode: "orbit"` (l'éditeur veut un
+  azimut libre).
+- **LA FENÊTRE DANS LE FEUILLAGE** (`voxel/cutout.ts`, 2026-09-13) — un héros posté sous une canopée
+  disparaissait derrière elle, **et ses losanges de déplacement avec lui** (rapporté en jeu, capture à
+  l'appui). Or un losange est une PROMESSE : caché, le joueur ne sait plus où il peut aller, et sur un
+  téléphone il n'a ni survol ni clic droit pour sonder. Le décor s'efface donc en disque autour du
+  héros sélectionné et de ses quatre cases. ⚠ **PAS « les props en semi-transparent »** : un
+  `transparent: true` sur tout le décor le bascule dans la passe TRIÉE de three, où des milliers
+  d'instances de feuillage se trient mal et coûtent cher — pour un effet dont on n'a besoin que sur
+  une poignée de pixels. L'effacement est donc **TRAMÉ** (`discard` sur un motif d'écran), ce qui
+  garde le matériau dans la passe OPAQUE : zéro tri, zéro coût. ⚠ **PAS non plus « masquer les props
+  des 5 cases »** : la case qui masque n'est PAS la case visée — la projection étant dimétrique à 30°,
+  un point à la hauteur h se dessine là où le sol est h/tan(30°) ≈ 1,73 unité plus loin (le même
+  calcul que le picking), donc l'arbre gênant est deux à trois cases DEVANT, et lesquelles dépend de
+  l'orientation. La règle est donc en **espace écran**, là où l'occlusion se produit vraiment, et
+  **on n'efface que ce qui est DEVANT en profondeur** (`gl_FragCoord.z < uCutDepth`) : le feuillage
+  derrière le héros n'a aucune raison de disparaître. ⚠ **le rayon se DÉDUIT** de la projection des
+  cinq points (héros + 4 cases) au lieu d'être une constante : l'écart écran dépend du zoom ET de
+  l'orientation. ⚠ **`cutoutify` ÉTEND la clé de cache de programme** au lieu de l'écraser —
+  `signacify` en pose une, et l'écraser ferait tomber l'un des deux patches EN SILENCE (three
+  recyclerait un programme non patché ; aucune erreur, on verrait juste le divisionnisme disparaître).
+  ⚠ l'opacité résiduelle (`uCutFloor` 0,22) est délibérée : l'arbre reste devinable, sinon la carte
+  semble perdre son décor à chaque sélection. ⚠⚠ **UNE COMPARAISON AU PIXEL EXIGE DE FIGER AUSSI LES
+  POSES** : « Figée » (`idleAnimFps` 0) ne coupe que la BOUCLE d'idle — `pose()` reste branché sur
+  `onBeforeFrame`, donc la respiration se rejoue sur les frames que d'AUTRES demandent. Mesuré : avec
+  un héros à l'écran, deux redessins ne rendent jamais la même image, ce qui faisait passer un test
+  pour la mauvaise raison. Garde-fou : `npm run test:map-gesture`, témoin de stabilité inclus.
 - **Cases ÉPUISÉES** (2026-08-02) : `Tile.resources` à 0 → un InstancedMesh de quads texturés « terre
   retournée » (`depletedTexture()`, un seul mesh pour toute la carte : une carte explorée peut en
   compter des milliers). ⚠ `resources === 0` seul ne veut RIEN dire — le fog renvoie une tuile

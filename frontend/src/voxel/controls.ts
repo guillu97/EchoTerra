@@ -15,6 +15,18 @@ import type { VoxelEngine } from "./engine";
 // Phaser) ; les pointeurs DOM sont en px CSS → l'équivalent exact est 10px CSS.
 const TAP_SLOP_CSS = 10;
 
+// TORSION À DEUX DOIGTS = rotation de la vue. Les boutons ↺/↻ restent (ils sont
+// le seul chemin à la souris, et le chemin accessible au clavier), mais au doigt
+// la vue doit suivre la main.
+//
+// ⚠ ZONE MORTE, et elle n'est pas cosmétique : un pinch de zoom fait TOUJOURS
+// tourner un peu l'axe des deux doigts (les pouces ne pincent pas sur une droite
+// parfaite). Sans seuil, chaque zoom ferait pivoter la carte de quelques degrés
+// puis la recollerait à un quart au relâchement — donc un zoom sur deux
+// changerait l'orientation sans qu'on l'ait demandé. 0,22 rad ≈ 12,5°, mesuré
+// au-dessus du bruit d'un pinch et bien en-dessous d'une torsion intentionnelle.
+const TWIST_DEADZONE = 0.22;
+
 export type TapInfo = { cssX: number; cssY: number; ground: THREE.Vector3 };
 
 export class VoxelControls {
@@ -26,7 +38,8 @@ export class VoxelControls {
   private lastPos = { x: 0, y: 0 }; // position précédente (deltas du mode orbit)
   private moved = false;
   private lastGround = new THREE.Vector3();
-  private pinch: { dist0: number; zoom0: number; world0: THREE.Vector3 } | null = null;
+  private pinch: { dist0: number; zoom0: number; world0: THREE.Vector3; angle0: number; az0: number } | null = null;
+  private twisting = false;
   private el: HTMLElement;
   private abort = new AbortController();
 
@@ -64,7 +77,10 @@ export class VoxelControls {
         dist0: Math.hypot(a.x - b.x, a.y - b.y) || 1,
         zoom0: this.engine.zoom,
         world0: this.engine.groundAt((a.x + b.x) / 2, (a.y + b.y) / 2).clone(),
+        angle0: Math.atan2(b.y - a.y, b.x - a.x),
+        az0: this.engine.azimuthNow,
       };
+      this.twisting = false;
       this.downAt = null; // deux doigts = jamais un tap
     }
   };
@@ -77,9 +93,31 @@ export class VoxelControls {
       const [a, b] = [...this.pointers.values()];
       const dist = Math.hypot(a.x - b.x, a.y - b.y) || 1;
       const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+      // ROTATION d'abord : elle change ce que `groundAt` renvoie, donc elle doit
+      // être posée AVANT le recollage de la cible — sinon on corrige la dérive du
+      // pan avec une caméra qui n'est déjà plus celle qu'on va rendre, et la carte
+      // glisse sous les doigts à chaque torsion (la leçon de MapScene, appliquée à
+      // l'azimut : on ne lit jamais la caméra entre un set et un rendu).
+      let dA = Math.atan2(b.y - a.y, b.x - a.x) - this.pinch.angle0;
+      dA = Math.atan2(Math.sin(dA), Math.cos(dA)); // plus court chemin, jamais ±2π
+      if (!this.twisting && Math.abs(dA) >= TWIST_DEADZONE) {
+        // On franchit le seuil : on REBASELINE de la valeur de la zone morte,
+        // sinon la vue saute de 12,5° d'un coup au moment précis où elle
+        // s'anime — le geste paraîtrait cassé au démarrage.
+        const sign = Math.sign(dA);
+        this.pinch.angle0 += sign * TWIST_DEADZONE;
+        dA -= sign * TWIST_DEADZONE;
+        this.twisting = true;
+      }
+      // Le sens suit les boutons : ↻ (« pivoter à droite ») fait `azimut + π/2`,
+      // et une torsion horaire à l'écran fait croître atan2 (l'axe Y des
+      // pointeurs pointe vers le BAS). Les deux chemins tournent donc pareil.
+      if (this.twisting) this.engine.setAzimuth(this.pinch.az0 + dA);
       // mapping ABSOLU : zoom posé depuis la baseline…
       this.engine.zoom = Math.min(this.engine.maxZoom, Math.max(this.engine.minZoom, this.pinch.zoom0 * (dist / this.pinch.dist0)));
-      // …puis cible posée pour remettre world0 sous le milieu courant
+      // …puis cible posée pour remettre world0 sous le milieu courant. Avec la
+      // rotation déjà appliquée, le point saisi reste sous les doigts : la vue
+      // pivote AUTOUR DE LA MAIN, pas autour du centre de l'écran.
       const now = this.engine.groundAt(mid.x, mid.y);
       this.engine.target.add(this.pinch.world0.clone().sub(now));
       this.engine.invalidate();
@@ -108,7 +146,15 @@ export class VoxelControls {
   private onUp = (e: PointerEvent) => {
     const p = this.pointers.get(e.pointerId);
     this.pointers.delete(e.pointerId);
-    if (this.pointers.size < 2) this.pinch = null;
+    if (this.pointers.size < 2) {
+      this.pinch = null;
+      if (this.twisting) {
+        this.twisting = false;
+        // ⚠ jamais en mode "orbit" : l'éditeur veut justement un azimut libre,
+        // et le recoller au quart lui retirerait sa raison d'être.
+        if (this.mode === "pan") this.engine.snapAzimuth();
+      }
+    }
     if (this.pointers.size === 1) {
       // retour à un doigt : re-saisir le sol pour un pan sans saut
       const [rest] = [...this.pointers.values()];
