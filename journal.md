@@ -85,13 +85,24 @@ n'est **pas** à chaque action (`res.Changed` n'est vrai que si une vague / un r
 rejoué — donc jamais sur une partie sans bots entre deux événements) ; et `userFromReq` n'est résolu
 deux fois que sur `join`, pas sur les actions chaudes.
 
+### La RÉGION, réglée dans la foulée
+
+L'utilisateur a montré son tableau de bord Neon : **`AWS Europe West 2 (London)`**, pendant que le
+backend tournait en **`iad1`** (Washington, le défaut de Vercel). Chacun des ~6 allers-retours SQL
+d'une action traversait donc l'Atlantique — une demi-seconde de base de données greffée sur un pas de
+héros, davantage que tout ce que les lots ci-dessus ont économisé côté CPU. `vercel.json` déclare
+maintenant `"regions": ["lhr1"]`. ⚠ **le couple à coller est fonction ↔ base**, jamais fonction ↔
+joueur : on fait des dizaines d'allers-retours SQL pour UN aller-retour HTTP. Table de correspondance
+Neon → Vercel dans `DEPLOY.md`, à rejouer si la base déménage. ⚠ non vérifiable d'ici (le proxy de
+session bloque `vercel.sh` comme `vercel.app`) : le preset *Services* est récent et pourrait vouloir
+la clé par service — si un déploiement s'exécute encore hors de `lhr1`, le réglage du tableau de bord
+(Settings → Functions) fait autorité.
+
 ### À faire (demande l'accès Vercel/Neon, pas du code)
 
-- ⚠ **LA RÉGION.** `vercel.json` ne déclare aucun `regions` : le backend tourne en `iad1` par défaut.
-  Si Neon est en Europe, **chacun** des ~6 allers-retours SQL d'une action traverse l'Atlantique. Le
-  couple à coller est **fonction ↔ base**, pas fonction ↔ joueur : on fait des dizaines d'allers-retours
-  SQL pour un seul aller-retour HTTP.
 - Vérifier que `DATABASE_URL` pointe sur l'endpoint **`-pooler`** de Neon.
+- Vérifier après déploiement que l'exécution a bien lieu à Londres, et que la compression + le 304
+  survivent au CDN (`curl -D -`).
 - Vérifier que le CDN Vercel relaie bien `If-None-Match` et le 304 (`curl -D -` en production).
 - Optionnel : ne réécrire `saveScore`/`saveChronicle` que lorsque ce qu'elles stockent a changé
   (empreinte persistée dans le blob, donc gratuite) — 2 allers-retours de moins sur 6. À faire APRÈS

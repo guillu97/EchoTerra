@@ -161,9 +161,14 @@ ne sait pas faire.
   chemin CHAUD, elle faisait un aller-retour SQL **par joueur humain** — quarante vers Neon sur une
   expédition de vingt (deux fois vingt, `tick` puis `persist`). Pire cas borné : 20 × 16 = 320
   paramètres, loin des limites SQLite (32 766) et Postgres (65 535).
-- ⚠ **La RÉGION du service est le facteur caché dominant** : `vercel.json` ne déclare pas de
-  `regions`, donc le backend tourne en `iad1`. Une action fait ~6 allers-retours SQL pour UN
-  aller-retour HTTP : le couple à coller est **fonction ↔ base**, jamais fonction ↔ joueur.
+- ⚠ **La RÉGION du service était le facteur caché dominant** (réglé 2026-09-13) : une action
+  fait ~6 allers-retours SQL pour UN aller-retour HTTP, donc le couple à coller est
+  **fonction ↔ base**, jamais fonction ↔ joueur. Le backend tournait en `iad1` (Washington, le
+  défaut) contre une base Neon `aws-eu-west-2` (Londres) — une demi-seconde de transatlantique
+  par pas de héros. `vercel.json` déclare désormais `"regions": ["lhr1"]`. ⚠ **à changer si la
+  base déménage** (table de correspondance dans `DEPLOY.md`), et le réglage du tableau de bord
+  (Settings → Functions → Function Region) fait autorité si le preset *Services*, récent,
+  n'honorait pas la clé.
 Garde-fous : `internal/api/transport_test.go` (compression effective, 304 sans corps, action jamais
 304, monde changé qui casse l'empreinte, empreinte propre à chaque joueur).
 
