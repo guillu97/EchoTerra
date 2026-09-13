@@ -6,6 +6,110 @@
 
 ---
 
+## 2026-09-13 (132) — Le lag HTTP : 53× de réseau en moins, et le sondage à vide qui ne coûte plus rien
+
+« Comment régler la latence réseau ? Quelles solutions pour ne pas avoir du lag HTTP sur chaque
+action ? » — la réponse commence par refuser la question implicite : **il ne faut PAS de WebSockets**.
+Le jeu fait une action toutes les quelques minutes sur plusieurs jours réels ; un socket persistant
+économiserait ~100 ms de poignée de main et coûterait précisément ce que le scale-to-zero de Vercel
+ne sait pas faire. Le contrat « REST + état serveur autoritatif » est le bon. Le lag était ailleurs.
+
+### Ce que la mesure a montré
+
+L'état complet part à chaque action (c'est le contrat, et il est juste). Mesuré sur de vraies cartes,
+`ClientViewFor` + `json.Marshal` :
+
+| Carte | brut | gzip | ratio |
+|---|---|---|---|
+| 40² (solo) | 98 ko | 3,7 ko | 26× |
+| 60² (4 joueurs) | 207 ko | 4,3 ko | 48× |
+| 134² (20 joueurs) | 992 ko | 10 ko | 99× |
+| 134² carte explorée | 1 250 ko | 57 ko | 22× |
+
+Et `Router()` n'avait **aucun middleware de compression**. Un pas de héros à vingt joueurs, c'était un
+mégaoctet sur la 4G. Le JSON se comprime d'un ordre de grandeur parce qu'il est répétitif : sous
+brouillard, la carte est un océan de tuiles vierges identiques.
+
+Coût CPU par action, mesuré aussi : 7 ms sur 60², **38 ms sur 134²** — dominés par le `json.Unmarshal`
+du blob venant de Postgres (28 ms à lui seul).
+
+### Livré
+
+**1. La compression** (`middleware.Compress(5, "application/json")`, une ligne). Mesuré en test :
+**209 ko → 3,8 ko, 55×**. ⚠ posée AVANT `gameLockMiddleware` : l'emballage `viewerWriter` enveloppe
+alors le writer compressé, et `viewerOf` continue de trouver le destinataire.
+
+**2. La revalidation conditionnelle** (ETag + 304 dans `writeJSON`). `GameScreen` resonde toutes les
+20 secondes alors qu'une vague tombe toutes les 10 min en dev et 6 h en cible : l'écrasante majorité
+de ces sondages renvoyait un état **rigoureusement identique**. C'est le poste dominant d'un téléphone
+laissé ouvert, loin devant les actions. L'empreinte (FNV-1a) est prise sur les octets RÉELLEMENT
+servis, donc APRÈS caviardage — deux joueurs d'une même ville n'ont pas la même carte.
+⚠ `private, no-cache` : la réponse dépend du destinataire et du porteur du jeton, aucun cache partagé
+(CDN Vercel compris) n'a le droit de la resservir. ⚠ le 304 ne pose PAS de `Content-Type`, sinon
+`middleware.Compress` collerait un `Content-Encoding` sur un corps absent.
+⚠ **AUCUN changement côté client** : le cache HTTP du navigateur envoie `If-None-Match` et sert le
+corps mémorisé tout seul. Le `viewerWriter` a été promu en transporteur de requête général
+(`requestWriter`, monté à la racine) au lieu d'exister seulement sur les routes d'une partie.
+
+**3. ⚠⚠ `lastBotAt` valait 200 ko par sondage.** L'ETag ne mordait sur RIEN : deux réponses
+consécutives sur un monde inchangé différaient de deux octets. Un seul champ bougeait —
+`GameState.LastBotAt`, que `AdvanceTo` recale sur l'instant présent à chaque accès quand la partie ne
+compte aucun bot, et **que le client n'a jamais lu**. De la comptabilité de simulation servie sur le
+réseau. Retiré dans `ClientViewFor` (`omitzero` : le champ disparaît du JSON). Sans ce correctif, le
+lot 2 n'aurait strictement rien donné — et c'était invisible en lisant le code, il a fallu diffusion
+par champ de deux payloads consécutifs.
+
+**4. `saveChronicle` en UNE requête** au lieu d'une par joueur. Appelée depuis `Save`, donc dans le
+chemin chaud, elle faisait un aller-retour SQL **par joueur humain** — sur une expédition de vingt,
+quarante allers-retours vers Neon (deux fois vingt, `tick` puis `persist`) pour tenir à jour une
+chronique que personne ne lit pendant la partie. À 80 ms d'aller-retour transatlantique, trois
+secondes de base greffées sur un déplacement. VALUES multi-lignes, mêmes écritures. Le pire cas reste
+borné : 20 joueurs × 16 colonnes = 320 paramètres, loin des limites SQLite (32 766) et Postgres
+(65 535).
+
+### Fonctionnel (vérifié)
+
+`go test ./...` vert. Cinq garde-fous neufs dans `internal/api/transport_test.go`, sur une expédition
+RÉELLE (salon, deux joueurs, lancée) et pas un état factice : la compression mord et le corps
+décomprimé reste du JSON de partie exploitable ; un second sondage à vide rend **304 sans corps** ; une
+action n'est **jamais** un 304 ; un monde qui a changé **casse** l'empreinte ; et l'empreinte est propre
+à chaque joueur. ⚠ ce dernier doit d'abord faire DIVERGER les vues (éloigner un héros hors du rayon de
+vision du bourg, 3) — au lancement les six héros sont dans les murs et les deux joueurs reçoivent le
+même octet, où une empreinte commune est la bonne réponse et non un défaut. `npx tsc -b` vert, aucun
+changement front.
+
+### Corrigé de l'analyse initiale
+
+Deux choses annoncées à l'utilisateur et démenties par le code : la double écriture `tick` + `persist`
+n'est **pas** à chaque action (`res.Changed` n'est vrai que si une vague / un round de bot a réellement
+rejoué — donc jamais sur une partie sans bots entre deux événements) ; et `userFromReq` n'est résolu
+deux fois que sur `join`, pas sur les actions chaudes.
+
+### La RÉGION, réglée dans la foulée
+
+L'utilisateur a montré son tableau de bord Neon : **`AWS Europe West 2 (London)`**, pendant que le
+backend tournait en **`iad1`** (Washington, le défaut de Vercel). Chacun des ~6 allers-retours SQL
+d'une action traversait donc l'Atlantique — une demi-seconde de base de données greffée sur un pas de
+héros, davantage que tout ce que les lots ci-dessus ont économisé côté CPU. `vercel.json` déclare
+maintenant `"regions": ["lhr1"]`. ⚠ **le couple à coller est fonction ↔ base**, jamais fonction ↔
+joueur : on fait des dizaines d'allers-retours SQL pour UN aller-retour HTTP. Table de correspondance
+Neon → Vercel dans `DEPLOY.md`, à rejouer si la base déménage. ⚠ non vérifiable d'ici (le proxy de
+session bloque `vercel.sh` comme `vercel.app`) : le preset *Services* est récent et pourrait vouloir
+la clé par service — si un déploiement s'exécute encore hors de `lhr1`, le réglage du tableau de bord
+(Settings → Functions) fait autorité.
+
+### À faire (demande l'accès Vercel/Neon, pas du code)
+
+- Vérifier que `DATABASE_URL` pointe sur l'endpoint **`-pooler`** de Neon.
+- Vérifier après déploiement que l'exécution a bien lieu à Londres, et que la compression + le 304
+  survivent au CDN (`curl -D -`).
+- Vérifier que le CDN Vercel relaie bien `If-None-Match` et le 304 (`curl -D -` en production).
+- Optionnel : ne réécrire `saveScore`/`saveChronicle` que lorsque ce qu'elles stockent a changé
+  (empreinte persistée dans le blob, donc gratuite) — 2 allers-retours de moins sur 6. À faire APRÈS
+  l'alignement des régions, qui pèse bien plus lourd.
+
+---
+
 ## 2026-08-17 (131) — Le ciel suivait le doigt : les nuages rebouclent au lieu de suivre
 
 « Les nuages bougent en même temps que la caméra et **la suivent**, ce n'est pas normal. » — et cette

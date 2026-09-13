@@ -157,6 +157,38 @@ de goroutines ni de cache mémoire inter-requêtes** — la base est la seule v�
   joueur↔joueur reste possible en théorie (deux instances, même partie, même instant) ;
   acceptable au stade prototype, à durcir (verrou en base) avant une vraie ouverture.
 
+## ⚠ La RÉGION : coller le backend à la base
+
+**Le couple à rapprocher est fonction ↔ base, jamais fonction ↔ joueur.** Une action de jeu
+fait environ **six allers-retours SQL pour UN seul aller-retour HTTP** (charger le blob,
+l'écrire, la ligne de classement, la chronique, la session, l'activité) : la distance qui
+compte est donc celle qui sépare le service Go de Neon, pas celle qui le sépare du
+téléphone. À ~80 ms d'aller-retour transatlantique, un service en `iad1` (Washington,
+**le défaut**) contre une base à Londres ajoute une demi-seconde de pure base de données
+à chaque pas de héros.
+
+`vercel.json` déclare donc `"regions": ["lhr1"]` (Londres), en face du projet Neon
+`AWS Europe West 2 (London)`. **Si tu recrées la base ailleurs, change cette ligne** —
+correspondances usuelles :
+
+| Région Neon | Région Vercel |
+|---|---|
+| `aws-eu-west-2` (Londres) | `lhr1` |
+| `aws-eu-central-1` (Francfort) | `fra1` |
+| `aws-eu-west-1` (Irlande) | `dub1` |
+| `aws-us-east-1` / `us-east-2` | `iad1` |
+| `aws-us-west-2` | `sfo1` |
+
+Le plan Hobby n'autorise **qu'une seule région**, ce qui suffit ici. ⚠ Le preset *Services*
+est récent : si un déploiement montre encore une exécution hors de `lhr1`, poser la région
+à la main dans **Settings → Functions → Function Region** (le réglage du tableau de bord
+fait autorité et existe sur Hobby quoi qu'il arrive).
+
+**Vérifier ensuite l'endpoint « pooled »** : `DATABASE_URL` doit contenir `-pooler` dans son
+hôte (`…@ep-xxx-pooler.eu-west-2.aws.neon.tech/…`). Sans lui, chaque instance froide ouvre une
+connexion Postgres directe — poignée de main TLS complète à chaque réveil — et le quota de
+connexions part vite quand plusieurs instances s'éveillent ensemble.
+
 ## Limites du plan gratuit à connaître
 
 - **Cold starts** : première requête après idle ≈ 1 s (Go démarre vite).

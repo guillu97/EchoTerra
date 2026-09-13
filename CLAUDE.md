@@ -123,6 +123,55 @@ publics créés en double par deux instances froides). Le store (`store.Open`) a
 `postgres://` (Neon via le Marketplace Vercel, var `DATABASE_URL`) en plus d'un chemin SQLite.
 `backend/serverless` = handler FaaS de secours + harnais e2e du mode stateless.
 
+**LE TRANSPORT — ce que le réseau porte, et à quel prix (2026-09-13)** — le contrat « serveur
+autoritatif, le client ne rend que ce qu'il reçoit » fait partir l'état COMPLET à chaque action.
+C'est le bon contrat, mais il rend la TAILLE et la RÉPÉTITION du payload critiques. Mesuré sur de
+vraies cartes (`ClientViewFor` + `json.Marshal`) : **98 ko** en solo 40², **207 ko** à quatre joueurs
+60², **992 ko** à vingt (134²), **1,25 Mo** carte explorée. Deux réponses, et ⚠ **surtout pas de
+WebSockets** — le jeu fait une action toutes les quelques minutes sur plusieurs jours réels, un socket
+persistant économiserait la poignée de main et coûterait exactement ce que le scale-to-zero de Vercel
+ne sait pas faire.
+- **La COMPRESSION** (`middleware.Compress(5, "application/json")` dans `Router()`) : ce JSON est
+  très répétitif (sous brouillard la carte est un océan de tuiles vierges identiques), donc il rend
+  **26× à 99×** selon la taille — mesuré en test, 209 ko → 3,8 ko à quatre joueurs. ⚠ posée **avant**
+  `gameLockMiddleware`, donc en dehors : `viewerWriter` enveloppe alors le writer compressé et
+  `viewerOf` retrouve son destinataire.
+- **La REVALIDATION CONDITIONNELLE** (ETag + 304 dans `writeJSON`) : `GameScreen` resonde toutes les
+  20 s alors qu'une vague tombe toutes les 10 min (dev) ou 6 h (cible) — l'écrasante majorité de ces
+  sondages renvoyait un état RIGOUREUSEMENT identique, ce qui en fait le poste de consommation
+  dominant d'un téléphone laissé ouvert, loin devant les actions. L'empreinte (FNV-1a) est prise sur
+  les octets **réellement servis**, donc APRÈS caviardage : deux joueurs d'une même ville ne voient
+  pas la même carte (`VisibleNow` — seuls MES héros éclairent MA carte), et une empreinte prise sur
+  l'état commun leur promettrait à tort que rien n'a bougé. ⚠ `Cache-Control: private, no-cache` —
+  la réponse dépend du destinataire ET du porteur du jeton, aucun cache PARTAGÉ (CDN Vercel compris)
+  n'a le droit de la resservir ; `no-cache` n'interdit pas de garder, il impose de revalider, ce que
+  l'ETag rend bon marché. ⚠ le 304 ne pose **pas** de `Content-Type` : `middleware.Compress` décide
+  d'après ce champ, le poser collerait un `Content-Encoding` sur un corps absent. ⚠ **rien à changer
+  côté client** : le cache HTTP du navigateur envoie `If-None-Match` et sert le corps mémorisé tout
+  seul. Le transporteur de requête (`requestWriter`, ex-`viewerWriter` construit dans
+  `gameLockMiddleware`) est monté à la RACINE pour couvrir aussi les catalogues.
+- ⚠⚠ **`lastBotAt` valait 200 ko par sondage.** L'ETag ne mordait sur rien : deux réponses
+  consécutives sur un monde inchangé différaient de deux octets, et un SEUL champ bougeait —
+  `GameState.LastBotAt`, horloge de simulation que `AdvanceTo` recale sur l'instant présent à chaque
+  accès quand la partie ne compte aucun bot, **et que le client n'a jamais lue**. Retirée dans
+  `ClientViewFor` (`omitzero` ⇒ le champ disparaît). Règle à garder : **toute comptabilité de
+  simulation servie au client casse la revalidation**, et ça ne se voit pas en lisant le code — il a
+  fallu diffuser champ par champ deux payloads consécutifs.
+- **`saveChronicle` en UNE requête** (VALUES multi-lignes) : appelée depuis `Save`, donc dans le
+  chemin CHAUD, elle faisait un aller-retour SQL **par joueur humain** — quarante vers Neon sur une
+  expédition de vingt (deux fois vingt, `tick` puis `persist`). Pire cas borné : 20 × 16 = 320
+  paramètres, loin des limites SQLite (32 766) et Postgres (65 535).
+- ⚠ **La RÉGION du service était le facteur caché dominant** (réglé 2026-09-13) : une action
+  fait ~6 allers-retours SQL pour UN aller-retour HTTP, donc le couple à coller est
+  **fonction ↔ base**, jamais fonction ↔ joueur. Le backend tournait en `iad1` (Washington, le
+  défaut) contre une base Neon `aws-eu-west-2` (Londres) — une demi-seconde de transatlantique
+  par pas de héros. `vercel.json` déclare désormais `"regions": ["lhr1"]`. ⚠ **à changer si la
+  base déménage** (table de correspondance dans `DEPLOY.md`), et le réglage du tableau de bord
+  (Settings → Functions → Function Region) fait autorité si le preset *Services*, récent,
+  n'honorait pas la clé.
+Garde-fous : `internal/api/transport_test.go` (compression effective, 304 sans corps, action jamais
+304, monde changé qui casse l'empreinte, empreinte propre à chaque joueur).
+
 **Horloge de simulation & BATTEMENT (2026-08-01)** — le monde avance **par le temps écoulé**, pas par
 un processus vivant : `GameState.AdvanceTo(now, SimBudget)` (`game/sim.go`) rejoue la période manquée
 dans l'**ordre chronologique** en entrelaçant les vagues (`NextWaveAt`, toutes les `WaveInterval`) et
