@@ -6,6 +6,8 @@ package api
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
+	"hash/fnv"
 	"net/http"
 	"strings"
 	"sync"
@@ -95,15 +97,36 @@ func (s *Server) gameLockMiddleware(next http.Handler) http.Handler {
 			defer unlock()
 		}
 		// Le GET porte son destinataire en query (le client l'ajoute partout) ; les
-		// POST le portent dans leur corps et le posent via `viewerFromBody`.
-		next.ServeHTTP(&viewerWriter{ResponseWriter: w, playerID: r.URL.Query().Get("playerId")}, r)
+		// POST le portent dans leur corps et le posent via `decodePlayerW`.
+		setViewer(w, r.URL.Query().Get("playerId"))
+		next.ServeHTTP(w, r)
 	})
 }
 
-// viewerWriter transporte l'identité du destinataire jusqu'à writeJSON.
+// viewerWriter transporte jusqu'à writeJSON ce qui est PROPRE À LA REQUÊTE : qui
+// regarde (le brouillard est servi par joueur) et, pour un GET, de quoi répondre « rien
+// n'a changé » sans renvoyer la carte (voir writeJSON).
 type viewerWriter struct {
 	http.ResponseWriter
 	playerID string
+	// conditional n'est vrai que sur un GET : un POST change le monde, sa réponse ne
+	// peut pas être un 304.
+	conditional bool
+	ifNoneMatch string
+}
+
+// requestWriter installe ce transporteur sur TOUTE requête d'API. Il vivait dans
+// gameLockMiddleware, donc n'existait que sur les routes d'une partie ; la revalidation
+// conditionnelle sert aussi les catalogues (classes, objets, recettes), qui ne changent
+// jamais entre deux déploiements.
+func (s *Server) requestWriter(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		next.ServeHTTP(&viewerWriter{
+			ResponseWriter: w,
+			conditional:    r.Method == http.MethodGet,
+			ifNoneMatch:    r.Header.Get("If-None-Match"),
+		}, r)
+	})
 }
 
 // viewerOf rend le destinataire installé par le middleware ("" = anonyme).
@@ -224,10 +247,33 @@ func (s *Server) Router() http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
+	// LA COMPRESSION — le plus gros levier de latence du jeu, pour une ligne.
+	//
+	// Toute action renvoie l'état COMPLET de la partie (c'est le contrat : le serveur
+	// est autoritatif, le client ne rend que ce qu'il reçoit). Mesuré sur de vraies
+	// cartes : 98 ko pour un solo 40², 207 ko à quatre joueurs, 992 ko à vingt, et
+	// 1,25 Mo en fin de partie quand la carte est explorée. Sur un téléphone en 4G,
+	// c'est plusieurs secondes d'attente par pas de héros.
+	//
+	// Ce JSON se comprime EXTRÊMEMENT bien parce qu'il est répétitif : sous brouillard
+	// la carte est un océan de tuiles vierges identiques. Mesuré : 26× sur 40², 48× sur
+	// 60², 99× sur 134² (207 ko -> 4,3 ko à quatre joueurs). Même carte entièrement
+	// explorée, on garde 14 à 22×.
+	//
+	// ⚠ POSÉ AVANT gameLockMiddleware, donc en dehors : l'emballage `viewerWriter`
+	// enveloppe alors le writer compressé, et `viewerOf` (assertion de type sur le
+	// writer que voit le handler) continue de trouver le destinataire.
+	r.Use(middleware.Compress(5, "application/json"))
+	r.Use(s.requestWriter)
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins: []string{"*"},
 		AllowedMethods: []string{"GET", "POST", "OPTIONS"},
-		AllowedHeaders: []string{"Content-Type"},
+		// Authorization : le client envoie son jeton de session en Bearer sur CHAQUE
+		// appel. If-None-Match : sans lui, un navigateur en cross-origin ne peut pas
+		// revalider et retéléchargerait la carte à chaque sondage.
+		AllowedHeaders: []string{"Content-Type", "Authorization", "If-None-Match"},
+		// Un en-tête de réponse qu'on n'expose pas est INVISIBLE au JavaScript appelant.
+		ExposedHeaders: []string{"ETag"},
 	}))
 
 	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
@@ -359,7 +405,7 @@ func (s *Server) Router() http.Handler {
 			r.Post("/town/craft", s.townCraft)
 			r.Post("/town/scout", s.townScout)       // monter à la Tour estimer la vague
 			r.Post("/town/blessing", s.townBlessing) // voter au Temple pour un dieu
-			r.Post("/town/request", s.townRequest) // afficher / retirer un besoin
+			r.Post("/town/request", s.townRequest)   // afficher / retirer un besoin
 			r.Post("/town/request/fill", s.townRequestFill)
 			r.Get("/town/chat", s.townChatList)
 			r.Post("/town/chat", s.townChatPost)
@@ -389,10 +435,49 @@ func (s *Server) Router() http.Handler {
 
 // --- helpers ---------------------------------------------------------------
 
+// writeJSON sérialise la réponse, caviardée pour son destinataire, et répond 304 quand
+// le client a déjà exactement ce corps-là.
+//
+// LA REVALIDATION CONDITIONNELLE, ET CE QU'ELLE RÈGLE. `GameScreen` resonde la partie
+// toutes les 20 secondes pour voir tomber les vagues du programmateur. Or une vague
+// tombe toutes les 10 minutes en dev et toutes les 6 heures en cible : l'écrasante
+// majorité de ces sondages renvoie un état RIGOUREUSEMENT identique au précédent — 207 ko
+// à quatre joueurs, près d'un mégaoctet à vingt, redescendus pour rien. Sur un téléphone
+// laissé ouvert, c'est le poste de consommation dominant du jeu, loin devant les actions.
+//
+// L'empreinte est calculée sur les octets RÉELLEMENT servis, donc après caviardage : deux
+// joueurs d'une même ville n'ont pas la même carte, et une empreinte prise sur l'état
+// commun leur promettrait à tort que rien n'a bougé. FNV-1a suffit — on compare deux
+// versions d'une même ressource, il n'y a pas d'adversaire à qui résister.
+//
+// ⚠ Le 304 ne pose PAS de Content-Type, et c'est délibéré : `middleware.Compress` décide
+// de compresser d'après ce champ (`isCompressible`), donc sans lui il laisse passer la
+// réponse vide telle quelle au lieu d'y coller un Content-Encoding sur un corps absent.
+//
+// ⚠ `private` sur le Cache-Control : la réponse dépend du destinataire (brouillard) et du
+// porteur du jeton. Aucun cache partagé — le CDN de Vercel compris — n'a le droit de la
+// resservir à quelqu'un d'autre. `no-cache` n'interdit pas de la garder, il impose de la
+// revalider : c'est exactement ce que l'ETag rend bon marché.
 func writeJSON(w http.ResponseWriter, code int, v any) {
+	body, err := json.Marshal(clientView(v, viewerOf(w)))
+	if err != nil {
+		http.Error(w, "erreur de sérialisation", http.StatusInternalServerError)
+		return
+	}
+	if vw, ok := w.(*viewerWriter); ok && vw.conditional && code == http.StatusOK {
+		h := fnv.New64a()
+		_, _ = h.Write(body)
+		etag := fmt.Sprintf(`W/"%x"`, h.Sum64())
+		w.Header().Set("ETag", etag)
+		w.Header().Set("Cache-Control", "private, no-cache")
+		if vw.ifNoneMatch == etag {
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
+	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
-	_ = json.NewEncoder(w).Encode(clientView(v, viewerOf(w)))
+	_, _ = w.Write(body)
 }
 
 // clientView redacts every GameState in an outgoing payload (fog of war: tiles no

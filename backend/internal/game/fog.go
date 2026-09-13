@@ -333,6 +333,14 @@ func (g *GameState) ClientViewFor(playerID string) *GameState {
 	// La mémoire des AUTRES joueurs n'a rien à faire sur le réseau : c'est de la donnée
 	// de serveur, et elle pèse (un bitset par joueur).
 	cp.Explored = nil
+	// L'horloge des rounds de joueurs-IA est de la COMPTABILITÉ DE SIMULATION : le client
+	// ne l'a jamais lue, et `AdvanceTo` la recale sur l'instant présent à chaque accès
+	// quand la partie ne compte aucun bot. Servie, elle changeait donc à CHAQUE requête,
+	// et c'était le seul champ à bouger sur un monde par ailleurs identique — ce qui
+	// suffisait à faire échouer la revalidation conditionnelle de `writeJSON` (ETag), donc
+	// à renvoyer la carte entière à chaque sondage de 20 secondes. Un octet de bruit
+	// coûtait 200 ko de réseau. (`omitzero` : remis à zéro, le champ disparaît du JSON.)
+	cp.LastBotAt = time.Time{}
 	// Le catalogue du thème voyage avec la partie (dérivé, jamais persisté — le blob
 	// est écrit depuis `g`, où le champ reste nil). Le client n'a donc rien à charger
 	// pour afficher « ❄️ Nordique » ni pour nommer les terrains.
