@@ -38,14 +38,14 @@ type CombatUnit struct {
 	Sight int `json:"sight,omitempty"`
 	// Spotted : rounds restants de marquage par « Éclairer » — l'unité est visible de
 	// toute l'équipe adverse à l'Éclaireur, où qu'elle soit.
-	Spotted int `json:"spotted,omitempty"`
-	Initiative int      `json:"initiative"`
+	Spotted    int `json:"spotted,omitempty"`
+	Initiative int `json:"initiative"`
 	// Cooldowns : tours restants avant de pouvoir rejouer chaque capacité, par NOM
 	// d'attaque. Décrémenté au début du tour de l'unité (advanceTurn). Absent de la
 	// carte = disponible.
 	Cooldowns map[string]int `json:"cooldowns,omitempty"`
-	Fled       bool     `json:"fled,omitempty"`    // a quitté l'arène par le bord bas (lot C3)
-	OwnerID    string   `json:"ownerId,omitempty"` // joueur propriétaire du héros ("" = partie legacy)
+	Fled      bool           `json:"fled,omitempty"`    // a quitté l'arène par le bord bas (lot C3)
+	OwnerID   string         `json:"ownerId,omitempty"` // joueur propriétaire du héros ("" = partie legacy)
 	// Facing (lot C4) : direction regardée, mise à jour au déplacement et à
 	// l'attaque — une attaque depuis l'arc ARRIÈRE fait +25 % et ignore la
 	// couverture. Vecteur unitaire orthogonal (FX,FY).

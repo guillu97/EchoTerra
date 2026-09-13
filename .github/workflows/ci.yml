@@ -1,0 +1,113 @@
+# Les garde-fous d'Echo Terra, joués à chaque poussée.
+#
+# Pourquoi : le dépôt portait un seul workflow (le battement). Tout le reste —
+# 27 paquets de tests Go, le typage TypeScript, et les 13 suites de navigateur
+# qui MESURENT l'interface (contraste réel des pixels, proportions réelles des
+# modèles dans la scène, redraws réellement demandés) — ne tournait que si
+# quelqu'un y pensait. Or c'est justement cette suite qui a attrapé les pannes
+# muettes du projet : un prop absent de PROP_KEYS, un voile de brouillard
+# jamais posé, un badge à 1,40:1 de contraste. Une panne muette non jouée est
+# une panne qui part en production.
+#
+# Trois emplois, du plus rapide au plus lent, pour que l'échec arrive tôt.
+name: Garde-fous (CI)
+
+on:
+  push:
+    branches: ["main", "claude/**"]
+  pull_request:
+  workflow_dispatch:
+
+# Une poussée plus récente annule la précédente sur la même branche : inutile de
+# payer deux fois la suite de navigateur pour un état dépassé.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Go — tests et plancher de survie
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          # ⚠ la version vient de backend/go.mod (aujourd'hui go 1.26) : la
+          # figer ici ferait mentir l'un des deux au premier passage.
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - name: go vet
+        run: go -C backend vet ./...
+      - name: gofmt (aucun fichier mal formaté)
+        run: |
+          out=$(gofmt -l backend)
+          if [ -n "$out" ]; then
+            echo "::error::gofmt a des remarques sur :"; echo "$out"; exit 1
+          fi
+      # `go test ./...` contient le vrai contrat d'équilibrage : balance_test.go
+      # joue des PARTIES ENTIÈRES (vrai worldgen, vrais bots, vraie horloge) et
+      # exige le SurvivalFloor de 12 vagues sur toute graine et de 1 à 20
+      # joueurs. C'est lui qui a révélé que toutes les graines mouraient vague 5.
+      - name: go test
+        run: go -C backend test ./...
+
+  frontend:
+    name: TypeScript — typage et build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm --prefix frontend install --no-audit --no-fund
+      - name: tsc -b
+        run: npm --prefix frontend exec -- tsc -b
+      - name: vite build
+        run: npm --prefix frontend run build
+      # La seule suite qui n'a besoin d'aucun serveur : du CSS pur sur du
+      # balisage statique. Elle mesure le CONTRASTE sur les pixels peints.
+      - name: pastille de vague (contraste mesuré)
+        run: npm --prefix frontend run test:wave-chip
+
+  e2e:
+    name: Navigateur — les 13 suites
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm --prefix frontend install --no-audit --no-fund
+      # playwright-core n'embarque PAS de navigateur (c'est tout son intérêt) :
+      # il faut en fournir un. On prend celui de l'image GitHub plutôt que de
+      # télécharger 150 Mo à chaque passage.
+      - name: Trouver un Chromium
+        run: |
+          for c in "$CHROME_BIN" /usr/bin/google-chrome /usr/bin/chromium-browser /usr/bin/chromium; do
+            if [ -n "$c" ] && [ -x "$c" ]; then echo "PERF_BROWSER=$c" >> "$GITHUB_ENV"; echo "trouvé : $c"; exit 0; fi
+          done
+          echo "::notice::aucun Chromium dans l'image — installation par Playwright"
+          npm --prefix frontend exec -- playwright install --with-deps chromium
+      # Le lanceur compile le backend, démarre Vite, attend /healthz, joue les
+      # suites puis referme ce qu'il a ouvert (base de données jetable).
+      - name: node tests/run.mjs
+        working-directory: frontend
+        run: node tests/run.mjs
+      - name: Rapport des proportions
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: proportions
+          path: asset-index/PROPORTIONS.md
+          if-no-files-found: ignore

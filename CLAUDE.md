@@ -113,6 +113,34 @@ asset dans la scène rendue, en tuiles, comparée au repère HÉROS ; écrit
 `asset-index/PROPORTIONS.md` et liste ce qui sort de la fourchette attendue — voir §7a-bis « UNE
 TAILLE SE MESURE »; mêmes prérequis).
 
+**L'OUTILLAGE DE LA BOUCLE DE DEV** (2026-09-13) — trois trous qui coûtaient un préambule manuel à
+chaque session :
+- **`node tests/run.mjs`** (`npm --prefix frontend test`) — LE point d'entrée des 13 suites.
+  ⚠ **aucune suite ne démarre ses serveurs** : chacune suppose déjà debout un backend :8080 ET un
+  Vite :5173, et sans eux échoue par un timeout de 30 s sur `window.__eg?.store` — un message qui ne
+  dit PAS « il manque les serveurs », donc une session en concluait que la suite était cassée. Le
+  lanceur **RÉUTILISE ce qui tourne** (sonde `/healthz` et :5173) et ne ferme QUE ce qu'il a ouvert,
+  sur une **base de données JETABLE** (`ECHOTERRA_DB` en dossier temporaire : les suites créent de
+  vraies parties, et les accumuler fait dériver `ensurePublicLobby` d'une exécution sur l'autre). Le
+  backend est **compilé** (`go build`) et non lancé par `go run`, qui relaie mal les signaux et
+  laissait le port 8080 pris ; et chaque serveur est lancé **`detached`** pour qu'on tue son GROUPE —
+  tuer `npm` seul laissait Vite, son enfant, sur le port. `--list` · `--keep` · `RUN_VERBOSE=1`.
+  Mesuré à froid : backend prêt en 411 ms, Vite en 839 ms.
+- **`.claude/hooks/session-start.sh`** (enregistré dans `.claude/settings.json`) — `npm install`
+  frontend + racine + scripts, `go mod download`, et pose `PERF_BROWSER`. Sans lui
+  `frontend/node_modules` est ABSENT au démarrage d'une session web : `tsc`, `vite` et les 13 suites
+  échouent toutes. Borné au distant (`CLAUDE_CODE_REMOTE`), idempotent. ⚠ il n'agit qu'une fois
+  fusionné dans la branche par défaut.
+- **`.github/workflows/ci.yml`** — trois emplois : Go (`vet`, `gofmt`, `test ./...` qui contient le
+  plancher de survie), TypeScript (`tsc -b`, `build`, la suite sans serveur), et les 13 suites de
+  navigateur via le lanceur. Le dépôt n'avait QUE le battement : rien ne jouait les garde-fous qui
+  ont attrapé les pannes muettes du projet (un prop absent de `PROP_KEYS`, un voile jamais posé, un
+  badge à 1,40:1). ⚠ **pas de `golangci-lint` en CI** : le binaire de l'image est bâti avec go1.25 et
+  refuse un module qui cible 1.26 (« the Go language version used to build golangci-lint is lower
+  than the targeted Go version ») — `go vet` + `gofmt` tiennent le rôle.
+- **`/verif`** et **`/journal`** (`.claude/commands/`) — la batterie complète et la convention
+  d'entrée de journal, écrites une fois au lieu d'être redécouvertes.
+
 **Déploiement Vercel (gratuit)** — voir `DEPLOY.md`. Preset **Services** (`vercel.json`) : service
 `frontend` (root `frontend/`, Vite, statique CDN) + service `backend` (root `backend/`, le preset Go
 détecte `cmd/server/main.go` — le VRAI serveur, qui écoute `PORT` sur Vercel) ; rewrites `/api/*` +

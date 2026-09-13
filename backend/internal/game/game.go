@@ -88,7 +88,7 @@ type Tile struct {
 	// Covered : la case est sous la NEIGE FRAÎCHE (thème nordique, cold.go). Elle
 	// n'interrompt que la fouille AUTOMATIQUE ; la fouille manuelle rend son butin
 	// comme d'habitude et déblaie la neige au passage.
-	Covered    bool `json:"covered,omitempty"`
+	Covered bool `json:"covered,omitempty"`
 	// Discovered : « quelqu'un de l'expédition l'a vue un jour ». ⚠ CE N'EST PLUS ce
 	// qui décide de ce qu'un joueur voit — c'est `PlayerExplored` (mémoire PAR
 	// JOUEUR, fog.go). Ce drapeau reste la mémoire de l'EXPÉDITION : le relief ne peut

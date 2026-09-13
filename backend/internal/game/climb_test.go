@@ -28,7 +28,7 @@ func TestReliefStopsAHeroOnTheMap(t *testing.T) {
 	gs, h := climbGame(t)
 	h.Stats.Athletisme = 0 // franchissement 1
 	cliff := gs.TileAt(4, 3)
-	cliff.Height = 5       // marche de 2 : une falaise de mesa (worldgen)
+	cliff.Height = 5 // marche de 2 : une falaise de mesa (worldgen)
 	pa0 := h.PA
 
 	err := gs.MoveHero(h.ID, 1, 0)

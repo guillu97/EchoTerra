@@ -359,7 +359,7 @@ func (s *Server) Router() http.Handler {
 			r.Post("/town/craft", s.townCraft)
 			r.Post("/town/scout", s.townScout)       // monter à la Tour estimer la vague
 			r.Post("/town/blessing", s.townBlessing) // voter au Temple pour un dieu
-			r.Post("/town/request", s.townRequest) // afficher / retirer un besoin
+			r.Post("/town/request", s.townRequest)   // afficher / retirer un besoin
 			r.Post("/town/request/fill", s.townRequestFill)
 			r.Get("/town/chat", s.townChatList)
 			r.Post("/town/chat", s.townChatPost)

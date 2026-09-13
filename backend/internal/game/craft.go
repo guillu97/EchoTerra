@@ -112,13 +112,13 @@ var Recipes = []Recipe{
 	// corde suffisent : deux matériaux qu'on transforme dès le premier atelier.
 	{ID: "climbing_boots", Name: "Bottes cloutées", Category: "forge", Building: "workshop", BuildingLevel: 1, OutputType: "arme", PACost: 2,
 		Ingredients: []Item{{"objet", "Cuir", 1}, {"objet", "Corde", 1}, {"minerai", "Minerai de fer", 1}},
-		Effects: "Équipement : +3 athlétisme — franchit les escarpements (carte et combat)"},
+		Effects:     "Équipement : +3 athlétisme — franchit les escarpements (carte et combat)"},
 	{ID: "lynx_eye", Name: "Œil-de-lynx", Category: "forge", Building: "workshop", BuildingLevel: 2, OutputType: "arme", PACost: 2,
 		Ingredients: []Item{{"objet", "Soie cristalline", 1}, {"animal", "Plume de harpie", 1}, {"objet", "Cuir", 1}},
-		Effects: "Équipement : +3 précision (coups critiques)"},
+		Effects:     "Équipement : +3 précision (coups critiques)"},
 	{ID: "skinner_stiletto", Name: "Stylet d'écorcheur", Category: "forge", Building: "workshop", BuildingLevel: 2, OutputType: "arme", PACost: 2,
 		Ingredients: []Item{{"minerai", "Minerai d'argent", 1}, {"animal", "Croc", 1}, {"objet", "Corde", 1}},
-		Effects: "Arme : +1 force, +4 précision (coups critiques)"},
+		Effects:     "Arme : +1 force, +4 précision (coups critiques)"},
 	{ID: "leather_armor", Name: "Armure de cuir", Category: "forge", Building: "workshop", BuildingLevel: 2, OutputType: "arme", PACost: 2,
 		Ingredients: []Item{{"objet", "Cuir", 2}, {"objet", "Corde", 1}}, Effects: "Équipement : -2 dégâts subis en combat"},
 	// --- déco : LA FAVEUR DES DIEUX (mythic.go) ---
