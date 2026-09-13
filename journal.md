@@ -6,6 +6,98 @@
 
 ---
 
+## 2026-09-13 (132) — L'outillage de la boucle de dev : ce qu'on refaisait à la main chaque session
+
+« Trouve tous les outils dont tu pourrais avoir besoin pour développer le jeu. » La réponse n'est pas
+une liste de serveurs MCP : le toolchain était DÉJÀ complet (Go 1.26, Node 22, Chromium, golangci-lint,
+27 paquets de tests verts, `tsc` propre). Ce qui manquait, c'est ce qui se trouve entre les outils et
+le travail.
+
+### Ce que c'était
+
+Trois trous, tous du même genre : un préambule obligatoire que personne n'avait écrit.
+
+1. **AUCUNE des 13 suites e2e ne démarre ses serveurs.** Chacune suppose déjà debout un backend :8080
+   ET un Vite :5173 — et sans eux, elle échoue par un timeout de 30 s sur `window.__eg?.store`. Ce
+   message ne dit PAS « il manque les serveurs » : il ressemble à une application cassée. (Le CLAUDE.md
+   affirmait d'ailleurs que `test:perf` « démarre les dev servers s'ils ne tournent pas » — vérifié,
+   aucune suite ne contient `child_process`.)
+2. **`frontend/node_modules` est absent au démarrage d'une session web.** Donc `tsc`, `vite`, `build` et
+   les 13 suites échouent tous, avant la première ligne de code.
+3. **Le dépôt n'avait QU'UN workflow, le battement.** Rien ne jouait les garde-fous — or ce sont eux qui
+   ont attrapé les pannes MUETTES du projet (un prop absent de `PROP_KEYS`, un voile de brouillard
+   jamais posé, un badge à 1,40:1 de contraste). Une panne muette non jouée part en production.
+
+### Livré
+
+**`frontend/tests/run.mjs`** (`npm test` · `npm start` · `--list` · `--keep` · `--serve`). Quatre
+décisions qui ont chacune une raison mesurée :
+- ⚠ il **RÉUTILISE** ce qui tourne (sonde `/healthz` et :5173) et ne ferme QUE ce qu'il a ouvert — un
+  serveur de dev ouvert dans un autre terminal ne doit pas mourir parce qu'on lance les tests ;
+- ⚠ **base JETABLE** (`ECHOTERRA_DB` en dossier temporaire) : les suites créent de VRAIES parties, et
+  les accumuler fait dériver `ensurePublicLobby` d'une exécution sur l'autre ;
+- ⚠ le backend est **compilé** (`go build`) et non lancé par `go run`, qui relaie mal les signaux (un
+  parent qui survit à son enfant) et laissait le port 8080 pris ;
+- ⚠ chaque serveur est lancé **`detached`** pour qu'on tue son GROUPE : tuer `npm` seul laissait Vite,
+  son enfant, sur le port.
+- `--serve` tient juste les serveurs, sur la base **RÉELLE** (une partie qu'on veut reprendre demain ne
+  doit pas mourir avec le process) — démarrer le jeu à la main demandait deux terminaux.
+
+**`.claude/hooks/session-start.sh`** + `.claude/settings.json`. Installe frontend, **racine** (`sharp`,
+d'où les aperçus des modèles voxel) et `scripts`, fait `go mod download`, pose `PERF_BROWSER`. Borné au
+distant (`CLAUDE_CODE_REMOTE`), idempotent. ⚠ **il ne servira qu'une fois fusionné dans `main`.**
+
+**`.github/workflows/ci.yml`** — trois emplois : Go (`vet`, `gofmt`, `test ./...` qui contient le
+plancher de survie), TypeScript (`tsc -b`, `build`, la suite sans serveur), et les 13 suites de
+navigateur via le lanceur. ⚠ **pas de `golangci-lint`** : le binaire installé est bâti avec go1.25 et
+REFUSE un module qui cible 1.26 (« the Go language version used to build golangci-lint is lower than
+the targeted Go version ») — il est donc inutilisable tel quel ; `go vet` + `gofmt` tiennent le rôle.
+
+**`/verif` et `/journal`** (`.claude/commands/`) : la batterie complète et la convention d'entrée de
+journal, écrites une fois au lieu d'être redécouvertes à chaque session.
+
+**Les 17 aperçus voxel manquants** (`asset-index/voxels/props/`). 80 aperçus pour 97 props — et les 17
+absents étaient EXACTEMENT les modèles les plus récents : les trois temples, les cinq bâtiments de
+spécialité, les props de thème (cactus, palmier, ossements, stèle runique, vire-vent, les deux épaves
+rhabillées, les deux halles sommitales). La surface de revue était donc périmée là où elle sert le
+plus. Ils manquaient parce que `sharp` vit à la RACINE et n'était pas installé sur la machine qui les a
+générés : le générateur écrit alors les `.vox` et SAUTE les aperçus en le disant.
+
+Plus **`gofmt` sur 5 fichiers** (20 lignes d'alignement dans `api.go`, `combat.go`, `craft.go`,
+`game.go`, `climb_test.go`) — sans quoi la barrière CI naissait rouge — et une seconde configuration de
+lancement pour le backend (le preview web ne démarrait que Vite, donc l'app tournait sans API).
+
+### Fonctionnel (vérifié)
+
+- **13/13 suites au vert en 8 min 05**, DÉPART À FROID (les deux ports vérifiés libres avant) : backend
+  compilé et debout en **411 ms**, Vite en **839 ms**, et **les deux ports libérés** après coup — c'est
+  le `detached` qui le prouve.
+- `go test ./...` 27 paquets OK · `gofmt -l backend` vide · `go vet` OK · `tsc -b` propre · `build` OK.
+- Le hook joué de bout en bout : exit 0, **idempotent** (~2 s quand tout est déjà là), `PERF_BROWSER`
+  bien écrit dans `CLAUDE_ENV_FILE`.
+- `--serve` joué : les deux serveurs debout, le **proxy `/api` traversant** (`/api/themes` via :5173
+  rend les trois thèmes), base `echoterra.db`, et Ctrl-C referme les deux.
+- Les 17 aperçus régénérés **sans qu'aucun `.vox` ne change** — les générateurs sont bien déterministes.
+- ⚠ **`asset-index/PROPORTIONS.md` bouge à chaque exécution SANS qu'un asset ait changé** : la carte est
+  tirée au hasard, donc l'audit échantillonne d'autres instances (quels monstres sont apparus, quelles
+  tailles de nuages). Un diff sur ce fichier n'est donc PAS un signal en soi — il faut lire la colonne
+  de verdict. La CI le publie en artefact, ce qui est sa vraie place.
+
+### À faire
+
+- **Le connecteur Canva est en `needs_reconnect`** : le CLAUDE.md dit de relire le GDD (`DAG5VNa6460`)
+  et les maquettes (`DAG5jZMck5o`) via `export-design`, et c'est aujourd'hui impossible. À reconnecter
+  côté claude.ai — sans ça une session travaille de mémoire sur le design.
+- Trois connecteurs qui manquent et qui auraient un usage RÉEL ici : **Vercel** (déboguer un déploiement
+  sans quitter la session), **Neon** (interroger la base de prod — c'est là que vivent les chiffres de
+  rétention de `api/metrics.go`, dont le plan dit que « tant qu'ils ne sont pas suivis, tout le reste est
+  une opinion »), **Sentry** (il n'y a AUCUNE remontée d'erreur : `ErrorBoundary` affiche un écran de
+  secours et l'erreur se perd — donc un plantage chez un joueur est invisible).
+- La CI n'a jamais tourné sur GitHub : la recherche de Chromium dans l'image de l'agent est écrite mais
+  **non jouée**, avec un repli `playwright install chromium` si elle échoue.
+- Le lanceur joue les suites EN SÉRIE (8 min). Les paralléliser demanderait un port par suite ; à
+  décider seulement si la durée devient un frein.
+
 ## 2026-08-17 (131) — Le ciel suivait le doigt : les nuages rebouclent au lieu de suivre
 
 « Les nuages bougent en même temps que la caméra et **la suivent**, ce n'est pas normal. » — et cette
