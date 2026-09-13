@@ -6,6 +6,76 @@
 
 ---
 
+## 2026-09-13 (132) — Audit de game design : six trous, dont un que la simulation cachait
+
+Guillaume : « j'aimerais que tu fasses un audit du design de ce jeu ». Pas de code produit —
+`DESIGN-AUDIT.md`, mené sur des mesures et pas sur une lecture.
+
+### La méthode
+
+`cmd/balance` sur 6 graines × {1,2,4,8,12,20} joueurs (20 vagues), 4 graines × 4 joueurs en détail
+(22 vagues), 2 graines × 20 joueurs (34 vagues). Chaque constat est marqué **[STRUCTURE]**
+(arithmétique ou code, vrai quel que soit le joueur) ou **[BOT]**. Les six problèmes retenus sont
+tous [STRUCTURE] — c'est le critère qui les a sélectionnés.
+
+### Les six
+
+- **A · la courbe de tension est plate puis verticale** : la ville ne perd pas UN PV pendant 58 à
+  77 % de la partie (1er dégât vague 11-15, chute vague 17-18), puis meurt en 3 à 6 vagues. La
+  défense de départ vaut 2 à 3 fois la horde de la vague 1.
+- **B · le plafond de défense est atteint à mi-partie** : 20 joueurs, défense **rigoureusement
+  constante à 80 de la vague 11 à la vague 25** pendant que la horde va de 62 à 209. Et la ville
+  tient exactement aussi longtemps que sa **Pierre** (stock à 0 → chute la vague d'après) : le vrai
+  compteur de fin de partie n'est ni la horde ni les bâtiments, et rien ne le dit au joueur.
+- **C · la construction ne tourne pas** : 4 joueurs (la taille par défaut) = **zéro bâtiment neuf**
+  et 1 à 3 niveaux gagnés sur 41 possibles, pour 1 224 PA de main-d'œuvre. Le bois n'arrive pas
+  (0,33/fouille en forêt contre 0,92 de pierre en montagne ; Banque à 0-5 bois en fin de partie).
+- **D · il n'y a aucun soin** : `processWave` rend les PA et jamais un PV. Les quatre sources de PV
+  sont toutes derrière un plan de ruine ou un Atelier niv.2 jamais atteint. Héros 12 → 8, 60 → 38.
+- **E · le combat iso est mal tarifé** : arène plafonnée à 4 créatures (`combat.go`) MAIS victoire
+  qui supprime le pack ENTIER (`FinishCombat`) — un 4v4 de difficulté constante retire jusqu'à
+  ~186 créatures de l'anneau, soit plus du double du plafond de défense, sans coûter un PA.
+  L'équilibrage est calibré sur des bots qui n'abattent que 5-8 % de la horde.
+- **F · la progression est une horloge** : `EvolveHero` ne teste que `g.Day`, tout est fini à 47 %
+  de la partie, identique pour qui joue tout et qui se connecte deux fois. Et **`Hero.Bars` est
+  écrit à 7 endroits et lu NULLE PART** (ni Go ni `frontend/src`), alors que son commentaire promet
+  qu'il « influence les classes » — le quatrième système fantôme après `StateSoif`, le moral de la
+  ville et l'Athlétisme.
+
+### ⚠ Le constat qu'il a fallu retirer
+
+Mon premier jet tenait « la porte reste ouverte 14 vagues sur 17 » — le simulateur le dit, et le
+code annote lui-même la porte ouverte comme *the single biggest defense leak*. **C'est un artefact
+d'échantillonnage** : `Snapshot.GateOpen` est lu APRÈS la vague et après plusieurs rounds de bots,
+qui rouvrent au matin. En recoupant la défense réellement opposée (31 à 44) avec le catalogue de
+`design.go`, le plafond porte-OUVERTE vaut 20 puis 30 : **la porte était fermée aux 17 vagues**. Le
+couvre-feu de `bots.go` marche. À retenir : sur ce simulateur, un drapeau d'état ne prouve rien sans
+une valeur calculée au moment de la vague.
+
+Au passage, deux nuances que la vérification a produites : à 4 joueurs la **garnison n'atteint jamais
+son plafond** (9-17 contre 22-27 disponibles) — la petite expédition manque de bras ; à 20 joueurs
+elle est saturée — la grande manque de pierre. Un seul levier ne corrigera pas les deux.
+
+### Autres écarts relevés
+
+Cadence contradictoire entre `CLAUDE.md` (vague/6 h → 4 par jour réel) et `RETENTION-PLAN.md`
+(12 h → 2 par jour réel), dont dépend tout le raisonnement de rétention · 7 des 8 compétences de
+carte sont le même `Kind: "blast"` · « l'épuisement de la carte est la vraie limite d'une longue
+partie » est **faux tel que mesuré** (1 483 ressources connues, constantes de la vague 14 à 25
+pendant que la ville meurt : la limite est le DÉBIT, pas le stock — le Verger répond donc à un
+problème inexistant) · `Tétanisé` max 1 et `Caché` max 0 sur tous les runs.
+
+### À faire
+
+Rien n'est implémenté : l'audit propose 3 corrections d'une demi-journée (croisement de la courbe
+vers la vague 3-4, tarifer le combat sur la taille du pack, figer la cadence dans le code), 2
+chantiers d'une semaine (brancher `Bars` sur l'évolution, un soin de base pour qui passe la vague
+DANS les murs) et une décision de fond : le prochain lot devrait **dégager et supprimer**, pas
+ajouter. Trois questions restent ouvertes et demandent un joueur humain, pas le simulateur — elles
+sont listées en §6 du document.
+
+---
+
 ## 2026-08-17 (131) — Le ciel suivait le doigt : les nuages rebouclent au lieu de suivre
 
 « Les nuages bougent en même temps que la caméra et **la suivent**, ce n'est pas normal. » — et cette
