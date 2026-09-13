@@ -74,6 +74,44 @@ DANS les murs) et une décision de fond : le prochain lot devrait **dégager et 
 ajouter. Trois questions restent ouvertes et demandent un joueur humain, pas le simulateur — elles
 sont listées en §6 du document.
 
+### Addendum §7 — le pilier collaboratif, et le critère que l'audit n'avait pas appliqué
+
+Guillaume, après lecture : « l'idée est collaborative, il ne faut pas qu'un joueur puisse tout faire
+tout seul ». Passé sur le code, le constat est plus grave que les six précédents parce qu'il touche
+la prémisse.
+
+- **UNE SEULE LIGNE de tout le paquet `game` exige un second joueur** : `requests.go:124`
+  (« se servir soi-même n'est pas rendre service »). Rien d'autre — construire, réparer, combattre,
+  déblayer, voter — ne regarde de QUI viennent les mains. `resolveBlessingVote` n'a **aucun quorum**
+  et les bots ne votent pas : dans une partie solo, un joueur élit le dieu de la ville tout seul.
+- **La cause est structurelle et le code la documente lui-même** : `bots.go` écrit que « le jeu
+  demande exactement trois choses en parallèle » (bâtisseur / défenseur / récolteur) et `heroRole`
+  distribue ces trois rôles par RANG dans l'équipe (`i % 3`) pour garantir un de chaque **à chaque
+  joueur pris isolément**. Un joueur n'est pas un membre de l'expédition, c'est une expédition
+  miniature. L'arène dit pareil : **7 places de héros contre 4 créatures au maximum**.
+- **Le diagnostic** : le multijoueur est ADDITIF, jamais COMPLÉMENTAIRE. Tout scale sur le nombre de
+  joueurs, rien ne se gate dessus. Il n'existe aucune action qu'un solo ne puisse faire, seulement
+  des actions qu'il fait plus lentement.
+- ⚠ **Ça invalide ma recommandation 6 telle qu'écrite** (« abaisser massivement la rareté des
+  plans ») : elle réglait le trou de la construction au prix du pilier. Corrigée dans le document —
+  baisser le COÛT, pas la CONDITION.
+- **Le bon patron existe déjà et ne sert qu'une fois** : `ScoutWave` — coût individuel (2 PA),
+  plafond par JOUEUR distinct (`Town.Scouts` retient le joueur), bénéfice collectif (la fourchette
+  se resserre pour toute la ville). Trois joueurs y voient plus clair qu'un joueur qui aurait trois
+  fois plus de PA. C'est le seul endroit où l'effectif produit une chose qu'un solo ne peut pas.
+- ⚠ **Contradiction à trancher avant de coder** : le projet a investi dans le chemin inverse
+  (bouton Solo, escorte IA de R4, catégorie solo au classement, `SurvivalFloor` vérifié À 1 JOUEUR).
+  Les deux ne se maximisent pas. Trois options posées dans le document ; je recommande « le solo est
+  un mode d'entraînement, les bots comptent comme joueurs distincts mais jamais pour plus de la
+  moitié des voix requises ».
+- **Quatre portes proposées**, du moins au plus risqué : quorum de deux voix au Temple · maximum
+  2 héros d'un même joueur dans une arène (règle aussi le trou §2.E) · un niveau de chantier qui
+  exige les PA de deux joueurs distincts (`Contributions` porte déjà la donnée) · et, posée comme
+  question et non comme tâche, la remise en cause de l'équipe de trois elle-même.
+- **Le critère d'acceptation** : « combien de choses une expédition de quatre accomplit-elle qu'une
+  d'un seul n'accomplira JAMAIS ? » Aujourd'hui **N = 1**. C'est ce chiffre qu'il faut faire monter,
+  et l'instrumenter plutôt que la survie — qui ne mesure que le débit.
+
 ---
 
 ## 2026-08-17 (131) — Le ciel suivait le doigt : les nuages rebouclent au lieu de suivre

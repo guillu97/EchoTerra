@@ -314,9 +314,10 @@ faut baisser et le nombre de systèmes qu'il faut réduire.**
 
 6. **Arrêter d'ajouter des systèmes, et rendre atteignables ceux qui existent.** Concrètement, le
    prochain lot devrait être un lot de **suppression et de dégagement**, pas d'ajout :
-   - abaisser massivement la rareté des plans (ou faire tomber les plans des bâtiments de BASE —
-     Mairie, Tour, Cuisine — sans ruine du tout), pour que la partie type en construise trois ou
-     quatre au lieu de zéro ;
+   - abaisser le coût des plans de bâtiments de BASE (Mairie, Tour, Cuisine) pour que la partie
+     type en construise trois ou quatre au lieu de zéro — ⚠ **en baissant le coût, pas la
+     condition** : voir §7, une rareté qu'on lève à l'aveugle rend un solo capable de bâtir la
+     ville entière, ce que le pilier collaboratif interdit ;
    - remonter le poids du **Bois** en forêt au niveau de la Pierre en montagne, et faire de la
      Pierre une ressource dont l'ordre du jour parle explicitement comme du carburant de survie
      qu'elle est ;
@@ -344,3 +345,140 @@ d'agir sur les recommandations qui en dépendent :
 - **La phase plate de A est-elle vécue comme vide, ou comme une installation tranquille ?** Cinq
   jours sans menace peuvent être un tutoriel généreux plutôt qu'un temps mort — mais il faudrait
   alors que le jeu le DISE, et l'ordre du jour ne parle aujourd'hui que d'urgences.
+
+---
+
+## 7. Addendum — le pilier collaboratif (précision de Guillaume, 2026-09-13)
+
+> « L'idée est collaborative, il ne faut pas qu'un joueur puisse tout faire tout seul. »
+
+Cet énoncé est un **critère d'acceptation**, et l'audit de §2 ne l'avait pas appliqué. Je l'ai donc
+passé sur le code. Le résultat est net, et il est plus grave que les six problèmes précédents parce
+qu'il touche la prémisse.
+
+### 7.1 · Ce qui, dans tout le paquet `game`, exige un second joueur
+
+**Une ligne.**
+
+```
+requests.go:124   if req.PlayerID == g.OwnerOfHero(heroID) {
+                      return nil, ActionError{"se servir soi-même n'est pas rendre service"}
+```
+
+C'est tout. Aucune autre action du jeu — construire, améliorer, réparer, fouiller, craft, combattre,
+déblayer une ruine, bâtir un belvédère, voter une bénédiction, ouvrir ou fermer la porte — ne
+regarde jamais de QUI viennent les mains. Le scrutin du Temple lui-même n'a **aucun quorum**
+(`resolveBlessingVote` élit dès `Votes > 0`) et les joueurs-IA ne votent pas : dans une expédition
+d'un humain et de robots, **un joueur seul élit le dieu de la ville**.
+
+### 7.2 · Pourquoi : l'équipe de trois est une expédition complète en miniature
+
+La cause n'est pas un oubli, elle est dans la structure — et le jeu la documente lui-même, dans
+`bots.go` :
+
+> *« Un joueur aligne trois héros (`HeroesPerPlayer`), et le jeu demande exactement trois choses en
+> parallèle : `roleBuilder` — reste en ville ; `roleDefender` — dégage l'anneau ; `roleGatherer` —
+> rapporte le bois et la pierre. »*
+
+Et `heroRole` distribue ces trois rôles par **rang dans l'équipe** (`i % 3`), précisément pour
+garantir « un de chaque » à **chaque joueur pris isolément**. Autrement dit : le jeu a identifié
+trois fonctions nécessaires, puis a donné à chaque joueur exactement une de chacune. **Un joueur
+n'est pas un membre de l'expédition, c'est une expédition miniature.**
+
+Le combat dit la même chose : l'arène offre **7 places de héros** (`spawnX`) contre **4 créatures
+au maximum** (`n > 4 → 4`, §2.E). Les trois héros d'un seul joueur suffisent donc à remporter
+n'importe quel combat du jeu, boss compris. Aucune bataille ne demande d'être deux.
+
+### 7.3 · Le diagnostic : un multijoueur ADDITIF, jamais COMPLÉMENTAIRE
+
+Tout dans le jeu **scale** avec le nombre de joueurs — la garnison, les PA de chantier, la
+prospection, les combats menés — et **rien ne se GATE** dessus. Quatre joueurs, c'est un joueur
+quatre fois, jamais quatre quarts de quelque chose.
+
+La conséquence est exactement celle que Guillaume redoute, et elle est mesurable : **il n'existe
+aucune action du jeu qu'un solo ne puisse accomplir ; il n'existe que des actions qu'il accomplit
+plus lentement.** La coopération est un accélérateur de débit, pas une condition de capacité. Or
+« survie de groupe » promet le second.
+
+⚠ Et c'est ce qui rend ma recommandation 6 (« abaisser massivement la rareté des plans ») fausse
+telle que je l'avais écrite : elle réglait §2.C — la ville ne construit rien — au prix du pilier.
+Un plan commun, c'est une ville qu'un joueur seul finit par bâtir entière.
+
+### 7.4 · Le bon patron existe déjà dans le code, et il ne sert qu'une fois
+
+`ScoutWave` (`orders.go`) est la mécanique qui fait exactement ce qu'il faut :
+
+- observer coûte 2 PA à un héros ;
+- mais **le registre `Town.Scouts` retient le JOUEUR, pas le héros** — une équipe ne peut observer
+  qu'une fois par vague, « laisse la place aux autres » ;
+- et **l'effet est collectif** : la fourchette de prévision se resserre pour toute la ville.
+
+C'est la forme complète : un **coût individuel**, un **plafond par joueur distinct**, un **bénéfice
+partagé**. Trois joueurs y voient plus clair qu'un joueur qui aurait trois fois plus de PA. C'est
+le seul endroit du jeu où l'effectif produit une chose qu'un solo ne peut pas produire — et il n'y
+en a qu'un.
+
+### 7.5 · La contradiction qu'il faut trancher AVANT de coder quoi que ce soit
+
+Le projet a investi lourdement dans le chemin inverse, et ce n'est pas un accident :
+
+- `POST /api/games/solo` — un bouton « 🤖 Solo » sur l'écran titre, privée + 4 bots, lancée
+  immédiatement ;
+- `MaybeStartWithEscort` (R4) — au bout de 90 s, une expédition publique part avec une **escorte de
+  joueurs-IA** plutôt que de faire attendre ;
+- `LeaderboardMode` — le mode **solo** est une catégorie de classement à part entière, et une
+  expédition d'un humain entouré de robots y est rangée ;
+- `SurvivalFloor = 12` est vérifié **à 1 joueur** : le contrat d'équilibrage exige aujourd'hui
+  qu'une ville tenue par un seul joueur tienne douze vagues.
+
+**On ne peut pas maximiser les deux.** Toute mécanique qui exige un second joueur rend le mode solo
+strictement moins capable, et fera tomber le plancher à 1 joueur. Il faut choisir, explicitement :
+
+| | Ce que ça implique |
+|---|---|
+| **A · Le solo est un mode d'entraînement** | Les bots comptent comme des joueurs distincts pour les portes collaboratives. Le pilier tient entre humains, le solo reste jouable. **Le moins coûteux, et je le recommande.** |
+| **B · Le solo est déclassé** | Les portes exigent des joueurs HUMAINS distincts. Le pilier est pur, mais `SurvivalFloor` à 1 joueur doit être abaissé ou retiré, et le bouton Solo requalifié en démo. |
+| **C · Statu quo** | Le pilier reste une intention, pas une règle. À écrire noir sur blanc plutôt qu'à laisser croire. |
+
+⚠ L'option A a un piège à documenter : si un bot compte comme un joueur distinct, l'escorte IA
+ouvre toutes les portes, et un humain accompagné de quatre robots retrouve exactement l'autonomie
+qu'on voulait lui retirer. La version tenable est **« un bot compte, mais jamais pour plus de la
+moitié des voix requises »**.
+
+### 7.6 · Quatre portes collaboratives, du moins au plus risqué
+
+Toutes reprennent le patron 7.4 (coût individuel, plafond par joueur distinct, bénéfice partagé) et
+n'ajoutent aucun système : elles posent une condition sur des données que le serveur tient déjà
+(`OwnerOfHero`, `Contributions`, `Town.Scouts`).
+
+1. **Quorum au Temple** — une bénédiction exige **deux voix distinctes**. Une ligne dans
+   `resolveBlessingVote`, et le pilier mythique devient une décision de groupe au lieu d'un bouton.
+   Aucun risque d'équilibrage : ne pas invoquer est déjà l'état par défaut.
+2. **L'arène demande du monde** — borner à **2 les héros d'un même joueur** dans un combat (7 places
+   disponibles). D'une pierre deux coups : ça rend collaboratif le système le plus cher du jeu
+   (2 181 lignes que rien n'oblige à ouvrir) et ça atténue §2.E, où un joueur seul efface un pack de
+   186 créatures. ⚠ à combiner avec un repli quand personne d'autre n'est en ligne, sinon un joueur
+   isolé face à un pack sur sa case est bloqué — le pilier ne doit jamais devenir un mur.
+3. **Le chantier veut plusieurs mains** — l'achèvement d'un niveau exige des PA d'au moins **deux
+   joueurs distincts**. `Contributions` compte déjà les PA de chantier par joueur : la donnée est là.
+   C'est le levier le plus fort — il touche le système-vitrine — et le plus dangereux : il faut le
+   passer au sweep avant de le croire, parce que §2.C dit qu'aujourd'hui la ville ne construit
+   presque rien, et qu'une porte de plus pourrait la faire tomber à zéro.
+4. **Les rôles ne tiennent plus dans une équipe** — la porte de fond, et celle que je ne
+   recommande pas encore : tant que trois héros couvrent bâtisseur + défenseur + récolteur, le
+   joueur est autonome **par construction** (7.2), et toutes les portes ci-dessus resteront des
+   verrous posés par-dessus une structure qui les contredit. Y toucher (limiter les branches de
+   classe qu'une même équipe peut tenir, par exemple) est un chantier de fond qui demande son
+   propre document et son propre sweep. À poser maintenant comme une question, à ne pas coder
+   dans la foulée.
+
+### 7.7 · Le critère d'acceptation, pour qu'on puisse trancher par la mesure
+
+Le pilier ne sera pas tenu tant qu'on ne pourra pas produire cette phrase à partir du simulateur :
+
+> *« Voici N choses qu'une expédition de quatre accomplit et qu'une expédition d'un seul
+> n'accomplit JAMAIS, quel que soit le temps qu'on lui laisse. »*
+
+Aujourd'hui **N = 1** (honorer une requête du Panneau). C'est le chiffre à faire monter, et c'est
+lui qu'il faut instrumenter — pas la survie, qui ne dit que le débit.
+
