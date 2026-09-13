@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -38,6 +39,9 @@ func Open(dsn string) (*Store, error) {
 	db, err := sql.Open(driver, dsn)
 	if err != nil {
 		return nil, fmt.Errorf("open db: %w", err)
+	}
+	if postgres {
+		configurePool(db)
 	}
 	s := &Store{db: db, postgres: postgres}
 	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS games (
@@ -296,6 +300,60 @@ func unixOrZero(t time.Time) int64 {
 }
 
 // rebind converts ?-style placeholders to $1..$n for Postgres.
+// configurePool règle le pool de connexions pour un Postgres SERVERLESS (Neon
+// derrière Vercel). Les valeurs par défaut de `database/sql` sont pensées pour un
+// serveur résident et tiennent mal ici, sur deux points :
+//
+// ⚠ **UNE CONNEXION INACTIVE MEURT SANS PRÉVENIR.** Le plan gratuit de Neon suspend
+// le compute après cinq minutes sans trafic, et son pooler ferme les connexions
+// oisives de son côté. Sans `SetConnMaxIdleTime`, Go garde ces connexions MORTES dans
+// son pool et les distribue : la requête échoue, et l'échec tombe sur le joueur qui
+// revient après une pause — exactement le moment où le jeu doit marcher. On les
+// retire donc AVANT que Neon ne les ferme.
+//
+// ⚠ **LE NOMBRE DE CONNEXIONS SE MULTIPLIE PAR LE NOMBRE D'INSTANCES.** `MaxOpenConns`
+// vaut zéro (illimité) par défaut : une seule instance peut déjà ouvrir autant de
+// connexions que de requêtes simultanées, et le scale-to-zero en réveille plusieurs
+// d'un coup. Borner par instance est la seule façon de garder le total sous le quota
+// du pooler. La borne est large au regard de la charge réelle — le verrou par partie
+// (`Server.lockGame`) sérialise déjà les requêtes d'une même expédition.
+//
+// ⚠ ce n'est PAS une optimisation de latence : les ~6 requêtes SQL d'une action sont
+// SÉQUENTIELLES, donc elles réutilisent la même connexion de toute façon. C'est de la
+// robustesse — et la garantie qu'on ne fera pas tomber la base d'à côté.
+func configurePool(db *sql.DB) {
+	db.SetMaxOpenConns(8)
+	db.SetMaxIdleConns(4)
+	db.SetConnMaxIdleTime(4 * time.Minute) // sous les 5 min de suspension de Neon
+	db.SetConnMaxLifetime(30 * time.Minute)
+}
+
+// DescribeDSN rend une description du DSN **SANS SECRET**, pour le journal de
+// démarrage.
+//
+// ⚠ **UN DSN NE SE JOURNALISE JAMAIS TEL QUEL** : il porte le mot de passe de la base
+// en clair, et les journaux d'un hébergeur se relisent, se partagent et survivent au
+// déploiement. `main.go` imprimait `db=%s` à chaque démarrage à froid.
+//
+// Au passage, la description DIT si l'on parle au point d'entrée « pooled ». C'est la
+// seule vérification qui vaille : la variable s'appelle `DATABASE_URL` dans les deux
+// cas, sa valeur est masquée dans le tableau de bord, et brancher le point d'entrée
+// DIRECT fait payer une poignée de main TLS complète à chaque instance réveillée.
+func DescribeDSN(dsn string) string {
+	if !strings.HasPrefix(dsn, "postgres://") && !strings.HasPrefix(dsn, "postgresql://") {
+		return "sqlite " + dsn // un chemin de fichier ne porte pas de secret
+	}
+	u, err := url.Parse(dsn)
+	if err != nil {
+		return "postgres (DSN illisible)"
+	}
+	mode := "DIRECT ⚠ (préférer l'entrée -pooler)"
+	if strings.Contains(u.Hostname(), "-pooler") {
+		mode = "pooled"
+	}
+	return fmt.Sprintf("postgres %s%s [%s]", u.Hostname(), u.Path, mode)
+}
+
 func (s *Store) rebind(query string) string {
 	if !s.postgres {
 		return query

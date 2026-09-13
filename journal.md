@@ -98,11 +98,32 @@ session bloque `vercel.sh` comme `vercel.app`) : le preset *Services* est récen
 la clé par service — si un déploiement s'exécute encore hors de `lhr1`, le réglage du tableau de bord
 (Settings → Functions) fait autorité.
 
+### Et en allant vérifier le « pooler » : un DSN journalisé en clair
+
+L'utilisateur a montré ses variables d'environnement — l'intégration Neon en pose deux de même
+forme (`DATABASE_URL` pooled, `DATABASE_URL_UNPOOLED` direct) dont le tableau de bord **masque les
+valeurs**. Impossible de vérifier à l'œil laquelle est branchée. En allant lire comment le backend
+les résout, ⚠⚠ **`main.go` imprimait le DSN BRUT à chaque démarrage à froid** (`db=%s`) : le mot de
+passe Postgres en clair dans les journaux de l'hébergeur, qui se relisent, se partagent et
+survivent au déploiement. Rien à voir avec la latence, tout à voir avec le fait d'avoir ouvert le
+fichier.
+
+- **`store.DescribeDSN`** : description SANS SECRET (hôte + base), et qui **DIT** si l'on parle à
+  l'entrée `-pooler` — `[pooled]` ou `[DIRECT ⚠]`. La vérification invérifiable devient une ligne
+  de journal. Tests : `internal/store/dsn_test.go` (mot de passe ET identifiant absents, hôte
+  conservé — sinon le journal ne sert plus à diagnostiquer —, DSN cassé sans panique ni fuite).
+- **`store.configurePool`** (Postgres uniquement) : Neon suspend son compute après 5 min et son
+  pooler ferme les connexions oisives ⇒ `ConnMaxIdleTime` 4 min les retire AVANT lui, sinon Go
+  distribue des connexions MORTES et l'échec tombe sur le joueur qui revient après une pause —
+  précisément le moment où le jeu doit marcher. `MaxOpenConns` borné parce que le nombre de
+  connexions se multiplie par le nombre d'instances réveillées. ⚠ **ce n'est PAS une optimisation
+  de latence** et il ne faut pas le vendre comme telle : les ~6 requêtes d'une action sont
+  SÉQUENTIELLES, donc elles réutilisaient déjà la même connexion. C'est de la robustesse.
+
 ### À faire (demande l'accès Vercel/Neon, pas du code)
 
-- Vérifier que `DATABASE_URL` pointe sur l'endpoint **`-pooler`** de Neon.
-- Vérifier après déploiement que l'exécution a bien lieu à Londres, et que la compression + le 304
-  survivent au CDN (`curl -D -`).
+- Lire le journal de démarrage du prochain déploiement : `[pooled]` attendu, et la région `lhr1`.
+- Vérifier que la compression + le 304 survivent au CDN (`curl -D -`).
 - Vérifier que le CDN Vercel relaie bien `If-None-Match` et le 304 (`curl -D -` en production).
 - Optionnel : ne réécrire `saveScore`/`saveChronicle` que lorsque ce qu'elles stockent a changé
   (empreinte persistée dans le blob, donc gratuite) — 2 allers-retours de moins sur 6. À faire APRÈS

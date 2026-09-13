@@ -79,7 +79,12 @@ func main() {
 		tickToken = os.Getenv("CRON_SECRET")
 	}
 	srv.SetTickToken(tickToken)
-	log.Printf("Echo Terra API en écoute sur %s (db=%s, vercel=%v)", addr, dsn, os.Getenv("VERCEL") != "")
+	// ⚠ JAMAIS le DSN brut : il porte le mot de passe de la base en clair, et ce
+	// journal est réimprimé à chaque démarrage à froid chez l'hébergeur.
+	// `DescribeDSN` retire le secret ET dit si l'on parle bien au point d'entrée
+	// « pooled » de Neon — la seule façon de le vérifier, la variable portant le même
+	// nom et sa valeur étant masquée dans le tableau de bord.
+	log.Printf("Echo Terra API en écoute sur %s (db=%s, vercel=%v)", addr, store.DescribeDSN(dsn), os.Getenv("VERCEL") != "")
 	if err := http.ListenAndServe(addr, srv.Router()); err != nil {
 		log.Fatalf("server: %v", err)
 	}

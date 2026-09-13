@@ -169,8 +169,22 @@ ne sait pas faire.
   base déménage** (table de correspondance dans `DEPLOY.md`), et le réglage du tableau de bord
   (Settings → Functions → Function Region) fait autorité si le preset *Services*, récent,
   n'honorait pas la clé.
+- **LA BASE, côté connexion** (`store.configurePool` + `store.DescribeDSN`, 2026-09-13) —
+  ⚠⚠ **`main.go` journalisait le DSN BRUT** (`db=%s`) à chaque démarrage à froid : le mot de
+  passe Postgres en clair dans les journaux de l'hébergeur, qui se relisent et survivent au
+  déploiement. `DescribeDSN` rend une description sans secret (hôte + base seulement) et **dit
+  si l'on parle à l'entrée `-pooler`** — la seule vérification possible, l'intégration Neon
+  posant DEUX variables de même forme (`DATABASE_URL` pooled, `DATABASE_URL_UNPOOLED` direct)
+  dont le tableau de bord masque les valeurs. ⚠ le pool `database/sql` est réglé pour le
+  SERVERLESS : Neon suspend après 5 min et son pooler ferme les connexions oisives, donc
+  `ConnMaxIdleTime` (4 min) les retire AVANT lui — sinon Go distribue des connexions MORTES et
+  l'échec tombe sur le joueur qui revient après une pause ; `MaxOpenConns` est borné parce que
+  le nombre de connexions se multiplie par le nombre d'instances réveillées. ⚠ **ce n'est pas
+  une optimisation de latence** : les ~6 requêtes d'une action sont SÉQUENTIELLES, donc elles
+  réutilisaient déjà la même connexion. C'est de la robustesse.
 Garde-fous : `internal/api/transport_test.go` (compression effective, 304 sans corps, action jamais
-304, monde changé qui casse l'empreinte, empreinte propre à chaque joueur).
+304, monde changé qui casse l'empreinte, empreinte propre à chaque joueur) et
+`internal/store/dsn_test.go` (aucun secret dans le journal, `pooled` vs `DIRECT` détecté).
 
 **Horloge de simulation & BATTEMENT (2026-08-01)** — le monde avance **par le temps écoulé**, pas par
 un processus vivant : `GameState.AdvanceTo(now, SimBudget)` (`game/sim.go`) rejoue la période manquée

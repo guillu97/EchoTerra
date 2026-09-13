@@ -184,10 +184,26 @@ est récent : si un déploiement montre encore une exécution hors de `lhr1`, po
 à la main dans **Settings → Functions → Function Region** (le réglage du tableau de bord
 fait autorité et existe sur Hobby quoi qu'il arrive).
 
-**Vérifier ensuite l'endpoint « pooled »** : `DATABASE_URL` doit contenir `-pooler` dans son
-hôte (`…@ep-xxx-pooler.eu-west-2.aws.neon.tech/…`). Sans lui, chaque instance froide ouvre une
-connexion Postgres directe — poignée de main TLS complète à chaque réveil — et le quota de
-connexions part vite quand plusieurs instances s'éveillent ensemble.
+**L'endpoint « pooled » : le serveur le DIT au démarrage.** L'intégration Neon pose deux
+variables de même forme (`DATABASE_URL` pooled, `DATABASE_URL_UNPOOLED` direct) et le tableau
+de bord masque leurs valeurs — impossible de vérifier à l'œil laquelle est branchée. Le journal
+de démarrage le donne :
+
+```
+Echo Terra API en écoute sur :3000 (db=postgres ep-xxx-pooler.eu-west-2.aws.neon.tech/neondb [pooled], vercel=true)
+```
+
+`[DIRECT ⚠]` à la place de `[pooled]` veut dire que `ECHOTERRA_DB` ou `DATABASE_URL` pointe sur
+l'entrée directe : chaque instance froide paie alors une poignée de main TLS complète, et le
+quota de connexions part vite quand plusieurs s'éveillent ensemble. ⚠ **le DSN n'est jamais
+journalisé tel quel** (`store.DescribeDSN`) — il porte le mot de passe de la base en clair, et
+les journaux d'un hébergeur se relisent et survivent au déploiement.
+
+**Le pool de connexions** est réglé pour le serverless (`store.configurePool`, Postgres
+uniquement) : Neon suspend son compute après cinq minutes et son pooler ferme les connexions
+oisives, donc `ConnMaxIdleTime` les retire AVANT que Neon ne le fasse — sans quoi Go distribue
+des connexions mortes, et l'échec tombe sur le joueur qui revient après une pause. `MaxOpenConns`
+est borné parce que le nombre de connexions se multiplie par le nombre d'instances réveillées.
 
 ## Limites du plan gratuit à connaître
 
